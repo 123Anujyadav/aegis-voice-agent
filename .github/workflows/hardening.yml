@@ -57,6 +57,16 @@ env:
   # The AI plane. Listed explicitly rather than discovered, because these are
   # the modules Phase 10.5 makes claims about and a silent change to the set
   # would invalidate the claims without failing anything.
+  #
+  # Phase 12 T3 added the Phase 11 real-time plane (second group). Until then
+  # this list held only the eight Phase 10 modules, so the NIGHTLY repeated
+  # shuffled race job — the mode most likely to surface interleaving-dependent
+  # races — excluded every Phase 11 module, including the voice pipeline, which
+  # runs per-turn goroutines and is the most concurrent code in the platform.
+  # pr-go.yml covered them per-push via go.work auto-discovery, but pr-go.yml
+  # does not run on a schedule, so code that stopped changing stopped being
+  # re-examined. Listed in dependency order: telephony → media → audio
+  # intelligence → speech → voice.
   AI_MODULES: >-
     packages/go/metrics
     packages/go/runtime
@@ -66,6 +76,12 @@ env:
     packages/go/governance
     packages/go/evaluation
     packages/go/evalsubjects
+    packages/go/telephony
+    packages/go/media
+    packages/go/audiointel
+    packages/go/audiobridge
+    packages/go/speech
+    packages/go/voice
 
 jobs:
   # ---------------------------------------------------------------------------

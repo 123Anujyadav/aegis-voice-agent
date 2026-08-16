@@ -55,11 +55,31 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
-      # `go work sync` rewrites go.work.sum. Under -mod=readonly it reports
-      # drift instead, which is what CI wants: a build that edits its own
-      # manifest is not reproducing what the author tested.
-      - name: Verify Go workspace is consistent
-        run: go work sync -n || (echo "::error::go.work.sum is stale; run 'go work sync' locally" && exit 1)
+      # `go work sync` takes NO flags. The previous `-n` was rejected outright
+      # ("flag provided but not defined: -n", exit 2), so this gate failed on
+      # every run while reporting a stale go.work.sum that was never tested —
+      # and because it failed, the build and test steps below never executed.
+      # Nor does -mod=readonly turn sync into a dry run; sync ignores it.
+      #
+      # The replacement snapshots the manifests, runs the real sync, compares,
+      # and restores either way so later steps build exactly what was committed.
+      # Only go.work.sum is compared: `go work sync` also normalises go.work's
+      # use-block ordering, which is a separate concern from sum staleness and
+      # would make this gate fail for a reason it does not name.
+      - name: Verify go.work.sum is clean
+        run: |
+          set -euo pipefail
+          cp go.work go.work.snapshot
+          cp go.work.sum go.work.sum.snapshot
+          go work sync
+          status=0
+          if ! diff -u go.work.sum.snapshot go.work.sum; then
+            echo "::error::go.work.sum is stale; run 'go work sync' locally and commit the result"
+            status=1
+          fi
+          mv go.work.snapshot go.work
+          mv go.work.sum.snapshot go.work.sum
+          exit "${status}"
 
       - name: Build every module
         run: |

@@ -150,11 +150,28 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: ${{ matrix.module }}/go.sum
 
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.63.4
-          working-directory: ${{ matrix.module }}
-          args: --timeout=10m
+      # golangci-lint-action installs a PREBUILT binary, and the v1.63.4 release
+      # binary was compiled with go1.23. golangci-lint refuses to load a config
+      # whose targeted Go version exceeds its own build version, so every module
+      # declaring `go 1.25.0` died before analysing a single file:
+      #
+      #   can't load config: the Go language version (go1.23) used to build
+      #   golangci-lint is lower than the targeted Go version (1.25.0)
+      #
+      # 39 of 40 lint jobs failed this way and produced ZERO findings — the
+      # linter never ran. Building from source with the runner's own toolchain
+      # removes the mismatch by construction, and matches how this workflow
+      # already installs gofumpt and govulncheck.
+      #
+      # v1.64.8 is the last of the v1 line. The v2 releases require a rewritten
+      # config schema, and migrating .golangci.yml is a change to the linter set
+      # rather than a fix for this defect.
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+
+      - name: Run golangci-lint
+        working-directory: ${{ matrix.module }}
+        run: golangci-lint run --timeout=10m
 
   format:
     name: gofumpt
