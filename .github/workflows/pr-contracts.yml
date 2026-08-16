@@ -1,0 +1,112 @@
+# =============================================================================
+# Contracts PR gate.
+#
+# The most consequential gate in the repository.
+#
+# A breaking contract change does not merely fail a build — it breaks Android
+# clients that will not update for months (Phase 1 §14). Those users cannot be
+# rolled back and cannot be forced to upgrade quickly. `buf breaking` is what
+# makes that constraint mechanical rather than a matter of reviewer vigilance.
+# =============================================================================
+name: pr-contracts
+
+on:
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "packages/*/contracts-*/**"
+      - ".github/workflows/pr-contracts.yml"
+  merge_group:
+
+concurrency:
+  group: pr-contracts-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.72.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lint protobuf definitions
+        run: buf lint
+        working-directory: contracts
+
+      - name: Check protobuf formatting
+        run: buf format --diff --exit-code
+        working-directory: contracts
+
+  breaking:
+    name: Breaking change detection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the comparison needs the base branch, and a shallow
+          # clone cannot resolve it.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.72.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Compared against the merge base rather than the tip of main, so a PR is
+      # judged on what it changes and is not blamed for a breaking change that
+      # landed on main after it was branched.
+      - name: Detect breaking changes
+        run: |
+          buf breaking --against \
+            ".git#branch=${{ github.event.pull_request.base.ref || 'main' }},subdir=contracts"
+        working-directory: contracts
+
+  drift:
+    name: Generated code is current
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.72.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Regenerate bindings
+        run: buf generate
+        working-directory: contracts
+
+      # Generated bindings are committed (Phase 1 §20 rule 7) so that IDEs
+      # resolve them and builds are reproducible. This check is what keeps that
+      # safe: it fails if the committed output does not match a fresh
+      # generation, which catches both a stale commit and a hand edit — the
+      # latter being a change that would otherwise be silently reverted by the
+      # next generation.
+      - name: Verify no drift
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- packages/go/contracts-go packages/python/contracts-py packages/kotlin/contracts-kt packages/ts/contracts-ts; then
+            echo "::error::Generated bindings are out of date or were hand-edited."
+            echo "Run 'task contracts:generate' and commit the result."
+            git diff --stat -- packages/go/contracts-go packages/python/contracts-py packages/kotlin/contracts-kt packages/ts/contracts-ts
+            exit 1
+          fi
+          echo "Generated bindings match the contract definitions."

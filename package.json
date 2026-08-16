@@ -1,0 +1,66 @@
+{
+  "//": [
+    "Repository TOOLING dependencies only. This is NOT an application package.",
+    "",
+    "The admin console arrives in a later phase under web/. Until then the only",
+    "reason Node exists in this repository is the tooling below, which has no",
+    "good equivalent in the other toolchains: commit-message linting, and",
+    "formatting for the YAML, JSON and Markdown that every language shares.",
+    "",
+    "Keeping this at the root rather than inventing a tools/ package means an",
+    "engineer runs 'pnpm install' once and every cross-cutting check works."
+  ],
+  "name": "callscreen-platform-tooling",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "format": "prettier --write \"**/*.{yml,yaml,json,json5,md}\"",
+    "format:check": "prettier --check \"**/*.{yml,yaml,json,json5,md}\"",
+    "lint:md": "markdownlint-cli2 \"docs/**/*.md\" \"*.md\"",
+    "lint:commit": "commitlint --from=origin/main --to=HEAD --verbose"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "19.6.1",
+    "@commitlint/config-conventional": "19.6.0",
+    "markdownlint-cli2": "0.17.1",
+    "prettier": "3.4.2"
+  },
+  "prettier": {
+    "//": [
+      "Prettier config lives here rather than in a .prettierrc so that there is",
+      "one fewer root-level dotfile to explain during onboarding."
+    ],
+    "printWidth": 100,
+    "singleQuote": false,
+    "trailingComma": "all",
+    "endOfLine": "lf",
+    "overrides": [
+      {
+        "//": [
+          "Markdown keeps its own line breaks. Reflowing prose produces diffs",
+          "that touch every line of a paragraph for a one-word change, which",
+          "makes documentation review substantially harder."
+        ],
+        "files": "*.md",
+        "options": {
+          "proseWrap": "preserve"
+        }
+      }
+    ]
+  },
+  "pnpm": {
+    "//": [
+      "Fail on a lockfile that does not match package.json rather than silently",
+      "re-resolving, matching the policy applied to uv.lock and go.sum."
+    ],
+    "peerDependencyRules": {
+      "allowedVersions": {}
+    }
+  }
+}

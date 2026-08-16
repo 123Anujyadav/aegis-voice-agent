@@ -1,0 +1,25 @@
+# =============================================================================
+# callscreen-ai-primitives
+#
+# Token accounting, provider failover and cost metering shared by the AI tier.
+#
+# Admitted to packages/ under the Phase 1 §4 rules: cross-cutting
+# infrastructure, no business logic, at least two real consumers.
+# =============================================================================
+
+[project]
+name = "callscreen-ai-primitives"
+version = "0.1.0"
+description = "Token accounting, provider failover and cost metering shared by the AI tier."
+requires-python = ">=3.12,<3.14"
+license = { text = "Proprietary" }
+dependencies = [
+    "callscreen-platform-py",
+]
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/callscreen_ai_primitives"]

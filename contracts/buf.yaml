@@ -1,0 +1,48 @@
+# =============================================================================
+# buf module configuration (v2).
+#
+# WHY buf RATHER THAN RAW protoc:
+#   - `buf lint` enforces the naming conventions from Phase 1 §5 mechanically,
+#     so contract style is never a review argument.
+#   - `buf breaking` is the mechanism that makes Phase 1 §14 enforceable: an
+#     Android client six months out of date must keep working, so wire-breaking
+#     changes have to fail the build rather than rely on reviewer vigilance.
+#   - Remote plugins remove the need for every engineer to install protoc and a
+#     matching set of language plugins at matching versions.
+#
+# https://buf.build/docs/configuration/v2/buf-yaml
+# =============================================================================
+version: v2
+
+modules:
+  - path: proto
+    name: buf.build/callscreen/platform
+
+lint:
+  # STANDARD is buf's recommended rule set. It encodes the Google protobuf style
+  # guide, which our Phase 1 naming conventions deliberately mirror.
+  use:
+    - STANDARD
+  # Every package must be suffixed with a version directory (callscreen.x.v1).
+  # This is the rule that makes parallel v1/v2 serving possible later.
+  except:
+    # RPC_REQUEST_RESPONSE_UNIQUE and the *_SUFFIX rules force every RPC to have
+    # its own dedicated Request/Response messages. We keep those ON deliberately:
+    # sharing a message between two RPCs couples their evolution forever.
+    []
+  enum_zero_value_suffix: _UNSPECIFIED
+  rpc_allow_same_request_response: false
+  rpc_allow_google_protobuf_empty_requests: false
+  rpc_allow_google_protobuf_empty_responses: false
+  service_suffix: Service
+
+breaking:
+  # FILE is the strictest practical category: it catches wire-incompatible AND
+  # source-incompatible changes. Generated-code consumers (Android, Go, Python)
+  # all break on source-incompatible changes, so WIRE alone is insufficient.
+  use:
+    - FILE
+  except:
+    # Deleting a file is caught by FILE; we keep that on.
+    []
+  ignore_unstable_packages: true

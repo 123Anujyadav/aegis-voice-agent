@@ -1,0 +1,282 @@
+# =============================================================================
+# uv workspace root.
+#
+# WHY THIS LIVES AT THE REPOSITORY ROOT rather than under services/python:
+# uv requires every workspace member to be a subdirectory of the workspace root.
+# Python code lives in two places — services/python/* and packages/python/* —
+# so the only directory containing both is the repository root. This mirrors
+# go.work, which sits at the root for exactly the same reason.
+#
+# WHY uv RATHER THAN POETRY OR pip-tools (Phase 1 §13):
+#   - Resolution and installation are 10-100x faster, which compounds across
+#     every CI job and directly shortens the sub-10-minute PR feedback budget.
+#   - One lockfile governs every member, so two services cannot silently resolve
+#     different versions of a shared transitive dependency and produce a bug
+#     that reproduces in one and not the other.
+#   - One tool covers Python version management, virtualenv creation and
+#     dependency resolution, removing pyenv and venv from the onboarding path.
+#
+# This root project is never packaged or deployed. It owns the workspace, the
+# lockfile, the shared development toolchain, and the tool configuration that
+# every member inherits.
+# =============================================================================
+
+[project]
+name = "callscreen-workspace"
+version = "0.0.0"
+description = "Workspace root for CallScreen Python services. Not published."
+requires-python = ">=3.12,<3.14"
+# Deliberately empty: the root pins no runtime dependencies. Each member
+# declares exactly what it imports, so a service's container image carries only
+# its own dependency closure.
+dependencies = []
+
+[dependency-groups]
+# Development tooling is declared once and shared by every member, so the whole
+# workspace lints and tests with identical tool versions. Divergent linter
+# versions across services produce "passes locally, fails in CI" reports that
+# cost more to diagnose than the original defect.
+dev = [
+    "ruff==0.9.2",
+    "mypy==1.14.1",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.2",
+    "pytest-cov==6.0.0",
+    "pytest-randomly==3.16.0",
+    "hypothesis==6.123.17",
+]
+
+[tool.uv.workspace]
+members = [
+    "services/python/*",
+    "packages/python/*",
+]
+
+[tool.uv.sources]
+# Workspace members resolve to their local path rather than to an index. This is
+# what lets an engineer edit packages/python/platform and see the change in
+# every consuming service with no version bump and no reinstall.
+callscreen-platform-py = { workspace = true }
+callscreen-ai-primitives = { workspace = true }
+callscreen-contracts = { workspace = true }
+
+[tool.uv]
+# The root itself is not an installable package.
+package = false
+
+# =============================================================================
+# RUFF — linting and formatting (Phase 1 §18)
+#
+# Ruff replaces flake8, isort, pyupgrade, pydocstyle, bandit and black with a
+# single tool. One tool means one config, one cache and one pass, which matters
+# when it runs on every file on every commit.
+# =============================================================================
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    # Generated protobuf bindings are not ours to style.
+    "packages/python/contracts-py/src",
+    "**/*_pb2.py",
+    "**/*_pb2.pyi",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort — import ordering
+    "N",      # pep8-naming
+    "UP",     # pyupgrade — modernise syntax for the target version
+    "B",      # flake8-bugbear — likely bugs, not style
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez — naive datetimes are a recurring production bug
+    "T20",    # flake8-print — print() in a service bypasses structured logging
+    "SIM",    # flake8-simplify
+    "TID",    # flake8-tidy-imports
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate — commented-out code
+    "PL",     # pylint subset
+    "TRY",    # tryceratops — exception antipatterns
+    "RUF",    # ruff-specific rules
+    "ASYNC",  # flake8-async — blocking calls inside async functions
+    "S",      # flake8-bandit — security
+    "A",      # flake8-builtins — shadowing builtins
+    "RET",    # flake8-return
+    "SLF",    # flake8-self — private member access across boundaries
+    "PT",     # flake8-pytest-style
+    "ANN",    # flake8-annotations — every signature is typed
+    "D",      # pydocstyle — every public symbol is documented
+]
+ignore = [
+    # The formatter owns line length; the linter flagging it too is pure noise.
+    "E501",
+    # Our error taxonomy is deliberately explicit, so long messages constructed
+    # at the raise site are intentional rather than an antipattern.
+    "TRY003",
+    # Docstrings are required on public symbols, not on every magic method or
+    # nested helper; these rules produce false positives against that policy.
+    "D105",   # magic method
+    "D107",   # __init__ — documented on the class instead
+    "D203",   # incompatible with D211, which we prefer
+    "D213",   # incompatible with D212, which we prefer
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately use assert, magic values, and fixtures that appear unused.
+"**/tests/**/*.py" = [
+    "S101",    # assert is the point of a test
+    "PLR2004", # magic value comparison is expected in assertions
+    "SLF001",  # tests may inspect private state to verify invariants
+    "ARG001",  # pytest fixtures appear as unused arguments
+    "S105",    # hardcoded strings in tests are fixtures, not credentials
+    "S106",
+    "ANN401",  # fixtures are legitimately typed Any
+    "D103",    # test names are the documentation
+]
+# Entrypoints re-export for the console script; that is their purpose.
+"**/__main__.py" = ["D100"]
+# tools/audio-fixtures is a command-line analysis script for Phase 11D. Printing
+# IS its output: it renders a Markdown report to stdout and a self-check result
+# to the console, and routing either through the logging module would put a
+# timestamp and a level in front of a table somebody pastes into a document.
+"tools/audio-fixtures/*.py" = ["T201"]
+# callscreen_platform.logging deliberately mirrors packages/go/platform/logging.go
+# by name, so that the two tiers' infrastructure modules correspond one to one.
+# A005 warns that this shadows the stdlib `logging`, which was a real hazard
+# under Python 2's implicit relative imports; under Python 3's absolute imports
+# `import logging` inside this file resolves to the standard library as intended.
+# The naming symmetry is worth more than the warning.
+"packages/python/platform/src/callscreen_platform/logging.py" = ["A005"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "callscreen_platform",
+    "callscreen_ai_primitives",
+    "callscreen",
+]
+force-sort-within-sections = true
+
+[tool.ruff.lint.flake8-tidy-imports]
+# Relative imports beyond one level obscure a module's dependencies and break
+# when files move. Absolute imports are mandatory across package boundaries.
+ban-relative-imports = "parents"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# =============================================================================
+# MYPY — strict static typing (Phase 1 §6)
+#
+# Strict mode is non-negotiable. The AI tier passes streaming audio frames and
+# partially-formed model responses between async tasks; without static types
+# those defects surface as runtime AttributeErrors mid-call, which is the worst
+# possible place to discover them.
+# =============================================================================
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_reexport = true
+strict_equality = true
+extra_checks = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+exclude = [
+    '_pb2\.py$',
+    '_pb2\.pyi$',
+    '^build/',
+    '^dist/',
+]
+mypy_path = "packages/python/platform/src:packages/python/ai-primitives/src"
+
+[[tool.mypy.overrides]]
+# Generated protobuf modules ship stubs of varying completeness. Type-checking
+# generated code tells us nothing about the correctness of our own.
+module = ["callscreen.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+# structlog's dynamic BoundLogger cannot be fully expressed statically.
+module = ["structlog.*"]
+ignore_missing_imports = true
+
+# =============================================================================
+# PYTEST (Phase 1 §19)
+# =============================================================================
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["packages/python", "services/python"]
+# NAMING CONVENTION: a test module's basename must be unique across the whole
+# repository, hence test_<service>_bootstrap.py rather than test_bootstrap.py in
+# six places. Service directories contain hyphens (asr-gateway), so they can
+# never form a valid Python package path and __init__.py cannot disambiguate
+# them. pytest can be told to resolve by path via --import-mode=importlib, but
+# mypy has no equivalent and fails with "Duplicate module named ...". Unique
+# basenames satisfy both tools without contorting either.
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# asyncio_mode=auto removes the need to decorate every async test, which is
+# otherwise forgotten and produces a test that silently never runs.
+asyncio_mode = "auto"
+# importlib import mode is required in a monorepo. Under the legacy "prepend"
+# mode pytest derives a module name from the file's basename, so six services
+# each owning a tests/test_bootstrap.py collide and collection fails outright.
+# The usual workaround is to scatter __init__.py files through every tests/
+# directory; importlib mode resolves each file by path instead, which keeps the
+# test tree free of packaging artefacts that exist only to appease the runner.
+# Namespace packages must be considered for importlib mode to resolve test
+# modules that live outside an installed package.
+consider_namespace_packages = true
+addopts = [
+    "--import-mode=importlib",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--showlocals",
+    # Any warning is an error. Warnings are how deprecations announce
+    # themselves; ignoring them is how a Python upgrade becomes a crisis.
+    "-W", "error",
+]
+markers = [
+    "integration: requires external services via testcontainers",
+    "slow: takes more than one second",
+    "eval: AI evaluation suite, gated on aggregate metrics rather than pass/fail",
+]
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "*/tests/*",
+    "*_pb2.py",
+    "*_pb2.pyi",
+    "*/__main__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+skip_covered = true

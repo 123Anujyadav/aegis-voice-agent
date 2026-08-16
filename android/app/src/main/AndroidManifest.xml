@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Application manifest.
+
+  PHASE 2 SCOPE: this declares the application class and the minimum needed for
+  the shell to build and install. No activities, services or permissions are
+  declared yet, because none exist yet — declaring a permission the app does not
+  use is both a Play Store policy risk and a privacy-review finding.
+
+  In particular the telephony permissions (READ_PHONE_STATE, ANSWER_PHONE_CALLS,
+  and the CallScreeningService binding) are deliberately absent. They arrive
+  with the module that actually uses them, so that every permission in the
+  shipped manifest is traceable to the code that needs it.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:name="com.callscreen.app.CallScreenApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CallScreen"
+        tools:targetApi="34"
+        xmlns:tools="http://schemas.android.com/tools">
+
+        <!--
+          allowBackup is false deliberately. Android's automatic backup would
+          copy application data to the user's cloud account, which for this
+          product would mean call metadata and contact information leaving the
+          India region — a direct conflict with the data-residency requirement
+          in Phase 1 assumption A2 and with DPDP obligations.
+
+          It is set here, once, at the shell, rather than being left to whichever
+          module first happens to think about it.
+        -->
+
+        <activity
+            android:name="com.callscreen.app.MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.CallScreen">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+
+</manifest>

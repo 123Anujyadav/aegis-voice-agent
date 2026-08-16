@@ -1,0 +1,219 @@
+{
+  "$schema": "./schema/semantic.schema.json",
+  "$description": [
+    "TIER 2 - SEMANTIC TOKENS. Role-based and theme-aware.",
+    "",
+    "This is what components reference. Every entry defines ALL THREE themes;",
+    "a missing theme fails the build rather than falling back silently, because",
+    "a silent fallback is how a token ends up illegible in high contrast with",
+    "nobody noticing.",
+    "",
+    "THE 600/300 RULE: on light surfaces text uses the 600 step; fills use 500",
+    "with white content on top; on dark surfaces text uses 300. This is derived",
+    "from measured contrast, not convention - warning.500, voice.500 and",
+    "premium.500 all FAIL WCAG AA as text while passing comfortably as fills."
+  ],
+
+  "color": {
+    "surface": {
+      "background": {
+        "light":    { "value": "{color.neutral.50}" },
+        "dark":     { "value": "{color.neutral.950}" },
+        "contrast": { "value": "{color.neutral.0}" }
+      },
+      "default": {
+        "light":    { "value": "{color.neutral.0}" },
+        "dark":     { "value": "{color.neutral.900}" },
+        "contrast": { "value": "{color.neutral.0}" }
+      },
+      "raised": {
+        "light":    { "value": "{color.neutral.0}" },
+        "dark":     { "value": "{color.neutral.800}" },
+        "contrast": { "value": "{color.neutral.0}" }
+      },
+      "sunken": {
+        "light":    { "value": "{color.neutral.100}" },
+        "dark":     { "value": "{color.neutral.1000}" },
+        "contrast": { "value": "{color.neutral.100}" }
+      },
+      "inverse": {
+        "light":    { "value": "{color.neutral.900}" },
+        "dark":     { "value": "{color.neutral.100}" },
+        "contrast": { "value": "{color.neutral.1000}" }
+      }
+    },
+
+    "content": {
+      "primary": {
+        "light":    { "value": "{color.neutral.900}" },
+        "dark":     { "value": "{color.neutral.50}" },
+        "contrast": { "value": "{color.neutral.1000}" }
+      },
+      "secondary": {
+        "light":    { "value": "{color.neutral.600}" },
+        "dark":     { "value": "{color.neutral.400}" },
+        "contrast": { "value": "{color.neutral.800}" }
+      },
+      "tertiary": {
+        "light":    { "value": "{color.neutral.500}" },
+        "dark":     { "value": "{color.neutral.500}" },
+        "contrast": { "value": "{color.neutral.700}" }
+      },
+      "disabled": {
+        "$comment": "Still 4.5:1. We decline the WCAG disabled-text exemption.",
+        "light":    { "value": "{color.neutral.400}" },
+        "dark":     { "value": "{color.neutral.600}" },
+        "contrast": { "value": "{color.neutral.600}" }
+      },
+      "inverse": {
+        "light":    { "value": "{color.neutral.0}" },
+        "dark":     { "value": "{color.neutral.900}" },
+        "contrast": { "value": "{color.neutral.0}" }
+      }
+    },
+
+    "border": {
+      "subtle": {
+        "light":    { "value": "{color.neutral.200}" },
+        "dark":     { "value": "{color.neutral.800}" },
+        "contrast": { "value": "{color.neutral.700}" }
+      },
+      "default": {
+        "light":    { "value": "{color.neutral.300}" },
+        "dark":     { "value": "{color.neutral.700}" },
+        "contrast": { "value": "{color.neutral.900}" }
+      },
+      "strong": {
+        "light":    { "value": "{color.neutral.400}" },
+        "dark":     { "value": "{color.neutral.600}" },
+        "contrast": { "value": "{color.neutral.1000}" }
+      },
+      "focus": {
+        "light":    { "value": "{color.brand.500}" },
+        "dark":     { "value": "{color.brand.300}" },
+        "contrast": { "value": "{color.brand.700}" }
+      }
+    },
+
+    "action": {
+      "primary": {
+        "fill":    { "light": { "value": "{color.brand.500}" },  "dark": { "value": "{color.brand.400}" },  "contrast": { "value": "{color.brand.700}" } },
+        "content": { "light": { "value": "{color.neutral.0}" },  "dark": { "value": "{color.neutral.950}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "hover":   { "light": { "value": "{color.brand.600}" },  "dark": { "value": "{color.brand.300}" },  "contrast": { "value": "{color.brand.800}" } },
+        "pressed": { "light": { "value": "{color.brand.700}" },  "dark": { "value": "{color.brand.200}" },  "contrast": { "value": "{color.brand.900}" } }
+      },
+      "secondary": {
+        "fill":    { "light": { "value": "{color.neutral.100}" }, "dark": { "value": "{color.neutral.800}" }, "contrast": { "value": "{color.neutral.100}" } },
+        "content": { "light": { "value": "{color.neutral.900}" }, "dark": { "value": "{color.neutral.100}" }, "contrast": { "value": "{color.neutral.1000}" } }
+      },
+      "danger": {
+        "fill":    { "light": { "value": "{color.fraud.500}" },  "dark": { "value": "{color.fraud.400}" },  "contrast": { "value": "{color.fraud.700}" } },
+        "content": { "light": { "value": "{color.neutral.0}" },  "dark": { "value": "{color.neutral.950}" }, "contrast": { "value": "{color.neutral.0}" } }
+      },
+      "disabled": {
+        "fill":    { "light": { "value": "{color.neutral.200}" }, "dark": { "value": "{color.neutral.800}" }, "contrast": { "value": "{color.neutral.200}" } },
+        "content": { "light": { "value": "{color.neutral.400}" }, "dark": { "value": "{color.neutral.600}" }, "contrast": { "value": "{color.neutral.600}" } }
+      }
+    },
+
+    "status": {
+      "$description": [
+        "The ten semantic states. Four warm hues here are adjacent in hue space",
+        "(warning, spam, emergency, premium) - see docs/design/02-color.md 2.3",
+        "for the four mandatory disambiguation rules. Colour is NEVER the sole",
+        "carrier: icon + label always.",
+        "",
+        "NEVER subject to dynamic colour. A wallpaper must not be able to",
+        "recolour a fraud badge."
+      ],
+      "success": {
+        "subtle": { "light": { "value": "{color.success.50}" },  "dark": { "value": "{color.success.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.success.500}" }, "dark": { "value": "{color.success.400}" }, "contrast": { "value": "{color.success.700}" } },
+        "text":   { "light": { "value": "{color.success.600}" }, "dark": { "value": "{color.success.300}" }, "contrast": { "value": "{color.success.700}" } },
+        "border": { "light": { "value": "{color.success.200}" }, "dark": { "value": "{color.success.700}" }, "contrast": { "value": "{color.success.700}" } }
+      },
+      "warning": {
+        "subtle": { "light": { "value": "{color.warning.50}" },  "dark": { "value": "{color.warning.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.warning.500}" }, "dark": { "value": "{color.warning.400}" }, "contrast": { "value": "{color.warning.700}" } },
+        "text":   { "light": { "value": "{color.warning.600}" }, "dark": { "value": "{color.warning.300}" }, "contrast": { "value": "{color.warning.700}" } },
+        "border": { "light": { "value": "{color.warning.200}" }, "dark": { "value": "{color.warning.700}" }, "contrast": { "value": "{color.warning.700}" } }
+      },
+      "spam": {
+        "subtle": { "light": { "value": "{color.spam.50}" },  "dark": { "value": "{color.spam.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.spam.500}" }, "dark": { "value": "{color.spam.400}" }, "contrast": { "value": "{color.spam.700}" } },
+        "text":   { "light": { "value": "{color.spam.600}" }, "dark": { "value": "{color.spam.300}" }, "contrast": { "value": "{color.spam.700}" } },
+        "border": { "light": { "value": "{color.spam.200}" }, "dark": { "value": "{color.spam.700}" }, "contrast": { "value": "{color.spam.700}" } }
+      },
+      "fraud": {
+        "subtle": { "light": { "value": "{color.fraud.50}" },  "dark": { "value": "{color.fraud.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.fraud.500}" }, "dark": { "value": "{color.fraud.400}" }, "contrast": { "value": "{color.fraud.700}" } },
+        "text":   { "light": { "value": "{color.fraud.600}" }, "dark": { "value": "{color.fraud.300}" }, "contrast": { "value": "{color.fraud.700}" } },
+        "border": { "light": { "value": "{color.fraud.200}" }, "dark": { "value": "{color.fraud.700}" }, "contrast": { "value": "{color.fraud.700}" } }
+      },
+      "emergency": {
+        "subtle": { "light": { "value": "{color.emergency.50}" },  "dark": { "value": "{color.emergency.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.emergency.500}" }, "dark": { "value": "{color.emergency.400}" }, "contrast": { "value": "{color.emergency.700}" } },
+        "text":   { "light": { "value": "{color.emergency.600}" }, "dark": { "value": "{color.emergency.300}" }, "contrast": { "value": "{color.emergency.700}" } },
+        "border": { "light": { "value": "{color.emergency.200}" }, "dark": { "value": "{color.emergency.700}" }, "contrast": { "value": "{color.emergency.700}" } }
+      },
+      "ai": {
+        "subtle": { "light": { "value": "{color.ai.50}" },  "dark": { "value": "{color.ai.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.ai.500}" }, "dark": { "value": "{color.ai.400}" }, "contrast": { "value": "{color.ai.700}" } },
+        "text":   { "light": { "value": "{color.ai.600}" }, "dark": { "value": "{color.ai.300}" }, "contrast": { "value": "{color.ai.700}" } },
+        "border": { "light": { "value": "{color.ai.200}" }, "dark": { "value": "{color.ai.700}" }, "contrast": { "value": "{color.ai.700}" } }
+      },
+      "voice": {
+        "subtle": { "light": { "value": "{color.voice.50}" },  "dark": { "value": "{color.voice.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.voice.500}" }, "dark": { "value": "{color.voice.400}" }, "contrast": { "value": "{color.voice.700}" } },
+        "text":   { "light": { "value": "{color.voice.600}" }, "dark": { "value": "{color.voice.300}" }, "contrast": { "value": "{color.voice.700}" } },
+        "border": { "light": { "value": "{color.voice.200}" }, "dark": { "value": "{color.voice.700}" }, "contrast": { "value": "{color.voice.700}" } }
+      },
+      "telephony": {
+        "subtle": { "light": { "value": "{color.brand.50}" },  "dark": { "value": "{color.brand.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.brand.500}" }, "dark": { "value": "{color.brand.400}" }, "contrast": { "value": "{color.brand.700}" } },
+        "text":   { "light": { "value": "{color.brand.600}" }, "dark": { "value": "{color.brand.300}" }, "contrast": { "value": "{color.brand.700}" } },
+        "border": { "light": { "value": "{color.brand.200}" }, "dark": { "value": "{color.brand.700}" }, "contrast": { "value": "{color.brand.700}" } }
+      },
+      "recording": {
+        "subtle": { "light": { "value": "{color.recording.50}" },  "dark": { "value": "{color.recording.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.recording.500}" }, "dark": { "value": "{color.recording.400}" }, "contrast": { "value": "{color.recording.700}" } },
+        "text":   { "light": { "value": "{color.recording.600}" }, "dark": { "value": "{color.recording.300}" }, "contrast": { "value": "{color.recording.700}" } },
+        "border": { "light": { "value": "{color.recording.200}" }, "dark": { "value": "{color.recording.700}" }, "contrast": { "value": "{color.recording.700}" } }
+      },
+      "premium": {
+        "$comment": "Decorative label only. Never a status requiring action.",
+        "subtle": { "light": { "value": "{color.premium.50}" },  "dark": { "value": "{color.premium.900}" }, "contrast": { "value": "{color.neutral.0}" } },
+        "fill":   { "light": { "value": "{color.premium.500}" }, "dark": { "value": "{color.premium.400}" }, "contrast": { "value": "{color.premium.700}" } },
+        "text":   { "light": { "value": "{color.premium.600}" }, "dark": { "value": "{color.premium.300}" }, "contrast": { "value": "{color.premium.700}" } },
+        "border": { "light": { "value": "{color.premium.200}" }, "dark": { "value": "{color.premium.700}" }, "contrast": { "value": "{color.premium.700}" } },
+        "gradientStart": { "light": { "value": "{color.premium.300}" }, "dark": { "value": "{color.premium.300}" }, "contrast": { "value": "{color.premium.600}" } },
+        "gradientEnd":   { "light": { "value": "{color.premium.500}" }, "dark": { "value": "{color.premium.500}" }, "contrast": { "value": "{color.premium.700}" } }
+      }
+    }
+  },
+
+  "contrastRequirements": {
+    "$description": "Verified in CI from these pairs. A drop below threshold fails the build.",
+    "pairs": [
+      { "fg": "color.content.primary",       "bg": "color.surface.default", "min": 7.0 },
+      { "fg": "color.content.secondary",     "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.content.tertiary",      "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.content.disabled",      "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.action.primary.content","bg": "color.action.primary.fill", "min": 4.5 },
+      { "fg": "color.action.danger.content", "bg": "color.action.danger.fill",  "min": 4.5 },
+      { "fg": "color.action.disabled.content","bg": "color.action.disabled.fill","min": 4.5 },
+      { "fg": "color.status.success.text",   "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.warning.text",   "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.spam.text",      "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.fraud.text",     "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.emergency.text", "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.ai.text",        "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.voice.text",     "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.telephony.text", "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.recording.text", "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.status.premium.text",   "bg": "color.surface.default", "min": 4.5 },
+      { "fg": "color.border.focus",          "bg": "color.surface.default", "min": 3.0 }
+    ],
+    "contrastThemeOverride": { "min": 7.0, "$comment": "High-contrast theme raises every pair to AAA." }
+  }
+}

@@ -1,0 +1,131 @@
+{
+  // ===========================================================================
+  // Shared workspace settings.
+  //
+  // COMMITTED DELIBERATELY. In a polyglot monorepo the editor needs to be told
+  // which formatter owns which language, and getting that wrong produces
+  // reformat-the-world diffs that bury the actual change. Committing this means
+  // an engineer's first save produces the same bytes as CI expects.
+  //
+  // Only settings that affect CORRECTNESS OF SHARED OUTPUT belong here.
+  // Personal preferences (theme, font, keybindings) are left to the user's own
+  // settings, and imposing them would be an unwelcome surprise.
+  // ===========================================================================
+
+  // --- Universal -------------------------------------------------------------
+  "editor.formatOnSave": true,
+  "editor.insertSpaces": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.eol": "\n",
+
+  // Excluded from search and from the file watcher. Watching build output on a
+  // repository this size pins a CPU core and, on Windows, exhausts the watcher
+  // handle limit — which manifests as the editor silently missing file changes.
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.gradle/**": true,
+    "**/build/**": true,
+    "**/node_modules/**": true,
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.pytest_cache/**": true
+  },
+  "search.exclude": {
+    "**/build/**": true,
+    "**/node_modules/**": true,
+    "**/.venv/**": true,
+    "**/uv.lock": true,
+    "**/go.sum": true,
+    "**/pnpm-lock.yaml": true,
+    // Generated bindings are committed but are noise in a code search: a
+    // symbol search should land on the .proto that defines it.
+    "packages/go/contracts-go/**": true,
+    "packages/python/contracts-py/**": true,
+    "packages/kotlin/contracts-kt/**": true,
+    "packages/ts/contracts-ts/**": true
+  },
+
+  // --- Python ----------------------------------------------------------------
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python.analysis.typeCheckingMode": "standard",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["packages/python", "services/python"],
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      // Ruff owns import sorting. Letting the Python extension also organise
+      // imports produces a fight between two tools on every save.
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    },
+    "editor.tabSize": 4,
+    "editor.rulers": [100]
+  },
+
+  // --- Go --------------------------------------------------------------------
+  "go.useLanguageServer": true,
+  "go.formatTool": "custom",
+  "go.alternateTools": {
+    // gofumpt, not gofmt: it is a strict superset and is what CI enforces.
+    "customFormatter": "gofumpt"
+  },
+  "go.lintTool": "golangci-lint",
+  "go.lintFlags": ["--fast"],
+  "gopls": {
+    // Required for the language server to resolve symbols across a multi-module
+    // workspace. Without it, cross-module navigation silently fails.
+    "build.experimentalWorkspaceModule": true,
+    "formatting.gofumpt": true,
+    "ui.diagnostic.staticcheck": true
+  },
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.insertSpaces": false,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+
+  // --- Kotlin / Gradle -------------------------------------------------------
+  "[kotlin]": {
+    "editor.tabSize": 4,
+    "editor.rulers": [120]
+  },
+  "java.configuration.updateBuildConfiguration": "interactive",
+
+  // --- Protobuf --------------------------------------------------------------
+  "[proto3]": {
+    "editor.defaultFormatter": "bufbuild.vscode-buf",
+    "editor.tabSize": 2
+  },
+  "buf.commandLine.path": "buf",
+
+  // --- Markup ----------------------------------------------------------------
+  "[yaml]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    // Trailing whitespace is a hard line break in Markdown; trimming it changes
+    // rendered output.
+    "files.trimTrailingWhitespace": false
+  },
+
+  // Schema associations give completion and inline validation in the files most
+  // likely to be edited by someone unfamiliar with their shape.
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml",
+    "https://json.schemastore.org/dependabot-2.0.json": ".github/dependabot.yml",
+    "https://taskfile.dev/schema.json": "Taskfile.yml",
+    "https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json": "docker/compose/*.yml",
+    "https://json.schemastore.org/pre-commit-config.json": ".pre-commit-config.yaml"
+  },
+
+  // --- Terraform -------------------------------------------------------------
+  "[terraform]": { "editor.defaultFormatter": "hashicorp.terraform" },
+  "[terraform-vars]": { "editor.defaultFormatter": "hashicorp.terraform" }
+}

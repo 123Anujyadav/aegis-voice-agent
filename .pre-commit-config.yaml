@@ -1,0 +1,137 @@
+# =============================================================================
+# Pre-commit hooks.
+#
+# THESE HOOKS ARE A CONVENIENCE, NOT A GATE.
+#
+# CI is the enforcement point (Phase 1 §18). Hooks are bypassable with
+# --no-verify and are not installed by everyone, so any rule that only exists
+# here effectively does not exist. What hooks buy is speed: catching a
+# formatting slip in two seconds locally instead of eight minutes into a CI run.
+#
+# Everything here is therefore FAST and LOCAL-ONLY. Anything slow — the test
+# suites, mypy, buf breaking, container builds — belongs in CI, because a
+# pre-commit hook that takes thirty seconds is a hook the team disables.
+#
+#   pip install pre-commit && pre-commit install
+# =============================================================================
+
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+# Fail everything in one pass rather than stopping at the first hook, so a
+# single commit attempt reports every problem.
+fail_fast: false
+
+repos:
+  # --- Universal hygiene -----------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        # Markdown uses trailing whitespace as a hard line break.
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        # Kubernetes and Helm templates are not valid YAML until rendered.
+        exclude: ^infra/helm/.*/templates/
+      - id: check-json
+        exclude: \.json5$|^\.vscode/
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+        # macOS and Windows have case-insensitive filesystems; two files
+        # differing only in case break checkout for half the team.
+      - id: check-symlinks
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        # 500 KB. Binary assets belong in object storage, not in git history,
+        # where they are permanent and clone forever.
+        args: [--maxkb=500]
+        exclude: ^android/gradle/wrapper/gradle-wrapper\.jar$
+
+  # --- Secrets ---------------------------------------------------------------
+  # First line of defence. A secret that reaches the remote must be rotated,
+  # not merely removed, so catching it before the push is worth a great deal
+  # more than catching it in CI.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.23.1
+    hooks:
+      - id: gitleaks
+
+  # --- Python ----------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.2
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+  # mypy is deliberately absent. Strict type checking across the workspace takes
+  # tens of seconds, which exceeds the budget for a hook people will keep
+  # installed. It runs in CI.
+
+  # --- Protobuf --------------------------------------------------------------
+  - repo: https://github.com/bufbuild/buf
+    rev: v1.72.0
+    hooks:
+      - id: buf-format
+        args: [-w]
+      - id: buf-lint
+  # buf breaking is absent: it needs the base branch and a full history, which
+  # a hook operating on the working tree does not have.
+
+  # --- Go --------------------------------------------------------------------
+  # System-language hooks: these use the locally installed toolchain rather than
+  # a managed environment, because Go's own tools must match the project's Go
+  # version and pre-commit cannot provision that.
+  - repo: local
+    hooks:
+      - id: gofumpt
+        name: gofumpt
+        entry: gofumpt -l -w
+        language: system
+        types: [go]
+        pass_filenames: true
+
+      - id: go-vet
+        name: go vet
+        # Runs per module because `./...` from the repository root is invalid in
+        # a Go workspace (see Taskfile.yml).
+        entry: bash -c 'for d in $(git diff --cached --name-only --diff-filter=ACM | grep "\.go$" | xargs -r -n1 dirname | sort -u); do (cd "$d" && go vet ./...) || exit 1; done'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+  # --- Formatting for shared markup -----------------------------------------
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.4.2
+    hooks:
+      - id: prettier
+        types_or: [yaml, json, markdown]
+        exclude: ^(packages/(go|python|kotlin|ts)/contracts-|android/gradle/)
+
+  # --- Shell and containers --------------------------------------------------
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker
+
+  # --- Commit message --------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: commitlint
+        name: commitlint
+        entry: pnpm exec commitlint --edit
+        language: system
+        stages: [commit-msg]
+        pass_filenames: false
+        # Skipped silently when Node tooling is not installed, since a Go-only
+        # contributor has no reason to have run pnpm install. CI enforces it
+        # regardless, which is the point of not relying on hooks.
+        always_run: false

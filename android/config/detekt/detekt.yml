@@ -1,0 +1,216 @@
+# =============================================================================
+# detekt configuration.
+#
+# One file governs every Kotlin module. A per-module configuration is how one
+# module quietly acquires a laxer standard than its neighbours, so the
+# convention plugin resolves this path from the Android root and nowhere else.
+#
+# buildUponDefaultConfig is true in AndroidQualityConventionPlugin, so this file
+# states only DEVIATIONS from detekt's defaults. Every deviation carries a
+# reason: an unexplained threshold is one nobody will dare change later.
+# =============================================================================
+
+build:
+  # Any finding fails the build. Phase 1 §17 makes warnings errors; a static
+  # analysis finding that does not fail is a finding that is never fixed.
+  maxIssues: 0
+  excludeCorrectable: false
+
+config:
+  # Fail if this file references a rule that no longer exists, rather than
+  # silently ignoring it after a detekt upgrade.
+  validation: true
+  warningsAsErrors: true
+
+processors:
+  active: true
+
+console-reports:
+  active: true
+
+comments:
+  active: true
+  # Phase 2 rule: every public function is documented. These rules enforce it
+  # mechanically rather than relying on review.
+  UndocumentedPublicClass:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/build/**']
+    searchInNestedClass: true
+    searchInInnerClass: true
+  UndocumentedPublicFunction:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/build/**']
+  UndocumentedPublicProperty:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/build/**']
+  # A comment that merely restates the code is noise. This catches the most
+  # common form, a KDoc block containing only the function's own name.
+  CommentOverPrivateFunction:
+    active: false
+
+complexity:
+  active: true
+  LongMethod:
+    active: true
+    # 60 rather than the default 60 lines, stated explicitly so the number is
+    # a decision rather than an accident.
+    threshold: 60
+  LongParameterList:
+    active: true
+    functionThreshold: 6
+    constructorThreshold: 8
+    # Constructors of injected classes legitimately take more parameters than
+    # a plain function; DI is the reason the threshold differs.
+    ignoreDefaultParameters: true
+    ignoreAnnotated: ['Inject', 'Composable']
+  TooManyFunctions:
+    active: true
+    thresholdInClasses: 15
+    thresholdInFiles: 20
+    ignoreAnnotatedFunctions: ['Composable']
+    ignorePrivate: true
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 15
+    ignoreSingleWhenExpression: true
+  NestedBlockDepth:
+    active: true
+    threshold: 4
+
+coroutines:
+  active: true
+  # Injecting the dispatcher is what makes a suspend function testable without
+  # a real thread pool. Hard-coding Dispatchers.IO at a call site is the most
+  # common reason a coroutine test becomes flaky.
+  InjectDispatcher:
+    active: true
+  # A suspend function that never suspends is usually a mistake in the API's
+  # design and forces callers into a coroutine for no reason.
+  RedundantSuspendModifier:
+    active: true
+  # GlobalScope work outlives the component that started it and cannot be
+  # cancelled, which in a call-screening app means work continuing after the
+  # call has ended.
+  GlobalCoroutineUsage:
+    active: true
+  SuspendFunSwallowedCancellation:
+    active: true
+  SuspendFunWithCoroutineScopeReceiver:
+    active: true
+
+empty-blocks:
+  active: true
+  EmptyFunctionBlock:
+    active: true
+    ignoreOverridden: true
+
+exceptions:
+  active: true
+  # Swallowing an exception hides a failure until it manifests somewhere else.
+  SwallowedException:
+    active: true
+    ignoredExceptionTypes:
+      - InterruptedException
+      - MalformedURLException
+      - NumberFormatException
+      - ParseException
+  TooGenericExceptionCaught:
+    active: true
+    exceptionNames:
+      - Error
+      - Exception
+      - RuntimeException
+      - Throwable
+  # Throwing across a module boundary is forbidden by the Phase 2 coding
+  # convention: modules communicate failure with a sealed Result type.
+  ThrowingExceptionInMain:
+    active: true
+  PrintStackTrace:
+    active: true
+
+naming:
+  active: true
+  FunctionNaming:
+    active: true
+    functionPattern: '[a-z][a-zA-Z0-9]*'
+    # Composables are PascalCase by convention, which the default pattern
+    # rejects.
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    active: true
+    constantPattern: '[A-Z][_A-Z0-9]*'
+
+performance:
+  active: true
+  SpreadOperator:
+    active: true
+  UnnecessaryTemporaryInstantiation:
+    active: true
+
+potential-bugs:
+  active: true
+  # The single most valuable rule in this file for a Kotlin Android codebase.
+  UnsafeCallOnNullableType:
+    active: true
+  UnsafeCast:
+    active: true
+  # An unreachable catch block usually means the exception hierarchy was
+  # misread, and the intended failure is not being handled at all.
+  UnreachableCatchBlock:
+    active: true
+  CastToNullableType:
+    active: true
+  ImplicitDefaultLocale:
+    active: true
+  # String.format and toUpperCase without an explicit Locale behave differently
+  # in Turkish and several Indic locales. Given the product ships in India
+  # first, this is a correctness rule, not a pedantic one.
+  ImplicitUnitReturnType:
+    active: true
+
+style:
+  active: true
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+    excludeCommentStatements: false
+  # Wildcard imports make it impossible to see where a symbol came from, and
+  # they break when two dependencies introduce the same name.
+  WildcardImport:
+    active: true
+    excludeImports: []
+  MagicNumber:
+    active: true
+    ignoreNumbers: ['-1', '0', '1', '2']
+    ignoreHashCodeFunction: true
+    ignorePropertyDeclaration: true
+    ignoreAnnotation: true
+    ignoreEnums: true
+    ignoreCompanionObjectPropertyDeclaration: true
+  ReturnCount:
+    active: true
+    max: 3
+    excludeGuardClauses: true
+  ForbiddenComment:
+    active: true
+    # Phase 2 explicitly forbids placeholder markers in production code. This
+    # rule is what makes that a build failure rather than an aspiration.
+    comments:
+      - reason: 'Unresolved work must be tracked in an issue, not left in the source.'
+        value: 'TODO:'
+      - reason: 'Unresolved work must be tracked in an issue, not left in the source.'
+        value: 'FIXME:'
+      - reason: 'Placeholder markers are forbidden in production code.'
+        value: 'STOPSHIP'
+      - reason: 'Placeholder markers are forbidden in production code.'
+        value: 'XXX:'
+  UnusedPrivateMember:
+    active: true
+  UseCheckOrError:
+    active: true
+  UseRequire:
+    active: true
+  MandatoryBracesLoops:
+    active: true
+  ExpressionBodySyntax:
+    active: false

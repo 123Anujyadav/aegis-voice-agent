@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Default (English) string resources for the application shell.
+
+  Only strings genuinely owned by the shell live here. Feature strings belong to
+  their feature module, so that deleting a feature deletes its copy with it and
+  the catalogue cannot accumulate orphans.
+
+  Localisation note: the product ships India-first, so translations land in
+  values-hi, values-bn, values-ta, values-te and values-mr. The resource
+  configuration in the application convention plugin restricts the packaged set
+  to exactly those locales.
+-->
+<resources>
+
+    <!-- Launcher label. Not translated: the product name is a proper noun. -->
+    <string name="app_name" translatable="false">CallScreen</string>
+
+</resources>

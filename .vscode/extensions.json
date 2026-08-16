@@ -1,0 +1,71 @@
+{
+  // ===========================================================================
+  // Recommended extensions.
+  //
+  // VS Code prompts a new contributor to install these on first open, which is
+  // the cheapest possible onboarding step: the editor configures itself to match
+  // the repository's conventions before the first save.
+  //
+  // The list is kept to what is genuinely REQUIRED to work in this repository.
+  // Padding it with personal favourites trains people to dismiss the prompt,
+  // and then the necessary ones go uninstalled too.
+  // ===========================================================================
+  "recommendations": [
+    // --- Python ---------------------------------------------------------------
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    // Ruff is the authority for both linting and formatting; .vscode/settings.json
+    // binds it as the Python formatter.
+    "charliermarsh.ruff",
+
+    // --- Go -------------------------------------------------------------------
+    "golang.go",
+
+    // --- Kotlin / Android -----------------------------------------------------
+    // NOTE: serious Android work happens in Android Studio. These give useful
+    // syntax and Gradle support for reading and light editing from VS Code, but
+    // they are not a substitute for the IDE when working on the app.
+    "fwcd.kotlin",
+    "vscjava.vscode-gradle",
+
+    // --- Protobuf -------------------------------------------------------------
+    // Formatting and linting through buf itself, so the editor agrees with CI.
+    "bufbuild.vscode-buf",
+
+    // --- Infrastructure -------------------------------------------------------
+    "hashicorp.terraform",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "ms-azuretools.vscode-docker",
+
+    // --- Shared markup --------------------------------------------------------
+    "esbenp.prettier-vscode",
+    "redhat.vscode-yaml",
+    "davidanson.vscode-markdownlint",
+    "tamasfe.even-better-toml",
+
+    // --- Repository tooling ---------------------------------------------------
+    // Surfaces Taskfile targets in the command palette, so `task --list` is
+    // discoverable without leaving the editor.
+    "task.vscode-task",
+    // Renders the Mermaid diagrams used throughout docs/architecture.
+    "bierner.markdown-mermaid",
+    // Spell checking on prose and identifiers. Included because a typo in a
+    // Kafka topic name or a metric label is a real defect, not a cosmetic one:
+    // both are effectively permanent once published.
+    "streetsidesoftware.code-spell-checker",
+    // Shows blame inline, which is how an engineer finds the ADR behind a
+    // surprising line of configuration.
+    "eamodio.gitlens"
+  ],
+
+  // Extensions that actively conflict with this repository's configuration.
+  // VS Code warns if one of these is installed.
+  "unwantedRecommendations": [
+    // Both would fight Ruff, which owns Python formatting and import sorting.
+    // Two formatters bound to one language produce a reformat war on every save.
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "ms-python.flake8",
+    "ms-python.pylint"
+  ]
+}

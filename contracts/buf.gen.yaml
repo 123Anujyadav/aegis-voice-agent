@@ -1,0 +1,64 @@
+# =============================================================================
+# Code generation configuration (v2).
+#
+# Generated bindings are COMMITTED to packages/*/contracts-* (Phase 1 §20 rule 7)
+# and verified by `task contracts:drift` in CI. Committing them buys working IDE
+# navigation and reproducible builds; the drift check prevents them going stale
+# or being hand-edited.
+#
+# Plugins are pinned to exact versions. An unpinned plugin means the same .proto
+# can produce different code on two machines, which defeats the purpose.
+# =============================================================================
+version: v2
+
+managed:
+  # Managed mode injects file options (go_package, java_package, ...) centrally
+  # so individual .proto files stay free of language-specific boilerplate.
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/callscreen/callscreen-platform/packages/go/contracts-go
+    - file_option: java_package_prefix
+      value: com.callscreen.contracts
+    - file_option: java_multiple_files
+      value: true
+  disable:
+    # Well-known types must keep their upstream options.
+    - file_option: go_package
+      module: buf.build/protocolbuffers/wellknowntypes
+
+plugins:
+  # --- Go: messages ----------------------------------------------------------
+  - remote: buf.build/protocolbuffers/go:v1.36.4
+    out: ../packages/go/contracts-go
+    opt:
+      - paths=source_relative
+
+  # --- Go: Connect RPC -------------------------------------------------------
+  # Connect is chosen over grpc-go for the mobile edge (Phase 1 decision D3):
+  # it speaks gRPC, gRPC-Web and its own HTTP/1.1+JSON protocol from one server,
+  # which matters because Indian carrier middleboxes frequently break raw gRPC.
+  - remote: buf.build/connectrpc/go:v1.18.1
+    out: ../packages/go/contracts-go
+    opt:
+      - paths=source_relative
+
+  # --- Python: messages + type stubs ----------------------------------------
+  - remote: buf.build/protocolbuffers/python:v29.3
+    out: ../packages/python/contracts-py/src
+  - remote: buf.build/protocolbuffers/pyi:v29.3
+    out: ../packages/python/contracts-py/src
+
+  # --- Kotlin: Android client bindings ---------------------------------------
+  # protobuf-javalite keeps method count and APK size down versus full protobuf,
+  # which is a release gate on Android (Phase 1 §17: APK delta > 2% fails).
+  - remote: buf.build/protocolbuffers/java:v29.3
+    out: ../packages/kotlin/contracts-kt/src/main/java
+  - remote: buf.build/protocolbuffers/kotlin:v29.3
+    out: ../packages/kotlin/contracts-kt/src/main/kotlin
+
+  # --- TypeScript: admin console (Phase 4) -----------------------------------
+  - remote: buf.build/bufbuild/es:v2.2.3
+    out: ../packages/ts/contracts-ts/src
+    opt:
+      - target=ts

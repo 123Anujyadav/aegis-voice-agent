@@ -1,0 +1,251 @@
+# =============================================================================
+# Gradle version catalog — the single source of truth for every Android
+# dependency and plugin version.
+#
+# WHY A CATALOG RATHER THAN VERSIONS IN BUILD FILES (Phase 1 §13):
+#   - Twenty modules declaring `implementation("androidx.core:core-ktx:1.x")`
+#     independently will drift, and two versions of one library on the classpath
+#     resolve to whichever Gradle prefers — silently, with no error.
+#   - Renovate updates one line here instead of twenty, so the dependency-update
+#     PR is reviewable.
+#   - Type-safe accessors (libs.androidx.core.ktx) fail the build on a typo,
+#     where a string literal fails at dependency resolution with a worse message.
+#
+# EVERY VERSION IS PINNED EXACTLY. No ranges, no `+`, no `latest.release`.
+# Reproducible builds are a Phase 1 quality gate: an unpinned version means two
+# engineers can produce different APKs from the same commit, which makes a bug
+# report unactionable.
+# =============================================================================
+
+[versions]
+# --- Build toolchain --------------------------------------------------------
+agp = "8.7.3"
+kotlin = "2.1.0"
+ksp = "2.1.0-1.0.29"
+# Java 17 is the toolchain target. AGP 8.x requires 17 to run, and Android
+# desugaring makes the language level independent of the device's Android
+# version, so targeting 17 costs nothing in device compatibility.
+javaToolchain = "17"
+
+# --- SDK levels -------------------------------------------------------------
+# compileSdk 35 (Android 15) — always compile against the newest stable SDK so
+# that deprecations and behaviour changes surface at build time, not in the
+# field.
+compileSdk = "35"
+targetSdk = "35"
+# minSdk 26 (Android 8.0). Chosen deliberately, not by default:
+#   - CallScreeningService, the API this product depends on, arrived in API 24
+#     but only became reliable and OEM-consistent from 26.
+#   - API 26 covers well above 95% of active Indian Android devices.
+#   - Below 26 the background-execution and notification-channel models differ
+#     enough to require a parallel implementation, which is not worth the
+#     residual device coverage.
+minSdk = "26"
+
+# --- AndroidX core ----------------------------------------------------------
+androidxCore = "1.15.0"
+androidxLifecycle = "2.8.7"
+androidxActivity = "1.9.3"
+androidxNavigation = "2.8.5"
+androidxDatastore = "1.1.1"
+androidxRoom = "2.6.1"
+androidxWork = "2.10.0"
+androidxSecurity = "1.1.0-alpha06"
+androidxStartup = "1.2.0"
+androidxProfileinstaller = "1.4.1"
+
+# --- Compose ----------------------------------------------------------------
+# The BOM aligns every Compose artefact to one tested combination. Individual
+# Compose libraries are declared without versions and inherit from it.
+composeBom = "2024.12.01"
+
+# --- Dependency injection ---------------------------------------------------
+hilt = "2.53.1"
+hiltNavigationCompose = "1.2.0"
+
+# --- Networking -------------------------------------------------------------
+# Connect-RPC over OkHttp. Chosen over grpc-java for the mobile edge: Connect
+# speaks gRPC, gRPC-Web and its own HTTP/1.1+JSON protocol, which matters
+# because Indian carrier middleboxes frequently break raw gRPC over HTTP/2.
+okhttp = "4.12.0"
+connect = "0.7.3"
+protobufJavalite = "4.29.3"
+kotlinxSerialization = "1.7.3"
+kotlinxCoroutines = "1.9.0"
+kotlinxDatetime = "0.6.1"
+
+# --- Observability ----------------------------------------------------------
+timber = "5.0.1"
+
+# --- Testing ----------------------------------------------------------------
+junit4 = "4.13.2"
+junitJupiter = "5.11.4"
+androidxTestCore = "1.6.1"
+androidxTestRunner = "1.6.2"
+androidxTestRules = "1.6.1"
+androidxTestExtJunit = "1.2.1"
+espresso = "3.6.1"
+mockk = "1.13.14"
+turbine = "1.2.0"
+truth = "1.4.4"
+robolectric = "4.14.1"
+roborazzi = "1.32.2"
+androidxBenchmark = "1.3.3"
+androidxUiAutomator = "2.3.0"
+
+# --- Static analysis --------------------------------------------------------
+detekt = "1.23.7"
+ktlintPlugin = "12.1.2"
+
+[libraries]
+# --- AndroidX core ----------------------------------------------------------
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+androidx-startup = { module = "androidx.startup:startup-runtime", version.ref = "androidxStartup" }
+androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "androidxProfileinstaller" }
+
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidxLifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidxLifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidxLifecycle" }
+androidx-lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "androidxLifecycle" }
+
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "androidxNavigation" }
+
+# --- Persistence ------------------------------------------------------------
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "androidxDatastore" }
+androidx-datastore-core = { module = "androidx.datastore:datastore", version.ref = "androidxDatastore" }
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "androidxRoom" }
+androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "androidxRoom" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "androidxRoom" }
+androidx-room-testing = { module = "androidx.room:room-testing", version.ref = "androidxRoom" }
+
+# EncryptedSharedPreferences and MasterKey. Required because the platform
+# forbids storing any credential in plain preferences (Phase 1 §12).
+androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidxSecurity" }
+
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "androidxWork" }
+
+# --- Compose ----------------------------------------------------------------
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
+# Declared explicitly rather than relied on transitively through material3.
+# `CubicBezierEasing` and the spring specs live in animation-core; Gradle's
+# `implementation` scope means a transitive dependency is not on the consumer's
+# compile classpath, so the design system must ask for it by name.
+androidx-compose-animation = { module = "androidx.compose.animation:animation" }
+androidx-compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+
+# --- Dependency injection ---------------------------------------------------
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
+hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+hilt-android-testing = { module = "com.google.dagger:hilt-android-testing", version.ref = "hilt" }
+
+# --- Networking and serialization -------------------------------------------
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+okhttp-logging = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp" }
+okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
+connect-okhttp = { module = "com.connectrpc:connect-kotlin-okhttp", version.ref = "connect" }
+connect-google-javalite = { module = "com.connectrpc:connect-kotlin-google-javalite-ext", version.ref = "connect" }
+# The full Java runtime, not javalite. buf generates with protocolbuffers/java,
+# whose output requires the full runtime; pairing it with javalite produces a
+# NoSuchMethodError at first use rather than a compile error, which is a
+# considerably worse failure mode. Moving to javalite is a worthwhile APK-size
+# optimisation but requires regenerating with java_opt=lite, so it is a
+# deliberate change rather than a dependency swap.
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobufJavalite" }
+protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobufJavalite" }
+
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
+
+# --- Observability ----------------------------------------------------------
+timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
+
+# --- Testing ----------------------------------------------------------------
+junit4 = { module = "junit:junit", version.ref = "junit4" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junitJupiter" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junitJupiter" }
+junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junitJupiter" }
+
+androidx-test-core = { module = "androidx.test:core-ktx", version.ref = "androidxTestCore" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
+androidx-test-rules = { module = "androidx.test:rules", version.ref = "androidxTestRules" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit-ktx", version.ref = "androidxTestExtJunit" }
+androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }
+androidx-test-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "androidxUiAutomator" }
+
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockk" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+truth = { module = "com.google.truth:truth", version.ref = "truth" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
+roborazzi-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit-rule", version.ref = "roborazzi" }
+
+androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "androidxBenchmark" }
+
+# --- Plugin artefacts, referenced by the convention plugins ------------------
+# Convention plugins apply other plugins programmatically, which requires the
+# plugin's Gradle artefact on the build-logic classpath. Declaring them here
+# keeps their versions governed by the same catalog as everything else.
+android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+ksp-gradlePlugin = { module = "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
+hilt-gradlePlugin = { module = "com.google.dagger:hilt-android-gradle-plugin", version.ref = "hilt" }
+detekt-gradlePlugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+compose-compiler-gradlePlugin = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+android-test = { id = "com.android.test", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+# From Kotlin 2.0 the Compose compiler ships with Kotlin itself and is applied
+# as a plugin, replacing the old composeOptions.kotlinCompilerExtensionVersion.
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }
+roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
+
+[bundles]
+# Bundles group libraries that are always used together, so a module declares
+# one line instead of six and cannot accidentally omit one.
+compose = [
+    "androidx-compose-ui",
+    "androidx-compose-ui-graphics",
+    "androidx-compose-ui-tooling-preview",
+    "androidx-compose-material3",
+]
+compose-debug = [
+    "androidx-compose-ui-tooling",
+    "androidx-compose-ui-test-manifest",
+]
+unit-test = [
+    "junit-jupiter",
+    "mockk",
+    "turbine",
+    "truth",
+    "kotlinx-coroutines-test",
+]
+android-test = [
+    "androidx-test-core",
+    "androidx-test-runner",
+    "androidx-test-rules",
+    "androidx-test-ext-junit",
+    "androidx-test-espresso-core",
+]

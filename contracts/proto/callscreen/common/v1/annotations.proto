@@ -1,0 +1,157 @@
+// =============================================================================
+// Data-classification annotations.
+//
+// WHY THIS FILE IS THE MOST IMPORTANT ONE IN contracts/:
+//
+// India's Digital Personal Data Protection Act 2023 obliges us to know exactly
+// which fields carry personal data, where they flow, and how long we keep them.
+// Answering that with a spreadsheet is how compliance programmes fail — the
+// spreadsheet drifts from the code within one sprint.
+//
+// Instead we classify data AT THE SCHEMA LEVEL. Every field carrying personal
+// data is annotated here, and that annotation is machine-readable. The platform
+// libraries (packages/go/platform, packages/python/platform) read these
+// annotations off the protobuf descriptor at runtime to drive, automatically:
+//
+//   1. Log redaction        — annotated fields never reach a log sink verbatim.
+//   2. Retention enforcement — the retention class drives deletion jobs.
+//   3. Residency routing     — data classified as personal must not leave the
+//                              India region (Phase 1 assumption A2).
+//   4. Data-map generation   — docs/compliance/data-map is generated, not typed.
+//
+// This makes privacy a property of the schema rather than a discipline the
+// engineer has to remember at every call site.
+// =============================================================================
+
+syntax = "proto3";
+
+package callscreen.common.v1;
+
+import "google/protobuf/descriptor.proto";
+
+// Sensitivity describes what kind of data a field carries, which determines how
+// it may be logged, stored, exported and retained.
+enum Sensitivity {
+  // Field has not been classified. Treated as PERSONAL by the platform
+  // libraries — an unclassified field fails closed, never open.
+  SENSITIVITY_UNSPECIFIED = 0;
+
+  // Contains no information about an identifiable person. Safe to log in full.
+  // Example: a service name, a region code, a duration in milliseconds.
+  SENSITIVITY_PUBLIC = 1;
+
+  // Internal operational data with no personal content. Safe to log, must not
+  // be exposed to clients. Example: an internal shard identifier.
+  SENSITIVITY_INTERNAL = 2;
+
+  // Personal data under DPDP §2(t): relates to an identifiable individual.
+  // Redacted in logs, encrypted at rest, subject to residency and retention.
+  // Example: a phone number, a device identifier, an IP address.
+  SENSITIVITY_PERSONAL = 3;
+
+  // Personal data whose disclosure creates elevated harm. Same handling as
+  // PERSONAL plus: never exported to analytics, access is audit-logged
+  // individually. Example: call audio, a transcript, contact-book contents.
+  SENSITIVITY_SENSITIVE = 4;
+
+  // Authentication material. Never logged at any level, never persisted in
+  // plaintext, never included in an error message or a crash report.
+  // Example: a session token, a refresh token, an attestation nonce.
+  SENSITIVITY_SECRET = 5;
+}
+
+// RedactionStrategy controls how the platform logging middleware renders an
+// annotated field when it must appear in a log or trace for debuggability.
+enum RedactionStrategy {
+  // Default for the field's sensitivity class.
+  REDACTION_STRATEGY_UNSPECIFIED = 0;
+
+  // Replace the entire value with a fixed marker. Maximum privacy, zero
+  // debuggability.
+  REDACTION_STRATEGY_DROP = 1;
+
+  // Replace with a stable keyed hash. Preserves the ability to correlate the
+  // same value across log lines without revealing it — the right default for
+  // identifiers such as phone numbers.
+  REDACTION_STRATEGY_HASH = 2;
+
+  // Reveal only a trailing fragment (for example the last four digits of a
+  // number) for support workflows where an agent must confirm identity.
+  REDACTION_STRATEGY_PARTIAL = 3;
+
+  // Emit only the value's length and type. Useful for diagnosing truncation or
+  // encoding faults without exposing content.
+  REDACTION_STRATEGY_SHAPE = 4;
+}
+
+// Retention names the deletion policy that applies to a field or message. The
+// concrete durations live in docs/compliance/retention-schedule.md and are
+// applied by the retention job; the schema records only the class so that a
+// policy change does not require regenerating every contract.
+enum Retention {
+  // Unclassified. Treated as RETENTION_SHORT by the platform — fails closed.
+  RETENTION_UNSPECIFIED = 0;
+
+  // Held only for the duration of the request or call session, never persisted.
+  RETENTION_EPHEMERAL = 1;
+
+  // Short operational lifetime. Applies to diagnostic and telemetry data.
+  RETENTION_SHORT = 2;
+
+  // Standard product lifetime. Applies to data the user expects to find in the
+  // app, such as a call history entry.
+  RETENTION_STANDARD = 3;
+
+  // Extended lifetime required by a legal or financial obligation, such as
+  // transaction records. Deletion requests are honoured subject to this.
+  RETENTION_LEGAL_HOLD = 4;
+}
+
+// FieldClassification is attached to individual fields.
+message FieldClassification {
+  // How sensitive the field's contents are. Required for any field that could
+  // carry user data; the lint rules in CI flag unclassified candidates.
+  Sensitivity sensitivity = 1;
+
+  // How the field is rendered when logged. Defaults are derived from
+  // `sensitivity` when this is left unset.
+  RedactionStrategy redaction = 2;
+
+  // How long the field's value may be retained.
+  Retention retention = 3;
+
+  // When true, the field must never leave its origin region. Enforced by the
+  // egress policy in the platform HTTP and Kafka clients.
+  bool residency_bound = 4;
+
+  // Free-text justification recorded in the generated data map. Required for
+  // SENSITIVE and SECRET fields so that the compliance review has context.
+  string purpose = 5;
+}
+
+// MessageClassification is attached to a whole message, establishing defaults
+// that individual fields may tighten but never loosen.
+message MessageClassification {
+  // Baseline sensitivity for every field in the message.
+  Sensitivity default_sensitivity = 1;
+
+  // Baseline retention for the message as a persisted record.
+  Retention default_retention = 2;
+
+  // Name of the team accountable for this data under the compliance programme.
+  // Mirrors a team handle in .github/CODEOWNERS.
+  string data_owner = 3;
+}
+
+extend google.protobuf.FieldOptions {
+  // Per-field data classification.
+  //
+  // Extension numbers 50000-99999 are reserved for internal organisational use
+  // by the protobuf specification, so this cannot collide with a public schema.
+  FieldClassification field_classification = 50001;
+}
+
+extend google.protobuf.MessageOptions {
+  // Per-message data classification defaults.
+  MessageClassification message_classification = 50002;
+}

@@ -1,0 +1,29 @@
+# =============================================================================
+# ai-orchestrator
+#
+# LLM routing, tool calling, conversation memory and the safety layer.
+#
+# Declares only what it imports, so its container image carries only its own
+# dependency closure (Phase 1 §13). Development tooling is inherited from the
+# workspace root at services/python/pyproject.toml.
+# =============================================================================
+
+[project]
+name = "ai-orchestrator"
+version = "0.1.0"
+description = "LLM routing, tool calling, conversation memory and the safety layer."
+requires-python = ">=3.12,<3.14"
+license = { text = "Proprietary" }
+dependencies = [
+    "callscreen-platform-py",
+]
+
+[project.scripts]
+ai-orchestrator = "ai_orchestrator.__main__:main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_orchestrator"]

@@ -1,0 +1,81 @@
+// =============================================================================
+// Go workspace.
+//
+// WHY A WORKSPACE RATHER THAN ONE MODULE:
+//
+// Each service is its own module with its own go.mod. That means each service
+// declares only the dependencies it actually uses, so an unrelated dependency
+// upgrade in `billing` cannot force a rebuild or a security review of
+// `media-relay`. It also keeps service container images minimal, because the
+// build context for one service does not drag in the dependency graph of eight.
+//
+// The workspace then stitches those modules together for local development, so
+// an engineer editing packages/go/platform sees the change reflected in every
+// consuming service immediately, with no version bump ceremony.
+//
+// ON THE `replace` DIRECTIVES IN EACH SERVICE go.mod:
+//
+// Each service additionally carries a relative-path `replace` for the shared
+// platform module. That is deliberate and, for now, necessary. This repository
+// is private and unpublished, so the module path above is not fetchable; in
+// workspace mode Go still needs a resolvable version for every module in the
+// build list in order to compute go.work.sum, and without the replace it
+// attempts a network fetch that fails — taking unrelated modules down with it.
+//
+// The replace also keeps each module buildable standalone with GOWORK=off,
+// which CI relies on to prove that a module's go.mod is genuinely
+// self-sufficient rather than quietly leaning on the workspace to resolve
+// something.
+//
+// These directives are removed once the repository is published and the module
+// path resolves on its own. Until then they are load-bearing, not legacy.
+// =============================================================================
+
+go 1.25.0
+
+use (
+	./packages/go/audiobridge
+	./packages/go/voice
+	./packages/go/audiointel
+	// Generated protobuf and Connect RPC bindings. Never hand-edited; produced
+	// by `task contracts:generate` and drift-checked in CI.
+	./packages/go/contracts-go
+	./packages/go/conversation
+	./packages/go/evalsubjects
+	./packages/go/evaluation
+	./packages/go/eventbus
+	./packages/go/governance
+	./packages/go/integrations
+	./packages/go/media
+	./packages/go/memory
+	./packages/go/metrics
+	./packages/go/middleware
+	./packages/go/outbox
+	./packages/go/persistence
+	./packages/go/platform
+	./packages/go/redis
+	./packages/go/repository
+	./packages/go/runtime
+	./packages/go/speech
+	./packages/go/telemetry
+	./packages/go/telephony
+	./packages/go/toolruntime
+	./services/go/analytics
+	./services/go/billing
+	./services/go/cognitive-reasoning
+	./services/go/compliance
+	./services/go/consumer
+	./services/go/contacts-sync
+
+	// Services
+	./services/go/edge-api
+	./services/go/family
+	./services/go/fraud-detection
+	./services/go/identity
+	./services/go/media-relay
+	./services/go/notification-fanout
+	./services/go/session-orchestrator
+	./services/go/speech-streaming
+	./services/go/telephony-gateway
+	./services/go/voice
+)

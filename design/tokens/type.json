@@ -1,0 +1,77 @@
+{
+  "$description": [
+    "TYPE SCALE.",
+    "",
+    "Line heights are derived from DEVANAGARI first and checked against Latin",
+    "second. Devanagari matras and Bengali conjuncts need more vertical room",
+    "than Latin; type set to comfortable Latin metrics clips them. Minimum",
+    "1.5x everywhere - see docs/design/03-typography.md.",
+    "",
+    "Tracking is SCRIPT-AWARE. Negative tracking destroys Indic conjuncts, so",
+    "every negative value resolves to 0 for Indic scripts. Never hard-code a",
+    "letterSpacing in a composable."
+  ],
+
+  "fontFamily": {
+    "text": {
+      "value": "Roboto Flex",
+      "fallback": ["Roboto", "sans-serif"],
+      "comment": "System-resident, variable, no bundled font. Indic coverage via system Noto fallback."
+    },
+    "numeric": {
+      "value": "Roboto Flex",
+      "features": ["tnum"],
+      "comment": "Tabular figures. Any number that changes or column-aligns uses this."
+    }
+  },
+
+  "fontWeight": {
+    "$comment": "Four weights only. Light/Thin are illegible at small sizes on mid-range displays and absent from most Indic fallbacks.",
+    "regular":  { "value": 400 },
+    "medium":   { "value": 500 },
+    "semibold": { "value": 600 },
+    "bold":     { "value": 700 }
+  },
+
+  "tracking": {
+    "$comment": "latin / indic. The resolver reads the active locale.",
+    "tight":  { "latin": -0.5,  "indic": 0 },
+    "snug":   { "latin": -0.25, "indic": 0 },
+    "normal": { "latin": 0,     "indic": 0 },
+    "loose":  { "latin": 1.0,   "indic": 0.5 },
+    "wide":   { "latin": 2.0,   "indic": 1.0 }
+  },
+
+  "type": {
+    "display": {
+      "lg": { "size": 40, "lineHeight": 48, "weight": "{fontWeight.bold}",     "tracking": "{tracking.tight}", "maxScale": 1.3 },
+      "md": { "size": 32, "lineHeight": 40, "weight": "{fontWeight.bold}",     "tracking": "{tracking.tight}", "maxScale": 1.3 },
+      "sm": { "size": 28, "lineHeight": 36, "weight": "{fontWeight.semibold}", "tracking": "{tracking.snug}",  "maxScale": 1.3 }
+    },
+    "headline": {
+      "lg": { "size": 24, "lineHeight": 32, "weight": "{fontWeight.semibold}", "tracking": "{tracking.normal}", "maxScale": 1.3 },
+      "md": { "size": 22, "lineHeight": 30, "weight": "{fontWeight.semibold}", "tracking": "{tracking.normal}" },
+      "sm": { "size": 20, "lineHeight": 28, "weight": "{fontWeight.semibold}", "tracking": "{tracking.normal}" }
+    },
+    "title": {
+      "lg": { "size": 18, "lineHeight": 26, "weight": "{fontWeight.semibold}", "tracking": "{tracking.normal}" },
+      "md": { "size": 16, "lineHeight": 24, "weight": "{fontWeight.semibold}", "tracking": "{tracking.normal}" },
+      "sm": { "size": 14, "lineHeight": 22, "weight": "{fontWeight.semibold}", "tracking": "{tracking.loose}" }
+    },
+    "body": {
+      "lg": { "size": 16, "lineHeight": 26, "weight": "{fontWeight.regular}", "tracking": "{tracking.normal}", "comment": "Transcript. Most generous in the system." },
+      "md": { "size": 14, "lineHeight": 22, "weight": "{fontWeight.regular}", "tracking": "{tracking.normal}" },
+      "sm": { "size": 12, "lineHeight": 20, "weight": "{fontWeight.regular}", "tracking": "{tracking.loose}" }
+    },
+    "label": {
+      "lg": { "size": 14, "lineHeight": 20, "weight": "{fontWeight.medium}", "tracking": "{tracking.loose}" },
+      "md": { "size": 12, "lineHeight": 16, "weight": "{fontWeight.medium}", "tracking": "{tracking.loose}" },
+      "sm": { "size": 11, "lineHeight": 16, "weight": "{fontWeight.medium}", "tracking": "{tracking.wide}", "comment": "Non-essential metadata only, duplicated elsewhere." }
+    },
+    "numeric": {
+      "lg": { "size": 32, "lineHeight": 40, "weight": "{fontWeight.semibold}", "tracking": "{tracking.normal}", "tabular": true },
+      "md": { "size": 16, "lineHeight": 24, "weight": "{fontWeight.medium}",   "tracking": "{tracking.normal}", "tabular": true },
+      "sm": { "size": 12, "lineHeight": 16, "weight": "{fontWeight.medium}",   "tracking": "{tracking.normal}", "tabular": true }
+    }
+  }
+}

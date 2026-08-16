@@ -1,0 +1,29 @@
+# =============================================================================
+# tts-gateway
+#
+# Streaming text-to-speech vendor abstraction and voice registry.
+#
+# Declares only what it imports, so its container image carries only its own
+# dependency closure (Phase 1 §13). Development tooling is inherited from the
+# workspace root at services/python/pyproject.toml.
+# =============================================================================
+
+[project]
+name = "tts-gateway"
+version = "0.1.0"
+description = "Streaming text-to-speech vendor abstraction and voice registry."
+requires-python = ">=3.12,<3.14"
+license = { text = "Proprietary" }
+dependencies = [
+    "callscreen-platform-py",
+]
+
+[project.scripts]
+tts-gateway = "tts_gateway.__main__:main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tts_gateway"]

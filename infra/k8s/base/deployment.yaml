@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aegis-service-template
+  namespace: aegis-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aegis-service
+  template:
+    metadata:
+      labels:
+        app: aegis-service
+    spec:
+      containers:
+        - name: service
+          image: aegisai/service:latest
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9090
+              name: health
+          envFrom:
+            - configMapRef:
+                name: aegis-global-config
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 9090
+            initialDelaySeconds: 2
+            periodSeconds: 5

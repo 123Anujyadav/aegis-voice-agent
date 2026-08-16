@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  The XML theme.
+
+  Compose owns the application's visual design; this theme exists only to style
+  what renders BEFORE the first composition — the launch window background and
+  the initial system bars. Without it the app shows the platform default
+  background for a frame, which reads as a flash on cold start.
+
+  NoActionBar because Compose draws its own app bars; an inherited ActionBar
+  would render underneath and consume touch input.
+-->
+<resources>
+    <style name="Theme.CallScreen" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>

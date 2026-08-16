@@ -1,0 +1,463 @@
+# =============================================================================
+# Taskfile — the uniform verb surface across every toolchain in the monorepo.
+#
+# WHY THIS EXISTS (Phase 1 ADR-0001): this repository hosts Gradle, Go, uv,
+# pnpm, buf and Terraform. Without a single entry point a new engineer must
+# learn six CLIs before they can run a test. Every toolchain-specific command
+# is wrapped here so that `task test` always means "test what I changed",
+# regardless of which language that happens to be.
+#
+# Design rules for this file:
+#   1. Every task has a `desc` — `task --list` is the discovery mechanism.
+#   2. Tasks are namespaced `<domain>:<verb>` and the root aliases fan out.
+#   3. No task silently succeeds when its toolchain is missing; `preconditions`
+#      produce an actionable message instead of a confusing downstream error.
+#   4. `sources`/`generates` enable Task's fingerprinting so repeat runs no-op.
+#
+# https://taskfile.dev
+# =============================================================================
+version: '3'
+
+silent: true
+
+vars:
+  # Repository root, resolved by Task itself. Used to build absolute paths so
+  # tasks behave identically no matter which subdirectory they are invoked from.
+  ROOT: '{{.ROOT_DIR}}'
+  # Every Go module, in dependency order: shared libraries first so that a
+  # failure in a library is reported before the eight services that would each
+  # report the same failure again.
+  GO_MODULES: >-
+    packages/go/platform
+    packages/go/eventbus
+    packages/go/contracts-go
+    services/go/telephony-gateway
+    services/go/media-relay
+    services/go/session-orchestrator
+    services/go/identity
+    services/go/contacts-sync
+    services/go/notification-fanout
+    services/go/billing
+    services/go/edge-api
+  PY_SERVICES: >-
+    ai-orchestrator asr-gateway tts-gateway fraud-engine
+    transcript-service prompt-registry
+
+env:
+  # Force Go to use the module proxy with a checksum database. Reproducible
+  # builds are a quality gate; direct VCS fetches are not verifiable.
+  GOFLAGS: -mod=readonly
+  # Deterministic Python bytecode; avoids .pyc churn in Docker layer caching.
+  PYTHONDONTWRITEBYTECODE: '1'
+
+# =============================================================================
+# ROOT ALIASES — what an engineer types 95% of the time
+# =============================================================================
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list
+
+  bootstrap:
+    desc: 'One-command clean-clone setup. Installs every toolchain dependency.'
+    cmds:
+      - task: bootstrap:check
+      - task: contracts:deps
+      - task: go:deps
+      - task: py:deps
+      - task: node:deps
+      - echo ""
+      - echo "Bootstrap complete. Run 'task verify' to confirm the repo is healthy."
+
+  bootstrap:check:
+    desc: 'Verify required toolchains are present and report what is missing'
+    cmds:
+      - '{{if eq OS "windows"}}powershell -NoProfile -ExecutionPolicy Bypass -File tools/scripts/check-toolchains.ps1{{else}}bash tools/scripts/check-toolchains.sh{{end}}'
+
+  verify:
+    desc: 'Full local quality gate — mirrors the CI PR stage. Run before pushing.'
+    cmds:
+      - task: format:check
+      - task: lint
+      - task: test
+      - echo ""
+      - echo "All local gates passed."
+
+  # --- Aggregate verbs -------------------------------------------------------
+  build:
+    desc: 'Build every artefact in the repository'
+    deps: [go:build, py:build, contracts:generate]
+
+  test:
+    desc: 'Run every test suite'
+    deps: [go:test, py:test]
+
+  lint:
+    desc: 'Run every linter'
+    deps: [go:lint, py:lint, contracts:lint, docker:lint, infra:lint, docs:lint]
+
+  format:
+    desc: 'Auto-format the entire repository in place'
+    deps: [go:format, py:format, contracts:format, node:format]
+
+  format:check:
+    desc: 'Verify formatting without modifying files (CI mode)'
+    deps: [go:format:check, py:format:check, contracts:format:check, node:format:check]
+
+  clean:
+    desc: 'Remove all build output. Does not touch dependency caches.'
+    cmds:
+      - '{{if eq OS "windows"}}powershell -NoProfile -Command "Get-ChildItem -Path . -Include bin,dist,build,.pytest_cache,.mypy_cache,.ruff_cache,__pycache__ -Recurse -Directory -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"{{else}}find . -type d \( -name bin -o -name dist -o -name build -o -name .pytest_cache -o -name .mypy_cache -o -name .ruff_cache -o -name __pycache__ \) -not -path "./node_modules/*" -prune -exec rm -rf {} + 2>/dev/null || true{{end}}'
+      - echo "Build output removed."
+
+# =============================================================================
+# CONTRACTS — protobuf is the single source of truth (Phase 1 §4)
+# =============================================================================
+  contracts:deps:
+    desc: 'Install buf and protobuf plugins'
+    dir: contracts
+    cmds:
+      - buf --version
+
+  contracts:lint:
+    desc: 'Lint protobuf definitions against the style guide'
+    dir: contracts
+    preconditions:
+      - sh: buf --version
+        msg: "buf is not installed. Run: npm install -g @bufbuild/buf"
+    cmds:
+      - buf lint
+
+  contracts:breaking:
+    desc: 'Detect breaking contract changes against the main branch'
+    dir: contracts
+    cmds:
+      - buf breaking --against '.git#branch=main,subdir=contracts'
+
+  contracts:format:
+    desc: 'Format .proto files in place'
+    dir: contracts
+    cmds:
+      - buf format -w
+
+  contracts:format:check:
+    desc: 'Verify .proto formatting (CI mode)'
+    dir: contracts
+    cmds:
+      - buf format --diff --exit-code
+
+  contracts:generate:
+    desc: 'Generate language bindings into packages/*/contracts-*'
+    dir: contracts
+    sources:
+      - 'proto/**/*.proto'
+      - 'buf.gen.yaml'
+    cmds:
+      - buf generate
+
+  contracts:drift:
+    desc: 'Fail if committed generated code differs from a fresh generation'
+    cmds:
+      - task: contracts:generate
+      - git diff --exit-code --stat -- packages/go/contracts-go packages/python/contracts-py packages/kotlin/contracts-kt packages/ts/contracts-ts
+
+# =============================================================================
+# GO
+# =============================================================================
+  # NOTE ON `./...` IN A GO WORKSPACE:
+  #
+  # `go build ./...` cannot be run from the repository root. The root has no
+  # go.mod, so it is not itself inside any module, and Go rejects the pattern
+  # with "directory prefix . does not contain modules listed in go.work". This
+  # is correct behaviour, not a misconfiguration. Every Go task therefore
+  # iterates the module list and runs inside each module directory.
+  go:deps:
+    desc: 'Download and verify Go module dependencies'
+    preconditions:
+      - sh: go version
+        msg: "Go is not installed. See docs/onboarding/README.md"
+    cmds:
+      - go work sync
+
+  go:build:
+    desc: 'Compile every Go module'
+    cmds:
+      - task: go:foreach
+        vars: { GOCMD: 'build ./...' }
+
+  go:test:
+    desc: 'Run Go unit tests with race detection'
+    cmds:
+      - task: go:foreach
+        vars: { GOCMD: 'test -race -count=1 ./...' }
+
+  go:test:short:
+    desc: 'Run only fast Go tests (skips container-backed integration tests)'
+    cmds:
+      - task: go:foreach
+        vars: { GOCMD: 'test -short -count=1 ./...' }
+
+  go:vet:
+    desc: 'Run go vet across every module'
+    cmds:
+      - task: go:foreach
+        vars: { GOCMD: 'vet ./...' }
+
+  go:tidy:
+    desc: 'Tidy every Go module in the workspace'
+    cmds:
+      - task: go:foreach
+        vars: { GOCMD: 'mod tidy' }
+      - go work sync
+
+  go:vuln:
+    desc: 'Scan Go dependencies for known vulnerabilities'
+    preconditions:
+      - sh: govulncheck -version
+        msg: "govulncheck missing. Install: go install golang.org/x/vuln/cmd/govulncheck@latest"
+    cmds:
+      - task: go:foreach
+        vars: { GOCMD: 'run golang.org/x/vuln/cmd/govulncheck ./...' }
+
+  go:foreach:
+    desc: 'Internal: run `go {{.GOCMD}}` inside every module directory'
+    internal: true
+    requires:
+      vars: [GOCMD]
+    cmds:
+      - for: { var: GO_MODULES, split: ' ' }
+        cmd: '{{if eq OS "windows"}}powershell -NoProfile -Command "Push-Location ''{{.ITEM}}''; go {{.GOCMD}}; $c=$LASTEXITCODE; Pop-Location; exit $c"{{else}}(cd "{{.ITEM}}" && go {{.GOCMD}}){{end}}'
+
+  go:lint:
+    desc: 'Run golangci-lint across every Go module'
+    preconditions:
+      - sh: golangci-lint --version
+        msg: "golangci-lint missing. Install: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+    cmds:
+      - for: { var: GO_MODULES, split: ' ' }
+        cmd: '{{if eq OS "windows"}}powershell -NoProfile -Command "Push-Location ''{{.ITEM}}''; golangci-lint run ./...; $c=$LASTEXITCODE; Pop-Location; exit $c"{{else}}(cd "{{.ITEM}}" && golangci-lint run ./...){{end}}'
+
+  go:format:
+    desc: 'Format Go source with gofumpt'
+    preconditions:
+      - sh: gofumpt --version
+        msg: "gofumpt missing. Install: go install mvdan.cc/gofumpt@latest"
+    cmds:
+      - gofumpt -l -w packages/go services/go
+
+  go:format:check:
+    desc: 'Verify Go formatting (CI mode)'
+    cmds:
+      - '{{if eq OS "windows"}}powershell -NoProfile -Command "$out = gofumpt -l packages/go services/go; if ($out) { Write-Host \"Unformatted Go files:\"; Write-Host $out; exit 1 }"{{else}}test -z "$(gofumpt -l packages/go services/go)" || { echo "Unformatted Go files:"; gofumpt -l packages/go services/go; exit 1; }{{end}}'
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+  # The uv workspace root is the repository root, because uv requires every
+  # member to be a subdirectory of the root and Python code lives in both
+  # services/python and packages/python. These tasks therefore run at the root,
+  # not inside services/python.
+  py:deps:
+    desc: 'Sync the uv workspace virtual environment'
+    preconditions:
+      - sh: uv --version
+        msg: "uv is not installed. Run: pip install uv"
+    cmds:
+      - uv sync --all-packages --all-extras --dev
+
+  py:build:
+    desc: 'Build Python distributions'
+    cmds:
+      - uv build --all-packages
+
+  py:test:
+    desc: 'Run pytest with coverage across all Python packages'
+    cmds:
+      - uv run pytest --cov --cov-report=term-missing:skip-covered
+
+  py:lint:
+    desc: 'Run ruff lint and mypy strict type checking'
+    cmds:
+      - uv run ruff check .
+      - uv run mypy packages/python services/python
+
+  py:format:
+    desc: 'Format Python source with ruff'
+    cmds:
+      - uv run ruff format .
+      - uv run ruff check --fix-only .
+
+  py:format:check:
+    desc: 'Verify Python formatting (CI mode)'
+    cmds:
+      - uv run ruff format --check .
+
+  py:lock:
+    desc: 'Refresh uv.lock'
+    cmds:
+      - uv lock
+
+# =============================================================================
+# NODE — tooling only (commitlint, prettier); the admin console lands in Phase 4
+# =============================================================================
+  node:deps:
+    desc: 'Install repository tooling dependencies'
+    cmds:
+      - pnpm install --frozen-lockfile
+
+  node:format:
+    desc: 'Format YAML, JSON and Markdown with prettier'
+    cmds:
+      - pnpm exec prettier --write "**/*.{yml,yaml,json,json5,md}"
+
+  node:format:check:
+    desc: 'Verify prettier formatting (CI mode)'
+    cmds:
+      - pnpm exec prettier --check "**/*.{yml,yaml,json,json5,md}"
+
+# =============================================================================
+# ANDROID
+# =============================================================================
+  android:build:
+    desc: 'Assemble all Android build variants'
+    dir: android
+    cmds:
+      - '{{if eq OS "windows"}}.\gradlew.bat assemble --stacktrace{{else}}./gradlew assemble --stacktrace{{end}}'
+
+  android:build:debug:
+    desc: 'Assemble the debug variant only (fast inner loop)'
+    dir: android
+    cmds:
+      - '{{if eq OS "windows"}}.\gradlew.bat assembleDebug{{else}}./gradlew assembleDebug{{end}}'
+
+  android:test:
+    desc: 'Run Android JVM unit tests'
+    dir: android
+    cmds:
+      - '{{if eq OS "windows"}}.\gradlew.bat testDebugUnitTest{{else}}./gradlew testDebugUnitTest{{end}}'
+
+  android:lint:
+    desc: 'Run Android Lint, ktlint and detekt'
+    dir: android
+    cmds:
+      - '{{if eq OS "windows"}}.\gradlew.bat lintDebug ktlintCheck detekt{{else}}./gradlew lintDebug ktlintCheck detekt{{end}}'
+
+  android:format:
+    desc: 'Format Kotlin source with ktlint'
+    dir: android
+    cmds:
+      - '{{if eq OS "windows"}}.\gradlew.bat ktlintFormat{{else}}./gradlew ktlintFormat{{end}}'
+
+  android:clean:
+    desc: 'Clean the Gradle build'
+    dir: android
+    cmds:
+      - '{{if eq OS "windows"}}.\gradlew.bat clean{{else}}./gradlew clean{{end}}'
+
+# =============================================================================
+# DOCKER
+# =============================================================================
+  docker:lint:
+    desc: 'Lint every Dockerfile with hadolint'
+    cmds:
+      - '{{if eq OS "windows"}}powershell -NoProfile -ExecutionPolicy Bypass -File tools/scripts/hadolint-all.ps1{{else}}bash tools/scripts/hadolint-all.sh{{end}}'
+
+  docker:build:go:
+    desc: 'Build the shared Go service image (SERVICE=<name> required)'
+    requires:
+      vars: [SERVICE]
+    cmds:
+      - docker build -f docker/go/Dockerfile --build-arg SERVICE={{.SERVICE}} -t callscreen/{{.SERVICE}}:dev .
+
+  docker:build:py:
+    desc: 'Build the shared Python service image (SERVICE=<name> required)'
+    requires:
+      vars: [SERVICE]
+    cmds:
+      - docker build -f docker/python/Dockerfile --build-arg SERVICE={{.SERVICE}} -t callscreen/{{.SERVICE}}:dev .
+
+  up:
+    desc: 'Start the local development stack (Postgres, Redis, Kafka, observability)'
+    cmds:
+      - docker compose -f docker/compose/docker-compose.yml up -d
+      - echo "Local stack is starting. Run 'task up:status' to check readiness."
+
+  up:status:
+    desc: 'Show local development stack health'
+    cmds:
+      - docker compose -f docker/compose/docker-compose.yml ps
+
+  down:
+    desc: 'Stop the local development stack (volumes preserved)'
+    cmds:
+      - docker compose -f docker/compose/docker-compose.yml down
+
+  down:clean:
+    desc: 'Stop the local stack and DESTROY all volumes'
+    prompt: 'This deletes all local database and Kafka data. Continue?'
+    cmds:
+      - docker compose -f docker/compose/docker-compose.yml down -v
+
+# =============================================================================
+# INFRASTRUCTURE
+# =============================================================================
+  infra:lint:
+    desc: 'Validate Terraform formatting and Kubernetes policy'
+    cmds:
+      - task: infra:tf:fmt:check
+      - task: infra:tf:validate
+
+  infra:tf:fmt:
+    desc: 'Format Terraform in place'
+    dir: infra/terraform
+    cmds:
+      - terraform fmt -recursive
+
+  infra:tf:fmt:check:
+    desc: 'Verify Terraform formatting (CI mode)'
+    dir: infra/terraform
+    cmds:
+      - terraform fmt -recursive -check -diff
+
+  infra:tf:validate:
+    desc: 'Validate every Terraform environment'
+    dir: infra/terraform
+    cmds:
+      - for: { var: TF_ENVS, split: ' ' }
+        cmd: '{{if eq OS "windows"}}powershell -NoProfile -Command "Push-Location envs/{{.ITEM}}; terraform init -backend=false; terraform validate; Pop-Location"{{else}}(cd envs/{{.ITEM}} && terraform init -backend=false && terraform validate){{end}}'
+    vars:
+      TF_ENVS: 'dev staging prod-in prod-global'
+
+  infra:helm:lint:
+    desc: 'Lint Helm charts'
+    cmds:
+      - helm lint infra/helm/callscreen-service
+
+# =============================================================================
+# DOCUMENTATION
+# =============================================================================
+  docs:lint:
+    desc: 'Lint Markdown formatting and check for dead links'
+    cmds:
+      - pnpm exec markdownlint-cli2 "docs/**/*.md" "*.md"
+
+  docs:adr:
+    desc: 'Scaffold a new ADR (TITLE="short title" required)'
+    requires:
+      vars: [TITLE]
+    cmds:
+      - '{{if eq OS "windows"}}powershell -NoProfile -ExecutionPolicy Bypass -File tools/scripts/new-adr.ps1 -Title "{{.TITLE}}"{{else}}bash tools/scripts/new-adr.sh "{{.TITLE}}"{{end}}'
+
+# =============================================================================
+# SECURITY
+# =============================================================================
+  sec:secrets:
+    desc: 'Scan the working tree for committed secrets'
+    cmds:
+      - gitleaks detect --no-banner --redact --source .
+
+  sec:sbom:
+    desc: 'Generate a Software Bill of Materials for the repository'
+    cmds:
+      - syft dir:. -o cyclonedx-json=sbom.cdx.json

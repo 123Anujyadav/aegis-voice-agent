@@ -1,0 +1,92 @@
+# =============================================================================
+# EditorConfig — the lowest common denominator of formatting.
+#
+# This file exists so that whitespace is never a review comment, even before a
+# formatter runs. Formatters (ktfmt, gofumpt, ruff format, prettier) remain the
+# authority; EditorConfig makes the editor agree with them while you type.
+#
+# https://editorconfig.org
+# =============================================================================
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+max_line_length = 100
+
+# --- Kotlin: official style is 4-space, 120 columns --------------------------
+[*.{kt,kts}]
+indent_size = 4
+max_line_length = 120
+# ktlint reads these directly.
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+ktlint_standard_no-wildcard-imports = enabled
+ktlint_standard_filename = enabled
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+# --- Go: tabs, no line limit (gofumpt is authoritative) ---------------------
+[*.go]
+indent_style = tab
+indent_size = 4
+max_line_length = off
+
+[go.mod]
+indent_style = tab
+
+# --- Python: PEP 8 via ruff --------------------------------------------------
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+[*.pyi]
+indent_size = 4
+
+# --- Protobuf: buf format is authoritative ----------------------------------
+[*.proto]
+indent_size = 2
+max_line_length = 120
+
+# --- Config / markup ---------------------------------------------------------
+[*.{yml,yaml,json,json5,jsonc}]
+indent_size = 2
+
+[*.{js,jsx,ts,tsx,mjs,cjs}]
+indent_size = 2
+
+[*.{tf,tfvars,hcl}]
+indent_size = 2
+
+[*.{sh,bash}]
+indent_size = 2
+
+[*.{ps1,psm1}]
+indent_size = 4
+end_of_line = crlf
+
+[*.{bat,cmd}]
+end_of_line = crlf
+
+# --- Markdown: trailing whitespace is a hard line break, do not trim --------
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# --- Makefiles require literal tabs ------------------------------------------
+[{Makefile,*.mk}]
+indent_style = tab
+
+# --- Generated / vendored: leave alone --------------------------------------
+[{**/contracts-go/**,**/contracts-py/**,**/contracts-kt/**,**/contracts-ts/**}]
+indent_style = unset
+indent_size = unset
+max_line_length = unset
+trim_trailing_whitespace = unset
+
+[gradle/wrapper/**]
+indent_style = unset
+insert_final_newline = unset

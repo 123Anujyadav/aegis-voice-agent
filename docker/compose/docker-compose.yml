@@ -1,0 +1,179 @@
+# =============================================================================
+# Local development stack.
+#
+# PURPOSE: give an engineer every backing service the platform depends on with
+# one command, so that "works on my machine" means the same thing for everyone.
+#
+# THIS IS NOT A PRODUCTION TOPOLOGY. Production runs on Kubernetes from
+# infra/kubernetes. Nothing here is tuned for durability, and every credential is
+# a well-known development value. Reusing this file for a shared or
+# internet-reachable environment would expose all of them.
+#
+#   task up          start
+#   task up:status   check readiness
+#   task down        stop, preserving volumes
+#   task down:clean  stop and destroy all data
+# =============================================================================
+
+name: callscreen-dev
+
+# YAML anchors keep the shared operational settings in one place. Without them,
+# eleven services each carry their own restart policy and logging block, and
+# they drift.
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      # Unbounded container logs will fill an engineer's disk within days of
+      # continuous local development. This is a routine and avoidable support
+      # request.
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — primary transactional store.
+  # ---------------------------------------------------------------------------
+  postgres:
+    <<: *common
+    image: postgres:17.2-alpine
+    environment:
+      POSTGRES_USER: callscreen
+      POSTGRES_PASSWORD: local-development-only
+      POSTGRES_DB: callscreen
+      # Deterministic collation. Postgres sorts differently under different
+      # locales, so a query that returns rows in one order locally and another
+      # in CI is a real and confusing class of test flake.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command:
+      # Log any statement over 200ms. Catching a missing index locally is far
+      # cheaper than discovering it from production latency graphs.
+      - "postgres"
+      - "-c"
+      - "log_min_duration_statement=200"
+      - "-c"
+      - "max_connections=200"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U callscreen -d callscreen"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Redis — cache, rate-limit counters and ephemeral session state.
+  # ---------------------------------------------------------------------------
+  redis:
+    <<: *common
+    image: redis:7.4.1-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      # An explicit eviction policy. The default (noeviction) makes Redis start
+      # returning write errors when full rather than evicting, which surfaces as
+      # a confusing application error instead of a cache miss.
+      - "--maxmemory"
+      - "512mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Kafka — the event backbone.
+  #
+  # KRaft mode: no ZooKeeper. ZooKeeper was removed upstream and a local stack
+  # that still runs it teaches an operational model that no longer applies.
+  # ---------------------------------------------------------------------------
+  kafka:
+    <<: *common
+    image: confluentinc/cp-kafka:7.8.0
+    ports:
+      - "127.0.0.1:9092:9092"
+    environment:
+      CLUSTER_ID: callscreen-local-cluster-01
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9092"
+      # Two advertised listeners: one for containers on the compose network,
+      # one for tooling on the host. A single listener cannot serve both,
+      # because the broker's advertised address must be resolvable by whichever
+      # client connects, and those two clients resolve names differently.
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Auto-creation is DISABLED deliberately, matching production. With it
+      # enabled a typo in a topic name silently creates a new topic and the
+      # message vanishes into it — a failure that produces no error anywhere.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 24
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Observability: an OpenTelemetry collector fronting Jaeger and Prometheus.
+  #
+  # Included in the LOCAL stack on purpose. Distributed tracing that only exists
+  # in production is discovered to be wrong in production. Making it available
+  # from day one means instrumentation is exercised as it is written.
+  # ---------------------------------------------------------------------------
+  jaeger:
+    <<: *common
+    image: jaegertracing/all-in-one:1.65.0
+    ports:
+      - "127.0.0.1:16686:16686"  # UI
+      - "127.0.0.1:4317:4317"    # OTLP gRPC
+      - "127.0.0.1:4318:4318"    # OTLP HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  prometheus:
+    <<: *common
+    image: prom/prometheus:v3.1.0
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=24h"
+      # Required for hot config reload without a container restart.
+      - "--web.enable-lifecycle"
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+  prometheus-data:
+
+# A named network rather than the default. The default network's name is derived
+# from the directory, which differs between engineers who clone into different
+# paths and breaks any tooling that references it by name.
+networks:
+  default:
+    name: callscreen-dev

@@ -1,0 +1,171 @@
+# =============================================================================
+# golangci-lint configuration.
+#
+# One file for every Go module. A per-module config is how one service quietly
+# acquires a laxer standard than its neighbours.
+#
+# The linter set is CURATED, not maximal. Enabling everything produces a large
+# volume of low-value findings, and a gate that mostly reports noise is a gate
+# the team learns to bypass — at which point it catches nothing. Every linter
+# below earns its place, and the reason is stated.
+# =============================================================================
+
+run:
+  timeout: 10m
+  # Analyse test files too. Test code is production code: a data race in a test
+  # helper wastes as much time as one in a service.
+  tests: true
+  build-tags: []
+
+linters:
+  # Start from nothing and opt in explicitly, so that a golangci-lint upgrade
+  # cannot silently add a linter that fails the build on unrelated code.
+  disable-all: true
+  enable:
+    # --- Correctness (the reason this file exists) -------------------------
+    - errcheck        # unchecked errors — the single most valuable Go linter
+    - govet           # the standard suite, including copylocks and printf
+    - staticcheck     # deep static analysis; catches genuine logic errors
+    - ineffassign     # assignments never read, usually a typo'd variable
+    - typecheck       # compilation errors surfaced by the linter
+    - bodyclose       # unclosed HTTP response bodies leak connections
+    - sqlclosecheck   # unclosed rows exhaust the connection pool
+    - rowserrcheck    # sql.Rows.Err() unchecked silently truncates results
+    - nilerr          # returning nil after checking err != nil
+    - errorlint       # error comparison that breaks with wrapped errors
+    - contextcheck    # a function that should propagate context but does not
+    - noctx           # HTTP requests without a context, hence without a timeout
+    - makezero        # append to a slice made with a non-zero length
+    - durationcheck   # multiplying two durations, which is nearly always wrong
+
+    # --- Concurrency -------------------------------------------------------
+    # This platform is concurrent by nature: the session orchestrator and media
+    # relay run per-call goroutines under a hard latency budget.
+    - copyloopvar     # loop variable capture (pre-1.22 semantics)
+    - gosec           # security issues, including unsafe concurrency patterns
+
+    # --- Resource safety ---------------------------------------------------
+    - wastedassign
+    - unconvert
+    - unused
+
+    # --- Style, only where it affects readability at scale ------------------
+    - revive          # replaces golint; configured below
+    - misspell
+    - godot           # comments end with a period; keeps godoc output clean
+    - gocritic        # opinionated but high signal-to-noise
+
+    # --- Complexity --------------------------------------------------------
+    - gocyclo
+    - nestif
+
+linters-settings:
+  errcheck:
+    # Type assertions and blank identifier assignments are checked too. The
+    # default leaves `v, _ := x.(T)` unchecked, which is how a nil-pointer
+    # dereference gets three frames away from its cause.
+    check-type-assertions: true
+    check-blank: true
+    exclude-functions:
+      # These cannot meaningfully fail and checking them adds noise at every
+      # call site.
+      - (*strings.Builder).WriteString
+      - (*bytes.Buffer).WriteString
+      - (hash.Hash).Write
+
+  govet:
+    enable-all: true
+    disable:
+      # fieldalignment reorders struct fields for memory packing. The saving is
+      # negligible at our allocation rates and the churn destroys the logical
+      # grouping that makes a struct readable.
+      - fieldalignment
+
+  gosec:
+    excludes:
+      # G104 duplicates errcheck, which reports it better.
+      - G104
+    config:
+      # Weak randomness is a finding except where explicitly seeded for jitter,
+      # which is annotated at the call site.
+      G404:
+        pattern: "math/rand"
+
+  gocyclo:
+    min-complexity: 15
+
+  nestif:
+    min-complexity: 4
+
+  godot:
+    scope: declarations
+    capital: true
+
+  revive:
+    rules:
+      - name: exported
+        # Every exported symbol is documented. Phase 2 requires it; this makes
+        # it a build failure rather than a review comment nobody makes.
+        arguments: ["checkPrivateReceivers", "disableStutteringCheck"]
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: error-return
+      - name: error-naming
+      - name: error-strings
+      - name: indent-error-flow
+      - name: unreachable-code
+      - name: var-naming
+      - name: package-comments
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+      - style
+    disabled-checks:
+      # Conflicts with our preference for named returns in shutdown paths where
+      # the name documents what is being returned.
+      - unnamedResult
+      # Too aggressive about hugging parameters; produces churn without benefit.
+      - hugeParam
+
+issues:
+  # Report everything. The defaults cap findings per linter and per file, which
+  # means a badly affected file reports three issues, gets "fixed", and then
+  # reports three more on the next run.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  # Do not silently skip the default exclusion patterns, several of which hide
+  # genuine errcheck findings on Close() and Write().
+  exclude-use-default: false
+
+  exclude-rules:
+    # Test files legitimately do things production code must not.
+    - path: _test\.go
+      linters:
+        - gosec        # hardcoded test fixtures are not credentials
+        - errcheck     # setup helpers that cannot fail in a test context
+        - gocyclo      # table-driven tests are long by design, not complex
+        - noctx
+
+    # Generated protobuf bindings are not ours to lint. The .proto source is
+    # linted by buf, which is where a defect would actually originate.
+    - path: \.pb\.go$
+      linters:
+        - all
+    - path: packages/go/contracts-go/
+      linters:
+        - all
+
+  # A new linter must not fail the build on pre-existing code the author did not
+  # touch. new-from-rev is intentionally NOT set, however: this repository is new,
+  # so there is no legacy to grandfather, and enabling it now would let debt
+  # accumulate invisibly from the first commit.
+
+output:
+  formats:
+    - format: colored-line-number
+  sort-results: true
+  # Print the linter name with each finding so a suppression can name exactly
+  # what it suppresses.
+  print-linter-name: true

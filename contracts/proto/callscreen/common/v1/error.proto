@@ -1,0 +1,171 @@
+// =============================================================================
+// The platform-wide error taxonomy.
+//
+// WHY A SHARED ERROR CONTRACT:
+//
+// In a system where one user-visible action crosses an Android client, a Go
+// edge service, a Go orchestrator and a Python AI service, errors must survive
+// four language boundaries without losing meaning. If each tier invents its own
+// error shape, the client is reduced to string-matching on messages — which
+// breaks silently the moment someone improves the wording.
+//
+// This file defines one shape. Every service returns it. The Android client
+// switches on `code`, never on `message`.
+//
+// DESIGN RULES:
+//   1. `code` is for machines and is append-only — values are never reused.
+//   2. `message` is for engineers, in English, and is never shown to a user.
+//   3. `user_message_key` is a localisation key the client resolves. The server
+//      never sends user-facing prose, because the server does not know the
+//      user's language or their app version's copy.
+//   4. `retryable` and `retry_after` are explicit. Clients must not infer
+//      retry behaviour from the code, because that inference drifts.
+// =============================================================================
+
+syntax = "proto3";
+
+package callscreen.common.v1;
+
+import "callscreen/common/v1/annotations.proto";
+import "google/protobuf/duration.proto";
+
+// ErrorCode enumerates every failure class the platform can return.
+//
+// Ranges are allocated by domain so that adding a code in one area cannot
+// collide with concurrent work in another:
+//   1-99     generic / transport
+//   100-199  authentication and authorisation
+//   200-299  validation and client fault
+//   300-399  resource state
+//   400-499  quota, rate limiting and billing
+//   500-599  upstream dependency and vendor faults
+//   600-699  policy, safety and compliance refusals
+enum ErrorCode {
+  // Never returned deliberately. Its presence indicates a service constructed
+  // an error without setting a code, which the platform library treats as a bug
+  // and reports to the error tracker.
+  ERROR_CODE_UNSPECIFIED = 0;
+
+  // --- Generic / transport (1-99) -----------------------------------------
+  // An unhandled fault. Always accompanied by an incident-correlatable trace id.
+  ERROR_CODE_INTERNAL = 1;
+  // The service is starting, draining, or a dependency is unavailable.
+  ERROR_CODE_UNAVAILABLE = 2;
+  // The request exceeded its deadline inside our system.
+  ERROR_CODE_DEADLINE_EXCEEDED = 3;
+  // The caller cancelled before completion. Not an error worth alerting on.
+  ERROR_CODE_CANCELLED = 4;
+  // The client is running a contract version this server no longer supports.
+  // Drives the forced-upgrade prompt described in Phase 1 §14.
+  ERROR_CODE_UNSUPPORTED_CLIENT_VERSION = 5;
+
+  // --- Authentication and authorisation (100-199) --------------------------
+  // No credential was presented.
+  ERROR_CODE_UNAUTHENTICATED = 100;
+  // The credential was presented but is expired, malformed or revoked.
+  ERROR_CODE_INVALID_CREDENTIAL = 101;
+  // The credential is valid but lacks permission for this operation.
+  ERROR_CODE_PERMISSION_DENIED = 102;
+  // Device attestation failed. The client may be tampered with or emulated.
+  ERROR_CODE_ATTESTATION_FAILED = 103;
+
+  // --- Validation and client fault (200-299) -------------------------------
+  // The request violated the schema or a documented business rule. Populate
+  // `field_violations` so the client can highlight the offending input.
+  ERROR_CODE_INVALID_ARGUMENT = 200;
+  // A required field was absent.
+  ERROR_CODE_MISSING_REQUIRED_FIELD = 201;
+  // The request body exceeded the permitted size.
+  ERROR_CODE_PAYLOAD_TOO_LARGE = 202;
+  // The supplied idempotency key was reused with a different payload.
+  ERROR_CODE_IDEMPOTENCY_CONFLICT = 203;
+
+  // --- Resource state (300-399) ---------------------------------------------
+  ERROR_CODE_NOT_FOUND = 300;
+  ERROR_CODE_ALREADY_EXISTS = 301;
+  // The resource is not in a state that permits this transition.
+  ERROR_CODE_FAILED_PRECONDITION = 302;
+  // Optimistic concurrency check failed; the caller should re-read and retry.
+  ERROR_CODE_VERSION_CONFLICT = 303;
+
+  // --- Quota, rate limiting and billing (400-499) --------------------------
+  // Too many requests. `retry_after` is always populated for this code.
+  ERROR_CODE_RATE_LIMITED = 400;
+  // A hard usage allowance has been consumed.
+  ERROR_CODE_QUOTA_EXCEEDED = 401;
+  // The operation requires an entitlement the account does not hold.
+  ERROR_CODE_SUBSCRIPTION_REQUIRED = 402;
+  // Payment is overdue and the account is in a restricted state.
+  ERROR_CODE_PAYMENT_REQUIRED = 403;
+
+  // --- Upstream dependency and vendor faults (500-599) ---------------------
+  // A third-party vendor failed. Distinguished from INTERNAL so that vendor
+  // reliability can be measured and alerted on separately from our own.
+  ERROR_CODE_UPSTREAM_FAILURE = 500;
+  // A vendor rate-limited us. Drives failover to a secondary provider.
+  ERROR_CODE_UPSTREAM_RATE_LIMITED = 501;
+  // Every configured provider for a capability is unavailable.
+  ERROR_CODE_NO_PROVIDER_AVAILABLE = 502;
+
+  // --- Policy, safety and compliance (600-699) ------------------------------
+  // The request was refused by a safety or moderation policy.
+  ERROR_CODE_POLICY_VIOLATION = 600;
+  // The operation is unavailable in the caller's jurisdiction.
+  ERROR_CODE_REGION_RESTRICTED = 601;
+  // The user has not granted the consent this operation requires under DPDP.
+  ERROR_CODE_CONSENT_REQUIRED = 602;
+  // Data residency rules forbid servicing this request from this region.
+  ERROR_CODE_RESIDENCY_VIOLATION = 603;
+}
+
+// FieldViolation identifies a single invalid field within a request.
+message FieldViolation {
+  // Dotted path to the offending field, for example "session.caller_number".
+  string field = 1;
+
+  // Engineer-facing description of why it was rejected.
+  string description = 2;
+
+  // Localisation key for the message shown to the user beside the input.
+  string user_message_key = 3;
+}
+
+// Error is the single error shape returned by every service in the platform.
+message Error {
+  option (callscreen.common.v1.message_classification) = {
+    default_sensitivity: SENSITIVITY_INTERNAL
+    default_retention: RETENTION_SHORT
+    data_owner: "callscreen/platform"
+  };
+
+  // Machine-readable classification. Clients branch on this and nothing else.
+  ErrorCode code = 1;
+
+  // Engineer-facing detail. English, never localised, never shown to a user.
+  // May name internal components; treated as INTERNAL sensitivity and therefore
+  // excluded from any client-visible surface in release builds.
+  string message = 2;
+
+  // Localisation key the client resolves against its own string catalogue.
+  // Empty when the error is not intended to be surfaced to the user at all.
+  string user_message_key = 3;
+
+  // Correlation identifier tying this error to a distributed trace. Shown in
+  // support flows so an engineer can locate the exact request.
+  string trace_id = 4;
+
+  // Whether retrying the identical request could succeed. Explicit rather than
+  // inferred, so that retry behaviour is a contract and not a convention.
+  bool retryable = 5;
+
+  // How long the client should wait before retrying. Only meaningful when
+  // `retryable` is true. Always populated for RATE_LIMITED.
+  google.protobuf.Duration retry_after = 6;
+
+  // Per-field detail for validation failures. Empty for non-validation errors.
+  repeated FieldViolation field_violations = 7;
+
+  // Stable identifier of the service that produced the error, matching the
+  // directory name under services/. Used to attribute error budget burn.
+  string source_service = 8;
+}

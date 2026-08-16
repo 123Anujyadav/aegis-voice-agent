@@ -1,0 +1,224 @@
+// =============================================================================
+// Foundational value types shared by every domain contract.
+//
+// Nothing here is domain logic. These are the primitives that keep the domain
+// contracts consistent: identifiers, pagination, money, region, and the client
+// context every request carries.
+//
+// The rule for admitting a type to this file is the same as the rule for
+// admitting a package to packages/ (Phase 1 §4): it must be genuinely
+// cross-cutting, contain no business meaning, and have at least two real
+// consumers. Anything domain-specific belongs in its own domain package.
+// =============================================================================
+
+syntax = "proto3";
+
+package callscreen.common.v1;
+
+import "callscreen/common/v1/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Region identifies the deployment region that owns a piece of data.
+//
+// This exists because Phase 1 assumption A2 makes data residency a first-class
+// constraint: personal data originating in India must remain in the India
+// region. Carrying the region on the wire lets the platform egress policy
+// reject a cross-region transfer rather than discovering it in an audit.
+enum Region {
+  REGION_UNSPECIFIED = 0;
+  // Asia South 1 (Mumbai). The primary and, at launch, only production region.
+  REGION_IN_SOUTH_1 = 1;
+  // Reserved for the first international expansion region.
+  REGION_GLOBAL_1 = 2;
+}
+
+// Environment distinguishes deployment tiers on the wire so that a misrouted
+// staging client can be rejected rather than silently writing to production.
+enum Environment {
+  ENVIRONMENT_UNSPECIFIED = 0;
+  ENVIRONMENT_DEVELOPMENT = 1;
+  ENVIRONMENT_STAGING = 2;
+  ENVIRONMENT_PRODUCTION = 3;
+}
+
+// Platform identifies the client family issuing a request.
+enum Platform {
+  PLATFORM_UNSPECIFIED = 0;
+  PLATFORM_ANDROID = 1;
+  // Present so that adding a second client later is not a breaking change.
+  PLATFORM_IOS = 2;
+  PLATFORM_WEB = 3;
+  // Server-to-server traffic, including internal tooling.
+  PLATFORM_INTERNAL = 4;
+}
+
+// ResourceId is a typed, opaque identifier.
+//
+// Identifiers are deliberately opaque strings rather than integers. Integer ids
+// leak business volume, invite enumeration attacks, and cannot be re-sharded.
+// The `type` discriminator makes it impossible to pass a user id where a call
+// session id is expected without the mistake being visible on the wire.
+message ResourceId {
+  option (callscreen.common.v1.message_classification) = {
+    default_sensitivity: SENSITIVITY_INTERNAL
+    default_retention: RETENTION_STANDARD
+    data_owner: "callscreen/platform"
+  };
+
+  // Short lowercase noun naming what this identifies, for example "user",
+  // "call_session", "subscription". Matches the owning service's domain.
+  string type = 1;
+
+  // The opaque value. Generation strategy is an implementation detail of the
+  // owning service; consumers must treat it as an unparseable string.
+  string value = 2;
+}
+
+// PageRequest is the standard forward-only pagination request.
+//
+// Cursor-based rather than offset-based: offset pagination degrades badly on
+// large tables and produces duplicate or skipped rows when the underlying data
+// changes between pages, which it always does in a live call log.
+message PageRequest {
+  // Maximum items to return. The server clamps this to its own ceiling rather
+  // than rejecting an oversized request, so clients never need to know the cap.
+  int32 page_size = 1;
+
+  // Opaque cursor from a previous PageResponse. Empty requests the first page.
+  string page_token = 2;
+}
+
+// PageResponse accompanies every paginated result set.
+message PageResponse {
+  // Cursor for the next page. Empty means the caller has reached the end.
+  string next_page_token = 1;
+
+  // Total matching items, when the owning service can compute it cheaply.
+  // Negative means "not computed" — deliberately distinguishable from zero,
+  // because "no results" and "we did not count" are different facts.
+  int64 total_size = 2;
+}
+
+// Money represents an exact monetary amount.
+//
+// Never a float. Floating point cannot represent decimal currency exactly, and
+// rounding drift in a billing system is both a correctness bug and an audit
+// finding. Stored as minor units (paise for INR) in an integer.
+message Money {
+  // ISO 4217 currency code, uppercase. For example "INR".
+  string currency_code = 1;
+
+  // Amount in the currency's minor unit. 12550 with currency_code "INR" is
+  // ₹125.50. Negative values represent credits and refunds.
+  int64 amount_minor = 2;
+}
+
+// ClientContext travels with every request originating from an end-user client.
+//
+// It is populated by the client SDK, validated at the edge, and then attached
+// to the request's trace so that any downstream failure can be attributed to a
+// specific app version, OS version and locale without a separate lookup.
+message ClientContext {
+  option (callscreen.common.v1.message_classification) = {
+    default_sensitivity: SENSITIVITY_INTERNAL
+    default_retention: RETENTION_SHORT
+    data_owner: "callscreen/platform"
+  };
+
+  // Client family issuing the request.
+  Platform platform = 1;
+
+  // Application version name, for example "1.4.2". Used to enforce the minimum
+  // supported version floor described in Phase 1 §14.
+  string app_version = 2;
+
+  // Monotonic build number. Unambiguous where `app_version` may be reused
+  // across staged rollouts.
+  int64 app_build = 3;
+
+  // Operating system version string, for example "Android 14".
+  string os_version = 4;
+
+  // Device model identifier. Needed because telephony and audio behaviour
+  // varies enormously across Android OEMs, and OEM-specific defects are a
+  // recurring class of production incident.
+  string device_model = 5;
+
+  // Manufacturer, for example "Xiaomi". Separated from model because
+  // OEM-specific background-execution policy is manufacturer-wide.
+  string device_manufacturer = 6;
+
+  // BCP 47 locale tag, for example "hi-IN" or "en-IN". Drives which language
+  // the AI layer responds in and which string catalogue the client resolves.
+  string locale = 7;
+
+  // IANA timezone name, for example "Asia/Kolkata".
+  string timezone = 8;
+
+  // Stable pseudonymous install identifier. Personal data: it is capable of
+  // singling out an individual even though it contains no direct identifier.
+  string install_id = 9 [(callscreen.common.v1.field_classification) = {
+    sensitivity: SENSITIVITY_PERSONAL
+    redaction: REDACTION_STRATEGY_HASH
+    retention: RETENTION_STANDARD
+    residency_bound: true
+    purpose: "Correlate telemetry and crash reports for a single installation."
+  }];
+
+  // Network transport in use, for example "wifi", "4g", "5g". Recorded because
+  // latency budgets and codec selection differ sharply by bearer, and Indian
+  // mobile networks vary widely.
+  string network_type = 10;
+}
+
+// RequestMetadata is attached to mutating requests to make them safely
+// retryable across an unreliable mobile network.
+message RequestMetadata {
+  // Client-generated idempotency key. The server guarantees that two requests
+  // bearing the same key and the same payload produce one effect. Reusing a key
+  // with a different payload returns ERROR_CODE_IDEMPOTENCY_CONFLICT.
+  //
+  // This is mandatory on mutations rather than optional: on a mobile network a
+  // response is lost often enough that a client which cannot safely retry will
+  // either lose writes or duplicate them.
+  string idempotency_key = 1;
+
+  // Client-side timestamp of request creation. Used to measure true end-to-end
+  // latency including network time, which server-side timing cannot see. Never
+  // trusted for ordering or authorisation — device clocks are not reliable.
+  google.protobuf.Timestamp client_sent_at = 2;
+
+  // W3C traceparent header value, propagating an existing distributed trace.
+  string traceparent = 3;
+}
+
+// AuditContext records who performed an action and from where. Attached to
+// records whose access must be individually accountable under DPDP.
+message AuditContext {
+  option (callscreen.common.v1.message_classification) = {
+    default_sensitivity: SENSITIVITY_PERSONAL
+    default_retention: RETENTION_LEGAL_HOLD
+    data_owner: "callscreen/security"
+  };
+
+  // Identifier of the acting principal, whether an end user or an operator.
+  ResourceId actor = 1;
+
+  // Kind of principal, for example "user", "operator", "system".
+  string actor_type = 2;
+
+  // When the action occurred, as recorded by the server.
+  google.protobuf.Timestamp occurred_at = 3;
+
+  // Source network address of the actor.
+  string source_ip = 4 [(callscreen.common.v1.field_classification) = {
+    sensitivity: SENSITIVITY_PERSONAL
+    redaction: REDACTION_STRATEGY_PARTIAL
+    retention: RETENTION_LEGAL_HOLD
+    residency_bound: true
+    purpose: "Security incident investigation and fraud attribution."
+  }];
+
+  // Region that served the request, for residency audit.
+  Region region = 5;
+}

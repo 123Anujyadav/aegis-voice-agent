@@ -1,0 +1,75 @@
+# =============================================================================
+# Line-ending and diff normalisation.
+#
+# Why this file matters: the team develops on Windows, macOS and Linux, and CI
+# runs on Linux. Without normalisation, shell scripts committed from Windows
+# carry CRLF and fail inside containers with "bad interpreter: no such file or
+# directory" — a failure mode that costs hours to diagnose.
+# =============================================================================
+
+# Default: normalise text to LF in the repository, check out native on Windows.
+* text=auto eol=lf
+
+# --- Files that MUST be LF regardless of platform ---------------------------
+# These are executed by Linux shells or POSIX tooling.
+*.sh            text eol=lf
+*.bash          text eol=lf
+Dockerfile      text eol=lf
+*.Dockerfile    text eol=lf
+Makefile        text eol=lf
+*.mk            text eol=lf
+gradlew         text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+
+# --- Files that MUST be CRLF (Windows-native tooling) -----------------------
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
+gradlew.bat     text eol=crlf
+
+# --- Binary: never diff, never normalise ------------------------------------
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.webp          binary
+*.pdf           binary
+*.zip           binary
+*.gz            binary
+*.tar           binary
+*.jar           binary
+*.aar           binary
+*.apk           binary
+*.aab           binary
+*.so            binary
+*.dll           binary
+*.dylib         binary
+*.keystore      binary
+*.jks           binary
+*.wav           binary
+*.mp3           binary
+*.opus          binary
+*.pcm           binary
+
+# --- Generated code: collapse in PR diffs -----------------------------------
+# Marked as generated so review focuses on the .proto source of truth, not the
+# thousands of lines of bindings derived from it.
+packages/go/contracts-go/**       linguist-generated=true
+packages/python/contracts-py/**   linguist-generated=true
+packages/kotlin/contracts-kt/**   linguist-generated=true
+packages/ts/contracts-ts/**       linguist-generated=true
+*.pb.go                           linguist-generated=true
+*_pb2.py                          linguist-generated=true
+*_pb2.pyi                         linguist-generated=true
+
+# --- Lockfiles: committed, but not worth reviewing line-by-line -------------
+go.sum            -diff
+uv.lock           -diff
+pnpm-lock.yaml    -diff
+gradle.lockfile   -diff
+.terraform.lock.hcl -diff
+
+# --- Documentation / vendored ------------------------------------------------
+docs/**           linguist-documentation=true

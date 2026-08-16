@@ -1,0 +1,25 @@
+# =============================================================================
+# callscreen-contracts
+#
+# Generated protobuf bindings. Produced by `task contracts:generate`; never hand-edited.
+#
+# Admitted to packages/ under the Phase 1 §4 rules: cross-cutting
+# infrastructure, no business logic, at least two real consumers.
+# =============================================================================
+
+[project]
+name = "callscreen-contracts"
+version = "0.1.0"
+description = "Generated protobuf bindings. Produced by `task contracts:generate`; never hand-edited."
+requires-python = ">=3.12,<3.14"
+license = { text = "Proprietary" }
+dependencies = [
+    "protobuf>=5.29.0,<6",
+]
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/callscreen"]

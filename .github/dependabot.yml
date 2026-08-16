@@ -1,0 +1,86 @@
+# =============================================================================
+# Dependabot — SECURITY ADVISORIES ONLY.
+#
+# Renovate (renovate.json5) owns routine dependency currency. Running both for
+# routine updates would produce duplicate, conflicting pull requests.
+#
+# Dependabot is kept for one capability Renovate cannot replicate: GitHub's
+# security advisory database is integrated at the platform level, so Dependabot
+# security alerts fire the moment an advisory is published, without waiting for
+# a scheduled scan. For a known-exploited vulnerability, that difference is
+# measured in hours.
+#
+# Every ecosystem below is therefore configured with `open-pull-requests-limit:
+# 0`, which disables version updates while LEAVING SECURITY UPDATES ENABLED —
+# security PRs are explicitly exempt from that limit.
+# =============================================================================
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directories:
+      - "/packages/go/platform"
+      - "/packages/go/eventbus"
+      - "/packages/go/contracts-go"
+      - "/services/go/*"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+    labels: ["security", "dependencies"]
+    commit-message:
+      prefix: "fix(deps)"
+
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+    labels: ["security", "dependencies"]
+    commit-message:
+      prefix: "fix(deps)"
+
+  - package-ecosystem: gradle
+    directory: "/android"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+    labels: ["security", "dependencies"]
+    commit-message:
+      prefix: "fix(deps)"
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+    labels: ["security", "dependencies"]
+    commit-message:
+      prefix: "fix(deps)"
+
+  - package-ecosystem: docker
+    directories:
+      - "/docker/go"
+      - "/docker/python"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 0
+    labels: ["security", "dependencies"]
+    commit-message:
+      prefix: "fix(deps)"
+
+  # GitHub Actions is the one ecosystem where Dependabot DOES handle version
+  # updates, because a compromised third-party action runs with the workflow's
+  # own permissions — making a stale action a materially larger risk than a
+  # stale library. Renovate pins these by digest; Dependabot watches for the
+  # advisories that make a digest bump urgent.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    labels: ["security", "ci"]
+    commit-message:
+      prefix: "ci(deps)"

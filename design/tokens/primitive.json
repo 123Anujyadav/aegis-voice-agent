@@ -1,0 +1,225 @@
+{
+  "$schema": "./schema/primitive.schema.json",
+  "$description": [
+    "TIER 1 - PRIMITIVE TOKENS. Raw values. Themeless.",
+    "",
+    "These are NEVER referenced by a component. They exist only to be referenced",
+    "by semantic.json, which maps them to roles per theme. A component that",
+    "references a primitive cannot respond to light/dark/high-contrast, which is",
+    "the single most common way a design system breaks.",
+    "",
+    "Ramps are tuned, not generated. The 500 step is a FILL (white content on",
+    "top); the 600 step is TEXT on light; the 300 step is TEXT on dark. Several",
+    "500 steps deliberately fail WCAG AA as text - see docs/design/02-color.md."
+  ],
+
+  "color": {
+    "neutral": {
+      "$description": "Slightly cool cast. Technical and calm rather than friendly.",
+      "0":    { "value": "#FFFFFF", "comment": "Light surface base" },
+      "50":   { "value": "#F7F8FA", "comment": "Light app background" },
+      "100":  { "value": "#EEF0F4", "comment": "Subtle fill, hover" },
+      "200":  { "value": "#E1E4EA", "comment": "Divider, border" },
+      "300":  { "value": "#C9CED8", "comment": "Disabled border" },
+      "400":  { "value": "#A0A8B8", "comment": "Placeholder, disabled text" },
+      "500":  { "value": "#7A8395", "comment": "Tertiary text" },
+      "600":  { "value": "#5A6377", "comment": "Secondary text" },
+      "700":  { "value": "#414A5C", "comment": "Body text on light" },
+      "800":  { "value": "#2A3242", "comment": "Dark surface raised" },
+      "900":  { "value": "#1A2030", "comment": "Dark surface base" },
+      "950":  { "value": "#10141F", "comment": "Dark app background. Not pure black - avoids OLED smear and halation." },
+      "1000": { "value": "#000000", "comment": "High-contrast dark base only" }
+    },
+
+    "brand": {
+      "$description": "Anchored on #0B3D91, the launcher navy committed in Phase 2. Telephony heritage.",
+      "50":  { "value": "#EBF1FC" },
+      "100": { "value": "#D2E1F9" },
+      "200": { "value": "#A6C2F2" },
+      "300": { "value": "#6E99E6" },
+      "400": { "value": "#3D72D6" },
+      "500": { "value": "#1E56C4", "comment": "Primary interactive fill. 6.6:1 with white content." },
+      "600": { "value": "#1444A6" },
+      "700": { "value": "#0B3D91", "comment": "Brand anchor. 10.0:1 on white." },
+      "800": { "value": "#082E6E" },
+      "900": { "value": "#06214F" }
+    },
+
+    "success": {
+      "50":  { "value": "#E8F6EE" },
+      "100": { "value": "#C9EAD7" },
+      "200": { "value": "#96D5B2" },
+      "300": { "value": "#5BBA8A", "comment": "Text on dark" },
+      "400": { "value": "#2E9E68" },
+      "500": { "value": "#128552", "comment": "Fill. 4.7:1 as text - use 600 for text." },
+      "600": { "value": "#0D6C43", "comment": "Text on light. 6.5:1" },
+      "700": { "value": "#0A5636" },
+      "800": { "value": "#08442B" },
+      "900": { "value": "#063622" }
+    },
+
+    "warning": {
+      "$description": "System attention. NOT caller state - see spam.",
+      "50":  { "value": "#FDF4E5" },
+      "100": { "value": "#FAE6C2" },
+      "200": { "value": "#F3CC85" },
+      "300": { "value": "#E8AC44", "comment": "Text on dark" },
+      "400": { "value": "#D48F14" },
+      "500": { "value": "#B8730A", "comment": "Fill only. FAILS as text at 3.8:1." },
+      "600": { "value": "#965C07", "comment": "Text on light. 5.5:1" },
+      "700": { "value": "#784A08" },
+      "800": { "value": "#5E3B0A" },
+      "900": { "value": "#4A2F0A" }
+    },
+
+    "spam": {
+      "$description": "Unwanted, not malicious. Deliberately distinct from fraud crimson and warning amber.",
+      "50":  { "value": "#FDF0EA" },
+      "100": { "value": "#FADCCE" },
+      "200": { "value": "#F4B99E" },
+      "300": { "value": "#E88F68", "comment": "Text on dark" },
+      "400": { "value": "#D66B3E" },
+      "500": { "value": "#A8481F", "comment": "Fill. 5.8:1" },
+      "600": { "value": "#8B3A19", "comment": "Text on light. 7.1:1" },
+      "700": { "value": "#70301A" },
+      "800": { "value": "#5A2816" },
+      "900": { "value": "#472013" }
+    },
+
+    "fraud": {
+      "$description": "Active malicious intent. Deep crimson - serious, not shouty.",
+      "50":  { "value": "#FCEDEF" },
+      "100": { "value": "#F8D5DA" },
+      "200": { "value": "#F0A9B4" },
+      "300": { "value": "#E2748A", "comment": "Text on dark. 5.5:1 on neutral.900" },
+      "400": { "value": "#CE4763" },
+      "500": { "value": "#B22947", "comment": "Fill. 6.4:1" },
+      "600": { "value": "#931F3B", "comment": "Text on light. 8.1:1" },
+      "700": { "value": "#761A31" },
+      "800": { "value": "#5C1628" },
+      "900": { "value": "#4A1321" }
+    },
+
+    "emergency": {
+      "$description": "Urgent, must break through. Vermillion - distinct from fraud crimson and recording red.",
+      "50":  { "value": "#FDEEE9" },
+      "100": { "value": "#FAD5C8" },
+      "200": { "value": "#F4AA92" },
+      "300": { "value": "#EC7A55", "comment": "Text on dark" },
+      "400": { "value": "#E05226" },
+      "500": { "value": "#C43F14", "comment": "Fill. 5.2:1" },
+      "600": { "value": "#A23310", "comment": "Text on light" },
+      "700": { "value": "#82290E" },
+      "800": { "value": "#66210D" },
+      "900": { "value": "#521B0C" }
+    },
+
+    "ai": {
+      "$description": "The assistant. Desaturated violet-indigo - legible convention over novelty.",
+      "50":  { "value": "#F0EEFB" },
+      "100": { "value": "#DFDAF7" },
+      "200": { "value": "#C0B6EF" },
+      "300": { "value": "#9C8DE3", "comment": "Text on dark" },
+      "400": { "value": "#7B67D4" },
+      "500": { "value": "#6350C4", "comment": "Fill. 6.0:1" },
+      "600": { "value": "#513FA6", "comment": "Text on light. 7.6:1" },
+      "700": { "value": "#413186" },
+      "800": { "value": "#2F2463" },
+      "900": { "value": "#1F1743" }
+    },
+
+    "voice": {
+      "$description": "Live speech. Cyan-teal, deliberately distinct from ai violet.",
+      "50":  { "value": "#E6F7F9" },
+      "100": { "value": "#C2ECF1" },
+      "200": { "value": "#8CDAE4" },
+      "300": { "value": "#4FC3D2", "comment": "Text on dark" },
+      "400": { "value": "#16A9BD" },
+      "500": { "value": "#0891A5", "comment": "Fill only. FAILS as text at 3.8:1." },
+      "600": { "value": "#077588", "comment": "Text on light. 5.4:1" },
+      "700": { "value": "#075E6D" },
+      "800": { "value": "#084B57" },
+      "900": { "value": "#073D47" }
+    },
+
+    "recording": {
+      "$description": "Universal hardware-indicator red. Must be unambiguous and distinct from fraud.",
+      "50":  { "value": "#FDEBEC" },
+      "100": { "value": "#FACFD1" },
+      "200": { "value": "#F49CA1" },
+      "300": { "value": "#EE6870", "comment": "Text on dark" },
+      "400": { "value": "#F5333C" },
+      "500": { "value": "#E01B24", "comment": "Fill. 4.8:1" },
+      "600": { "value": "#BC1219", "comment": "Text on light" },
+      "700": { "value": "#980E14" },
+      "800": { "value": "#780C11" },
+      "900": { "value": "#5E0A0E" }
+    },
+
+    "premium": {
+      "$description": "Subscription tier. Gold-bronze. Decorative label, never a status requiring action.",
+      "50":  { "value": "#FAF4E4" },
+      "100": { "value": "#F2E5BF" },
+      "200": { "value": "#E4CB84" },
+      "300": { "value": "#D2AC49", "comment": "Text on dark. Gradient start." },
+      "400": { "value": "#B98F26" },
+      "500": { "value": "#9A7419", "comment": "Fill and gradient end. FAILS as text at 4.3:1." },
+      "600": { "value": "#7D5D14", "comment": "Text on light. 6.1:1" },
+      "700": { "value": "#634A12" },
+      "800": { "value": "#4E3B11" },
+      "900": { "value": "#3E2F10" }
+    }
+  },
+
+  "space": {
+    "$description": "4dp base. Below lg steps by 4; above steps by 8 or 16.",
+    "none":     { "value": 0 },
+    "hairline": { "value": 2,  "comment": "Optical icon-to-label in dense chips ONLY." },
+    "xs":       { "value": 4 },
+    "sm":       { "value": 8 },
+    "md":       { "value": 12 },
+    "lg":       { "value": 16, "comment": "Default. Card padding, screen margin." },
+    "xl":       { "value": 24 },
+    "2xl":      { "value": 32 },
+    "3xl":      { "value": 48 },
+    "4xl":      { "value": 64 }
+  },
+
+  "radius": {
+    "none": { "value": 0 },
+    "xs":   { "value": 4 },
+    "sm":   { "value": 8 },
+    "md":   { "value": 12, "comment": "Default. Buttons, cards, list rows." },
+    "lg":   { "value": 16 },
+    "xl":   { "value": 20 },
+    "2xl":  { "value": 28 },
+    "full": { "value": 9999, "comment": "Conceptually circular shapes only. Never on a rectangle for style." }
+  },
+
+  "stroke": {
+    "hairline": { "value": 0.5, "comment": "True hairline only at >=2x density." },
+    "thin":     { "value": 1 },
+    "medium":   { "value": 1.5 },
+    "thick":    { "value": 2 },
+    "heavy":    { "value": 3 }
+  },
+
+  "iconSize": {
+    "$description": "Stroke is redrawn per size, never scaled.",
+    "xs": { "value": 16, "stroke": 1.5 },
+    "sm": { "value": 20, "stroke": 1.5 },
+    "md": { "value": 24, "stroke": 2.0 },
+    "lg": { "value": 32, "stroke": 2.0 },
+    "xl": { "value": 48, "stroke": 2.5 }
+  },
+
+  "opacity": {
+    "$description": "Never used as a blanket disabled treatment - see docs/design/07-states.md.",
+    "hoverOverlay":   { "value": 0.04 },
+    "pressedOverlay": { "value": 0.08 },
+    "scrim":          { "value": 0.40 },
+    "scrimNoBlur":    { "value": 0.60, "comment": "API < 31 fallback" },
+    "shimmerLight":   { "value": 0.40 },
+    "shimmerDark":    { "value": 0.06 }
+  }
+}

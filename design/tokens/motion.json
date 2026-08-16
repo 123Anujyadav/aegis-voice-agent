@@ -1,0 +1,69 @@
+{
+  "$description": [
+    "MOTION AND HAPTICS.",
+    "",
+    "Target is 60 Hz on a mid-range Android GPU - 16.6 ms per frame. Transform",
+    "and opacity only. Never animate shadow, blur or colour on the hot path.",
+    "",
+    "Reduced motion is Settings.Global.ANIMATOR_DURATION_SCALE == 0, NOT the",
+    "web prefers-reduced-motion media query. Reading the wrong signal is the",
+    "most common way this gets missed."
+  ],
+
+  "duration": {
+    "instant": { "value": 0,    "comment": "Reduced-motion resolution" },
+    "micro":   { "value": 100,  "comment": "State change - hover, press, checkbox" },
+    "short":   { "value": 150,  "comment": "Small element enter/exit" },
+    "medium":  { "value": 250,  "comment": "Default. Sheets, dialogs, expand" },
+    "long":    { "value": 400,  "comment": "Page transition" },
+    "slow":    { "value": 600,  "comment": "Onboarding. Rare." },
+    "pulse":   { "value": 1400, "comment": "Voice pulse cycle" },
+    "shimmer": { "value": 1200, "comment": "Skeleton sweep" }
+  },
+
+  "easing": {
+    "standard":   { "value": [0.2, 0.0, 0.0, 1.0], "comment": "Default. On-screen movement." },
+    "decelerate": { "value": [0.0, 0.0, 0.0, 1.0], "comment": "Entering - fast in, soft settle" },
+    "accelerate": { "value": [0.3, 0.0, 1.0, 1.0], "comment": "Exiting - leaves decisively" },
+    "emphasized": { "value": [0.2, 0.0, 0.0, 1.0], "comment": "Hero moments" },
+    "linear":     { "value": [0.0, 0.0, 1.0, 1.0], "comment": "RESERVED: progress and audio only" }
+  },
+
+  "spring": {
+    "$comment": "For interruptible motion - anything the user can grab mid-flight. No spring overshoots more than 2%.",
+    "gentle":  { "damping": 0.9, "stiffness": 300, "comment": "Sheets, large surfaces" },
+    "default": { "damping": 0.8, "stiffness": 500 },
+    "snappy":  { "damping": 0.7, "stiffness": 900, "comment": "Small controls, toggles" }
+  },
+
+  "scale": {
+    "pressed": { "value": 0.97, "comment": "Press uses scale, not elevation - animating elevation animates a shadow." }
+  },
+
+  "stagger": {
+    "listItem":  { "value": 20, "comment": "ms between items" },
+    "maxItems":  { "value": 5,  "comment": "Beyond this the last delay exceeds 100ms and the list feels slow." }
+  },
+
+  "haptic": {
+    "$comment": "Tiered by API level; minSdk is 26. Never fires against the system haptic setting.",
+    "tick":    { "api30": "PRIMITIVE_TICK",  "api29": "EFFECT_TICK",         "api26": "KEYBOARD_TAP" },
+    "click":   { "api30": "PRIMITIVE_CLICK", "api29": "EFFECT_CLICK",        "api26": "VIRTUAL_KEY" },
+    "confirm": { "api30": "CLICK_THEN_TICK", "api29": "EFFECT_CLICK",        "api26": "CONFIRM" },
+    "reject":  { "api30": "DOUBLE_TICK",     "api29": "EFFECT_DOUBLE_CLICK", "api26": "REJECT" },
+    "heavy":   { "api30": "PRIMITIVE_THUD",  "api29": "EFFECT_HEAVY_CLICK",  "api26": "LONG_PRESS" }
+  },
+
+  "voice": {
+    "$comment": "The orb animates from real amplitude data or it stays static. A synthetic listening pulse while the microphone is closed is a lie told by the interface.",
+    "orbScaleMin":     { "value": 1.0 },
+    "orbScaleMax":     { "value": 1.08 },
+    "waveformBars":    { "full": 48, "compact": 24 },
+    "waveformBarWidth":{ "value": 2 },
+    "waveformBarGap":  { "value": 2 },
+    "waveformMinHeight": { "value": 2 },
+    "waveformMaxHeight": { "value": 32 },
+    "waveformSampleHz":  { "value": 30, "comment": "Sampled to 30 Hz, interpolated to display refresh." },
+    "recordingPulseHz":  { "value": 1,  "comment": "1 Hz. Below the 3 Hz WCAG 2.3.1 flash threshold." }
+  }
+}

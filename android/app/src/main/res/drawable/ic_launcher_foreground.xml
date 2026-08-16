@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Launcher icon foreground.
+
+  A vector rather than a set of raster densities: one file replaces six PNGs and
+  scales to any density, which matters directly because APK size is a release
+  gate (Phase 1 SS17) and launcher assets are pure overhead in every install.
+
+  The 108dp canvas with artwork inside the central 72dp is mandated by the
+  adaptive-icon spec: the outer ring is cropped by whichever mask the launcher
+  applies, so anything drawn there is not guaranteed to be visible.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30c-9.4,0 -17,7.6 -17,17v10c0,9.4 7.6,17 17,17s17,-7.6 17,-17V47C71,37.6 63.4,30 54,30zM65,57c0,6.1 -4.9,11 -11,11s-11,-4.9 -11,-11V47c0,-6.1 4.9,-11 11,-11s11,4.9 11,11V57z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,72c-11.6,0 -21,-9.4 -21,-21h-6c0,13.9 10.6,25.4 24,26.8V86h6v-8.2c13.4,-1.4 24,-12.9 24,-26.8h-6C75,62.6 65.6,72 54,72z" />
+</vector>

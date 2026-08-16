@@ -1,0 +1,92 @@
+# =============================================================================
+# Aegis AI CI Pipeline — repository-wide smoke gate.
+#
+# NOTE ON THE `./...` PATTERN. Earlier revisions of this file ran
+# `go build ./...` and `go test ./...` from the repository root. That fails:
+# the root has no go.mod, so it is not inside any module, and Go rejects the
+# pattern with
+#
+#   directory prefix . does not contain modules listed in go.work
+#
+# This is correct Go behaviour in a workspace, not a misconfiguration. Every Go
+# step therefore iterates the module list, exactly as pr-go.yml does. See
+# docs/hardening/CICD_READINESS_REPORT.md.
+#
+# The deep gate is pr-go.yml — per-module matrix, race detection, lint,
+# formatting and vulnerability scanning. This file is the fast whole-repository
+# check that runs on pushes to the long-lived branches.
+# =============================================================================
+name: Aegis AI CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Must be at least the highest `go` directive in go.work. The AI-plane
+  # modules declare go 1.25.0.
+  GO_VERSION: "1.25.x"
+  GOTOOLCHAIN: "local"
+  GOFLAGS: "-mod=readonly"
+
+jobs:
+  backend-test:
+    name: Build & Test Backend Foundation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # `go work sync` rewrites go.work.sum. Under -mod=readonly it reports
+      # drift instead, which is what CI wants: a build that edits its own
+      # manifest is not reproducing what the author tested.
+      - name: Verify Go workspace is consistent
+        run: go work sync -n || (echo "::error::go.work.sum is stale; run 'go work sync' locally" && exit 1)
+
+      - name: Build every module
+        run: |
+          set -euo pipefail
+          # go.work is the single source of truth for what exists, so a new
+          # module is covered the day it is added rather than the day somebody
+          # remembers to edit this file.
+          modules=$(grep -oE '\./[a-z0-9/_-]+' go.work | sed 's|^\./||')
+          for m in ${modules}; do
+            echo "::group::build ${m}"
+            (cd "${m}" && go build ./...)
+            echo "::endgroup::"
+          done
+
+      - name: Test every module
+        run: |
+          set -euo pipefail
+          modules=$(grep -oE '\./[a-z0-9/_-]+' go.work | sed 's|^\./||')
+          failed=""
+          for m in ${modules}; do
+            echo "::group::test ${m}"
+            # Do not stop at the first failing module: seeing every failure in
+            # one run is worth more than failing fast on the first.
+            (cd "${m}" && go test -count=1 ./...) || failed="${failed} ${m}"
+            echo "::endgroup::"
+          done
+          if [ -n "${failed}" ]; then
+            echo "::error::failing modules:${failed}"
+            exit 1
+          fi

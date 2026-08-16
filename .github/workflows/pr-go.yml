@@ -1,0 +1,217 @@
+# =============================================================================
+# Go PR gate.
+#
+# Every job iterates the module list rather than running `./...` from the
+# repository root: the root has no go.mod, so it is not inside any module and Go
+# rejects the pattern. This is correct Go behaviour in a workspace, not a
+# misconfiguration — see the note in Taskfile.yml.
+# =============================================================================
+name: pr-go
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/go/**"
+      - "packages/go/**"
+      - "go.work"
+      - "go.work.sum"
+      - ".golangci.yml"
+      - ".github/workflows/pr-go.yml"
+  pull_request:
+    paths:
+      - "services/go/**"
+      - "packages/go/**"
+      - "go.work"
+      - "go.work.sum"
+      - ".golangci.yml"
+      - ".github/workflows/pr-go.yml"
+  merge_group:
+
+concurrency:
+  group: pr-go-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Matches the highest `go` directive in the workspace. The AI-plane modules
+  # (packages/go/runtime and everything built on it) declare go 1.25.0; a
+  # toolchain older than that either hard-fails under GOTOOLCHAIN=local or
+  # silently downloads a second toolchain that setup-go has not cached.
+  #
+  # Was pinned at 1.23.5 while those modules required 1.25.0. Nothing surfaced
+  # it because this workflow has never executed — see
+  # docs/hardening/CICD_READINESS_REPORT.md.
+  GO_VERSION: "1.25.x"
+  # No implicit toolchain downloads. The version this file declares is the
+  # version the build uses, or the build fails and says so.
+  GOTOOLCHAIN: "local"
+  # Fail rather than silently editing go.mod during a CI build. A build that
+  # mutates its own manifest is not reproducing what the author tested.
+  GOFLAGS: "-mod=readonly"
+
+jobs:
+  # The module list is computed once and fanned out, so adding a service does
+  # not require editing this workflow. A hard-coded matrix is the usual reason a
+  # new service silently escapes CI for its first few weeks.
+  discover:
+    name: Discover modules
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      modules: ${{ steps.list.outputs.modules }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - id: list
+        name: Enumerate workspace modules
+        run: |
+          set -euo pipefail
+          # Derived from go.work, so the workspace definition remains the single
+          # source of truth for what exists.
+          modules=$(grep -oE '\./[a-z0-9/_-]+' go.work | sed 's|^\./||' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "modules=${modules}" >> "$GITHUB_OUTPUT"
+          echo "Discovered modules: ${modules}"
+
+  build-test:
+    name: ${{ matrix.module }}
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      # Do not cancel siblings on first failure: seeing every failing module in
+      # one run is worth more than the runner minutes saved by stopping early.
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.modules) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          # Cache keyed per module so that one module's dependency change does
+          # not invalidate every other module's cache.
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: Build
+        working-directory: ${{ matrix.module }}
+        run: go build ./...
+
+      - name: Vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+      # -race is non-negotiable for this platform. The session orchestrator and
+      # media relay are concurrent by nature, and a data race that only appears
+      # under production load is close to undiagnosable after the fact.
+      #
+      # -count=1 defeats Go's test result cache, so a green run means the tests
+      # actually executed rather than being replayed from cache.
+      - name: Test with race detection
+        working-directory: ${{ matrix.module }}
+        run: go test -race -count=1 -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage-${{ strategy.job-index }}
+          path: ${{ matrix.module }}/coverage.out
+          retention-days: 7
+          if-no-files-found: ignore
+
+  lint:
+    name: golangci-lint
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.63.4
+          working-directory: ${{ matrix.module }}
+          args: --timeout=10m
+
+  format:
+    name: gofumpt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install gofumpt
+        run: go install mvdan.cc/gofumpt@v0.7.0
+
+      # gofumpt is a strict superset of gofmt. Formatting is mechanical, so it
+      # is enforced rather than reviewed (Phase 1 §18).
+      - name: Check formatting
+        run: |
+          set -euo pipefail
+          unformatted=$(gofumpt -l packages/go services/go)
+          if [ -n "${unformatted}" ]; then
+            echo "::error::These files are not formatted. Run 'task go:format'."
+            echo "${unformatted}"
+            exit 1
+          fi
+
+  vulnerabilities:
+    name: govulncheck
+    needs: discover
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module: ${{ fromJSON(needs.discover.outputs.modules) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      # govulncheck is preferred over a generic dependency scanner for Go
+      # because it performs reachability analysis: it reports a CVE only when
+      # the vulnerable symbol is actually called. Generic scanners flag every
+      # CVE in the dependency tree, and a gate that mostly reports false
+      # positives is a gate the team learns to bypass.
+      - name: Scan for known vulnerabilities
+        working-directory: ${{ matrix.module }}
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          govulncheck ./...

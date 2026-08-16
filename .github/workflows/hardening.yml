@@ -1,0 +1,335 @@
+# =============================================================================
+# Phase 10.5 hardening gate.
+#
+# WHY THIS EXISTS SEPARATELY FROM pr-go.yml
+#
+# pr-go.yml is the per-module PR gate: build, race, lint, format, vulnerability
+# scan. It is correct and this file does not duplicate it.
+#
+# This workflow covers the things Phase 10.5 identified as missing, all of which
+# are whole-platform properties rather than per-module ones:
+#
+#   - race verification reported as a first-class artifact, so "has -race ever
+#     actually run against the AI plane" has an answer somebody can point at
+#   - benchmark execution, so a performance regression is visible before a
+#     release rather than after an incident
+#   - coverage aggregated across modules with an explicit floor
+#   - the cross-subsystem observability check, which only compiles in
+#     packages/go/evalsubjects because that is the only module importing all
+#     five engines
+#   - a release gate that fails closed
+#
+# HONEST STATUS. At the time of writing this repository is not under version
+# control — there is no .git directory — so no workflow here has ever executed,
+# including the -race step in pr-go.yml that has been present all along. That is
+# the substance of production blocker B1: not a missing configuration, but a
+# configuration that has never run. See docs/hardening/RACE_VERIFICATION_REPORT.md.
+# =============================================================================
+name: hardening
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    paths:
+      - "packages/go/**"
+      - "services/go/**"
+      - "go.work"
+      - ".github/workflows/hardening.yml"
+  # Nightly, because the race detector finds interleavings by observing them and
+  # more executions mean more interleavings. A gate that only runs on changed
+  # code never re-examines code that has stopped changing.
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: hardening-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.25.x"
+  GOTOOLCHAIN: "local"
+  GOFLAGS: "-mod=readonly"
+  # The AI plane. Listed explicitly rather than discovered, because these are
+  # the modules Phase 10.5 makes claims about and a silent change to the set
+  # would invalidate the claims without failing anything.
+  AI_MODULES: >-
+    packages/go/metrics
+    packages/go/runtime
+    packages/go/conversation
+    packages/go/memory
+    packages/go/toolruntime
+    packages/go/governance
+    packages/go/evaluation
+    packages/go/evalsubjects
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Race verification
+  # ---------------------------------------------------------------------------
+  race:
+    name: Race detector (${{ matrix.mode }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two modes because they find different things. A single pass finds
+        # races on the paths it happens to take; repeated shuffled runs
+        # re-order test execution and re-time goroutines, which is how the
+        # interleaving-dependent ones surface.
+        mode: [single, repeated]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Confirm cgo is available
+        run: |
+          set -euo pipefail
+          # -race requires cgo. Failing here with a clear message beats failing
+          # later with "-race requires cgo; enable cgo by setting CGO_ENABLED=1",
+          # which is the exact error that blocked local verification for six
+          # phases on a Windows machine with no C toolchain.
+          test "$(go env CGO_ENABLED)" = "1" || { echo "::error::CGO_ENABLED is 0; -race cannot run"; exit 1; }
+          cc --version | head -1
+
+      - name: Run race detector
+        id: race
+        run: |
+          set -euo pipefail
+          mkdir -p race-logs
+          if [ "${{ matrix.mode }}" = "repeated" ]; then
+            flags="-race -count=5 -shuffle=on -timeout=30m"
+          else
+            flags="-race -count=1 -timeout=20m"
+          fi
+
+          failed=""
+          for m in ${AI_MODULES}; do
+            echo "::group::race ${m} (${{ matrix.mode }})"
+            log="race-logs/$(echo "${m}" | tr '/' '_').log"
+            # Capture rather than stream-and-discard: a WARNING: DATA RACE block
+            # is the artifact somebody needs to read, and scrolling a CI console
+            # is not reading it.
+            (cd "${m}" && go test ${flags} ./... 2>&1) | tee "${log}" || failed="${failed} ${m}"
+            echo "::endgroup::"
+          done
+
+          if grep -rl "WARNING: DATA RACE" race-logs/ >/dev/null 2>&1; then
+            echo "::error::the race detector reported a data race"
+            grep -rn -A 30 "WARNING: DATA RACE" race-logs/ || true
+            exit 1
+          fi
+          if [ -n "${failed}" ]; then
+            echo "::error::failing modules under -race:${failed}"
+            exit 1
+          fi
+          echo "clean=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload race logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: race-logs-${{ matrix.mode }}
+          path: race-logs/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Coverage
+  # ---------------------------------------------------------------------------
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Measure coverage
+        run: |
+          set -euo pipefail
+          mkdir -p coverage
+          summary="coverage/summary.txt"
+          : > "${summary}"
+
+          for m in ${AI_MODULES}; do
+            echo "::group::coverage ${m}"
+            out="coverage/$(echo "${m}" | tr '/' '_').out"
+            (cd "${m}" && go test -count=1 -covermode=atomic -coverprofile="${GITHUB_WORKSPACE}/${out}" ./...)
+            pct=$(go tool cover -func="${out}" | tail -1 | awk '{print $3}')
+            printf '%-34s %s\n' "${m}" "${pct}" | tee -a "${summary}"
+            echo "::endgroup::"
+          done
+
+          echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat "${summary}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # A floor, not a target. Ratcheting coverage upward turns it into a
+      # number people optimise; a floor only catches a module whose tests were
+      # deleted or never written.
+      - name: Enforce coverage floor
+        run: |
+          set -euo pipefail
+          floor=60
+          fail=0
+          while read -r module pct; do
+            value="${pct%\%}"
+            if awk "BEGIN{exit !(${value} < ${floor})}"; then
+              echo "::error::${module} coverage ${pct} is below the ${floor}% floor"
+              fail=1
+            fi
+          done < coverage/summary.txt
+          exit "${fail}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Benchmarks
+  # ---------------------------------------------------------------------------
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run benchmarks
+        run: |
+          set -euo pipefail
+          mkdir -p bench
+          for m in ${AI_MODULES}; do
+            echo "::group::bench ${m}"
+            out="bench/$(echo "${m}" | tr '/' '_').txt"
+            # -benchtime is short on shared runners. These numbers are for
+            # trend detection, not for the published figures — a GitHub runner
+            # is a noisy neighbour and its absolute timings mean little.
+            (cd "${m}" && go test -run '^$' -bench=. -benchmem -benchtime=100ms ./... 2>&1) | tee "${out}" || true
+            echo "::endgroup::"
+          done
+
+      # Recorded, not gated. A benchmark threshold on a shared runner fails for
+      # reasons unrelated to the code, and a gate that fails for unrelated
+      # reasons is a gate people learn to re-run until it passes.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmarks
+          path: bench/
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # Cross-subsystem checks
+  # ---------------------------------------------------------------------------
+  platform-verification:
+    name: Platform verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # The evaluation core must not import anything it evaluates. This is the
+      # architecture's central claim and it is one command to check, so it is
+      # checked on every run rather than asserted in a document.
+      - name: Verify the evaluation core imports nothing it evaluates
+        working-directory: packages/go/evaluation
+        run: |
+          set -euo pipefail
+          deps=$(go list -deps ./... | grep callscreen | grep -v '/evaluation$' || true)
+          expected="github.com/callscreen/callscreen-platform/packages/go/metrics
+          github.com/callscreen/callscreen-platform/packages/go/runtime"
+          for d in ${deps}; do
+            case "${d}" in
+              */packages/go/runtime|*/packages/go/metrics) ;;
+              *) echo "::error::evaluation core depends on ${d}, which it is supposed to evaluate"; exit 1 ;;
+            esac
+          done
+          echo "evaluation core dependencies: ${deps}"
+
+      - name: Cross-subsystem observability
+        working-directory: packages/go/evalsubjects
+        run: go test -count=1 -run TestObservability -v ./...
+
+      - name: Final platform verification
+        working-directory: packages/go/evalsubjects
+        run: go test -count=1 -run TestVerification -v ./...
+
+  # ---------------------------------------------------------------------------
+  # Release gate
+  # ---------------------------------------------------------------------------
+  release-gate:
+    name: Release gate
+    runs-on: ubuntu-24.04
+    needs: [race, coverage, benchmarks, platform-verification]
+    # Runs even when a dependency failed, so the gate reports WHICH gate failed
+    # rather than being skipped and leaving a green-looking summary.
+    if: always()
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate gates
+        run: |
+          set -euo pipefail
+          race='${{ needs.race.result }}'
+          coverage='${{ needs.coverage.result }}'
+          bench='${{ needs.benchmarks.result }}'
+          platform='${{ needs.platform-verification.result }}'
+
+          printf '%-24s %s\n' "race detector" "${race}" \
+                              "coverage" "${coverage}" \
+                              "benchmarks" "${bench}" \
+                              "platform verification" "${platform}" | tee gate.txt
+
+          {
+            echo "### Release gate"
+            echo '```'
+            cat gate.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Benchmarks are recorded, not gated — see the note in that job.
+          # Everything else fails closed: an inconclusive result is a failure,
+          # not a pass, which is the same default-deny stance the governance
+          # engine takes.
+          for result in "${race}" "${coverage}" "${platform}"; do
+            case "${result}" in
+              success) ;;
+              *) echo "::error::release gate failed"; exit 1 ;;
+            esac
+          done
+          echo "release gate: PASS"

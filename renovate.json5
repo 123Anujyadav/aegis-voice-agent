@@ -1,0 +1,184 @@
+{
+  // ===========================================================================
+  // Renovate — automated dependency updates (Phase 1 §13).
+  //
+  // WHY RENOVATE RATHER THAN DEPENDABOT AS THE PRIMARY TOOL:
+  //   - It groups related updates into one pull request. Dependabot opens one
+  //     PR per dependency, which in a polyglot monorepo means forty PRs a week
+  //     and the review capacity to handle none of them.
+  //   - It understands Gradle version catalogs, Go workspaces and uv workspaces
+  //     natively.
+  //   - It can auto-merge on a green build, which is what makes patch-level
+  //     currency actually achievable rather than aspirational.
+  //
+  // Dependabot is retained ALONGSIDE this, but only for security advisories
+  // (see .github/dependabot.yml). The two have different jobs: Renovate keeps
+  // us current, Dependabot tells us when something is on fire.
+  // ===========================================================================
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  extends: [
+    "config:recommended",
+    // Wait for a release to be publicly available for three days before
+    // proposing it. This is deliberate insurance against the compromised- or
+    // broken-release window, which is usually measured in hours.
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits",
+    ":dependencyDashboard",
+  ],
+
+  timezone: "Asia/Kolkata",
+  schedule: ["before 6am on monday"],
+
+  // Cap concurrent PRs so that dependency updates never crowd out feature
+  // review. An unbounded queue of update PRs is functionally the same as
+  // having none, because nobody reads them.
+  prConcurrentLimit: 8,
+  prHourlyLimit: 4,
+
+  semanticCommitScope: "deps",
+  labels: ["dependencies"],
+  rangeStrategy: "pin",
+
+  // Pin container images by digest. This is what turns the "digest pinning"
+  // intent documented in docker/*/Dockerfile into reality — Renovate resolves
+  // the digest against the registry rather than anyone guessing it.
+  "docker": {
+    pinDigests: true,
+  },
+
+  // Three days of soak time before proposing an update.
+  minimumReleaseAge: "3 days",
+
+  vulnerabilityAlerts: {
+    // Security fixes bypass the schedule and the soak period. A known-exploited
+    // vulnerability is not something to batch until Monday.
+    enabled: true,
+    labels: ["security", "priority:high"],
+    schedule: ["at any time"],
+    minimumReleaseAge: null,
+    prPriority: 10,
+  },
+
+  packageRules: [
+    // -----------------------------------------------------------------------
+    // Auto-merge policy.
+    //
+    // Patch updates auto-merge on a green build. This is safe precisely
+    // because the quality gates in Phase 1 §17 are strict: if the full suite
+    // passes, a patch bump carries less risk than the review latency of
+    // leaving it unmerged for a week.
+    //
+    // Minor and major NEVER auto-merge.
+    // -----------------------------------------------------------------------
+    {
+      matchUpdateTypes: ["patch", "pin", "digest"],
+      automerge: true,
+      automergeType: "pr",
+      platformAutomerge: true,
+    },
+    {
+      matchUpdateTypes: ["minor", "major"],
+      automerge: false,
+    },
+
+    // -----------------------------------------------------------------------
+    // Grouping. One PR per ecosystem keeps review tractable.
+    // -----------------------------------------------------------------------
+    {
+      groupName: "Go dependencies",
+      matchManagers: ["gomod"],
+      matchUpdateTypes: ["patch", "minor"],
+    },
+    {
+      groupName: "Python dependencies",
+      matchManagers: ["pep621"],
+      matchUpdateTypes: ["patch", "minor"],
+    },
+    {
+      groupName: "AndroidX",
+      matchPackagePatterns: ["^androidx\\."],
+      matchUpdateTypes: ["patch", "minor"],
+    },
+    {
+      groupName: "Jetpack Compose",
+      matchPackagePatterns: ["^androidx\\.compose"],
+    },
+    {
+      groupName: "GitHub Actions",
+      matchManagers: ["github-actions"],
+    },
+
+    // -----------------------------------------------------------------------
+    // Coordinated upgrades: these must move together or the build breaks in a
+    // way whose error message names none of them.
+    // -----------------------------------------------------------------------
+    {
+      // Kotlin, KSP and the Compose compiler plugin are version-locked to each
+      // other. Upgrading Kotlin alone produces "Kotlin version mismatch" from
+      // KSP, which is among the more confusing Android build failures.
+      groupName: "Kotlin toolchain",
+      matchPackagePatterns: [
+        "^org\\.jetbrains\\.kotlin",
+        "^com\\.google\\.devtools\\.ksp",
+      ],
+      // Never automatic: a Kotlin upgrade routinely surfaces new compiler
+      // warnings, and warnings are errors in this build.
+      automerge: false,
+      labels: ["dependencies", "needs-careful-review"],
+    },
+    {
+      groupName: "Android Gradle Plugin",
+      matchPackagePatterns: ["^com\\.android\\.tools\\.build"],
+      automerge: false,
+      labels: ["dependencies", "needs-careful-review"],
+    },
+    {
+      groupName: "Hilt and Dagger",
+      matchPackagePatterns: ["^com\\.google\\.dagger"],
+    },
+
+    // -----------------------------------------------------------------------
+    // Pinned deliberately: these are not to be bumped by a bot.
+    // -----------------------------------------------------------------------
+    {
+      // The Go directive in go.mod is a language-compatibility declaration, not
+      // a dependency. Raising it can silently require a newer toolchain of
+      // every consumer.
+      matchManagers: ["gomod"],
+      matchDepTypes: ["golang"],
+      enabled: false,
+    },
+    {
+      // Generated bindings are produced by buf, not resolved from an index.
+      matchFileNames: ["packages/*/contracts-*/**"],
+      enabled: false,
+    },
+  ],
+
+  // Lockfile maintenance keeps transitive dependencies current even when no
+  // direct dependency changed — which is where most vulnerabilities actually
+  // live.
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 6am on the first day of the month"],
+    automerge: true,
+  },
+
+  // Custom managers for versions that live in files Renovate does not parse
+  // natively.
+  customManagers: [
+    {
+      // The Gradle distribution pinned in the wrapper properties. Its SHA-256
+      // is security-relevant: without it the wrapper executes whatever it
+      // downloads.
+      customType: "regex",
+      fileMatch: ["^android/gradle/wrapper/gradle-wrapper\\.properties$"],
+      matchStrings: [
+        "distributionUrl\\s*=\\s*https\\\\://services\\.gradle\\.org/distributions/gradle-(?<currentValue>[\\d.]+)-bin\\.zip",
+      ],
+      depNameTemplate: "gradle",
+      datasourceTemplate: "gradle-version",
+    },
+  ],
+}

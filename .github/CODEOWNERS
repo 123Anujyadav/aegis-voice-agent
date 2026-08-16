@@ -1,0 +1,104 @@
+# =============================================================================
+# CODEOWNERS — every directory has an owner.
+#
+# Phase 1 monorepo guideline #1: "Every directory has an owner. Unowned code
+# rots. No exceptions." GitHub requires listed owners to approve changes to
+# their paths when branch protection has "Require review from Code Owners" on.
+#
+# Ordering matters: the LAST matching pattern wins. General rules first,
+# specific overrides after.
+#
+# NOTE FOR BOOTSTRAP: teams below must exist in the GitHub org before branch
+# protection can enforce this file. Until the org is provisioned, replace team
+# handles with individual @usernames. The structure does not change.
+# =============================================================================
+
+# --- Default owner for anything not matched below ---------------------------
+*                                   @callscreen/platform
+
+# --- Repository-wide engineering policy -------------------------------------
+# Changing conventions, gates, or the build contract requires architecture review.
+/.editorconfig                      @callscreen/platform @callscreen/architecture
+/.gitattributes                     @callscreen/platform
+/Taskfile.yml                       @callscreen/platform
+/.pre-commit-config.yaml            @callscreen/platform
+/commitlint.config.mjs              @callscreen/platform
+/renovate.json5                     @callscreen/platform
+/package.json                       @callscreen/platform
+
+# --- CI/CD: changes here can bypass quality gates ---------------------------
+/.github/                           @callscreen/platform
+/.github/workflows/                 @callscreen/platform @callscreen/security
+/.github/CODEOWNERS                 @callscreen/architecture
+
+# --- Contracts: THE integration boundary ------------------------------------
+# Owned by architecture, not by any single consuming service. A breaking change
+# here breaks Android clients that will not update for months (Phase 1 §14).
+/contracts/                         @callscreen/architecture @callscreen/platform
+/contracts/proto/callscreen/common/ @callscreen/architecture @callscreen/security
+
+# --- Shared packages: a bug here is an incident in every service ------------
+/packages/                          @callscreen/platform
+/packages/go/platform/              @callscreen/platform @callscreen/observability
+/packages/python/platform/          @callscreen/platform @callscreen/observability
+/packages/go/eventbus/              @callscreen/platform @callscreen/data
+/packages/python/ai-primitives/     @callscreen/ai
+
+# --- Generated bindings: never hand-edited; regeneration is CI-verified -----
+/packages/go/contracts-go/          @callscreen/platform
+/packages/python/contracts-py/      @callscreen/platform
+/packages/kotlin/contracts-kt/      @callscreen/platform
+/packages/ts/contracts-ts/          @callscreen/platform
+
+# --- Android ------------------------------------------------------------------
+/android/                           @callscreen/android
+/android/build-logic/               @callscreen/android @callscreen/platform
+/android/gradle/libs.versions.toml  @callscreen/android @callscreen/platform
+/android/core/telephony/            @callscreen/android @callscreen/telephony
+/android/core/security/             @callscreen/android @callscreen/security
+/android/core/network/              @callscreen/android @callscreen/platform
+/android/core/analytics/            @callscreen/android @callscreen/privacy
+
+# --- Go services ---------------------------------------------------------------
+/services/go/                       @callscreen/backend
+/services/go/telephony-gateway/     @callscreen/telephony
+/services/go/media-relay/           @callscreen/telephony
+/services/go/session-orchestrator/  @callscreen/telephony @callscreen/architecture
+/services/go/identity/              @callscreen/backend @callscreen/security
+/services/go/billing/               @callscreen/backend @callscreen/finance
+/services/go/edge-api/              @callscreen/backend @callscreen/security
+/services/go/contacts-sync/         @callscreen/backend @callscreen/privacy
+
+# --- Python / AI services -------------------------------------------------------
+/services/python/                   @callscreen/ai
+/services/python/fraud-engine/      @callscreen/ai @callscreen/security
+/services/python/prompt-registry/   @callscreen/ai @callscreen/safety
+/services/python/transcript-service/ @callscreen/ai @callscreen/privacy
+
+# --- Infrastructure --------------------------------------------------------------
+/infra/                             @callscreen/sre
+/infra/terraform/envs/prod-in/      @callscreen/sre @callscreen/security @callscreen/compliance
+/infra/terraform/envs/prod-global/  @callscreen/sre @callscreen/security
+/infra/policy/                      @callscreen/sre @callscreen/security
+/infra/observability/               @callscreen/sre @callscreen/observability
+/docker/                            @callscreen/platform @callscreen/security
+
+# --- Tests -----------------------------------------------------------------------
+/tests/                             @callscreen/qa
+/tests/eval/                        @callscreen/ai @callscreen/qa
+/tests/load/                        @callscreen/sre @callscreen/qa
+/tools/sipp-harness/                @callscreen/telephony @callscreen/qa
+/tools/audio-fixtures/              @callscreen/ai @callscreen/qa
+
+# --- Documentation ------------------------------------------------------------------
+/docs/                              @callscreen/platform
+# ADRs are immutable once accepted; edits require architecture sign-off.
+/docs/adr/                          @callscreen/architecture
+/docs/architecture/                 @callscreen/architecture
+# Compliance documents carry legal weight under India's DPDP Act 2023.
+/docs/compliance/                   @callscreen/compliance @callscreen/security @callscreen/legal
+/docs/runbooks/                     @callscreen/sre
+
+# --- Security-sensitive files ----------------------------------------------------
+/SECURITY.md                        @callscreen/security
+/.github/dependabot.yml             @callscreen/security @callscreen/platform

@@ -1,0 +1,29 @@
+# =============================================================================
+# fraud-engine
+#
+# Scam and fraud classification over live call signals.
+#
+# Declares only what it imports, so its container image carries only its own
+# dependency closure (Phase 1 §13). Development tooling is inherited from the
+# workspace root at services/python/pyproject.toml.
+# =============================================================================
+
+[project]
+name = "fraud-engine"
+version = "0.1.0"
+description = "Scam and fraud classification over live call signals."
+requires-python = ">=3.12,<3.14"
+license = { text = "Proprietary" }
+dependencies = [
+    "callscreen-platform-py",
+]
+
+[project.scripts]
+fraud-engine = "fraud_engine.__main__:main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fraud_engine"]

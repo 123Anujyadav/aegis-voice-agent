@@ -1,0 +1,50 @@
+# =============================================================================
+# callscreen-platform-py — cross-cutting infrastructure for Python services.
+#
+# This is the deliberate mirror of packages/go/platform. The two are kept
+# semantically identical (same config precedence, same log field names, same
+# health semantics) because Phase 1 §4 requires a Go service and a Python
+# service to emit interchangeable telemetry. During an incident, an engineer
+# must be able to run one query across both tiers; that is impossible if the
+# two invented their own field names.
+#
+# Unlike its Go counterpart this module cannot be dependency-free — Python's
+# standard library has no structured logging equivalent to log/slog. The
+# dependency set is nonetheless kept minimal and every entry is justified below.
+# =============================================================================
+
+[project]
+name = "callscreen-platform-py"
+version = "0.1.0"
+description = "Cross-cutting infrastructure shared by CallScreen Python services."
+requires-python = ">=3.12,<3.14"
+license = { text = "Proprietary" }
+
+dependencies = [
+    # Settings loading with validation at boot. Chosen over a hand-rolled
+    # reflection approach because Pydantic already performs boundary validation
+    # everywhere else in the AI tier, and using one validation model rather than
+    # two removes a whole class of "validated here but not there" bug.
+    "pydantic>=2.10.0,<3",
+    "pydantic-settings>=2.7.0,<3",
+    # Structured logging. structlog is used rather than the stdlib logging
+    # module because it emits key-value records natively and supports the
+    # processor pipeline that implements our redaction policy. Implementing
+    # redaction on top of stdlib logging requires a custom Formatter plus a
+    # Filter, and the two interact badly with third-party libraries.
+    "structlog>=25.1.0,<26",
+]
+
+[project.optional-dependencies]
+# ASGI health endpoints. Optional so that a worker-only service (a Kafka
+# consumer with no HTTP surface) does not carry a web framework it never uses.
+http = [
+    "starlette>=0.45.0,<1",
+]
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/callscreen_platform"]

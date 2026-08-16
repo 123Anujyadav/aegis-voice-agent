@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Colours owned by the application shell.
+
+  This file holds ONLY what the Android framework requires outside Compose:
+  the launcher icon background and the system bar colours. The product colour
+  system lives in :core:designsystem as Compose tokens, because a colour defined
+  in two places will diverge.
+-->
+<resources>
+    <color name="ic_launcher_background">#0B3D91</color>
+</resources>

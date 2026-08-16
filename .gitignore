@@ -1,0 +1,131 @@
+# =============================================================================
+# callscreen-platform — repository-wide ignore rules
+#
+# Rationale: this monorepo hosts four toolchains (Gradle/Kotlin, Go, Python,
+# Node/TypeScript) plus Terraform. Each produces build output in a different
+# place. We ignore build output aggressively but NEVER ignore lockfiles —
+# reproducible builds are a Phase 1 quality gate (see docs/adr/0001).
+# =============================================================================
+
+# --- OS / editor noise -------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+*.iml
+*.ipr
+*.iws
+.fleet/
+# .vscode is intentionally NOT ignored: shared settings + extension
+# recommendations are part of the developer experience contract.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# --- Secrets: never committed, in any form ----------------------------------
+# Secrets live in the cloud secret manager. See docs/adr/0001 §12.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!**/testdata/**/*.key
+*.p12
+*.jks
+!android/keystore/debug.keystore
+secrets.yaml
+!secrets.enc.yaml
+.secrets/
+
+# --- Gradle / Android --------------------------------------------------------
+.gradle/
+build/
+android/local.properties
+android/**/build/
+captures/
+.cxx/
+*.apk
+*.aab
+*.aar
+!**/libs/*.aar
+output-metadata.json
+lint-results*.html
+lint-results*.xml
+
+# --- Go ----------------------------------------------------------------------
+bin/
+dist/
+vendor/
+*.exe
+*.exe~
+*.test
+*.out
+coverage.out
+coverage.html
+go.work.sum
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.Python
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.hypothesis/
+
+# --- Node / TypeScript -------------------------------------------------------
+node_modules/
+.pnpm-store/
+*.tsbuildinfo
+.next/
+.turbo/
+
+# --- Protobuf generated output ----------------------------------------------
+# Generated bindings ARE committed (Phase 1 §20 rule 7) under packages/*/contracts-*.
+# This ignores only scratch output from local codegen experiments.
+/contracts/.gen/
+/contracts/gen/
+
+# --- Terraform ---------------------------------------------------------------
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+# .terraform.lock.hcl IS committed — provider pinning is a quality gate.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# --- Kubernetes / Helm -------------------------------------------------------
+infra/helm/**/charts/
+infra/helm/**/*.tgz
+
+# --- Docker ------------------------------------------------------------------
+.docker-cache/
+
+# --- Test / tooling artefacts ------------------------------------------------
+/tests/**/results/
+/tests/**/reports/
+.task/
+*.log
+!docs/**/*.log
+
+# --- Local tool state --------------------------------------------------------
+.tool-versions.local
+.direnv/
