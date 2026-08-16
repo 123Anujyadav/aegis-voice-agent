@@ -61,25 +61,30 @@ jobs:
       # and because it failed, the build and test steps below never executed.
       # Nor does -mod=readonly turn sync into a dry run; sync ignores it.
       #
-      # The replacement snapshots the manifests, runs the real sync, compares,
-      # and restores either way so later steps build exactly what was committed.
-      # Only go.work.sum is compared: `go work sync` also normalises go.work's
-      # use-block ordering, which is a separate concern from sum staleness and
-      # would make this gate fail for a reason it does not name.
-      - name: Verify go.work.sum is clean
+      # A staleness diff on go.work.sum is ALSO not possible here: that file is
+      # gitignored (.gitignore:69), so it never reaches CI and there is nothing
+      # committed to compare a freshly synced copy against. A first attempt at
+      # this gate died on exactly that — `cp: cannot stat 'go.work.sum'`.
+      #
+      # What is genuinely verifiable is that the workspace build list RESOLVES
+      # across every module: `go work sync` performs Minimal Version Selection
+      # over all 40 modules and fails if they cannot agree. The manifests are
+      # restored afterwards so later steps build exactly what was committed.
+      #
+      # go.work's use-block ordering is normalised by sync and is reported as a
+      # notice rather than gated — it is cosmetic and unrelated to resolution.
+      - name: Verify the Go workspace resolves
         run: |
           set -euo pipefail
           cp go.work go.work.snapshot
-          cp go.work.sum go.work.sum.snapshot
           go work sync
-          status=0
-          if ! diff -u go.work.sum.snapshot go.work.sum; then
-            echo "::error::go.work.sum is stale; run 'go work sync' locally and commit the result"
-            status=1
+          if ! diff -u go.work.snapshot go.work; then
+            echo "::notice::go work sync normalised go.work use-block ordering (cosmetic, not gated)"
           fi
           mv go.work.snapshot go.work
-          mv go.work.sum.snapshot go.work.sum
-          exit "${status}"
+          if [ -f go.work.sum ]; then
+            echo "::notice::go.work.sum present; it is gitignored so no staleness comparison is possible"
+          fi
 
       - name: Build every module
         run: |

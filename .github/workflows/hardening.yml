@@ -184,12 +184,26 @@ jobs:
           summary="coverage/summary.txt"
           : > "${summary}"
 
+          # Do not stop at the first failing module. Under `set -e` this loop
+          # aborted on the first failure, and because that module is 8th of 14
+          # the six Phase 11 modules added in T3 were never measured at all —
+          # one known-failing module silently erased coverage reporting for
+          # everything after it. The race job and ci.yml's test loop already
+          # collect-and-continue for this reason; this now matches them.
+          #
+          # Nothing is hidden: a failing module is still recorded and still
+          # fails the step at the end.
+          failed=""
           for m in ${AI_MODULES}; do
             echo "::group::coverage ${m}"
             out="coverage/$(echo "${m}" | tr '/' '_').out"
-            (cd "${m}" && go test -count=1 -covermode=atomic -coverprofile="${GITHUB_WORKSPACE}/${out}" ./...)
-            pct=$(go tool cover -func="${out}" | tail -1 | awk '{print $3}')
-            printf '%-34s %s\n' "${m}" "${pct}" | tee -a "${summary}"
+            if (cd "${m}" && go test -count=1 -covermode=atomic -coverprofile="${GITHUB_WORKSPACE}/${out}" ./...); then
+              pct=$(go tool cover -func="${out}" | tail -1 | awk '{print $3}')
+              printf '%-34s %s\n' "${m}" "${pct}" | tee -a "${summary}"
+            else
+              failed="${failed} ${m}"
+              echo "::error::${m} tests failed under coverage; no percentage recorded"
+            fi
             echo "::endgroup::"
           done
 
@@ -198,14 +212,29 @@ jobs:
           cat "${summary}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+          if [ -n "${failed}" ]; then
+            echo "::error::modules failing under coverage:${failed}"
+            exit 1
+          fi
+
       # A floor, not a target. Ratcheting coverage upward turns it into a
       # number people optimise; a floor only catches a module whose tests were
       # deleted or never written.
+      #
+      # always(), so a module that fails its tests cannot also suppress the
+      # floor check for every module that passed.
       - name: Enforce coverage floor
+        if: always()
         run: |
           set -euo pipefail
           floor=60
           fail=0
+          # always() means this can run after an earlier failure, so the summary
+          # may be absent. Missing measurements are not a pass.
+          if [ ! -s coverage/summary.txt ]; then
+            echo "::error::no coverage was recorded; the floor could not be evaluated"
+            exit 1
+          fi
           while read -r module pct; do
             value="${pct%\%}"
             if awk "BEGIN{exit !(${value} < ${floor})}"; then
