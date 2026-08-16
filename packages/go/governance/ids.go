@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"sync/atomic"
 	"time"
+
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
 )
 
 // Identifier types.
@@ -29,7 +31,12 @@ type (
 
 	// CorrelationID ties every decision arising from one conversation turn
 	// together, across processes and subsystems.
-	CorrelationID string
+	//
+	// An ALIAS of [runtime.CorrelationID] since Phase 12 (ADR-0014), so a
+	// decision's correlation is literally the same type as the call's and the
+	// media stream's rather than a fourth unrelated string type. Every field
+	// and signature using it is unchanged.
+	CorrelationID = runtime.CorrelationID
 
 	// SessionID identifies the conversation. Carried for audit; never used to
 	// route or to select policies, because policy selection that depends on a
@@ -55,13 +62,12 @@ type (
 )
 
 // String renders each identifier.
-func (d DecisionID) String() string    { return string(d) }
-func (p PolicyID) String() string      { return string(p) }
-func (c ConsentID) String() string     { return string(c) }
-func (c CorrelationID) String() string { return string(c) }
-func (a ActorID) String() string       { return string(a) }
-func (s SubjectID) String() string     { return string(s) }
-func (f Fingerprint) String() string   { return string(f) }
+func (d DecisionID) String() string  { return string(d) }
+func (p PolicyID) String() string    { return string(p) }
+func (c ConsentID) String() string   { return string(c) }
+func (a ActorID) String() string     { return string(a) }
+func (s SubjectID) String() string   { return string(s) }
+func (f Fingerprint) String() string { return string(f) }
 
 var idEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").WithPadding(base32.NoPadding)
 
@@ -89,7 +95,7 @@ func NewDecisionID() DecisionID { return DecisionID(newID("dec")) }
 func NewConsentID() ConsentID { return ConsentID(newID("con")) }
 
 // NewCorrelationID mints a correlation identifier.
-func NewCorrelationID() CorrelationID { return CorrelationID(newID("cor")) }
+func NewCorrelationID() CorrelationID { return runtime.NewCorrelationID() }
 
 // fingerprintOf hashes canonical bytes into a short, stable fingerprint.
 //

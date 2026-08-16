@@ -5,6 +5,8 @@ import (
 	"encoding/base32"
 	"strings"
 	"time"
+
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
 )
 
 // idAlphabet is lowercase Crockford base32, without padding.
@@ -113,13 +115,25 @@ func (s SessionID) String() string { return string(s) }
 // Recorded rather than repeated silently. See ENGINEERING_AUDIT §A1 and the
 // Phase 10.5 recommendation, which this phase strengthens rather than
 // discovers.
-type CorrelationID string
+//
+// RESOLVED in Phase 12 (ADR-0014). The recommendation above was acted on:
+// [runtime.CorrelationID] now exists and this is an ALIAS of it, not a separate
+// type. Every signature and field below keeps working unchanged, and a value
+// from any subsystem is now assignable here without a string conversion —
+// which is what makes an end-to-end trace assemblable. The commentary above is
+// preserved because it is the reason the change was made.
+type CorrelationID = runtime.CorrelationID
 
 // NewCorrelationID mints a correlation identifier.
-func NewCorrelationID() CorrelationID { return CorrelationID(newID("corr")) }
+//
+// Delegates so that one function mints every correlation identity on the
+// platform. Two minting functions is two conventions, which is the problem this
+// alias exists to end.
+func NewCorrelationID() CorrelationID { return runtime.NewCorrelationID() }
 
-// String implements fmt.Stringer.
-func (c CorrelationID) String() string { return string(c) }
+// String is provided by [runtime.CorrelationID]; a method cannot be
+// declared on an alias to another package's type, and re-declaring one
+// here would be a second implementation of the same thing.
 
 // LegID identifies one leg of a call.
 //

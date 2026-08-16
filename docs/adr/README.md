@@ -26,6 +26,9 @@ at all.
 | [0010](0010-authentication-and-device-trust.md) | Authentication and device trust | Accepted | MSISDN identity, hardware-bound PoP tokens, Play Integrity |
 | [0011](0011-end-to-end-latency-budget.md) | End-to-end latency budget | Accepted | **p50 ≤ 900 ms, p95 ≤ 1 500 ms**, allocated per hop with named owners |
 | [0012](0012-privacy-dpdp-consent-retention.md) | Privacy — DPDP, consent, retention | Accepted | Caller announcement as lawful basis; audio off by default; India-resident |
+| [0013](0013-metrics-exposition-format.md) | Metrics exposition format | Accepted | Prometheus text v0.0.4, stdlib adapter on the existing health port; **tracing deferred** |
+| [0014](0014-correlation-identity.md) | Correlation identity | Accepted | **One `CorrelationID`, owned by `packages/go/runtime`**; four prior declarations become type aliases |
+| [0015](0015-postgresql-driver-pgx.md) | PostgreSQL driver | Accepted | **pgx/v5** — the platform's first third-party dependency; durable goldens behind the existing port |
 
 ---
 

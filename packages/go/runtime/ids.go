@@ -82,6 +82,47 @@ func newID(prefix string) string {
 	return prefix + "_" + idAlphabet.EncodeToString(buf[:])
 }
 
+// CorrelationID ties every operation arising from one call together, across
+// every subsystem boundary it crosses.
+//
+// WHY THIS LIVES HERE, AND WHY THAT REQUIRED CHANGING A FROZEN MODULE.
+//
+// It did not live here for six phases, and four subsystems each declared their
+// own. Phase 10.5's observability audit recorded it as finding O2; telephony
+// and media then each recorded it again in the file where they were forced to
+// re-declare it, both reaching the same conclusion:
+//
+//	"The correct home is packages/go/runtime, which every module already
+//	imports — and that module is frozen."
+//
+// Four independent declarations of the same concept are four unrelated Go
+// types. Assigning one to another needs a string conversion, and a string
+// conversion is exactly the place where a correlation identity is silently
+// replaced with a different one — the compiler cannot object, because to it
+// they are just strings. An end-to-end trace was therefore not assemblable,
+// which is the concrete cost that production blocker B3 names.
+//
+// runtime is the correct home for the reason the other modules gave: it sits at
+// the bottom, every subsystem already depends on it directly, and it depends on
+// nothing but packages/go/metrics. Putting the type anywhere else inverts a
+// dependency; putting it in a new module means every subsystem takes a new one.
+//
+// The four previous declarations are now type ALIASES of this type, so they are
+// literally the same type rather than merely convertible. That keeps every
+// existing signature, field and call site working unchanged while making the
+// compiler enforce the identity. See ADR-0014.
+type CorrelationID string
+
+// NewCorrelationID mints a correlation identifier.
+//
+// Normally called once, at the point a call enters the platform, and then
+// carried. A subsystem minting its own mid-flow is the bug this type exists to
+// make visible.
+func NewCorrelationID() CorrelationID { return CorrelationID(newID("corr")) }
+
+// String implements fmt.Stringer.
+func (c CorrelationID) String() string { return string(c) }
+
 // SessionID identifies a runtime session.
 type SessionID string
 

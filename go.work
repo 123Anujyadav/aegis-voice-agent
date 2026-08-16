@@ -40,7 +40,9 @@ use (
 	// Generated protobuf and Connect RPC bindings. Never hand-edited; produced
 	// by `task contracts:generate` and drift-checked in CI.
 	./packages/go/contracts-go
+	./packages/go/correlation
 	./packages/go/conversation
+	./packages/go/evalstore
 	./packages/go/evalsubjects
 	./packages/go/evaluation
 	./packages/go/eventbus
@@ -49,6 +51,7 @@ use (
 	./packages/go/media
 	./packages/go/memory
 	./packages/go/metrics
+	./packages/go/metricsexport
 	./packages/go/middleware
 	./packages/go/outbox
 	./packages/go/persistence

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
 )
 
 // Identifier types.
@@ -43,7 +45,11 @@ type (
 
 	// CorrelationID ties every execution arising from one conversation turn
 	// together, across processes.
-	CorrelationID string
+	//
+	// An ALIAS of [runtime.CorrelationID] since Phase 12 (ADR-0014), so an
+	// execution's correlation is literally the same type as the governance
+	// decision that authorised it. Every field and signature is unchanged.
+	CorrelationID = runtime.CorrelationID
 
 	// SessionID identifies the conversation session. Carried for audit and
 	// never used for routing.
@@ -63,15 +69,14 @@ type (
 )
 
 // String renders each identifier.
-func (t ToolID) String() string        { return string(t) }
-func (c CapabilityID) String() string  { return string(c) }
-func (i IntentID) String() string      { return string(i) }
-func (p PlanID) String() string        { return string(p) }
-func (s StepID) String() string        { return string(s) }
-func (e ExecutionID) String() string   { return string(e) }
-func (c CorrelationID) String() string { return string(c) }
-func (a ActorID) String() string       { return string(a) }
-func (f Fingerprint) String() string   { return string(f) }
+func (t ToolID) String() string       { return string(t) }
+func (c CapabilityID) String() string { return string(c) }
+func (i IntentID) String() string     { return string(i) }
+func (p PlanID) String() string       { return string(p) }
+func (s StepID) String() string       { return string(s) }
+func (e ExecutionID) String() string  { return string(e) }
+func (a ActorID) String() string      { return string(a) }
+func (f Fingerprint) String() string  { return string(f) }
 
 var idEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").WithPadding(base32.NoPadding)
 
@@ -106,7 +111,7 @@ func NewPlanID() PlanID { return PlanID(newID("pln")) }
 func NewExecutionID() ExecutionID { return ExecutionID(newID("exe")) }
 
 // NewCorrelationID mints a correlation identifier.
-func NewCorrelationID() CorrelationID { return CorrelationID(newID("cor")) }
+func NewCorrelationID() CorrelationID { return runtime.NewCorrelationID() }
 
 // Version is a semantic version of a tool contract: "MAJOR.MINOR.PATCH".
 //

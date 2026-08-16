@@ -51,6 +51,14 @@ type Service struct {
 	health  *Health
 	runners []Runner
 
+	// metrics is an optional exposition handler mounted on the health mux.
+	//
+	// Deliberately an http.Handler rather than a concrete exporter type: that
+	// keeps this package's dependency set to the standard library, so a service
+	// outside the AI plane does not link a metrics exporter it never serves.
+	// The caller decides what to expose. See ADR-0013.
+	metrics http.Handler
+
 	// mu guards runners against concurrent registration.
 	mu sync.Mutex
 }
@@ -70,6 +78,21 @@ func (s *Service) Register(r Runner) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runners = append(s.runners, r)
+}
+
+// SetMetricsHandler mounts an exposition handler at GET /metrics on the health
+// listener. It must be called before Run; a nil handler leaves the route
+// unmounted.
+//
+// The metrics endpoint shares the health port rather than opening its own
+// listener (ADR-0013). That port already exists, is already separate from the
+// application listener, and is already the one that keeps answering when the
+// application is saturated — which is exactly when a scrape is most worth
+// having.
+func (s *Service) SetMetricsHandler(h http.Handler) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.metrics = h
 }
 
 // Config returns the service's configuration.
@@ -245,6 +268,16 @@ func (s *Service) newHealthServer() *http.Server {
 	mux.HandleFunc("GET /healthz", s.health.LivenessHandler())
 	mux.HandleFunc("GET /readyz", s.health.ReadinessHandler())
 
+	s.mu.Lock()
+	metricsHandler := s.metrics
+	s.mu.Unlock()
+	if metricsHandler != nil {
+		// Isolated from the probes. Liveness and readiness are how an
+		// orchestrator decides whether to kill this process, so a defect in an
+		// exposition handler must not be able to take them down with it.
+		mux.Handle("GET /metrics", recoverHandler(s.log, metricsHandler))
+	}
+
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.cfg.HealthPort),
 		Handler: mux,
@@ -252,6 +285,27 @@ func (s *Service) newHealthServer() *http.Server {
 		// indefinitely. gosec flags a server without this, correctly.
 		ReadHeaderTimeout: s.cfg.ReadHeaderTimeout,
 	}
+}
+
+// recoverHandler contains a panic in an observability handler.
+//
+// Observability is not on the call path and must never become a dependency of
+// one. Without this, a nil map or an index slip inside an exporter would take
+// down the listener that answers liveness probes, and the orchestrator would
+// restart a process whose actual work was fine.
+func recoverHandler(log *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				if log != nil {
+					log.Error("metrics handler panicked",
+						slog.Any("panic", rec), slog.String("path", r.URL.Path))
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
 
 // HTTPRunner adapts an http.Server to the Runner interface.

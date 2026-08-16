@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
 )
 
 // Sentinel errors. Callers match with errors.Is; none carries audio.
@@ -174,13 +176,22 @@ func (s SessionID) String() string { return string(s) }
 //
 // Recorded rather than repeated silently, and the recommendation is now four
 // phases old. See ENGINEERING_AUDIT §A1.
-type CorrelationID string
+//
+// RESOLVED in Phase 12 (ADR-0014). [runtime.CorrelationID] now exists and this
+// is an ALIAS of it, so a media stream's correlation is literally the same type
+// as the call's and the governance decision's — no string conversion, and no
+// place for one identity to be silently swapped for another. Every field and
+// signature below is unchanged.
+type CorrelationID = runtime.CorrelationID
 
 // NewCorrelationID mints a correlation identifier.
-func NewCorrelationID() CorrelationID { return CorrelationID(newID("corr")) }
+//
+// Delegates, so one function mints every correlation identity on the platform.
+func NewCorrelationID() CorrelationID { return runtime.NewCorrelationID() }
 
-// String implements fmt.Stringer.
-func (c CorrelationID) String() string { return string(c) }
+// String is provided by [runtime.CorrelationID]; a method cannot be
+// declared on an alias to another package's type, and re-declaring one
+// here would be a second implementation of the same thing.
 
 // SourceID identifies where a stream's frames come from.
 //
