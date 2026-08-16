@@ -260,17 +260,36 @@ func (s *BudgetSandbox) Enter(d Descriptor, b Budget) (*Lease, error) {
 	if c, ok := s.toolCaps[d.Tool]; ok {
 		cap = c
 	}
+	// The refusal messages report counts, and those counts MUST be captured
+	// while the mutex is still held.
+	//
+	// Both branches previously unlocked first and then read s.inUse and
+	// s.perTool[d.Tool] again to format the error. That is a data race against
+	// release(), which mutates both under the lock — and for the map it is the
+	// dangerous kind: Go maps are not safe for concurrent read/write, so it can
+	// abort the process with "concurrent map read and map write" rather than
+	// merely print a stale number. It fires only on the refusal path under
+	// concurrency, which is to say precisely under overload, which is when a
+	// budget sandbox is the thing standing between the platform and a stampede.
+	//
+	// Found by the nightly repeated shuffled race gate, seed
+	// 1786881587963648469, in TestStress_OverloadShedsCleanlyAndIsAccountedFor.
+	//
+	// s.maxSlots and cap are not captured because they are written only by
+	// NewBudgetSandbox and never mutated afterwards.
 	switch {
 	case s.inUse+slots > s.maxSlots:
+		inUse := s.inUse
 		s.mu.Unlock()
 		s.refused.Add(1)
 		return nil, fmt.Errorf("%w: sandbox has %d of %d slots in use, %s wants %d",
-			ErrBudgetExceeded, s.inUse, s.maxSlots, d, slots)
+			ErrBudgetExceeded, inUse, s.maxSlots, d, slots)
 	case s.perTool[d.Tool]+1 > cap:
+		running := s.perTool[d.Tool]
 		s.mu.Unlock()
 		s.refused.Add(1)
 		return nil, fmt.Errorf("%w: %s already has %d concurrent executions, cap is %d",
-			ErrBudgetExceeded, d.Tool, s.perTool[d.Tool], cap)
+			ErrBudgetExceeded, d.Tool, running, cap)
 	}
 	s.inUse += slots
 	s.perTool[d.Tool]++
