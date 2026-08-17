@@ -123,7 +123,7 @@ jobs:
 
       - name: Upload coverage
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: go-coverage-${{ strategy.job-index }}
           path: ${{ matrix.module }}/coverage.out

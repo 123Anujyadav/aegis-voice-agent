@@ -156,7 +156,7 @@ jobs:
 
       - name: Upload race logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: race-logs-${{ matrix.mode }}
           path: race-logs/
@@ -246,7 +246,7 @@ jobs:
           done < coverage/summary.txt
           exit "${fail}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage
@@ -287,7 +287,7 @@ jobs:
       # Recorded, not gated. A benchmark threshold on a shared runner fails for
       # reasons unrelated to the code, and a gate that fails for unrelated
       # reasons is a gate people learn to re-run until it passes.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: benchmarks
