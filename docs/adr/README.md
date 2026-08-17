@@ -29,6 +29,7 @@ at all.
 | [0013](0013-metrics-exposition-format.md) | Metrics exposition format | Accepted | Prometheus text v0.0.4, stdlib adapter on the existing health port; **tracing deferred** |
 | [0014](0014-correlation-identity.md) | Correlation identity | Accepted | **One `CorrelationID`, owned by `packages/go/runtime`**; four prior declarations become type aliases |
 | [0015](0015-postgresql-driver-pgx.md) | PostgreSQL driver | Accepted | **pgx/v5** — the platform's first third-party dependency; durable goldens behind the existing port |
+| [0016](0016-intent-classification.md) | Intent classification | Accepted | **Implement the existing `conversation.IntentClassifier` port**; deterministic rule/lexicon default, no model, no second engine |
 
 ---
 

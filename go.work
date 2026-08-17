@@ -36,6 +36,7 @@ go 1.25.0
 use (
 	./packages/go/audiobridge
 	./packages/go/voice
+	./packages/go/voiceintel
 	./packages/go/audiointel
 	// Generated protobuf and Connect RPC bindings. Never hand-edited; produced
 	// by `task contracts:generate` and drift-checked in CI.
@@ -47,6 +48,7 @@ use (
 	./packages/go/evaluation
 	./packages/go/eventbus
 	./packages/go/governance
+	./packages/go/intent
 	./packages/go/integrations
 	./packages/go/media
 	./packages/go/memory

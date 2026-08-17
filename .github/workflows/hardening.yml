@@ -82,6 +82,8 @@ env:
     packages/go/audiobridge
     packages/go/speech
     packages/go/voice
+    packages/go/intent
+    packages/go/voiceintel
 
 jobs:
   # ---------------------------------------------------------------------------
