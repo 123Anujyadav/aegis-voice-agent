@@ -19,11 +19,12 @@ import (
 
 // T10 — CONCURRENCY, ISOLATION & CANCELLATION.
 //
-// A VERIFICATION task. No production synchronisation, cache, registry or shared
-// mutable state was added; the tests below either hold or the design is wrong.
+// A VERIFICATION task. No production synchronisation, cache, registry or
+// shared mutable state was added; the tests below either hold or the design is
+// wrong.
 //
-// WHAT IS NEW HERE. Earlier tasks already cover parts of this ground and are not
-// repeated:
+// WHAT IS NEW HERE. Earlier tasks already cover parts of this ground and are
+// not repeated:
 //
 //	T7  TestContext_SixteenConcurrentSessionsStayIsolated — context only
 //	T8  TestTurn_ConcurrentClassificationIsIsolated       — pure ClassifyTurn
@@ -221,10 +222,9 @@ func TestT10_SixteenSessionsClassifyAndStoreConcurrently(t *testing.T) {
 	}
 }
 
-// TestT10_SharedClassifierGivesIdenticalResultsUnderConcurrency.
-//
-// 3 — identical inputs must produce identical outputs whether classified alone
-// or by 64 goroutines at once. The baseline is computed serially first, so the
+// TestT10_SharedClassifierGivesIdenticalResultsUnderConcurrency — 3 —
+// identical inputs must produce identical outputs whether classified alone or
+// by 64 goroutines at once. The baseline is computed serially first, so the
 // comparison is against a known-good answer rather than against whatever the
 // concurrent run happened to agree on.
 func TestT10_SharedClassifierGivesIdenticalResultsUnderConcurrency(t *testing.T) {
@@ -301,9 +301,9 @@ func candidateSignature(t *testing.T, c *intent.Classifier, text string) string 
 // 4. Concurrent context inserts / lookups / evictions
 // ---------------------------------------------------------------------------
 
-// TestT10_ConcurrentContextChurnStaysBoundedAndIsolated drives inserts past the
-// frozen bound (forcing eviction) in every session simultaneously, with lookups
-// and deletes interleaved.
+// TestT10_ConcurrentContextChurnStaysBoundedAndIsolated drives inserts past
+// the frozen bound (forcing eviction) in every session simultaneously, with
+// lookups and deletes interleaved.
 func TestT10_ConcurrentContextChurnStaysBoundedAndIsolated(t *testing.T) {
 	t.Parallel()
 
@@ -373,11 +373,10 @@ func TestT10_ConcurrentContextChurnStaysBoundedAndIsolated(t *testing.T) {
 // 5. Cancellation during classification
 // ---------------------------------------------------------------------------
 
-// TestT10_CancellingOneSessionDoesNotCancelOthers.
-//
-// Half the sessions are cancelled through the existing mechanism (End) while
-// the other half classify continuously. The cancelled ones must terminate by
-// the declared semantics; the others must finish every turn correctly.
+// TestT10_CancellingOneSessionDoesNotCancelOthers — half the sessions are
+// cancelled through the existing mechanism (End) while the other half classify
+// continuously. The cancelled ones must terminate by the declared semantics;
+// the others must finish every turn correctly.
 func TestT10_CancellingOneSessionDoesNotCancelOthers(t *testing.T) {
 	t.Parallel()
 
@@ -426,13 +425,13 @@ func TestT10_CancellingOneSessionDoesNotCancelOthers(t *testing.T) {
 			// does. That keeps the Bridge's lookup path under concurrent load
 			// rather than resolving it once before the storm starts.
 			for round := 0; round < 15; round++ {
-				conv, ok := b.Conversation(conversation.ConversationID(s.id))
-				if !ok {
+				roundConv, found := b.Conversation(conversation.ConversationID(s.id))
+				if !found {
 					errs <- fmt.Sprintf("%s round %d: session disappeared while a "+
 						"neighbour was cancelled", s.id, round)
 					return
 				}
-				if conv.State().IsTerminal() {
+				if roundConv.State().IsTerminal() {
 					errs <- fmt.Sprintf("%s round %d: session went terminal without "+
 						"being cancelled", s.id, round)
 					return
@@ -486,11 +485,48 @@ func TestT10_CancellingOneSessionDoesNotCancelOthers(t *testing.T) {
 // 6. Interruption during classification / context access
 // ---------------------------------------------------------------------------
 
-// TestT10_InterruptionAffectsOnlyTheInterruptedSession.
+// interruptAndVerify drives one session through a barge-in and checks the
+// frozen interruption semantics. It returns "" on success or the failure
+// message, so the caller keeps the single send-to-errs-and-return shape.
 //
-// Barge-in is injected into half the sessions while all sixteen classify. Only
-// the interrupted sessions may show it, and no result from before the
-// interruption may be committed as that session's outcome afterwards.
+// Extracted from the loop body purely to flatten nesting; the sequence,
+// the error wording and the early-exit ordering are unchanged.
+func interruptAndVerify(conv *conversation.Conversation, s sessionSpec) string {
+	// Establish an intent, then barge in before it is completed.
+	if _, err := conv.Handle(utteranceEvent(s.text)); err != nil {
+		return fmt.Sprintf("%s: first turn: %v", s.id, err)
+	}
+	if _, err := conv.Handle(conversation.Event{
+		Kind: conversation.EventInterrupt}); err != nil {
+		return fmt.Sprintf("%s: interrupt: %v", s.id, err)
+	}
+
+	// The frozen interruption vocabulary, not a second mechanism.
+	sig := intent.ClassifyTurn(intent.TurnInput{
+		Event:     conversation.EventInterrupt,
+		Lifecycle: conversation.IntentActive,
+		Active:    s.want,
+		Config:    conversation.DefaultIntentConfig(),
+	})
+	if sig.Interruption != conversation.InterruptionUser {
+		return fmt.Sprintf("%s: interruption kind %v, want InterruptionUser",
+			s.id, sig.Interruption)
+	}
+
+	// No stale result: the interrupted session must still be in a declared
+	// state and must not have silently completed the turn it was interrupted
+	// out of.
+	if !validStates()[conv.State()] {
+		return fmt.Sprintf("%s: invalid state %v after interruption",
+			s.id, conv.State())
+	}
+	return ""
+}
+
+// TestT10_InterruptionAffectsOnlyTheInterruptedSession — Barge-in is injected
+// into half the sessions while all sixteen classify. Only the interrupted
+// sessions may show it, and no result from before the interruption may be
+// committed as that session's outcome afterwards.
 func TestT10_InterruptionAffectsOnlyTheInterruptedSession(t *testing.T) {
 	t.Parallel()
 
@@ -514,37 +550,8 @@ func TestT10_InterruptionAffectsOnlyTheInterruptedSession(t *testing.T) {
 			<-start
 
 			if i%2 == 0 {
-				// Establish an intent, then barge in before it is completed.
-				if _, err := conv.Handle(utteranceEvent(s.text)); err != nil {
-					errs <- fmt.Sprintf("%s: first turn: %v", s.id, err)
-					return
-				}
-				if _, err := conv.Handle(conversation.Event{
-					Kind: conversation.EventInterrupt}); err != nil {
-					errs <- fmt.Sprintf("%s: interrupt: %v", s.id, err)
-					return
-				}
-
-				// The frozen interruption vocabulary, not a second mechanism.
-				sig := intent.ClassifyTurn(intent.TurnInput{
-					Event:     conversation.EventInterrupt,
-					Lifecycle: conversation.IntentActive,
-					Active:    s.want,
-					Config:    conversation.DefaultIntentConfig(),
-				})
-				if sig.Interruption != conversation.InterruptionUser {
-					errs <- fmt.Sprintf("%s: interruption kind %v, want InterruptionUser",
-						s.id, sig.Interruption)
-					return
-				}
-
-				// No stale result: the interrupted session must still be in a
-				// declared state and must not have silently completed the turn
-				// it was interrupted out of.
-				if !validStates()[conv.State()] {
-					errs <- fmt.Sprintf("%s: invalid state %v after interruption",
-						s.id, conv.State())
-					return
+				if msg := interruptAndVerify(conv, s); msg != "" {
+					errs <- msg
 				}
 				return
 			}
@@ -592,12 +599,11 @@ func TestT10_InterruptionAffectsOnlyTheInterruptedSession(t *testing.T) {
 // 7. Termination during concurrent work
 // ---------------------------------------------------------------------------
 
-// TestT10_TerminationDuringConcurrentWorkLeavesNoStaleState.
-//
-// Sessions are terminated while their neighbours work, then their ids are
-// REUSED. The reused session must begin clean — that is the frozen contract
-// (Begin stores into a sync.Map, replacing the entry) and the property most
-// likely to break under concurrency.
+// TestT10_TerminationDuringConcurrentWorkLeavesNoStaleState — sessions are
+// terminated while their neighbours work, then their ids are REUSED. The
+// reused session must begin clean — that is the frozen contract (Begin stores
+// into a sync.Map, replacing the entry) and the property most likely to break
+// under concurrency.
 func TestT10_TerminationDuringConcurrentWorkLeavesNoStaleState(t *testing.T) {
 	t.Parallel()
 
@@ -841,13 +847,12 @@ func TestT10_RepeatedConcurrentRoundsAgree(t *testing.T) {
 	}
 }
 
-// TestT10_ClarificationBudgetEscalationIsPerSession.
-//
-// Found while building T10: an utterance whose intent has an unfilled required
-// slot cannot be repeated indefinitely. The frozen clarification budget asks
-// twice and then escalates -- clarification_exhausted -> StateEscalated. That is
-// correct behaviour, and this test pins it AND proves the escalation is
-// confined to the session that caused it.
+// TestT10_ClarificationBudgetEscalationIsPerSession — found while building
+// T10: an utterance whose intent has an unfilled required slot cannot be
+// repeated indefinitely. The frozen clarification budget asks twice and then
+// escalates -- clarification_exhausted -> StateEscalated. That is correct
+// behaviour, and this test pins it AND proves the escalation is confined to
+// the session that caused it.
 func TestT10_ClarificationBudgetEscalationIsPerSession(t *testing.T) {
 	t.Parallel()
 
@@ -953,12 +958,11 @@ func TestT10_ClarificationBudgetEscalationIsPerSession(t *testing.T) {
 // Structural checks
 // ---------------------------------------------------------------------------
 
-// TestT10_BridgeHoldsNoCrossSessionState.
-//
-// The structural question behind every isolation test: CAN the Bridge hold
-// per-session state? Its fields are inspected by AST; anything map-, slice- or
-// sync-shaped would be a cross-session registry, and a second context or memory
-// system would have to appear here first.
+// TestT10_BridgeHoldsNoCrossSessionState — the structural question behind
+// every isolation test: CAN the Bridge hold per-session state? Its fields are
+// inspected by AST; anything map-, slice- or sync-shaped would be a
+// cross-session registry, and a second context or memory system would have to
+// appear here first.
 //
 // This complements T7's package-level guard, which covers package vars rather
 // than struct fields.

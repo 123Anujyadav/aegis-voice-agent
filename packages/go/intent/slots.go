@@ -14,9 +14,9 @@ import (
 // PRETEND OTHERWISE.
 //
 // [conversation.Slot] carries Name, Filled, Confidence and Required — and no
-// value. The frozen type says why (intent.go:32): "The value itself is NOT held
-// here: slot values are caller-derived and therefore SENSITIVE, and they live in
-// the context engine under its scoping and expiry rules."
+// value. The frozen type says why (intent.go:32): "The value itself is NOT
+// held here: slot values are caller-derived and therefore SENSITIVE, and they
+// live in the context engine under its scoping and expiry rules."
 //
 // A classifier has no route to that context engine either. The port is
 //
@@ -24,14 +24,14 @@ import (
 //
 // which receives no context handle, and [conversation.IntentEngine] — the only
 // caller — holds cfg, classifier, clock and metrics, with no ContextEngine to
-// pass (intent.go:263). Writing values is done by the conversation layer, which
-// holds both, or by composition code holding Conversation.Context().
+// pass (intent.go:263). Writing values is done by the conversation layer,
+// which holds both, or by composition code holding Conversation.Context().
 //
 // So this file extracts slot SHAPE: which slots an intent needs, which appear
-// to be present, how confident that is, and which are required. That is exactly
-// what the frozen engine consumes — Intent.Slots is read by exactly one thing,
-// MissingRequired() at intent.go:74, which feeds Complete() and therefore the
-// IntentClarify decision.
+// to be present, how confident that is, and which are required. That is
+// exactly what the frozen engine consumes — Intent.Slots is read by exactly
+// one thing, MissingRequired() at intent.go:74, which feeds Complete() and
+// therefore the IntentClarify decision.
 //
 // Values are derived internally to decide Filled, bounded while that happens,
 // and discarded before return. No parallel value transport is invented here.
@@ -93,21 +93,22 @@ const (
 	// over-long name — which is precisely when a bound is useful.
 	MaxSlotNameLen = 32
 
-	// maxValueTokens bounds how many tokens after an anchor are examined as a
-	// candidate value.
+	// The maxValueTokens bound limits how many tokens after an anchor are
+	// examined as a candidate value.
 	//
 	// 6 tokens is longer than any real name, company or time phrase and short
 	// enough that a caller cannot make anchor-scanning expensive by speaking a
 	// long sentence after "my name is".
 	maxValueTokens = 6
 
-	// maxDigitRun bounds a digit sequence considered as a phone number.
+	// The maxDigitRun bound caps a digit sequence considered as a phone number.
 	//
 	// 15 is the E.164 maximum. Longer runs are not phone numbers, and treating
 	// them as such would let an arbitrary digit string set a slot.
 	maxDigitRun = 15
 
-	// minDigitRun is the shortest run treated as a callback number. Below 7 a
+	// The minDigitRun bound is the shortest run treated as a callback number.
+	// Below 7 a
 	// digit run is far more likely a quantity, a date or a house number.
 	minDigitRun = 7
 )
@@ -200,7 +201,8 @@ func slotSpecsFor(name conversation.IntentName) []slotSpec {
 //
 // Deterministic: specs are a slice, evaluation is in declared order, and the
 // result is sorted by name before return. Values are examined to decide Filled
-// and are never retained — nothing derived from caller text outlives this call.
+// and are never retained — nothing derived from caller text outlives this
+// call.
 func extractSlots(tokens []string, specs []slotSpec) []conversation.Slot {
 	if len(specs) == 0 {
 		return nil
@@ -269,7 +271,7 @@ func anchoredValuePresent(tokens []string, anchors [][]string) bool {
 				end = len(tokens)
 			}
 			for k := start; k < end; k++ {
-				if len(tokens[k]) > 0 {
+				if tokens[k] != "" {
 					return true
 				}
 			}
@@ -279,10 +281,9 @@ func anchoredValuePresent(tokens []string, anchors [][]string) bool {
 }
 
 // hasPhoneLikeRun reports whether any token is a digit run of plausible phone
-// length.
-//
-// Structural: a 7-to-15 digit token is a phone number by shape. Shorter runs
-// are quantities or dates; longer than E.164's 15 is not a number anyone dialled.
+// length — Structural: a 7-to-15 digit token is a phone number by shape.
+// Shorter runs are quantities or dates; longer than E.164's 15 is not a number
+// anyone dialled.
 func hasPhoneLikeRun(tokens []string) bool {
 	for _, t := range tokens {
 		if len(t) < minDigitRun || len(t) > maxDigitRun {

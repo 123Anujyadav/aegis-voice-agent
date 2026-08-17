@@ -8,17 +8,16 @@
 //
 // The implementation is deterministic and offline: no model, no network, no
 // credential. Given the same utterance, expectation and configuration it
-// returns the same result every time, which is what lets the conversation layer
-// be tested without a model present.
+// returns the same result every time, which is what lets the conversation
+// layer be tested without a model present.
 //
-// WHAT THIS PACKAGE DOES NOT DO. It scores; it does not decide. Every threshold
-// — accept, reject, ambiguity margin, minimum ASR confidence — belongs to
-// [conversation.IntentConfig] and is applied by [conversation.IntentEngine]
-// after this package returns. Re-applying any of them here would be a second
-// confidence policy, and when the two disagreed nothing would say which was
-// authoritative.
-//
-// See docs/adr/0016-intent-classification.md.
+// WHAT THIS PACKAGE DOES NOT DO. It scores; it does not decide. Every
+// threshold — accept, reject, ambiguity margin, minimum ASR confidence —
+// belongs to [conversation.IntentConfig] and is applied by
+// [conversation.IntentEngine] after this package returns. Re-applying any of
+// them here would be a second confidence policy, and when the two disagreed
+// nothing would say which was authoritative — see
+// docs/adr/0016-intent-classification.md.
 package intent
 
 import (
@@ -27,8 +26,8 @@ import (
 
 // Config configures a [Classifier].
 //
-// Everything that affects the result is here, so "same input, same config, same
-// output" is a property of a value rather than of the process.
+// Everything that affects the result is here, so "same input, same config,
+// same output" is a property of a value rather than of the process.
 type Config struct {
 	// Rules is the lexicon. Empty means [DefaultRules].
 	//
@@ -76,10 +75,10 @@ var _ conversation.IntentClassifier = (*Classifier)(nil)
 
 // New builds a classifier from cfg.
 //
-// Returns an error rather than silently correcting a bad lexicon: a rule naming
-// an intent outside [Vocabulary] is precisely the defect the closed vocabulary
-// exists to prevent, and discovering it at startup beats discovering it in an
-// audit record.
+// Returns an error rather than silently correcting a bad lexicon: a rule
+// naming an intent outside [Vocabulary] is precisely the defect the closed
+// vocabulary exists to prevent, and discovering it at startup beats
+// discovering it in an audit record.
 func New(cfg Config) (*Classifier, error) {
 	rules := cfg.Rules
 	if len(rules) == 0 {
@@ -148,11 +147,11 @@ func MustNew(cfg Config) *Classifier {
 //
 // ASRConfidence and Truncated are deliberately NOT used to weight the score.
 // The engine already gates on ASR confidence via MinASRConfidence
-// (intent.go:309) before this is ever called, and inventing a second, differently
-// shaped weighting here would be a competing confidence policy. Truncation is
-// left alone for the same reason: any penalty would be a number chosen here
-// with nothing to justify its size. Both are recorded as limitations rather
-// than papered over with a plausible-looking coefficient.
+// (intent.go:309) before this is ever called, and inventing a second,
+// differently shaped weighting here would be a competing confidence policy.
+// Truncation is left alone for the same reason: any penalty would be a number
+// chosen here with nothing to justify its size. Both are recorded as
+// limitations rather than papered over with a plausible-looking coefficient.
 //
 // UNKNOWN IS AN EMPTY SLICE, NOT AN INTENT. Returning no candidates is the
 // contract's documented way to say "nothing recognised", and the engine turns

@@ -96,9 +96,9 @@ func TestSlotVocabulary_MatchesTheDeclaredSet(t *testing.T) {
 	}
 }
 
-// TestSlots_UnknownSlotNameIsNeverEmitted drives a wide corpus and asserts that
-// no slot outside the hand-written vocabulary ever appears — in particular that
-// nothing caller-controlled becomes a slot name.
+// TestSlots_UnknownSlotNameIsNeverEmitted drives a wide corpus and asserts
+// that no slot outside the hand-written vocabulary ever appears — in
+// particular that nothing caller-controlled becomes a slot name.
 func TestSlots_UnknownSlotNameIsNeverEmitted(t *testing.T) {
 	t.Parallel()
 
@@ -210,8 +210,8 @@ func TestSlots_TimeReferenceIsStructural(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // "transfer me to rajesh" resolves to request_transfer, which declares
-// party_name (required, anchored). The anchor "transfer me to" is followed by a
-// token, so the slot fills at the anchored confidence of 0.8 — below 1.0
+// party_name (required, anchored). The anchor "transfer me to" is followed by
+// a token, so the slot fills at the anchored confidence of 0.8 — below 1.0
 // because where the value ends is a heuristic.
 func TestSlots_AnchoredValueFillsAtAnchoredConfidence(t *testing.T) {
 	t.Parallel()
@@ -233,9 +233,9 @@ func TestSlots_AnchoredValueFillsAtAnchoredConfidence(t *testing.T) {
 	}
 }
 
-// TestSlots_AnchorWithNoFollowingValueDoesNotFill is the distinction that makes
-// Filled mean "a value is present" rather than "the subject was raised". A
-// caller cut off after "transfer me to" has named nobody.
+// TestSlots_AnchorWithNoFollowingValueDoesNotFill is the distinction that
+// makes Filled mean "a value is present" rather than "the subject was raised".
+// A caller cut off after "transfer me to" has named nobody.
 func TestSlots_AnchorWithNoFollowingValueDoesNotFill(t *testing.T) {
 	t.Parallel()
 
@@ -382,7 +382,8 @@ func TestSlots_ExcessiveInputStaysBounded(t *testing.T) {
 // matter what the caller says, the emitted slot NAMES come from the closed set
 // and no caller-derived text appears anywhere in the returned structure.
 //
-// conversation.Slot has no value field, so this also demonstrates the
+// The conversation.Slot type has no value field, so this also demonstrates
+// the
 // structural guarantee — there is nowhere for a payload to travel.
 func TestSlots_AdversarialInputCannotEscapeTheVocabulary(t *testing.T) {
 	t.Parallel()
@@ -489,8 +490,9 @@ func TestSlots_AreDeterministicAcross100Executions(t *testing.T) {
 	}
 }
 
-// TestSlots_OrderingIsNameAscending — Intent.Slots reaches an audit record, and
-// a record whose field order varies between identical runs cannot be diffed.
+// TestSlots_OrderingIsNameAscending — Intent.Slots reaches an audit record,
+// and a record whose field order varies between identical runs cannot be
+// diffed.
 func TestSlots_OrderingIsNameAscending(t *testing.T) {
 	t.Parallel()
 
@@ -536,8 +538,8 @@ func notTestFile(fi fs.FileInfo) bool {
 //
 // AST rather than a text search, and rather than reading documentation: a
 // comment claiming "we never import governance" is worth nothing, and grepping
-// for the word matches this test's own explanatory prose. Phase 11E hit exactly
-// that trap and switched to parsing for the same reason.
+// for the word matches this test's own explanatory prose. Phase 11E hit
+// exactly that trap and switched to parsing for the same reason.
 func TestPackage_ImportsNothingForbidden(t *testing.T) {
 	t.Parallel()
 

@@ -17,8 +17,8 @@ import (
 //
 // Writing a lexical backchannel detector here would put a Phase 13 opinion in
 // competition with a frozen one that classifies by duration — two answers to
-// "was that an interruption", which is exactly the parallel interruption engine
-// the architecture forbids. So those decisions arrive as INPUTS.
+// "was that an interruption", which is exactly the parallel interruption
+// engine the architecture forbids. So those decisions arrive as INPUTS.
 //
 // What is left for this file is a mapping, plus exactly one thing no frozen
 // component provides: recognising that a caller has withdrawn a request.
@@ -29,12 +29,12 @@ import (
 //
 // Every field is a FROZEN type. There is deliberately no field of this
 // package's own invention and no new enum — the frozen vocabulary already
-// distinguishes all eight categories, and IntentState alone covers four of them
-// (Active, Proposed/Superseded, Abandoned, Fulfilled).
+// distinguishes all eight categories, and IntentState alone covers four of
+// them (Active, Proposed/Superseded, Abandoned, Fulfilled).
 //
-// Notably absent: conversation.State and conversation.Trigger. This type cannot
-// express a lifecycle transition, which is what makes it structurally incapable
-// of driving the FSM.
+// Notably absent: conversation.State and conversation.Trigger. This type
+// cannot express a lifecycle transition, which is what makes it structurally
+// incapable of driving the FSM.
 type TurnSignal struct {
 	// Event is the frozen event vocabulary, echoed. Carries the silence case.
 	Event conversation.EventKind
@@ -115,15 +115,16 @@ type TurnInput struct {
 
 // cancellationCues returns the closed set of phrases that withdraw a request.
 //
-// A function, not a package-level var, for the same reason DefaultRules is one:
-// a package-level slice is mutable state that any caller could rewrite, and
-// TestPackage_HasNoPackageLevelMutableState rejects it. Returning a fresh
+// A function, not a package-level var, for the same reason DefaultRules is
+// one: a package-level slice is mutable state that any caller could rewrite,
+// and TestPackage_HasNoPackageLevelMutableState rejects it. Returning a fresh
 // literal makes the vocabulary unmodifiable from outside.
 //
-// Bounded and deterministic, in the same shape as the intent lexicon: multi-word
-// cues only, because single words are ambiguous in a way that matters here.
-// "cancel" alone is a legitimate request in a booking context; "cancel that"
-// withdraws the current one. Getting this wrong discards work the caller wanted.
+// Bounded and deterministic, in the same shape as the intent lexicon:
+// multi-word cues only, because single words are ambiguous in a way that
+// matters here. "cancel" alone is a legitimate request in a booking context;
+// "cancel that" withdraws the current one. Getting this wrong discards work
+// the caller wanted.
 //
 // This is the ONLY thing T8 adds to the vocabulary, and it adds no identifier:
 // it maps onto the frozen conversation.IntentAbandoned.
@@ -142,8 +143,8 @@ func cancellationCues() [][]string {
 
 // hasCancellationCue reports whether the tokens contain a cancellation phrase.
 //
-// Reuses tokenize from the lexicon, so the same bounded token limit applies and
-// an unbounded caller string cannot drive unbounded work.
+// Reuses tokenize from the lexicon, so the same bounded token limit applies
+// and an unbounded caller string cannot drive unbounded work.
 func hasCancellationCue(tokens []string) bool {
 	for _, cue := range cancellationCues() {
 		for i := range tokens {
@@ -306,9 +307,9 @@ func classifyUtterance(in TurnInput, out TurnSignal) TurnSignal {
 // clarificationKind selects among the frozen ClarificationKind values.
 //
 // Uses only frozen inputs: Intent.Complete() and Intent.Margin() are frozen
-// methods, and AmbiguityMargin is a frozen config field carrying the same value
-// the engine itself used. This package defines no threshold of its own — see
-// ADR-0016 on why a second confidence model is not permitted.
+// methods, and AmbiguityMargin is a frozen config field carrying the same
+// value the engine itself used. This package defines no threshold of its own —
+// see ADR-0016 on why a second confidence model is not permitted.
 func clarificationKind(in TurnInput) conversation.ClarificationKind {
 	// Missing information first: the intent is understood, so asking about the
 	// gap is more useful than asking which intent was meant.

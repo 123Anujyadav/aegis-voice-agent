@@ -30,11 +30,11 @@ import (
 // real one is what makes the difference.
 //
 // WHAT THESE TESTS DO NOT DO, stated plainly: they do not stand up a full
-// voice.Pipeline. That needs a Registry, Intel, Governor, Generator, Output and
-// FSM, and voice's doubles for those live in its _test.go files and are not
-// importable — voice has no harness.go. So the audio path ABOVE the planner
-// seam is not exercised here. What is exercised is every layer from the seam
-// down, which is where T6's subject lives.
+// voice.Pipeline. That needs a Registry, Intel, Governor, Generator, Output
+// and FSM, and voice's doubles for those live in its _test.go files and are
+// not importable — voice has no harness.go. So the audio path ABOVE the
+// planner seam is not exercised here. What is exercised is every layer from
+// the seam down, which is where T6's subject lives.
 
 // utteranceEvent is byte-for-byte the event voice sends.
 func utteranceEvent(text string) conversation.Event {
@@ -74,8 +74,8 @@ func newPlanner(t *testing.T, id string, opts ...voiceintel.Option) voice.Planne
 // QUEUED, not classified — Handle returns Plan{Action: ignore, Reason:
 // "floor_queued"} (engine.go:544) and never reaches the intent engine.
 //
-// EventGreetingComplete ends that opening turn. A real deployment sends it when
-// the greeting audio finishes; a test that omits it is not testing
+// EventGreetingComplete ends that opening turn. A real deployment sends it
+// when the greeting audio finishes; a test that omits it is not testing
 // classification at all, which is exactly the trap the first run of this suite
 // fell into — every plan came back with an empty Intent.
 func openFloor(t *testing.T, p voice.Planner) {
@@ -95,9 +95,9 @@ func openFloor(t *testing.T, p voice.Planner) {
 // TestRealClassifierProducesNonFallbackIntent is T6's headline.
 //
 // The utterance is one the T3 classifier is explicitly built to recognise:
-// "call me back" is a three-token cue for request_callback (weight 4, saturating
-// at 1.0), and the digit run fills the required callback_number slot so the
-// frozen Complete() is satisfied.
+// "call me back" is a three-token cue for request_callback (weight 4,
+// saturating at 1.0), and the digit run fills the required callback_number
+// slot so the frozen Complete() is satisfied.
 //
 // Before this bridge existed, this same utterance resolved to the FALLBACK
 // intent, because no production code ever called WithClassifier
@@ -127,7 +127,8 @@ func TestRealClassifierProducesNonFallbackIntent(t *testing.T) {
 }
 
 // TestSeveralKnownUtterancesEachResolveToTheirOwnIntent — one lucky phrase
-// could be a coincidence; distinct phrases resolving to distinct intents cannot.
+// could be a coincidence; distinct phrases resolving to distinct intents
+// cannot.
 func TestSeveralKnownUtterancesEachResolveToTheirOwnIntent(t *testing.T) {
 	t.Parallel()
 
@@ -294,8 +295,9 @@ func TestSubstitutedClassifierChangesTheOutcome(t *testing.T) {
 	}
 }
 
-// constantClassifier always proposes one intent. Used only to prove the seam is
-// live — never to stand in for the real classifier in a behavioural assertion.
+// constantClassifier always proposes one intent. Used only to prove the seam
+// is live — never to stand in for the real classifier in a behavioural
+// assertion.
 type constantClassifier struct{ name conversation.IntentName }
 
 func (c constantClassifier) Classify(
@@ -326,7 +328,8 @@ func TestVoicePlannerUsesRealClassifier(t *testing.T) {
 	}
 }
 
-// TestBridgePlannerSatisfiesVoicePlannerStatically — compile-time, at the seam.
+// TestBridgePlannerSatisfiesVoicePlannerStatically — compile-time, at the
+// seam.
 func TestBridgePlannerSatisfiesVoicePlannerStatically(t *testing.T) {
 	t.Parallel()
 
@@ -490,7 +493,8 @@ func TestExistingConversationSemanticsRemainIntact(t *testing.T) {
 // TestSlotValuesDoNotCrossTheClassifierPort records T4's architectural finding
 // as an executable check rather than a comment.
 //
-// conversation.Slot has no value field, so a spoken number can fill the slot
+// The conversation.Slot type has no value field, so a spoken number can fill
+// the slot
 // while its digits never appear in anything the planner returns.
 func TestSlotValuesDoNotCrossTheClassifierPort(t *testing.T) {
 	t.Parallel()
@@ -511,8 +515,8 @@ func TestSlotValuesDoNotCrossTheClassifierPort(t *testing.T) {
 	}
 }
 
-// TestDeterministicAcrossRepeatedSessions — same utterance, fresh session, same
-// plan. Anything derived from map order or entropy would show here.
+// TestDeterministicAcrossRepeatedSessions — same utterance, fresh session,
+// same plan. Anything derived from map order or entropy would show here.
 func TestDeterministicAcrossRepeatedSessions(t *testing.T) {
 	t.Parallel()
 
@@ -536,6 +540,6 @@ func TestDeterministicAcrossRepeatedSessions(t *testing.T) {
 	}
 }
 
-// intentPackageIsTheOneUnderTest guards against this file quietly drifting onto
-// a different classifier.
+// intentPackageIsTheOneUnderTest guards against this file quietly drifting
+// onto a different classifier.
 var _ conversation.IntentClassifier = (*intent.Classifier)(nil)

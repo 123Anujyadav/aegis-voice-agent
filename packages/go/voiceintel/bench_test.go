@@ -195,13 +195,14 @@ func BenchmarkContextLookup(b *testing.B) {
 // 4. Context eviction
 // ---------------------------------------------------------------------------
 
-// BenchmarkContextEviction measures Set AT the frozen bound, where every insert
-// of a new key evicts one entry.
+// BenchmarkContextEviction measures Set AT the frozen bound, where every
+// insert of a new key evicts one entry.
 //
-// evictOldestLocked is a linear scan of the scope (context.go:233), so this is
+// The evictOldestLocked helper is a linear scan of the scope
+// (context.go:233), so this is
 // expected to be materially more expensive than the replacement path in
-// BenchmarkContextInsert. The two are separated precisely so that difference is
-// visible instead of averaged away.
+// BenchmarkContextInsert. The two are separated precisely so that difference
+// is visible instead of averaged away.
 //
 // The clock is advanced per insert so SetAt values are distinct — see T11 on
 // the frozen tied-timestamp behaviour. That costs nothing measurable here and
@@ -266,8 +267,8 @@ func BenchmarkContextEviction(b *testing.B) {
 // a model latency and must never be compared to one.
 //
 // A fresh session per iteration is required — a conversation is stateful, and
-// re-using one would measure turn 2, then 3, then escalation. The session setup
-// is therefore inside the timed loop, and its cost is isolated by
+// re-using one would measure turn 2, then 3, then escalation. The session
+// setup is therefore inside the timed loop, and its cost is isolated by
 // BenchmarkSessionSetupOnly below so it can be subtracted honestly.
 func BenchmarkResponseStrategy(b *testing.B) {
 	cases := []struct {
@@ -319,9 +320,9 @@ func BenchmarkResponseStrategy(b *testing.B) {
 // with NO caller turn.
 //
 // Its purpose is arithmetic, not performance: subtracting it from
-// BenchmarkResponseStrategy gives the marginal cost of the turn itself. Without
-// it, that benchmark's number would be dominated by setup and misread as the
-// cost of deciding a response.
+// BenchmarkResponseStrategy gives the marginal cost of the turn itself.
+// Without it, that benchmark's number would be dominated by setup and misread
+// as the cost of deciding a response.
 func BenchmarkSessionSetupOnly(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -334,8 +335,8 @@ func BenchmarkSessionSetupOnly(b *testing.B) {
 	}
 }
 
-// BenchmarkTurnOnReusedSession measures repeated turns on ONE session, which is
-// what a long call actually does.
+// BenchmarkTurnOnReusedSession measures repeated turns on ONE session, which
+// is what a long call actually does.
 //
 // Utterance chosen for repeatability: T10 measured that intents with an
 // unfilled required slot escalate on the third repeat once the frozen
@@ -391,9 +392,9 @@ func BenchmarkTurnOnReusedSession(b *testing.B) {
 // turnsPerSession is the number of turns a benchmark takes on one session
 // before rebuilding it.
 //
-// MEASURED, not guessed: the default persona's MaxTurns is 20 — turn 20 escalates
-// with "max_turns_reached". 15 leaves clear headroom, including for the turns a
-// fixture validation already consumed.
+// MEASURED, not guessed: the default persona's MaxTurns is 20 — turn 20
+// escalates with "max_turns_reached". 15 leaves clear headroom, including for
+// the turns a fixture validation already consumed.
 const turnsPerSession = 15
 
 // ---------------------------------------------------------------------------

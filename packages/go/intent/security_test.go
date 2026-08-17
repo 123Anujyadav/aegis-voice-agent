@@ -33,13 +33,11 @@ import (
 //
 // In package intent, not intent_test, because several guards must reach
 // unexported state — proving a struct holds no caller text requires seeing the
-// struct.
-//
-// THE DISTINCTION THIS FILE IS BUILT ON. An utterance containing "ghp_..." is
-// not itself a security failure; the classifier is supposed to receive caller
-// text. The failure would be that text CROSSING into somewhere it can later be
-// emitted, persisted, labelled or executed. Every test below asserts on that
-// crossing, not on the input.
+// struct — THE DISTINCTION THIS FILE IS BUILT ON. An utterance containing
+// "ghp_..." is not itself a security failure; the classifier is supposed to
+// receive caller text. The failure would be that text CROSSING into somewhere
+// it can later be emitted, persisted, labelled or executed. Every test below
+// asserts on that crossing, not on the input.
 
 // credentialShaped are inputs that look like secrets. They are ordinary
 // utterances as far as the classifier is concerned; what matters is where they
@@ -73,8 +71,8 @@ func securityClassifier(t *testing.T) *Classifier {
 // nothing was assigned.
 //
 // A deep copy of the Classifier is taken before classification and compared
-// afterwards with reflect.DeepEqual. If any field — including an unexported one
-// added later — came to hold caller-derived data, the comparison fails.
+// afterwards with reflect.DeepEqual. If any field — including an unexported
+// one added later — came to hold caller-derived data, the comparison fails.
 func TestSecurity_ClassifierStateIsUnchangedByCredentialShapedInput(t *testing.T) {
 	t.Parallel()
 
@@ -101,8 +99,8 @@ func TestSecurity_ClassifierStateIsUnchangedByCredentialShapedInput(t *testing.T
 	}
 }
 
-// snapshotClassifier deep-copies every field, exported or not, so a later field
-// carrying caller text is detected rather than skipped.
+// snapshotClassifier deep-copies every field, exported or not, so a later
+// field carrying caller text is detected rather than skipped.
 func snapshotClassifier(c *Classifier) map[string]string {
 	out := map[string]string{}
 	v := reflect.ValueOf(*c)
@@ -161,9 +159,9 @@ func renderValue(v reflect.Value) string {
 }
 
 // TestSecurity_ClassificationIsSideEffectFreeAcrossCalls — a secret in call N
-// must not alter the outcome of call N+1. This is the observable consequence of
-// holding no state, and it catches a cache the struct snapshot might miss (for
-// example one stored behind a pointer that is mutated in place).
+// must not alter the outcome of call N+1. This is the observable consequence
+// of holding no state, and it catches a cache the struct snapshot might miss
+// (for example one stored behind a pointer that is mutated in place).
 func TestSecurity_ClassificationIsSideEffectFreeAcrossCalls(t *testing.T) {
 	t.Parallel()
 
@@ -220,8 +218,8 @@ func floatStr(f float64) string {
 // ---------------------------------------------------------------------------
 
 // TestSecurity_EveryStringCrossingTheBoundaryIsFromAClosedSet is the strongest
-// containment statement available, and it is made by REFLECTION over the result
-// rather than by checking the fields a corpus happened to populate.
+// containment statement available, and it is made by REFLECTION over the
+// result rather than by checking the fields a corpus happened to populate.
 //
 // It walks every field of every returned Candidate and Slot, collects every
 // string reachable, and requires each to be a member of a closed vocabulary. A
@@ -300,8 +298,9 @@ func reachableStrings(v reflect.Value) []string {
 	return out
 }
 
-// TestSecurity_NoByteOrAudioShapedTypeCrossesTheAPI proves raw PCM cannot enter
-// STRUCTURALLY rather than by attempting a conversion that does not exist.
+// TestSecurity_NoByteOrAudioShapedTypeCrossesTheAPI proves raw PCM cannot
+// enter STRUCTURALLY rather than by attempting a conversion that does not
+// exist.
 //
 // The port takes conversation.Utterance, whose only caller-derived field is a
 // string. There is no []byte anywhere in the package's exported signatures, so
@@ -386,13 +385,12 @@ func typeMentionsBytes(e ast.Expr) bool {
 // 4. Metric-label safety — proven as a structural absence
 // ---------------------------------------------------------------------------
 
-// TestSecurity_PackageHasNoMetricInstrumentPath.
-//
-// There is nothing to test behaviourally: this package declares no instrument
-// and never calls one, so no label can be emitted from it. Inventing a metric
-// purely to prove it is safe would create the very surface the property is
-// about. Instead the ABSENCE is asserted, so the day an instrument is added
-// this test fails and the label question is raised deliberately.
+// TestSecurity_PackageHasNoMetricInstrumentPath — there is nothing to test
+// behaviourally: this package declares no instrument and never calls one, so
+// no label can be emitted from it. Inventing a metric purely to prove it is
+// safe would create the very surface the property is about. Instead the
+// ABSENCE is asserted, so the day an instrument is added this test fails and
+// the label question is raised deliberately.
 //
 // The frozen conversation module owns the conversation-layer instruments and
 // already labels with intent NAMES only (IntentsProposed.Inc(string(top.Name))
@@ -440,12 +438,11 @@ func TestSecurity_PackageHasNoMetricInstrumentPath(t *testing.T) {
 // 5 + 6. Execution, governance and persistence isolation
 // ---------------------------------------------------------------------------
 
-// TestSecurity_NoPersistenceOrExecutionShapedAPI.
-//
-// The import guard (T4) stops the obvious route. This stops the subtle one: a
-// helper named Save/Store/Execute that later acquires a body. A classifier that
-// can persist is a second memory system; one that can execute has escaped the
-// governance boundary entirely.
+// TestSecurity_NoPersistenceOrExecutionShapedAPI — the import guard (T4) stops
+// the obvious route. This stops the subtle one: a helper named
+// Save/Store/Execute that later acquires a body. A classifier that can persist
+// is a second memory system; one that can execute has escaped the governance
+// boundary entirely.
 func TestSecurity_NoPersistenceOrExecutionShapedAPI(t *testing.T) {
 	t.Parallel()
 
@@ -480,9 +477,8 @@ func TestSecurity_NoPersistenceOrExecutionShapedAPI(t *testing.T) {
 	t.Logf("%d exported functions inspected for persistence/execution shapes", checked)
 }
 
-// TestSecurity_NoExportedFunctionTypedFieldCouldBeAnExecutionHook.
-//
-// A func-typed exported field is a place a caller could install arbitrary
+// TestSecurity_NoExportedFunctionTypedFieldCouldBeAnExecutionHook — A
+// func-typed exported field is a place a caller could install arbitrary
 // behaviour that then runs inside classification — an execution path that no
 // import guard would see. Rule.Cues and the spec table are data, deliberately,
 // and the one internal func field (slotSpec.Structural) is unexported and
@@ -518,12 +514,11 @@ func TestSecurity_NoExportedFunctionTypedFieldCouldBeAnExecutionHook(t *testing.
 	}
 }
 
-// TestSecurity_GovernanceDecisionsCannotBeConstructedHere.
-//
-// The classifier must not be able to make, alter or override a governance
-// decision. It cannot import governance (T4's guard), and this adds the
-// complementary statement: no identifier in this package refers to a governance
-// or tool concept at all, so there is no partially-built path to complete.
+// TestSecurity_GovernanceDecisionsCannotBeConstructedHere — the classifier
+// must not be able to make, alter or override a governance decision. It cannot
+// import governance (T4's guard), and this adds the complementary statement:
+// no identifier in this package refers to a governance or tool concept at all,
+// so there is no partially-built path to complete.
 func TestSecurity_GovernanceDecisionsCannotBeConstructedHere(t *testing.T) {
 	t.Parallel()
 
@@ -557,10 +552,10 @@ func TestSecurity_GovernanceDecisionsCannotBeConstructedHere(t *testing.T) {
 // 7. Security-specific vocabulary and confidence assertions
 // ---------------------------------------------------------------------------
 
-// TestSecurity_CallerTextCanNeverBecomeAnIdentifier is the single sentence this
-// file exists to prove, stated as a test: no matter what the caller says, the
-// identifiers leaving this package come from closed sets and the numbers are
-// bounded.
+// TestSecurity_CallerTextCanNeverBecomeAnIdentifier is the single sentence
+// this file exists to prove, stated as a test: no matter what the caller says,
+// the identifiers leaving this package come from closed sets and the numbers
+// are bounded.
 func TestSecurity_CallerTextCanNeverBecomeAnIdentifier(t *testing.T) {
 	t.Parallel()
 

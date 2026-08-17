@@ -13,12 +13,12 @@ import (
 
 // The intent vocabulary this classifier can emit.
 //
-// CLOSED, AND CLOSING IT IS THIS PACKAGE'S JOB. conversation.IntentName is an
-// open `string` (intent.go:14) with only four reserved constants, so the frozen
-// port does not and cannot bound the vocabulary. If a classifier invents a name,
-// the conversation engine will faithfully carry it into a plan, a metric label
-// and an audit record. Every name below is declared here, and
-// [Vocabulary] is the single authoritative list.
+// CLOSED, AND CLOSING IT IS THIS PACKAGE'S JOB. The conversation.IntentName
+// type is an open `string` (intent.go:14) with only four reserved constants, so the
+// frozen port does not and cannot bound the vocabulary. If a classifier
+// invents a name, the conversation engine will faithfully carry it into a
+// plan, a metric label and an audit record. Every name below is declared here,
+// and [Vocabulary] is the single authoritative list.
 //
 // Two names are NOT redeclared: affirm and deny already exist in the frozen
 // module as [conversation.IntentAffirm] and [conversation.IntentDeny], and
@@ -57,8 +57,8 @@ const (
 
 // Vocabulary is every name this classifier may emit, in a stable order.
 //
-// Used by the classifier's own guard and by tests. A name not in this list must
-// never appear in a [conversation.Candidate] this package returns.
+// Used by the classifier's own guard and by tests. A name not in this list
+// must never appear in a [conversation.Candidate] this package returns.
 func Vocabulary() []conversation.IntentName {
 	return []conversation.IntentName{
 		conversation.IntentAffirm,
@@ -108,23 +108,21 @@ type Rule struct {
 }
 
 // defaultSaturation is the evidence weight at which an intent is fully
-// confident.
-//
-// 3.0, chosen so that ONE strong multi-token phrase saturates a rule while a
-// single incidental keyword does not. With the weighting in [cueWeight], a
-// two-token phrase scores 3.0 and a lone token scores 1.0 — so "call me back"
-// is decisive and a stray "back" is 0.33, which lands below the frozen
-// RejectThreshold of 0.45 and is therefore discarded by the engine rather than
-// by a second policy here.
+// confident — 3.0, chosen so that ONE strong multi-token phrase saturates a
+// rule while a single incidental keyword does not. With the weighting in
+// [cueWeight], a two-token phrase scores 3.0 and a lone token scores 1.0 — so
+// "call me back" is decisive and a stray "back" is 0.33, which lands below the
+// frozen RejectThreshold of 0.45 and is therefore discarded by the engine
+// rather than by a second policy here.
 const defaultSaturation = 3.0
 
 // cueWeight is the evidence a matched cue contributes.
 //
 // A single token is weak evidence and scores 1. A multi-token phrase is much
-// stronger — word order carries meaning that bag-of-words does not — and scores
-// len+1, so two tokens give 3 and three give 4. The +1 is what makes a
-// two-token phrase decisive at the default saturation rather than merely
-// twice a single word.
+// stronger — word order carries meaning that bag-of-words does not — and
+// scores len+1, so two tokens give 3 and three give 4. The +1 is what makes a
+// two-token phrase decisive at the default saturation rather than merely twice
+// a single word.
 func cueWeight(cue []string) float64 {
 	if len(cue) <= 1 {
 		return 1
@@ -138,9 +136,9 @@ func cueWeight(cue []string) float64 {
 // call-screening receptionist, not natural-language understanding. It
 // recognises what it is told to recognise and nothing else, and its ceiling is
 // the phrase list below. A caller who phrases a request in words absent from
-// this list gets no candidates, which the engine turns into the fallback intent
-// — the correct outcome, and the reason this list is a starting point rather
-// than a claim.
+// this list gets no candidates, which the engine turns into the fallback
+// intent — the correct outcome, and the reason this list is a starting point
+// rather than a claim.
 //
 // English plus common Hindi/Hinglish forms, matching the frozen engine's own
 // yes/no lexicon (intent.go:410) and the India-first posture of ADR-0003 and
@@ -217,11 +215,10 @@ func cues(phrases ...string) [][]string {
 const maxTokens = 512
 
 // tokenize lowercases ASCII and splits on anything that is not a letter or
-// digit.
-//
-// Written here rather than reused because the frozen module's equivalent is
-// unexported. Punctuation is stripped so "hello." matches "hello"; digits are
-// kept because a callback number or a time is a token a cue may reference.
+// digit — written here rather than reused because the frozen module's
+// equivalent is unexported. Punctuation is stripped so "hello." matches
+// "hello"; digits are kept because a callback number or a time is a token a
+// cue may reference.
 //
 // The returned tokens are derived from SENSITIVE text and must not escape this
 // package — they are scored and discarded within one call.
@@ -271,11 +268,11 @@ func matchAt(tokens []string, i int, cue []string) bool {
 
 // sortCandidates orders candidates highest-confidence first.
 //
-// The tie-break is lexicographic by name, ASCENDING — deliberately identical to
-// the frozen engine's own rule at intent.go:348-356. The engine re-sorts what a
-// classifier returns, so a different rule here would mean the order this
-// package promises and the order the engine acts on could differ. Matching it
-// makes the two agree by construction.
+// The tie-break is lexicographic by name, ASCENDING — deliberately identical
+// to the frozen engine's own rule at intent.go:348-356. The engine re-sorts
+// what a classifier returns, so a different rule here would mean the order
+// this package promises and the order the engine acts on could differ.
+// Matching it makes the two agree by construction.
 func sortCandidates(cs []conversation.Candidate) {
 	sort.SliceStable(cs, func(i, j int) bool {
 		if cs[i].Confidence != cs[j].Confidence {

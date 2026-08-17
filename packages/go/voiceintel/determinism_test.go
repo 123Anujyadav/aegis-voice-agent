@@ -437,7 +437,8 @@ func matrixSignature(t *testing.T) string {
 // 1. Repetition
 // ---------------------------------------------------------------------------
 
-// TestT11_MatrixIsIdenticalOver100Repetitions.
+// TestT11_MatrixIsIdenticalOver100Repetitions replays the whole scenario
+// matrix and requires a byte-identical signature every time.
 func TestT11_MatrixIsIdenticalOver100Repetitions(t *testing.T) {
 	t.Parallel()
 
@@ -470,15 +471,12 @@ func TestT11_EachScenarioIsIndividuallyStable(t *testing.T) {
 // 2. Cross-process, via a golden file
 // ---------------------------------------------------------------------------
 
-// TestT11_MatrixMatchesTheGoldenSignature.
-//
-// The golden file is the cross-process evidence: every independent `go test`
-// invocation is a fresh process, with a fresh address space, fresh map seeds and
-// a fresh scheduler, comparing against identical bytes on disk. Running this
-// under several shuffle seeds and in separate processes is what the T11 report
-// records.
-//
-// If the golden is absent it is created and the test reports that loudly rather
+// TestT11_MatrixMatchesTheGoldenSignature — the golden file is the
+// cross-process evidence: every independent `go test` invocation is a fresh
+// process, with a fresh address space, fresh map seeds and a fresh scheduler,
+// comparing against identical bytes on disk. Running this under several
+// shuffle seeds and in separate processes is what the T11 report records — if
+// the golden is absent it is created and the test reports that loudly rather
 // than silently passing.
 func TestT11_MatrixMatchesTheGoldenSignature(t *testing.T) {
 	got := matrixSignature(t)
@@ -637,11 +635,10 @@ func TestT11_SlotOrderingIsDeterministic(t *testing.T) {
 	}
 }
 
-// TestT11_ContextSummaryOrderingIsDeterministic.
-//
-// ContextEngine.Export reads maps but sorts by (Scope, Key) before returning
-// (context.go:406). This proves the OUTPUT is canonical despite the internal
-// map iteration — requirement 11's "prove the output is sorted" branch.
+// TestT11_ContextSummaryOrderingIsDeterministic — ContextEngine.Export reads
+// maps but sorts by (Scope, Key) before returning (context.go:406). This
+// proves the OUTPUT is canonical despite the internal map iteration —
+// requirement 11's "prove the output is sorted" branch.
 func TestT11_ContextSummaryOrderingIsDeterministic(t *testing.T) {
 	t.Parallel()
 
@@ -713,7 +710,7 @@ func TestT11_ResponseStrategySelectionIsDeterministic(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				id := conversation.ConversationID(fmt.Sprintf("strat-%d", n))
+				id := conversation.ConversationID(fmt.Sprintf("strategy-%d", n))
 				p, err := b.Planner(id, "")
 				if err != nil {
 					t.Fatal(err)
@@ -742,7 +739,8 @@ func TestT11_ResponseStrategySelectionIsDeterministic(t *testing.T) {
 // TestT11_EvictionDeterminismBoundary states EXACTLY what the frozen contract
 // guarantees, and refuses to claim more.
 //
-// evictOldestLocked selects with `e.SetAt.Before(oldest)`, which is false for
+// The evictOldestLocked helper selects with `e.SetAt.Before(oldest)`, which
+// is false for
 // equal timestamps. So:
 //
 //   - DETERMINISTIC: that eviction happens, that the bound holds, that exactly
@@ -751,9 +749,9 @@ func TestT11_ResponseStrategySelectionIsDeterministic(t *testing.T) {
 //   - NOT DETERMINISTIC: WHICH of several equal-SetAt entries is evicted. Go's
 //     map iteration picks, and the frozen code does not tie-break.
 //
-// This is a frozen property. It is not patched, and T11's contract is written to
-// avoid depending on it: the eviction scenario in matrix() advances the clock so
-// every SetAt is distinct.
+// This is a frozen property. It is not patched, and T11's contract is written
+// to avoid depending on it: the eviction scenario in matrix() advances the
+// clock so every SetAt is distinct.
 func TestT11_EvictionDeterminismBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -896,7 +894,8 @@ func phase13DecisionFiles(t *testing.T) map[string]*ast.File {
 	return out
 }
 
-// TestT11_NoClockReadInDecisionLogic.
+// TestT11_NoClockReadInDecisionLogic asserts that no decision-path file
+// calls time.Now, time.Since or time.Until.
 func TestT11_NoClockReadInDecisionLogic(t *testing.T) {
 	t.Parallel()
 
@@ -920,7 +919,8 @@ func TestT11_NoClockReadInDecisionLogic(t *testing.T) {
 	}
 }
 
-// TestT11_NoRandomnessInDecisionLogic.
+// TestT11_NoRandomnessInDecisionLogic asserts that no decision-path file
+// imports a randomness package.
 func TestT11_NoRandomnessInDecisionLogic(t *testing.T) {
 	t.Parallel()
 
@@ -935,10 +935,9 @@ func TestT11_NoRandomnessInDecisionLogic(t *testing.T) {
 	}
 }
 
-// TestT11_NoMapIterationControlsObservableOrdering.
-//
-// Requirement 11. Every `range` over a map in the decision path is flagged;
-// the only permitted package-level map, timeWords, must be LOOKUP-ONLY.
+// TestT11_NoMapIterationControlsObservableOrdering — requirement 11. Every
+// `range` over a map in the decision path is flagged; the only permitted
+// package-level map, timeWords, must be LOOKUP-ONLY.
 func TestT11_NoMapIterationControlsObservableOrdering(t *testing.T) {
 	t.Parallel()
 

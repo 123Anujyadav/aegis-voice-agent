@@ -28,9 +28,9 @@ import (
 // the compiler is free to delete a call whose result is unused, and the
 // benchmark would report the cost of an empty loop.
 
-// Sinks. Package-level on purpose, so the compiler cannot prove the results are
-// dead. They live in a _test.go file, so the Phase 13 no-package-state guards —
-// which parse non-test files only — are unaffected.
+// Sinks. Package-level on purpose, so the compiler cannot prove the results
+// are dead. They live in a _test.go file, so the Phase 13 no-package-state
+// guards — which parse non-test files only — are unaffected.
 var (
 	sinkCandidates []conversation.Candidate
 	sinkSlots      []conversation.Slot
@@ -52,7 +52,8 @@ func benchClassifier(b *testing.B) *intent.Classifier {
 // 1. Intent classification
 // ---------------------------------------------------------------------------
 
-// classifyCase is one measured input, with the outcome it must actually produce.
+// classifyCase is one measured input, with the outcome it must actually
+// produce.
 type classifyCase struct {
 	name string
 	text string
@@ -227,7 +228,8 @@ func BenchmarkClassifyTurn(b *testing.B) {
 		},
 	}
 
-	for _, tc := range cases {
+	for i := range cases {
+		tc := &cases[i] // pointer: the struct is 288 bytes and is never mutated
 		b.Run(tc.name, func(b *testing.B) {
 			if got := intent.ClassifyTurn(tc.in); got.Lifecycle != tc.want {
 				b.Fatalf("fixture lifecycle = %v, want %v", got.Lifecycle, tc.want)
@@ -248,9 +250,10 @@ func BenchmarkClassifyTurn(b *testing.B) {
 // BenchmarkClassify_Parallel measures the real production workload: ONE
 // immutable classifier shared by every concurrent session.
 //
-// This is not an artificial shared-mutable-object benchmark — the Bridge shares
-// exactly one classifier across sessions, and T10 proved it holds no mutable
-// state. What is being measured is whether that sharing costs anything.
+// This is not an artificial shared-mutable-object benchmark — the Bridge
+// shares exactly one classifier across sessions, and T10 proved it holds no
+// mutable state. What is being measured is whether that sharing costs
+// anything.
 func BenchmarkClassify_Parallel(b *testing.B) {
 	c := benchClassifier(b)
 	u := conversation.Utterance{Text: "please call me back on 9876543210", ASRConfidence: 0.95}

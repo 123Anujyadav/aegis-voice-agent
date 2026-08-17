@@ -16,8 +16,8 @@ import (
 
 // T8 — TURN / INTERRUPTION CLASSIFICATION SEMANTICS.
 //
-// Every assertion below names an EXACT frozen value. None of them asserts merely
-// that classification succeeded, and none reads a table out of the
+// Every assertion below names an EXACT frozen value. None of them asserts
+// merely that classification succeeded, and none reads a table out of the
 // implementation — the expected values are stated here independently, from the
 // frozen vocabulary's own documented meanings.
 
@@ -164,8 +164,8 @@ func TestTurn_RestatingTheSameIntentIsNotANewRequest(t *testing.T) {
 	}
 }
 
-// TestTurn_Clarification — the frozen engine returned IntentClarify, so the turn
-// needs clarification. Frozen type: ClarificationKind.
+// TestTurn_Clarification — the frozen engine returned IntentClarify, so the
+// turn needs clarification. Frozen type: ClarificationKind.
 func TestTurn_Clarification(t *testing.T) {
 	t.Parallel()
 
@@ -236,7 +236,8 @@ func TestTurn_Clarification(t *testing.T) {
 	}
 }
 
-// TestTurn_Interruption — an explicit interrupt. Frozen value: InterruptionUser.
+// TestTurn_Interruption — an explicit interrupt. Frozen value:
+// InterruptionUser.
 func TestTurn_Interruption(t *testing.T) {
 	t.Parallel()
 
@@ -257,12 +258,11 @@ func TestTurn_Interruption(t *testing.T) {
 	}
 }
 
-// TestTurn_OverlapDefersToTheFrozenFloorDecision.
-//
-// This is the architectural assertion of T8: the frozen TurnManager decides,
-// by overlap DURATION, whether simultaneous speech is a backchannel. The same
-// overlap event must classify differently purely because the frozen decision
-// differs — proving this package holds no competing opinion.
+// TestTurn_OverlapDefersToTheFrozenFloorDecision — this is the architectural
+// assertion of T8: the frozen TurnManager decides, by overlap DURATION,
+// whether simultaneous speech is a backchannel. The same overlap event must
+// classify differently purely because the frozen decision differs — proving
+// this package holds no competing opinion.
 func TestTurn_OverlapDefersToTheFrozenFloorDecision(t *testing.T) {
 	t.Parallel()
 
@@ -438,10 +438,9 @@ func TestTurn_Completion(t *testing.T) {
 // 9-11. Unknown, low confidence, ambiguous — preserved as distinct outcomes
 // ---------------------------------------------------------------------------
 
-// TestTurn_UnknownLowConfidenceAndAmbiguousStayDistinct.
-//
-// The requirement is that these are not collapsed. Asserted by showing the three
-// produce three DIFFERENT frozen results, not merely that each is non-zero.
+// TestTurn_UnknownLowConfidenceAndAmbiguousStayDistinct — the requirement is
+// that these are not collapsed. Asserted by showing the three produce three
+// DIFFERENT frozen results, not merely that each is non-zero.
 func TestTurn_UnknownLowConfidenceAndAmbiguousStayDistinct(t *testing.T) {
 	t.Parallel()
 
@@ -589,12 +588,11 @@ func TestTurn_DeterministicAcrossRepeatedClassification(t *testing.T) {
 // 13. FSM-compatible mapping
 // ---------------------------------------------------------------------------
 
-// TestTurn_EveryEmittedValueIsAFrozenVocabularyMember.
-//
-// Sweeps every event kind against representative verdicts and asserts that each
-// emitted value is a member of the frozen enum — an invented value would show up
-// as a String() of "unknown"/out-of-range, i.e. something the frozen FSM could
-// not interpret.
+// TestTurn_EveryEmittedValueIsAFrozenVocabularyMember — sweeps every event
+// kind against representative verdicts and asserts that each emitted value is
+// a member of the frozen enum — an invented value would show up as a String()
+// of "unknown"/out-of-range, i.e. something the frozen FSM could not
+// interpret.
 func TestTurn_EveryEmittedValueIsAFrozenVocabularyMember(t *testing.T) {
 	t.Parallel()
 
@@ -729,11 +727,10 @@ func TestTurn_ConcurrentClassificationIsIsolated(t *testing.T) {
 // 15 + structural guards
 // ---------------------------------------------------------------------------
 
-// TestTurn_CannotExpressALifecycleState.
-//
-// The strongest available proof that T8 introduced no second FSM: TurnSignal has
-// no field capable of naming a conversation lifecycle state. A classifier that
-// cannot express a State cannot drive one, whatever it is asked to classify.
+// TestTurn_CannotExpressALifecycleState — the strongest available proof that
+// T8 introduced no second FSM: TurnSignal has no field capable of naming a
+// conversation lifecycle state. A classifier that cannot express a State
+// cannot drive one, whatever it is asked to classify.
 //
 // Verified by reflection over the actual struct, so adding such a field later
 // fails this test.
@@ -780,15 +777,12 @@ func TestTurn_CannotExpressALifecycleState(t *testing.T) {
 	t.Logf("%d conversation.* references inspected, none is an FSM type", inspected)
 }
 
-// TestTurn_EveryTurnSignalFieldIsAFrozenType.
-//
-// The structural proof that T8 introduced no vocabulary of its own: every field
-// of TurnSignal and TurnInput must be typed `conversation.Something`. A new
-// lifecycle enum, or any locally-defined classification type, necessarily
-// appears as a field whose type is not qualified by conversation — and fails
-// here.
-//
-// This is what makes "no second FSM" checkable rather than asserted.
+// TestTurn_EveryTurnSignalFieldIsAFrozenType — the structural proof that T8
+// introduced no vocabulary of its own: every field of TurnSignal and TurnInput
+// must be typed `conversation.Something`. A new lifecycle enum, or any
+// locally-defined classification type, necessarily appears as a field whose
+// type is not qualified by conversation — and fails here — this is what makes
+// "no second FSM" checkable rather than asserted.
 func TestTurn_EveryTurnSignalFieldIsAFrozenType(t *testing.T) {
 	t.Parallel()
 
@@ -868,13 +862,12 @@ func TestTurn_DoesNotMutateItsInput(t *testing.T) {
 	}
 }
 
-// TestTurn_NoPackageLevelStateAddedByT8.
-//
-// T8 must add no package-level var at all. The package-wide guard
-// TestPackage_HasNoPackageLevelMutableState (T4) already enforces this and in
-// fact caught the first draft of turn.go, which declared cancellationCues as a
-// package-level slice. This test pins the rule at the file level so a future
-// edit to turn.go alone fails here with a message naming the cause.
+// TestTurn_NoPackageLevelStateAddedByT8 — T8 must add no package-level var at
+// all. The package-wide guard TestPackage_HasNoPackageLevelMutableState (T4)
+// already enforces this and in fact caught the first draft of turn.go, which
+// declared cancellationCues as a package-level slice. This test pins the rule
+// at the file level so a future edit to turn.go alone fails here with a
+// message naming the cause.
 func TestTurn_NoPackageLevelStateAddedByT8(t *testing.T) {
 	t.Parallel()
 

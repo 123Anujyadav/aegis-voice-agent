@@ -9,8 +9,8 @@
 //	conversation.IntentClassifier (intent.go:111) — implemented by intent
 //
 // The only thing missing was somebody calling WithClassifier with a real
-// classifier. Before this package, conversation.NewEngine appeared exactly once
-// in the repository — in voice/e2e_test.go — and without it, which meant
+// classifier. Before this package, conversation.NewEngine appeared exactly
+// once in the repository — in voice/e2e_test.go — and without it, which meant
 // intent.go:277 applied to every production utterance: "an engine with no
 // classifier resolves every utterance to the fallback intent".
 //
@@ -34,7 +34,8 @@ import (
 // Compile-time proof that the type this package hands back is exactly what
 // voice asks for.
 //
-// voice already declares this at pipeline.go:123. Restating it here is not
+// The voice package already declares this at pipeline.go:123. Restating it
+// here is not
 // redundancy: it means a change to voice.Planner breaks THIS package's build,
 // at the seam, rather than silently leaving the composition wired to an
 // interface nobody satisfies any more.
@@ -64,8 +65,8 @@ type options struct {
 // WithConversationConfig overrides the conversation configuration.
 //
 // The intent thresholds live here — AcceptThreshold, RejectThreshold,
-// AmbiguityMargin, MinASRConfidence — and they stay conversation's to own. This
-// package passes the config through and applies none of them itself.
+// AmbiguityMargin, MinASRConfidence — and they stay conversation's to own.
+// This package passes the config through and applies none of them itself.
 func WithConversationConfig(c conversation.Config) Option {
 	return func(o *options) { o.convCfg = c }
 }
@@ -132,7 +133,7 @@ var ErrNoBridge = errors.New("voiceintel: bridge is nil")
 // caller cannot reach past the seam into conversation internals — and so this
 // package cannot quietly grow into a second dialogue API.
 //
-// persona may be empty, which selects the engine's default.
+// The persona may be empty, which selects the engine's default.
 func (b *Bridge) Planner(id conversation.ConversationID, persona conversation.PersonaID) (voice.Planner, error) {
 	if b == nil {
 		return nil, ErrNoBridge
@@ -145,14 +146,13 @@ func (b *Bridge) Planner(id conversation.ConversationID, persona conversation.Pe
 }
 
 // Conversation returns the underlying conversation for a planner this Bridge
-// created.
-//
-// Needed because slot VALUES cannot cross the classifier port — conversation.Slot
-// carries name, filled, confidence and required, and no value (intent.go:32) —
-// so anything that wants values must go to the context engine, which is reached
-// through Conversation.Context(). Exposing the conversation is how a caller
-// reaches that sanctioned API; this package does not read or write context
-// itself, and invents no parallel value transport. See T4's finding.
+// created — needed because slot VALUES cannot cross the classifier port —
+// conversation.Slot carries name, filled, confidence and required, and no
+// value (intent.go:32) — so anything that wants values must go to the context
+// engine, which is reached through Conversation.Context(). Exposing the
+// conversation is how a caller reaches that sanctioned API; this package does
+// not read or write context itself, and invents no parallel value transport.
+// See T4's finding.
 func (b *Bridge) Conversation(id conversation.ConversationID) (*conversation.Conversation, bool) {
 	if b == nil {
 		return nil, false
@@ -160,7 +160,8 @@ func (b *Bridge) Conversation(id conversation.ConversationID) (*conversation.Con
 	return b.engine.Get(id)
 }
 
-// Engine exposes the wired engine, for a caller that needs its metrics or clock.
+// Engine exposes the wired engine, for a caller that needs its metrics or
+// clock.
 func (b *Bridge) Engine() *conversation.Engine {
 	if b == nil {
 		return nil

@@ -20,21 +20,22 @@ import (
 //
 // packages/go/voice/failure_test.go already runs the voice-runtime failure
 // matrix — provider missing, process crash, timeout, invalid output, LLM
-// unavailable, provider switch and recovery, cancellation, barge-in during TTS,
-// disconnect, governance denial, tool-fails-after-governance-approval,
-// goroutine leaks, subsequent-session-still-works, concurrent isolation, orphan
-// processes. That is Phase 11E's contract, it is frozen, and it passes.
+// unavailable, provider switch and recovery, cancellation, barge-in during
+// TTS, disconnect, governance denial, tool-fails-after-governance-approval,
+// goroutine leaks, subsequent-session-still-works, concurrent isolation,
+// orphan processes. That is Phase 11E's contract, it is frozen, and it passes.
 //
 // Re-running it here would be a second failure framework, which the task
 // forbids. So T9 verifies the THIRTEEN CASES AT THE PHASE 13 LAYER: what the
 // bridge and the deterministic classifier do when each failure arrives, and —
-// for the three cases owned by the runtime — that Phase 13 preserves the frozen
-// distinctions instead of flattening them.
+// for the three cases owned by the runtime — that Phase 13 preserves the
+// frozen distinctions instead of flattening them.
 //
 // INJECTION SEAM. conversation.Harness / ScriptedClassifier is exported
-// deliberately ("every service embedding this engine needs it", harness.go:14),
-// and ScriptedClassifier.FailWith is the sanctioned way to make classification
-// fail. No frozen internals are reached into, and nothing is monkey-patched.
+// deliberately ("every service embedding this engine needs it",
+// harness.go:14), and ScriptedClassifier.FailWith is the sanctioned way to
+// make classification fail. No frozen internals are reached into, and nothing
+// is monkey-patched.
 //
 // DEPENDENCIES. This file imports only what voiceintel already imported:
 // conversation, intent, voice, runtime. T9 adds no governance, toolruntime,
@@ -88,7 +89,8 @@ func validStates() map[conversation.State]bool {
 	return m
 }
 
-// assertRecoveryContract asserts the twelve properties every T9 case must hold.
+// assertRecoveryContract asserts the twelve properties every T9 case must
+// hold.
 //
 // This is the whole point of T9: "an error was returned" is not a recovery
 // contract. Each case calls this and then adds its case-specific assertions.
@@ -141,14 +143,15 @@ func assertRecoveryContract(t *testing.T, b *voiceintel.Bridge, id string, o out
 	assertIndependentSessionOperates(t, b, id, id+"-next")
 }
 
-// transitionProblems reports every way a transition history violates the frozen
-// FSM contract: a state outside AllStates(), or a transition with no declared
-// trigger. The frozen FSM is the only writer of these records, so a malformed
-// one means something bypassed it.
+// transitionProblems reports every way a transition history violates the
+// frozen FSM contract: a state outside AllStates(), or a transition with no
+// declared trigger. The frozen FSM is the only writer of these records, so a
+// malformed one means something bypassed it.
 //
-// Extracted so the guard itself can be tested against synthetic invalid records
-// -- the frozen FSM cannot be made to emit one without modifying frozen code,
-// so feeding it fabricated input is the only way to show the guard has teeth.
+// Extracted so the guard itself can be tested against synthetic invalid
+// records -- the frozen FSM cannot be made to emit one without modifying
+// frozen code, so feeding it fabricated input is the only way to show the
+// guard has teeth.
 func transitionProblems(recs []conversation.TransitionRecord) []string {
 	valid := validStates()
 	var problems []string
@@ -204,13 +207,13 @@ func assertOutcomesDistinct(t *testing.T, label string, got, want voice.TurnOutc
 }
 
 // assertIndependentSessionOperates proves the platform is not poisoned by the
-// failure: a brand-new session begins, accepts a clean utterance without error,
-// reaches a live state, and sees none of the failed session's context.
+// failure: a brand-new session begins, accepts a clean utterance without
+// error, reaches a live state, and sees none of the failed session's context.
 //
 // It deliberately does NOT require a particular intent. A bridge built with a
-// ScriptedClassifier legitimately resolves to the frozen fallback, and demanding
-// a real intent here would assert the test's own fixture rather than the
-// system's recovery. Tests that install the real classifier assert the
+// ScriptedClassifier legitimately resolves to the frozen fallback, and
+// demanding a real intent here would assert the test's own fixture rather than
+// the system's recovery. Tests that install the real classifier assert the
 // non-fallback intent themselves.
 func assertIndependentSessionOperates(t *testing.T, b *voiceintel.Bridge, failedID, newID string) {
 	t.Helper()
@@ -517,8 +520,8 @@ func assertIntentInVocabulary(t *testing.T, name conversation.IntentName) {
 // Case 3 — unknown intent  /  Case 9 — low confidence
 // ---------------------------------------------------------------------------
 
-// TestFailure03_UnknownIntentStaysDistinctFromLowConfidence covers cases 3 and 9
-// together, because the requirement that binds them is that they stay APART.
+// TestFailure03_UnknownIntentStaysDistinctFromLowConfidence covers cases 3 and
+// 9 together, because the requirement that binds them is that they stay APART.
 func TestFailure03_UnknownIntentStaysDistinctFromLowConfidence(t *testing.T) {
 	t.Parallel()
 
@@ -609,11 +612,11 @@ func TestFailure04_ContextOverflow(t *testing.T) {
 
 	// Push far past the frozen bound.
 	for i := 0; i < frozenMaxEntriesPerScope*4; i++ {
-		if err := c.Set(conversation.Entry{
+		if setErr := c.Set(conversation.Entry{
 			Key: fmt.Sprintf("k%05d", i), Value: i,
 			Scope: conversation.ScopeConversation, Source: "t9",
-		}); err != nil {
-			t.Fatalf("Set %d: %v", i, err)
+		}); setErr != nil {
+			t.Fatalf("Set %d: %v", i, setErr)
 		}
 	}
 
@@ -640,14 +643,13 @@ func TestFailure04_ContextOverflow(t *testing.T) {
 // Case 5 — context corruption
 // ---------------------------------------------------------------------------
 
-// TestFailure05_ContextCorruption.
+// TestFailure05_ContextCorruption — no frozen internals are touched.
+// Corruption is injected only through the public Set API: entries whose stored
+// Value is of an unexpected shape, and a Recover() attempted with no snapshot
+// to restore from.
 //
-// No frozen internals are touched. Corruption is injected only through the
-// public Set API: entries whose stored Value is of an unexpected shape, and a
-// Recover() attempted with no snapshot to restore from.
-//
-// The contract asserted is that the caller gets a BOUNDED, typed outcome rather
-// than silently proceeding on corrupted state.
+// The contract asserted is that the caller gets a BOUNDED, typed outcome
+// rather than silently proceeding on corrupted state.
 func TestFailure05_ContextCorruption(t *testing.T) {
 	t.Parallel()
 
@@ -860,12 +862,11 @@ func TestFailure08_Interruption(t *testing.T) {
 // Case 10 — provider unavailable
 // ---------------------------------------------------------------------------
 
-// TestFailure10_ProviderUnavailable.
-//
-// The provider failure matrix itself is frozen and already covered by
-// voice/failure_test.go (STTProviderMissing, LLMUnavailable,
-// ProviderSwitchAndRecovery). What T9 verifies is the Phase 13 obligation: an
-// INFRASTRUCTURE failure must not be laundered into a classification failure.
+// TestFailure10_ProviderUnavailable — the provider failure matrix itself is
+// frozen and already covered by voice/failure_test.go (STTProviderMissing,
+// LLMUnavailable, ProviderSwitchAndRecovery). What T9 verifies is the Phase 13
+// obligation: an INFRASTRUCTURE failure must not be laundered into a
+// classification failure.
 func TestFailure10_ProviderUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -910,11 +911,10 @@ func TestFailure10_ProviderUnavailable(t *testing.T) {
 // Case 11 — governance denial
 // ---------------------------------------------------------------------------
 
-// TestFailure11_GovernanceDenial.
-//
-// The governance engine is frozen and its denial path is covered by
-// voice/failure_test.go:696. T9 asserts the Phase 13-visible obligations: denial
-// is distinguishable from provider failure, and it is not a crash.
+// TestFailure11_GovernanceDenial — the governance engine is frozen and its
+// denial path is covered by voice/failure_test.go:696. T9 asserts the Phase
+// 13-visible obligations: denial is distinguishable from provider failure, and
+// it is not a crash.
 func TestFailure11_GovernanceDenial(t *testing.T) {
 	t.Parallel()
 
@@ -954,16 +954,14 @@ func TestFailure11_GovernanceDenial(t *testing.T) {
 // Case 12 — tool failure
 // ---------------------------------------------------------------------------
 
-// TestFailure12_ToolFailureIsNotGovernanceDenial.
-//
-// The tool-fails-after-approval case is frozen and covered by
-// voice/failure_test.go:733. Phase 13's obligation is that a post-authorization
-// tool fault stays a fault, and that authorization does not leak between
-// sessions.
-//
-// conversation models the tool wait without executing anything ("This engine
-// does not execute tools; it models the wait", state.go), so this is verified
-// at that seam — no toolruntime import is required or added.
+// TestFailure12_ToolFailureIsNotGovernanceDenial — the
+// tool-fails-after-approval case is frozen and covered by
+// voice/failure_test.go:733. Phase 13's obligation is that a
+// post-authorization tool fault stays a fault, and that authorization does not
+// leak between sessions — conversation models the tool wait without executing
+// anything ("This engine does not execute tools; it models the wait",
+// state.go), so this is verified at that seam — no toolruntime import is
+// required or added.
 func TestFailure12_ToolFailureIsNotGovernanceDenial(t *testing.T) {
 	t.Parallel()
 
@@ -1013,10 +1011,9 @@ func TestFailure12_ToolFailureIsNotGovernanceDenial(t *testing.T) {
 // Case 13 — concurrent context access
 // ---------------------------------------------------------------------------
 
-// TestFailure13_ConcurrentFailuresStayIsolated.
-//
-// Sessions fail concurrently and independently; each must observe only its own
-// values and must not be poisoned by another's failure.
+// TestFailure13_ConcurrentFailuresStayIsolated — sessions fail concurrently
+// and independently; each must observe only its own values and must not be
+// poisoned by another's failure.
 //
 // NOT a race-detector claim — see the T9 report.
 func TestFailure13_ConcurrentFailuresStayIsolated(t *testing.T) {
@@ -1174,11 +1171,10 @@ func TestFailure_DeterministicAcrossRepeats(t *testing.T) {
 // Security
 // ---------------------------------------------------------------------------
 
-// TestFailure_NoSensitiveContentInOperationalFields.
-//
-// Failure paths are where leaks happen: an error message is the easiest place
-// for a raw transcript to end up. Every operational field produced by a failing
-// turn is checked against the injected marker.
+// TestFailure_NoSensitiveContentInOperationalFields — failure paths are where
+// leaks happen: an error message is the easiest place for a raw transcript to
+// end up. Every operational field produced by a failing turn is checked
+// against the injected marker.
 func TestFailure_NoSensitiveContentInOperationalFields(t *testing.T) {
 	t.Parallel()
 

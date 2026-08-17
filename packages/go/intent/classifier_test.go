@@ -13,10 +13,10 @@ import (
 // TEST DESIGN RULE OBSERVED THROUGHOUT THIS FILE.
 //
 // Every expected confidence below is computed BY HAND from the algorithm
-// documented on Classify, and written as a literal. No test calls DefaultRules,
-// cueWeight or score to derive what it then asserts — a test that recomputes the
-// implementation's arithmetic with the implementation's own tables proves only
-// that the code equals itself.
+// documented on Classify, and written as a literal. No test calls
+// DefaultRules, cueWeight or score to derive what it then asserts — a test
+// that recomputes the implementation's arithmetic with the implementation's
+// own tables proves only that the code equals itself.
 //
 // The documented algorithm, restated so the arithmetic below can be checked
 // without reading the implementation:
@@ -160,11 +160,13 @@ func TestClassify_UnknownUtteranceReturnsNoCandidates(t *testing.T) {
 // TestClassify_LowConfidenceIsACandidateNotSilence pins the distinction the
 // frozen engine depends on: a weak match is a named candidate the engine can
 // reject or clarify on; an unrecognised utterance is an empty slice that
-// becomes the fallback. Collapsing the two would hide one case inside the other.
+// becomes the fallback. Collapsing the two would hide one case inside the
+// other.
 //
 // "message" is a single-token cue for leave_message: evidence 1, confidence
 // 1/3 = 0.333, which sits BELOW the frozen RejectThreshold of 0.45 — so the
-// engine will reject it, and that is the engine's decision, not this package's.
+// engine will reject it, and that is the engine's decision, not this
+// package's.
 func TestClassify_LowConfidenceIsACandidateNotSilence(t *testing.T) {
 	t.Parallel()
 
@@ -322,8 +324,8 @@ func TestClassify_RepetitionCannotInflateConfidence(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // expectedVocabulary is written out by hand rather than read from
-// intent.Vocabulary(). Asserting the implementation's list against itself would
-// pass no matter what the list contained.
+// intent.Vocabulary(). Asserting the implementation's list against itself
+// would pass no matter what the list contained.
 var expectedVocabulary = map[string]bool{
 	"affirm": true, "deny": true, "greeting": true, "caller_identity": true,
 	"call_purpose": true, "leave_message": true, "request_callback": true,
@@ -404,8 +406,8 @@ func TestNew_RejectsAnOutOfVocabularyRule(t *testing.T) {
 // TestClassify_ExpectSlotValueSuppressesSingleKeywordMatches pins the one
 // expectation-sensitive rule.
 //
-// While answering a slot question, a lone keyword is far more likely to be part
-// of the answer than a new request. A phrase-level cue still counts.
+// While answering a slot question, a lone keyword is far more likely to be
+// part of the answer than a new request. A phrase-level cue still counts.
 //
 //	"message"          → single-token cue only  → suppressed under ExpectSlotValue
 //	"leave a message"  → phrase cue matches     → kept
@@ -435,8 +437,8 @@ func TestClassify_ExpectSlotValueSuppressesSingleKeywordMatches(t *testing.T) {
 
 // TestClassify_OtherExpectationsDoNotChangeScoring — only ExpectSlotValue is
 // special. ExpectYesNo never reaches a classifier at all (the frozen engine
-// short-circuits it at intent.go:315), and this asserts the classifier does not
-// quietly behave differently for it anyway.
+// short-circuits it at intent.go:315), and this asserts the classifier does
+// not quietly behave differently for it anyway.
 func TestClassify_OtherExpectationsDoNotChangeScoring(t *testing.T) {
 	t.Parallel()
 	c := newClassifier(t)
@@ -561,8 +563,8 @@ func TestClassify_IsDeterministicAcross100Executions(t *testing.T) {
 	}
 }
 
-// render is a total, ordered string form of a result, so a comparison catches a
-// reordering as readily as a value change.
+// render is a total, ordered string form of a result, so a comparison catches
+// a reordering as readily as a value change.
 func render(cs []conversation.Candidate) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("n=%d", len(cs)))

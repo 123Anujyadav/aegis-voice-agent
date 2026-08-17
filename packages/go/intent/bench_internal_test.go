@@ -126,9 +126,9 @@ func longText(words int) string {
 	return s
 }
 
-// BenchmarkSortCandidates measures the canonical ordering step. A fresh copy is
-// made per iteration because sorting an already-sorted slice is a different and
-// much cheaper operation — measuring that would overstate throughput.
+// BenchmarkSortCandidates measures the canonical ordering step. A fresh copy
+// is made per iteration because sorting an already-sorted slice is a different
+// and much cheaper operation — measuring that would overstate throughput.
 func BenchmarkSortCandidates(b *testing.B) {
 	base := []conversation.Candidate{
 		{Name: "repeat", Confidence: 0.33},
@@ -147,7 +147,8 @@ func BenchmarkSortCandidates(b *testing.B) {
 	}
 }
 
-// BenchmarkExtractSlots measures slot-shape extraction for the resolved intent.
+// BenchmarkExtractSlots measures slot-shape extraction for the resolved
+// intent.
 func BenchmarkExtractSlots(b *testing.B) {
 	tokens := tokenize("this is rajesh sharma from acme calling please call me " +
 		"back on 9876543210 tomorrow")

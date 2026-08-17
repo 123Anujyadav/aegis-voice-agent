@@ -24,10 +24,9 @@ import (
 // only "these known inputs still produce these known typed outcomes". It says
 // NOTHING about real-world language understanding, and no percentage in this
 // file may be read as accuracy. No model, provider or external service is
-// involved.
-//
-// FOUR OUTCOMES, KEPT APART. The frozen engine distinguishes more than the
-// three the task names, and collapsing any of them would be a regression:
+// involved — FOUR OUTCOMES, KEPT APART. The frozen engine distinguishes more
+// than the three the task names, and collapsing any of them would be a
+// regression:
 //
 //	unknown        0 candidates          -> fallback,  ActionRespond
 //	below-reject   1 cand @0.333 (<0.45) -> rejected,  ActionEscalate
@@ -334,7 +333,8 @@ func TestT13_EvaluationFixtures(t *testing.T) {
 
 // TestT13_FourOutcomesStayDistinct is the anti-collapse assertion.
 //
-// unknown, below-reject, low-confidence and ambiguous must produce four
+// The unknown, below-reject, low-confidence and ambiguous outcomes must
+// produce four
 // DIFFERENT (action, reason, clarification) triples. Asserting each in
 // isolation would not catch two of them being merged.
 func TestT13_FourOutcomesStayDistinct(t *testing.T) {
@@ -375,11 +375,9 @@ func TestT13_FourOutcomesStayDistinct(t *testing.T) {
 	}
 }
 
-// TestT13_OversizedInputRespectsTokenBound.
-//
-// The frozen bound is maxTokens = 512. A 600-cue utterance must classify
-// identically to one that merely exceeds the bound, and must not accumulate
-// unbounded evidence.
+// TestT13_OversizedInputRespectsTokenBound — the frozen bound is maxTokens =
+// 512. A 600-cue utterance must classify identically to one that merely
+// exceeds the bound, and must not accumulate unbounded evidence.
 func TestT13_OversizedInputRespectsTokenBound(t *testing.T) {
 	t.Parallel()
 
@@ -413,7 +411,8 @@ func TestT13_OversizedInputRespectsTokenBound(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// 4-7. Turn-level fixtures: interruption, acknowledgement, cancellation, silence
+// 4-7. Turn-level fixtures: interruption, acknowledgement, cancellation,
+// silence
 // ---------------------------------------------------------------------------
 
 // TestT13_TurnFixtures covers the categories whose outcome is a turn
@@ -608,8 +607,8 @@ func TestT13_MultiTurnProgression(t *testing.T) {
 //
 // Per T11: with equal SetAt timestamps the eviction victim is unspecified
 // (evictOldestLocked compares with Before(), which is false for ties). This
-// fixture therefore asserts the bound, the eviction count and newest-survives —
-// and, in a separate distinct-timestamp phase, the victim identity.
+// fixture therefore asserts the bound, the eviction count and newest-survives
+// — and, in a separate distinct-timestamp phase, the victim identity.
 func TestT13_ContextEvictionFixture(t *testing.T) {
 	t.Parallel()
 

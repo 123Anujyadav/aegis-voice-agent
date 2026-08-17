@@ -14,13 +14,14 @@ import (
 // and every name in SlotVocabulary is far shorter than 32 characters.
 //
 // Mutation testing found this directly — removing either bound changed no
-// observable behaviour, so both were unverifiable defence-in-depth. These tests
-// drive extractSlots with crafted specs so the guards become load-bearing, and
-// the mutation report records them as CAUGHT only because of this file.
+// observable behaviour, so both were unverifiable defence-in-depth. These
+// tests drive extractSlots with crafted specs so the guards become
+// load-bearing, and the mutation report records them as CAUGHT only because of
+// this file.
 //
 // In package intent, not intent_test, because slotSpec is unexported. That is
-// the narrowest way to reach the bound; exporting a spec type purely to test it
-// would widen the API for no caller's benefit.
+// the narrowest way to reach the bound; exporting a spec type purely to test
+// it would widen the API for no caller's benefit.
 
 // TestExtractSlots_CountIsBounded — more specs than the cap must truncate.
 func TestExtractSlots_CountIsBounded(t *testing.T) {

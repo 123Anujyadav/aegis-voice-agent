@@ -18,9 +18,10 @@ import (
 
 // T7 — SESSION CONTEXT ISOLATION.
 //
-// This is a VERIFICATION task. Phase 13 builds no context system; it proves the
-// FROZEN conversation.ContextEngine stays isolated when reached through the T6
-// bridge. Every value below is read out of the frozen source, not assumed:
+// This is a VERIFICATION task. Phase 13 builds no context system; it proves
+// the FROZEN conversation.ContextEngine stays isolated when reached through
+// the T6 bridge. Every value below is read out of the frozen source, not
+// assumed:
 //
 //	MaxEntriesPerScope  256          (DefaultContextConfig, context.go:125)
 //	DefaultTTL          10 minutes   (Conversation/Session/Shared scopes)
@@ -30,7 +31,8 @@ import (
 //	expiry              evaluated on READ, not by a sweeper (context.go:250)
 //	Lookup precedence   Temporary → Conversation → Session → Shared → Business
 //
-// The sanctioned route is the one T6 exposed: Bridge.Conversation(id).Context().
+// The sanctioned route is the one T6 exposed:
+// Bridge.Conversation(id).Context().
 
 const (
 	frozenMaxEntriesPerScope = 256
@@ -119,14 +121,13 @@ func TestContext_SessionAAndBAreIsolated(t *testing.T) {
 	}
 }
 
-// TestContext_EveryScopeIsPerSessionIncludingShared.
-//
-// ScopeShared is documented as "visible across concurrent conversations for one
-// subject" (context.go). That describes INTENT, not a shared store: every
-// Conversation gets its own ContextEngine at engine.go:250, so a ScopeShared
-// entry is still per-conversation. Pinned here because the name invites the
-// opposite assumption, and a deployment that actually needs cross-conversation
-// sharing must build it deliberately rather than expect it from the scope.
+// TestContext_EveryScopeIsPerSessionIncludingShared — ScopeShared is
+// documented as "visible across concurrent conversations for one subject"
+// (context.go). That describes INTENT, not a shared store: every Conversation
+// gets its own ContextEngine at engine.go:250, so a ScopeShared entry is still
+// per-conversation. Pinned here because the name invites the opposite
+// assumption, and a deployment that actually needs cross-conversation sharing
+// must build it deliberately rather than expect it from the scope.
 func TestContext_EveryScopeIsPerSessionIncludingShared(t *testing.T) {
 	t.Parallel()
 
@@ -182,12 +183,12 @@ func TestContext_StaysWithinTheFrozenBound(t *testing.T) {
 	}
 }
 
-// TestContext_EvictionDropsTheOldestDeterministically.
-//
-// The frozen policy is "oldest by Entry.SetAt" (evictOldestLocked). SetAt comes
-// from the engine's clock, so the clock is ADVANCED between writes to give each
-// entry a distinct timestamp. See the tie-case note in
-// TestContext_EvictionOrderIsUnspecifiedWhenTimestampsTie for why that matters.
+// TestContext_EvictionDropsTheOldestDeterministically — the frozen policy is
+// "oldest by Entry.SetAt" (evictOldestLocked). SetAt comes from the engine's
+// clock, so the clock is ADVANCED between writes to give each entry a distinct
+// timestamp. See the tie-case note in
+// TestContext_EvictionOrderIsUnspecifiedWhenTimestampsTie for why that
+// matters.
 func TestContext_EvictionDropsTheOldestDeterministically(t *testing.T) {
 	t.Parallel()
 
@@ -235,13 +236,14 @@ func TestContext_EvictionDropsTheOldestDeterministically(t *testing.T) {
 // property discovered while building this suite. It is not a Phase 13 defect
 // and is not patched.
 //
-// evictOldestLocked selects with `e.SetAt.Before(oldest)`, which is FALSE for
-// equal timestamps — so when every entry shares a SetAt the victim is whichever
-// key Go's randomised map iteration happens to yield first. That is reachable
-// in production wherever writes land inside one clock tick.
+// The evictOldestLocked helper selects with `e.SetAt.Before(oldest)`, which
+// is FALSE for
+// equal timestamps — so when every entry shares a SetAt the victim is
+// whichever key Go's randomised map iteration happens to yield first. That is
+// reachable in production wherever writes land inside one clock tick.
 //
-// The test asserts only what the frozen contract guarantees: the bound holds and
-// exactly one entry is evicted. It deliberately does NOT assert which one,
+// The test asserts only what the frozen contract guarantees: the bound holds
+// and exactly one entry is evicted. It deliberately does NOT assert which one,
 // because that would be asserting an accident.
 func TestContext_EvictionOrderIsUnspecifiedWhenTimestampsTie(t *testing.T) {
 	t.Parallel()
@@ -365,15 +367,15 @@ func TestContext_TemporaryScopeExpiresOnTheFrozenSchedule(t *testing.T) {
 // 5. Termination
 // ---------------------------------------------------------------------------
 
-// TestContext_TerminatedSessionCannotLeakIntoANewOne.
+// TestContext_TerminatedSessionCannotLeakIntoANewOne — the observable frozen
+// contract, established by reading engine.go rather than assuming a policy:
+// Begin stores into a sync.Map keyed by id (engine.go:289), so reusing an id
+// REPLACES the entry with a brand-new Conversation carrying a brand-new
+// ContextEngine. Nothing calls ClearScope — context dies with the object it
+// belonged to.
 //
-// The observable frozen contract, established by reading engine.go rather than
-// assuming a policy: Begin stores into a sync.Map keyed by id (engine.go:289),
-// so reusing an id REPLACES the entry with a brand-new Conversation carrying a
-// brand-new ContextEngine. Nothing calls ClearScope — context dies with the
-// object it belonged to.
-//
-// This test asserts that observable contract and imposes no new clearing policy.
+// This test asserts that observable contract and imposes no new clearing
+// policy.
 func TestContext_TerminatedSessionCannotLeakIntoANewOne(t *testing.T) {
 	t.Parallel()
 
@@ -412,11 +414,10 @@ func TestContext_TerminatedSessionCannotLeakIntoANewOne(t *testing.T) {
 // 6. Concurrency — 16 sessions
 // ---------------------------------------------------------------------------
 
-// TestContext_SixteenConcurrentSessionsStayIsolated.
-//
-// One bridge, one shared classifier, one shared immutable config; sixteen
-// sessions writing and reading their own context concurrently. Every session
-// must see only its own values, asserted through the public API.
+// TestContext_SixteenConcurrentSessionsStayIsolated — one bridge, one shared
+// classifier, one shared immutable config; sixteen sessions writing and
+// reading their own context concurrently. Every session must see only its own
+// values, asserted through the public API.
 //
 // Not a race-detector claim — see the T7 report.
 func TestContext_SixteenConcurrentSessionsStayIsolated(t *testing.T) {
@@ -573,7 +574,8 @@ func TestContext_RepeatedSessionCreationYieldsIndependentContexts(t *testing.T) 
 }
 
 // TestContext_SharedClassifierDoesNotImplySharedContext is the adversarial
-// arrangement: identical configuration, one classifier instance, many sessions.
+// arrangement: identical configuration, one classifier instance, many
+// sessions.
 func TestContext_SharedClassifierDoesNotImplySharedContext(t *testing.T) {
 	t.Parallel()
 
@@ -597,12 +599,11 @@ func TestContext_SharedClassifierDoesNotImplySharedContext(t *testing.T) {
 // Global mutable-state guard (AST)
 // ---------------------------------------------------------------------------
 
-// TestPhase13_HasNoPackageLevelMutableContextState.
-//
-// Distinguishes mutable state from immutable configuration: a `const`, or a
-// `var` holding a compile-time-constant-ish literal used as configuration, is
-// fine. A map, slice, sync.Map or pointer at package level is a cross-session
-// registry and is rejected.
+// TestPhase13_HasNoPackageLevelMutableContextState — distinguishes mutable
+// state from immutable configuration: a `const`, or a `var` holding a
+// compile-time-constant-ish literal used as configuration, is fine. A map,
+// slice, sync.Map or pointer at package level is a cross-session registry and
+// is rejected.
 //
 // This complements — it does not replace — T4's
 // TestPackage_HasNoPackageLevelMutableState, which covers the intent package.
@@ -666,8 +667,8 @@ func TestPhase13_HasNoPackageLevelMutableContextState(t *testing.T) {
 	t.Logf("%d package-level var specs inspected", inspected)
 }
 
-// isMutableContainer reports whether an AST node denotes a map, slice, sync.Map
-// or pointer — the shapes a session registry would take.
+// isMutableContainer reports whether an AST node denotes a map, slice,
+// sync.Map or pointer — the shapes a session registry would take.
 func isMutableContainer(e ast.Expr) bool {
 	if e == nil {
 		return false
