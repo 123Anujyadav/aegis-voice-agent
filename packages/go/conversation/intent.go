@@ -124,7 +124,20 @@ type IntentClassifier interface {
 type Utterance struct {
 	// Text is what the caller said. SENSITIVE.
 	Text string
-	// ASRConfidence is the recogniser's confidence, 0..1.
+	// ASRConfidence is the recogniser's confidence, 0..1, or NEGATIVE when the
+	// recogniser reports none.
+	//
+	// A NEGATIVE VALUE IS NOT A LOW CONFIDENCE. It means no measurement was
+	// made, which is a different situation from a measurement that came back
+	// poor: the words may be perfectly clear. Recognisers that expose no
+	// calibrated per-utterance confidence — the local whisper-class adapters
+	// are the ones in this repository — report such a value rather than invent
+	// a number, and the acoustic gate in Resolve skips them rather than
+	// treating them as unintelligible.
+	//
+	// This package deliberately does NOT name the caller's sentinel constant:
+	// the sign is the contract, so no dependency on the speech module is
+	// implied and any provider layer can satisfy it.
 	ASRConfidence float64
 	// Truncated reports that the utterance was cut off — endpointing fired
 	// mid-word, or the caller was interrupted.
@@ -306,7 +319,18 @@ func (e *IntentEngine) Resolve(u Utterance, expect Expectation) (Intent, IntentV
 	now := e.clock.Now()
 
 	// 1 — noise
-	if u.ASRConfidence < e.cfg.MinASRConfidence {
+	//
+	// The >= 0 guard distinguishes a MEASURED low confidence from NO
+	// MEASUREMENT AT ALL. A recogniser that reports nothing carries a negative
+	// ASRConfidence (see the field's contract above), and a negative number is
+	// not a low confidence — it is the absence of one. Comparing it numerically
+	// made every utterance from such a provider noise, which is the exact
+	// conflation the sentinel exists to prevent.
+	//
+	// This does NOT weaken the gate: every value in the documented 0..1 domain
+	// is compared exactly as before. MinASRConfidence is itself bounded to
+	// [0,1] by validate(), so the guard can never mask a configured threshold.
+	if u.ASRConfidence >= 0 && u.ASRConfidence < e.cfg.MinASRConfidence {
 		e.metrics.IntentsRejected.Inc("noise")
 		return Intent{Name: IntentUnknown, TurnID: u.TurnID, At: now}, IntentNoise
 	}

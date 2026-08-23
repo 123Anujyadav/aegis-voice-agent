@@ -408,8 +408,16 @@ func (s *stream) CloseSend() error {
 		return nil
 	}
 
+	// A FAILURE HERE MUST STILL CLOSE THE RESULTS CHANNEL.
+	//
+	// The port says the provider closes Results when the stream ends
+	// (speech/provider.go:189). A spawn that fails ends the stream as surely as
+	// one that succeeds, and returning the error while leaving the channel open
+	// left every consumer blocked on it forever — measured in Phase 16 T10 as a
+	// turn that never completed and a call that hung until the session died.
 	proc, err := process.New(s.processConfig())
 	if err != nil {
+		close(s.results)
 		return fmt.Errorf("whispercli: %w", err)
 	}
 
@@ -417,6 +425,7 @@ func (s *stream) CloseSend() error {
 	defer cancel()
 
 	if err := proc.Start(ctx); err != nil {
+		close(s.results)
 		return fmt.Errorf("whispercli: %w", err)
 	}
 
@@ -468,7 +477,7 @@ func (s *stream) processConfig() process.Config {
 	cfg.Args = []string{
 		s.audioPath,
 		"--model", s.cfg.Model,
-		"--language", s.cfg.Language,
+		"--language", toolLanguage(s.cfg.Language),
 		"--output_dir", s.workDir,
 		"--output_format", "txt",
 		"--fp16", pythonBool(s.cfg.FP16),
@@ -500,6 +509,33 @@ func (s *stream) processConfig() process.Config {
 	cfg.Ready = nil
 
 	return cfg
+}
+
+// toolLanguage reduces a platform language tag to the code the tool accepts.
+//
+// # Two vocabularies, and they are not the same one
+//
+// This platform routes on BCP-47 tags — speech.LangEnglishIN is "en-IN",
+// speech.LangHindi is "hi-IN" — because the region is load-bearing for Indian
+// telephony. The tool's --language flag is an argparse CHOICE over ISO-639-1
+// codes, and "en-IN" is not among them.
+//
+// Passing the tag through produced no transcript and no visible error: argparse
+// rejects the choice, prints usage to stderr, exits 2, and the stream closes
+// empty — which is indistinguishable from a caller who said nothing. Every
+// recognition attempt failed that way, and it looked exactly like silence.
+//
+// Not caught earlier because the adapter's own tests configure "en", a value
+// that is already valid for the tool. Wiring it to the real router, which
+// speaks the platform's vocabulary, is what exposed it (Phase 16 T11).
+//
+// The capability the provider DECLARES is unchanged: routing still sees the
+// full tag, and only the argv is reduced.
+func toolLanguage(tag string) string {
+	if base, _, found := strings.Cut(tag, "-"); found {
+		return strings.ToLower(base)
+	}
+	return strings.ToLower(tag)
 }
 
 // pythonBool renders a boolean the way Python argparse's str2bool expects it.

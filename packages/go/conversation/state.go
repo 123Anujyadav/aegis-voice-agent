@@ -363,6 +363,12 @@ const (
 	TriggerTransfer Trigger = "transfer"
 	// TriggerEscalate hands the call to a human or emergency path.
 	TriggerEscalate Trigger = "escalate"
+
+	// TriggerResponseAbandoned is a planned response that will not be spoken.
+	// Distinct from TriggerSpeechComplete, which asserts the agent finished
+	// speaking, and from TriggerInterruption, which asserts something stopped
+	// it.
+	TriggerResponseAbandoned Trigger = "response_abandoned"
 )
 
 // TransitionRecord is one entry in a conversation's state trace.

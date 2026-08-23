@@ -588,3 +588,86 @@ func TestSecurity_NoModuleWritesAudioToDisk(t *testing.T) {
 		}
 	}
 }
+
+// TestSecurity_NoModuleWritesToStandardStreams closes the gap Phase 16 T10
+// found by mutation.
+//
+// # Why a structural audit rather than an output capture
+//
+// A test that captured stdout would only catch a leak on the code path it
+// happened to drive. The transcript reaches four places in this package —
+// the observer, the event publisher, the generation request and the metric
+// labels — and each is guarded separately; a fifth, added later, would be
+// guarded by nothing.
+//
+// So the invariant is structural and absolute: A LIBRARY WRITES TO ITS
+// INJECTED LOGGER, NEVER TO A PROCESS-WIDE STREAM. There is no legitimate
+// fmt.Print in a package that carries a caller's words, and forbidding the
+// call outright removes the argument about which values are safe to print.
+//
+// Mutation-verified: a single fmt.Println of a transcript segment inside
+// recognize passed the entire security suite before this existed.
+func TestSecurity_NoModuleWritesToStandardStreams(t *testing.T) {
+	t.Parallel()
+
+	roots := []string{".", "providers/process", "providers/whispercpp",
+		"providers/whispercli", "providers/piper", "providers/ollama"}
+
+	// fmt.Fprint* is deliberately absent: it takes an explicit writer, which
+	// may legitimately be a caller's buffer. os.Stdout and os.Stderr are named
+	// here so that Fprint to one of THEM is still caught.
+	banned := []string{"fmt.Print", "fmt.Printf", "fmt.Println",
+		"os.Stdout", "os.Stderr", "println", "print"}
+
+	for _, root := range roots {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			t.Fatalf("reading %s: %v", root, err)
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") ||
+				strings.HasSuffix(e.Name(), "_test.go") {
+				continue
+			}
+			path := root + "/" + e.Name()
+			src, err := os.ReadFile(path) //nolint:gosec // a repository path, in-tree
+			if err != nil {
+				t.Fatalf("reading %s: %v", path, err)
+			}
+			file, err := parser.ParseFile(token.NewFileSet(), path, src, 0)
+			if err != nil {
+				t.Fatalf("parsing %s: %v", path, err)
+			}
+
+			ast.Inspect(file, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				name := renderCallee(call.Fun)
+				for _, b := range banned {
+					if name == b {
+						t.Errorf("%s calls %s: a caller's transcript reaches this "+
+							"package, and a process-wide stream is not a log. Use "+
+							"the injected logger or an explicit writer", path, name)
+					}
+				}
+				return true
+			})
+		}
+	}
+}
+
+// renderCallee renders a call target as "pkg.Func" or "Func", or "" if it is
+// neither — a method on a value, say, which this audit does not police.
+func renderCallee(fun ast.Expr) string {
+	switch f := fun.(type) {
+	case *ast.Ident:
+		return f.Name
+	case *ast.SelectorExpr:
+		if x, ok := f.X.(*ast.Ident); ok {
+			return x.Name + "." + f.Sel.Name
+		}
+	}
+	return ""
+}

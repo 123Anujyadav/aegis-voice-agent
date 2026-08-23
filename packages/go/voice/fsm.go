@@ -66,6 +66,24 @@ var sessionTransitions = []transition{
 	{StateSpeaking, StateListening,
 		"the turn finished speaking; the floor returns to the caller"},
 
+	// --- A turn the agent starts ------------------------------------------
+	//
+	// The cycle above assumes every response answers something the caller said,
+	// so the only route into thinking is through a final transcript. The
+	// greeting breaks that assumption: it is the agent's turn, it exists before
+	// the caller has spoken at all, and the conversation has already decided it
+	// (conversation.EventStart returns the plan). [Pipeline.Speak] submits such
+	// a plan, and this is the edge it moves along.
+	//
+	// THE COST, STATED: a session may now enter thinking without any evidence
+	// that anybody spoke. That is exactly what an agent-initiated turn is, and
+	// the alternative — a separate greeting state, or speaking without moving
+	// the machine — would either duplicate the response cycle or leave the
+	// barge-in detector unable to see that the agent holds the floor.
+	{StateListening, StateThinking,
+		"a plan decided elsewhere was submitted for speech; the agent's own turn " +
+			"has no caller utterance to recognise first"},
+
 	// --- Turns that end early, without a fault ----------------------------
 	//
 	// Each of these is a turn producing nothing to say. None is a failure, and

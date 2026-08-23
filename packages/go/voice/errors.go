@@ -59,6 +59,19 @@ var (
 	// ErrBackpressure is returned when a bounded queue is full.
 	ErrBackpressure = errors.New("voice: backpressure")
 
+	// ErrPlanNotSpeakable is returned by [Pipeline.Speak] for a plan whose
+	// action produces no agent speech.
+	//
+	// A DISTINCT SENTINEL BECAUSE THE REMEDY IS DISTINCT. Every other error this
+	// method can return says something went wrong out there — a provider is
+	// missing, a session ended, a state change was refused — and a caller may
+	// reasonably retry or fail the call. This one says the caller asked for the
+	// wrong thing: transfer, escalation, rejection, ignore, wait and end are
+	// executed by the layer above, not spoken by this pipeline. Folding it into
+	// a provider error would send an operator to look at a synthesiser that is
+	// working perfectly.
+	ErrPlanNotSpeakable = errors.New("voice: plan produces no agent speech")
+
 	// ErrUnsafePath is returned when a configured executable or model path
 	// cannot be used safely.
 	ErrUnsafePath = errors.New("voice: unsafe path")

@@ -91,6 +91,7 @@ func buildService(
 	cfg platform.ServiceConfig,
 	logger *slog.Logger,
 	health *platform.Health,
+	opts ...serviceOption,
 ) (*platform.Service, *voiceIntelligence, error) {
 	svc := platform.NewService(cfg, logger, health)
 
@@ -104,7 +105,53 @@ func buildService(
 	}
 	svc.Register(intelligence)
 
+	o := serviceOptions{}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.calls != nil {
+		driver, derr := NewCallDriver(intelligence.Bridge(), *o.calls, logger)
+		if derr != nil {
+			return nil, nil, fmt.Errorf("construct call driver: %w", derr)
+		}
+		// Registered AFTER the intelligence runner, which is the order they
+		// must stop in: the service shuts runners down in reverse, so calls end
+		// before the bridge that produced their conversations.
+		svc.Register(driver)
+		o.driver = driver
+		if o.onDriver != nil {
+			o.onDriver(driver)
+		}
+	}
+
 	return svc, intelligence, nil
+}
+
+// serviceOption varies what buildService registers.
+type serviceOption func(*serviceOptions)
+
+type serviceOptions struct {
+	calls    *CallDriverConfig
+	driver   *CallDriver
+	onDriver func(*CallDriver)
+}
+
+// withCallDriver registers a [CallDriver] over the service's own bridge.
+//
+// # Why run() does not use it
+//
+// A call needs a recogniser, a voice, an analyser, a generator, a governor and
+// a media sink. Every shipped provider shells out to an external binary or a
+// model, and this phase remains no-model/no-network (ADR-0017), so the
+// production build supplies none and registers no driver. This is the seam a
+// deployment that HAS providers uses, and it is production code rather than a
+// test helper precisely so that the wiring a real deployment would perform is
+// the wiring that is exercised.
+func withCallDriver(cfg CallDriverConfig, onDriver func(*CallDriver)) serviceOption {
+	return func(o *serviceOptions) {
+		o.calls = &cfg
+		o.onDriver = onDriver
+	}
 }
 
 // voiceIntelligence owns the deterministic intelligence bridge for the process.

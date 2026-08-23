@@ -80,11 +80,51 @@ func (s *scriptedIntel) count() int {
 type scriptedPlanner struct {
 	action conversation.Action
 	err    error
-	calls  atomic.Int64
-	seen   atomic.Value // string: the last utterance it was given
+	// calls counts DIALOGUE DECISIONS, i.e. EventUtterance only.
+	//
+	// Phase 15 T4 made the pipeline also send EventSpeechComplete at the
+	// delivery boundary, which is a lifecycle handoff and not a second
+	// decision. Counting both together would report "the planner was consulted
+	// twice" for one spoken turn, which is not what these tests mean.
+	calls atomic.Int64
+	// completions counts EventSpeechComplete, so exactly-once is assertable.
+	completions atomic.Int64
+	// greetings counts EventGreetingComplete and abandons counts
+	// EventResponseAbandoned.
+	//
+	// Counted SEPARATELY from completions on purpose. Both completion events
+	// leave the frozen conversation in listening, so a test that only watched
+	// the resulting state could not tell them apart — and telling them apart is
+	// the whole of Phase 16 T6's completion contract.
+	greetings atomic.Int64
+	abandons  atomic.Int64
+	seen      atomic.Value // string: the last utterance it was given
+
+	// atEvent runs on the pipeline's own goroutine as each event is handled, so
+	// a test can observe the world AT THE INSTANT of the event rather than
+	// afterwards. That is what makes "the completion was sent before the audio
+	// finished" an assertable ordering instead of a race.
+	atEvent func(conversation.Event)
 }
 
 func (p *scriptedPlanner) Handle(e conversation.Event) (conversation.Plan, error) {
+	if p.atEvent != nil {
+		p.atEvent(e)
+	}
+	switch e.Kind {
+	case conversation.EventSpeechComplete:
+		p.completions.Add(1)
+		return conversation.Plan{Action: conversation.ActionWait,
+			Reason: "awaiting_caller"}, nil
+	case conversation.EventGreetingComplete:
+		p.greetings.Add(1)
+		return conversation.Plan{Action: conversation.ActionWait,
+			Reason: "awaiting_caller"}, nil
+	case conversation.EventResponseAbandoned:
+		p.abandons.Add(1)
+		return conversation.Plan{Action: conversation.ActionWait,
+			Reason: "response_abandoned"}, nil
+	}
 	p.calls.Add(1)
 	p.seen.Store(e.Utterance.Text)
 	if p.err != nil {
@@ -120,11 +160,19 @@ type scriptedGenerator struct {
 	mu       sync.Mutex
 	closedAt time.Time
 	started  atomic.Int64
+	// specs records what was actually ASKED FOR, not merely that something was.
+	// A greeting's whole generation contract is in the spec: no caller message,
+	// and the configured instruction.
+	specs []rt.GenerateSpec
 }
 
 func (g *scriptedGenerator) Generate(
-	ctx context.Context, _ rt.GenerateSpec, sinks ...rt.Sink,
+	ctx context.Context, spec rt.GenerateSpec, sinks ...rt.Sink,
 ) (*rt.Dispatcher, error) {
+	g.mu.Lock()
+	g.specs = append(g.specs, spec)
+	g.mu.Unlock()
+
 	if g.err != nil {
 		return nil, g.err
 	}
@@ -161,6 +209,19 @@ func (g *scriptedGenerator) closed() time.Time {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.closedAt
+}
+
+// lastSpec returns the most recent generation request, or false if none was
+// made. Reported rather than returning a zero spec, because "no request" and "a
+// request with nothing in it" are the two outcomes a greeting test must
+// distinguish.
+func (g *scriptedGenerator) lastSpec() (rt.GenerateSpec, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if len(g.specs) == 0 {
+		return rt.GenerateSpec{}, false
+	}
+	return g.specs[len(g.specs)-1], true
 }
 
 // scriptedTokenStream feeds tokens one at a time.
@@ -213,6 +274,23 @@ type recordingSTT struct {
 	// frames have been accepted, which is what a recogniser does when turn
 	// teardown closes it underneath the ingest goroutine. Zero disables it.
 	closeAfterWrites int64
+
+	// strictSend refuses any Write after CloseSend, and any second CloseSend,
+	// with an error of the provider's OWN spelling rather than one of speech's
+	// sentinels.
+	//
+	// This is what a real subprocess recogniser does — openai-whisper returns
+	// "audio already submitted" — and it is the behaviour every in-process fake
+	// here quietly tolerated, which is why Phase 16 T10 was the first time it
+	// was seen.
+	strictSend bool
+
+	// closeSendErr fails CloseSend, which for a batch recogniser is the moment
+	// inference is spawned.
+	closeSendErr error
+
+	// lateWrites counts frames offered after the send side was closed.
+	lateWrites atomic.Int64
 }
 
 func (r *recordingSTT) ID() speech.ProviderID { return r.id }
@@ -246,6 +324,7 @@ type recordingSTTStream struct {
 	cfg      speech.STTConfig
 	once     sync.Once
 	closed   atomic.Bool
+	sendDone atomic.Bool
 }
 
 func (s *recordingSTTStream) emit() {
@@ -305,6 +384,13 @@ func (s *recordingSTTStream) Write(media.Frame) error {
 	if s.closed.Load() {
 		return speech.ErrSpeechSessionClosed
 	}
+	if s.provider.strictSend && s.sendDone.Load() {
+		// Deliberately NOT one of speech's sentinels: the port does not say
+		// which error this is, so each real provider spells it its own way and
+		// a consumer that recognised only one spelling would break on the next.
+		s.provider.lateWrites.Add(1)
+		return errors.New("recording-stt: stream is closed: audio already submitted")
+	}
 	n := s.provider.written.Add(1)
 	if max := s.provider.closeAfterWrites; max > 0 && n > max {
 		// The stream was closed underneath the writer. Deterministic here;
@@ -314,7 +400,16 @@ func (s *recordingSTTStream) Write(media.Frame) error {
 	return nil
 }
 func (s *recordingSTTStream) Results() <-chan speech.TranscriptSegment { return s.results }
-func (s *recordingSTTStream) CloseSend() error                         { return nil }
+func (s *recordingSTTStream) CloseSend() error {
+	if s.provider.closeSendErr != nil {
+		return s.provider.closeSendErr
+	}
+	if s.provider.strictSend && !s.sendDone.CompareAndSwap(false, true) {
+		return errors.New("recording-stt: audio already submitted")
+	}
+	s.sendDone.Store(true)
+	return nil
+}
 func (s *recordingSTTStream) Close() error {
 	s.closed.Store(true)
 	s.once.Do(func() { close(s.done) })
@@ -560,6 +655,17 @@ type countingSink struct {
 	delay    time.Duration
 	bound    int
 	rejected int
+
+	// gate holds the FIRST delivery until the test releases it, and arrived is
+	// closed as that first delivery is entered.
+	//
+	// A HANDSHAKE, NOT A SLEEP. Tests that need to act while a response is
+	// genuinely mid-flight — a second Speak, a cancellation — must not guess how
+	// long that window is; this pins the pipeline open at a known point and
+	// closes it on the test's word.
+	gate       chan struct{}
+	arrived    chan struct{}
+	arriveOnce sync.Once
 }
 
 func (c *countingSink) Deliver(ctx context.Context, f media.Frame) error {
@@ -568,6 +674,17 @@ func (c *countingSink) Deliver(ctx context.Context, f media.Frame) error {
 	// over for a turn that has just been interrupted must not be played.
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+
+	if c.arrived != nil {
+		c.arriveOnce.Do(func() { close(c.arrived) })
+	}
+	if c.gate != nil {
+		select {
+		case <-c.gate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	if c.delay > 0 {
 		select {
@@ -707,12 +824,19 @@ type harnessOpts struct {
 	// governance.OutcomeDeny is the ZERO VALUE of that type — the safe default
 	// there, and a trap here, since an unset field would silently deny every
 	// turn and the streaming tests would pass by never running.
-	deny           bool
-	action         conversation.Action
-	plannerErr     error
-	generatorErr   error
-	sinkDelay      time.Duration
-	sinkBound      int
+	deny         bool
+	action       conversation.Action
+	plannerErr   error
+	generatorErr error
+	sinkDelay    time.Duration
+	sinkBound    int
+	sinkGate     chan struct{}
+	sinkArrived  chan struct{}
+	// system and greetingSystem are the generation instructions under test.
+	// Neither has a default: a greeting instruction invented by the harness
+	// would be a greeting invented by the harness.
+	system         string
+	greetingSystem string
 	ttsQueue       int
 	ttsSynthDelay  time.Duration
 	framesPerChunk int
@@ -724,6 +848,8 @@ type harnessOpts struct {
 	sttOpenErr          error
 	sttFault            string
 	sttCloseAfterWrites int64
+	sttStrictSend       bool
+	sttCloseSendErr     error
 	ttsOpenErr          error
 	ttsSynthErr         error
 	ttsFault            string
@@ -768,6 +894,8 @@ func newHarness(t *testing.T, o harnessOpts) *harness {
 		id: speech.ProviderID("stt-test"), segments: o.segments, gap: o.segmentGap,
 		openErr: o.sttOpenErr, fault: o.sttFault,
 		closeAfterWrites: o.sttCloseAfterWrites,
+		strictSend:       o.sttStrictSend,
+		closeSendErr:     o.sttCloseSendErr,
 	}
 	tts := &recordingTTS{
 		id: speech.ProviderID("tts-test"), framesPerChunk: o.framesPerChunk,
@@ -806,10 +934,13 @@ func newHarness(t *testing.T, o harnessOpts) *harness {
 		gen:      &scriptedGenerator{tokens: o.tokens, gap: o.tokenGap, err: o.generatorErr},
 		stt:      stt,
 		tts:      tts,
-		out:      &countingSink{delay: o.sinkDelay, bound: o.sinkBound},
-		obs:      newObserver(),
-		metrics:  metrics,
-		pub:      pub,
+		out: &countingSink{
+			delay: o.sinkDelay, bound: o.sinkBound,
+			gate: o.sinkGate, arrived: o.sinkArrived,
+		},
+		obs:     newObserver(),
+		metrics: metrics,
+		pub:     pub,
 	}
 
 	p, err := NewPipeline(PipelineConfig{
@@ -822,6 +953,8 @@ func newHarness(t *testing.T, o harnessOpts) *harness {
 		MaxPendingAudio: o.maxAudio, TurnTimeout: o.turnTimeout,
 		Tier: rt.TierFast, Actor: governance.ActorID("voice-agent"),
 		MaxOutputTokens: 256,
+		System:          o.system,
+		GreetingSystem:  o.greetingSystem,
 	})
 	if err != nil {
 		t.Fatalf("NewPipeline: %v", err)
@@ -1271,6 +1404,10 @@ func TestPipeline_EverySpokenTurnPassesGovernance(t *testing.T) {
 	}
 	if got := h.planner.calls.Load(); got != 1 {
 		t.Errorf("the conversation planner was consulted %d times", got)
+	}
+	// The delivery boundary hands the floor back exactly once (Phase 15 T4).
+	if got := h.planner.completions.Load(); got != 1 {
+		t.Errorf("%d speech completions for one spoken turn, want exactly 1", got)
 	}
 
 	req, _ := h.governor.last.Load().(governance.Request)

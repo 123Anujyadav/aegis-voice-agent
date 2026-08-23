@@ -221,6 +221,24 @@ type PipelineConfig struct {
 	// System is the system instruction for generation.
 	System string
 
+	// GreetingSystem is the system instruction used for the opening turn.
+	//
+	// # THE DEPLOYMENT'S WORDS, NOT THIS PACKAGE'S
+	//
+	// The greeting is the one response with no caller transcript to generate
+	// from, and on this platform it carries the announcement that is the
+	// caller's lawful basis. Nothing in this repository holds greeting text:
+	// the plan carries "greeting" as a MARKER, and the persona carries
+	// behavioural policy — budgets, capabilities, limits — not content. A
+	// default here would be this package writing the product's opening line,
+	// and a wrong opening line is a compliance defect rather than a bug.
+	//
+	// So it is configuration, it is optional, and it has no default. Left
+	// empty, a greeting is generated from [PipelineConfig.System] and the
+	// session context like any other response — which is legal and probably not
+	// what a deployment wants.
+	GreetingSystem string
+
 	// MaxOutputTokens bounds a response.
 	MaxOutputTokens int
 
@@ -340,16 +358,37 @@ type Pipeline struct {
 	startOnce sync.Once
 	stopOnce  sync.Once
 
+	// speaking is held for the whole of a [Pipeline.Speak] call.
+	//
+	// The pipeline has exactly one active synthesis stream and one active
+	// dispatcher, so two submitted responses would overwrite each other's. A
+	// flag rather than a queue: a response that waited its turn would be spoken
+	// into a conversation that had already moved past it.
+	speaking atomic.Bool
+
 	// interrupts is this pipeline's audiointel.SpeechController.
 	interrupts *interruptController
 
-	mu       sync.Mutex
-	started  bool
-	failure  error
-	turnSeq  uint64
-	sttOpen  speech.STTStream
-	stale    uint64
-	observer PipelineObserver
+	mu      sync.Mutex
+	started bool
+	failure error
+	turnSeq uint64
+	sttOpen speech.STTStream
+	// sttSendClosed records that this turn's recogniser has already been told
+	// the caller stopped speaking.
+	//
+	// AUDIO DOES NOT STOP WHEN THE UTTERANCE DOES. The carrier keeps
+	// delivering frames — silence, breath, the next caller turn beginning —
+	// and every state but a terminal one accepts them. Without this flag those
+	// frames were written to a stream whose send side this pipeline had
+	// already closed, and a provider entitled to refuse them ended the CALL.
+	//
+	// Not observable with an in-process fake, which tolerates a late write.
+	// Found in Phase 16 T10 the first time a real subprocess recogniser was
+	// wired in, and it failed the session on the very first turn.
+	sttSendClosed bool
+	stale         uint64
+	observer      PipelineObserver
 
 	// The live turn's cancellable parts, so a barge-in can abandon them.
 	// Held here rather than passed around because the interruption arrives on
@@ -624,10 +663,33 @@ func (p *Pipeline) ingest() {
 			}
 			if err := p.onFrame(f); err != nil {
 				p.note(err)
-				_ = p.stop(StateFailed, ReasonCrashed)
+				_ = p.stop(StateFailed, failureReason(err))
 				return
 			}
 		}
+	}
+}
+
+// failureReason maps a fatal ingest error onto the reason the session records.
+//
+// # "crashed" and "unavailable" send an operator to different places
+//
+// It is the same distinction errors.go draws between ErrProviderUnavailable and
+// ErrProviderFailed, carried through to the session's terminal reason — which
+// is what reaches metrics, events and the operator's dashboard. Reporting "the
+// recogniser is not installed" as "crashed" sends somebody to look at the audio
+// for a problem that is fixed by a path in a configuration file.
+//
+// The typed error itself is preserved separately by [Pipeline.note] and is
+// available from [Pipeline.Err]; this is the label, not the cause.
+func failureReason(err error) string {
+	switch {
+	case errors.Is(err, ErrProviderUnavailable):
+		return ReasonUnavailable
+	case errors.Is(err, ErrProviderTimeout):
+		return ReasonTimeout
+	default:
+		return ReasonCrashed
 	}
 }
 
@@ -668,9 +730,13 @@ func (p *Pipeline) onFrame(f media.Frame) error {
 	// Audio flows to the recogniser whenever one is open.
 	p.mu.Lock()
 	stream := p.sttOpen
+	sendClosed := p.sttSendClosed
 	p.mu.Unlock()
 
-	if stream != nil {
+	// Audio flows to the recogniser only while it is still listening for this
+	// turn. Once the endpoint has been signalled the send side is closed, and
+	// further frames belong to nothing: the next turn opens its own stream.
+	if stream != nil && !sendClosed {
 		switch err := stream.Write(f); {
 		case err == nil:
 
@@ -702,8 +768,28 @@ func (p *Pipeline) onFrame(f media.Frame) error {
 	}
 
 	// The end of the caller's turn is Phase 11D's call too.
-	if analysis.Endpoint.Confirmed && stream != nil {
-		_ = stream.CloseSend()
+	//
+	// Issued ONCE. A second CloseSend is as refusable as a late Write, and the
+	// endpoint can be confirmed on more than one frame.
+	if analysis.Endpoint.Confirmed && stream != nil && !sendClosed {
+		p.mu.Lock()
+		p.sttSendClosed = true
+		p.mu.Unlock()
+
+		// THE ERROR IS NOT DISCARDED, and it used to be.
+		//
+		// For a batch recogniser this call is where inference STARTS — it is
+		// the moment the process is spawned — so a failure here means the
+		// provider never ran at all. Ignoring it left the turn waiting on a
+		// results channel that would never close and never carry anything, and
+		// the call hung until something else ended it.
+		//
+		// Failing the session is the honest response: a recogniser that cannot
+		// be told the caller stopped speaking will fail identically on every
+		// later turn. The T9 policy then closes the conversation with a fault.
+		if err := stream.CloseSend(); err != nil {
+			return fmt.Errorf("%w: ending recognition: %v", ErrProviderFailed, err)
+		}
 	}
 	return nil
 }
@@ -742,6 +828,7 @@ func (p *Pipeline) beginTurn() error {
 
 	p.mu.Lock()
 	p.sttOpen = stream
+	p.sttSendClosed = false
 	p.mu.Unlock()
 
 	if err := p.cfg.FSM.To(p.ctx, StateTranscribing, ReasonOK); err != nil {
@@ -804,6 +891,7 @@ func (p *Pipeline) closeRecognition() {
 	p.mu.Lock()
 	stream := p.sttOpen
 	p.sttOpen = nil
+	p.sttSendClosed = false
 	p.mu.Unlock()
 
 	if stream != nil {
@@ -904,6 +992,36 @@ func (p *Pipeline) recognize(turn TurnID, provider speech.ProviderID, stream spe
 //
 // Silence is not a failure. Routing it through StateFailed would make an
 // ordinary pause look like an outage in every dashboard that counts them.
+// planSpeaks reports whether a plan requires the agent to say something.
+//
+// FOUR ACTIONS SPEAK, not one. ActionRespond answers; ActionClarify asks a
+// disambiguating question; ActionConfirm asks for a yes/no; ActionAsk requests a
+// missing slot (policy.go:12-20). All four set NextState=StateSpeaking, and the
+// three questions additionally require the persona capability
+// CapAskClarification (policy.go:64) — a capability is demanded precisely
+// because the agent is about to speak.
+//
+// Before this, only ActionRespond reached the speaking path, so every
+// clarification, confirmation and slot request the planner decided on was
+// silently discarded: the question was never asked, the agent kept the floor,
+// and the caller's answer was classified as a backchannel and ignored.
+//
+// The remainder — transfer, escalation, rejection, ignore, wait and end — are
+// genuinely the layer above's, and this pipeline does not speak for them.
+//
+// ActionReject is deliberately EXCLUDED. Its documentation says it declines
+// "politely", which hints at speech, but Phase 16 T1 was scoped to the three
+// question actions and widening further would be deciding policy unasked.
+func planSpeaks(a conversation.Action) bool {
+	switch a {
+	case conversation.ActionRespond, conversation.ActionClarify,
+		conversation.ActionConfirm, conversation.ActionAsk:
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *Pipeline) emptyTurn(reason string) {
 	p.closeRecognition()
 	if err := p.cfg.FSM.To(p.ctx, StateListening, reason); err != nil {
@@ -940,9 +1058,22 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 
 	// ---- the dialogue decision, which is not ours to make -----------------
 	plan, err := p.cfg.Planner.Handle(conversation.Event{
-		Kind:      conversation.EventUtterance,
-		Utterance: conversation.Utterance{Text: final.Text},
-		Party:     conversation.PartyCaller,
+		Kind: conversation.EventUtterance,
+		// ASRConfidence is the recogniser's own acoustic confidence, carried
+		// through unchanged. The frozen intent engine gates on it
+		// (conversation/intent.go:308): an utterance below MinASRConfidence is
+		// classified as noise. Leaving it at its zero value made EVERY
+		// utterance noise, so no intent could ever resolve and generation,
+		// synthesis and audio output were unreachable.
+		//
+		// This is acoustic confidence, not intent confidence and not the
+		// planner's decision confidence. It is only forwarded here; no
+		// threshold is applied by this package.
+		Utterance: conversation.Utterance{
+			Text:          final.Text,
+			ASRConfidence: final.Confidence,
+		},
+		Party: conversation.PartyCaller,
 	})
 	if err != nil {
 		p.note(fmt.Errorf("%w: conversation: %v", ErrProviderFailed, err))
@@ -950,13 +1081,239 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		return
 	}
 
-	if plan.Action != conversation.ActionRespond {
-		// A plan that is not "respond" produces no speech on this path. Ending
-		// the turn quietly is right: transfer, escalation and hangup are the
-		// layer above's to execute, and this pipeline inventing words for them
-		// would be it deciding policy.
+	if !planSpeaks(plan.Action) {
+		// A plan that does not speak produces no audio on this path. Ending the
+		// turn quietly is right: transfer, escalation, rejection and hangup are
+		// the layer above's to execute, and this pipeline inventing words for
+		// them would be it deciding policy.
 		p.emptyTurn(ReasonOK)
 		return
+	}
+
+	_ = p.deliverPlan(ctx, speakRequest{
+		turn:   turn,
+		plan:   plan,
+		system: p.cfg.System,
+		// The caller's words, unchanged. This is the ONE field that differs
+		// between a turn the caller started and a turn the agent started.
+		messages: []rt.Message{{Role: rt.RoleUser, Content: final.Text}},
+		// The session itself. A caller turn has no external canceller, so the
+		// guards below behave exactly as they did before this path was shared.
+		abort: p.ctx,
+	})
+}
+
+// Speak submits a plan the conversation has already decided on.
+//
+// # What it is for
+//
+// One response in this system is not an answer to anything the caller said: the
+// greeting. conversation.EventStart returns it as a plan, and until this method
+// existed there was nowhere to put that plan — the speaking path could only be
+// entered by a final transcript, so a call driver could open a conversation and
+// then never deliver the opening announcement it produced. Phase 16 T4 measured
+// what that costs: the caller's first words come back as "floor_queued", queued
+// behind a greeting that will never finish.
+//
+// # What it is NOT
+//
+// It is not a second response engine. Everything past this method is the same
+// governance -> generation -> chunking -> synthesis -> delivery sequence a
+// caller turn runs, and it is not a way around the dialogue policy either: the
+// plan must already be one [planSpeaks] admits, and this pipeline neither makes
+// nor revises the decision it carries.
+//
+// # Contract
+//
+// Blocks until the response has been delivered or has failed. One at a time per
+// pipeline: a second call while one is in flight is REFUSED, not queued, because
+// the pipeline holds exactly one active synthesis stream and one active
+// dispatcher and a queued response would play into a conversation that had moved
+// on. Cancelling ctx stops the response, and a response stopped that way reports
+// no completion and no abandonment — there is nobody left to tell.
+//
+// Errors are the package's existing vocabulary: ErrPlanNotSpeakable for a plan
+// that produces no speech, ErrSessionClosed before Start and after the call has
+// ended, ErrInvalidTransition when the session cannot begin a turn, and the
+// provider and governance errors from the response path itself.
+func (p *Pipeline) Speak(ctx context.Context, plan conversation.Plan) error {
+	// The policy question first, and it is answered by the SAME predicate the
+	// transcript path uses. A seam with its own idea of which actions speak
+	// would be a second dialogue policy, and the first divergence would be
+	// invisible: a caller hearing the pipeline's words for a decision the
+	// conversation made silently.
+	if !planSpeaks(plan.Action) {
+		return fmt.Errorf("%w: %s", ErrPlanNotSpeakable, plan.Action)
+	}
+
+	p.mu.Lock()
+	started := p.started
+	p.mu.Unlock()
+
+	if !started {
+		return fmt.Errorf("%w: the pipeline has not been started", ErrSessionClosed)
+	}
+	if p.cfg.FSM.Terminal() {
+		return ErrSessionClosed
+	}
+	if err := p.ctx.Err(); err != nil {
+		return fmt.Errorf("%w: the session has ended", ErrSessionClosed)
+	}
+
+	// ONE RESPONSE AT A TIME, decided before anything is allocated.
+	//
+	// The state machine would refuse the second call too, but not reliably: two
+	// calls arriving together could both observe listening before either had
+	// moved. This is the deterministic answer, and the loser is told the same
+	// thing the machine would have told it.
+	if !p.speaking.CompareAndSwap(false, true) {
+		return &TransitionError{
+			Session: p.cfg.Session,
+			From:    p.cfg.FSM.State(),
+			To:      StateThinking,
+			Reason:  "a response is already being spoken on this session",
+		}
+	}
+	defer p.speaking.Store(false)
+
+	p.mu.Lock()
+	p.turnSeq++
+	turn := TurnID(fmt.Sprintf("%s-t%d", p.cfg.Session, p.turnSeq))
+	p.mu.Unlock()
+
+	p.cfg.FSM.SetTurn(turn)
+
+	// The agent's own turn begins here. A caller turn enters thinking from
+	// transcribing; this one enters from listening, which is the edge
+	// [sessionTransitions] declares for exactly this case. A refusal means the
+	// session is busy or gone, and it is returned unchanged.
+	if err := p.cfg.FSM.To(p.ctx, StateThinking, ReasonOK); err != nil {
+		return err
+	}
+	p.m.TurnsStarted.Inc()
+
+	// Bound to BOTH contexts: the submitter's, so cancelling stops the
+	// response, and the session's, so a response cannot outlive the call.
+	base, release := mergeCancel(ctx, p.ctx)
+	defer release()
+
+	turnCtx, cancel := context.WithTimeout(base, p.cfg.TurnTimeout)
+	defer cancel()
+
+	// Recorded so a barge-in can abandon this response too. The opening
+	// announcement is non-yielding by INV-CV-2 and the frozen turn manager
+	// QUEUES an interruption during it rather than granting the floor — but
+	// that is the conversation's decision, and this pipeline does not
+	// second-guess it by making its own audio uninterruptible.
+	p.mu.Lock()
+	p.activeTurnCancel = cancel
+	p.mu.Unlock()
+
+	return p.deliverPlan(turnCtx, speakRequest{
+		turn:   turn,
+		plan:   plan,
+		system: p.instructionFor(plan),
+		// NO MESSAGE, and specifically not an empty one. There is no caller
+		// utterance behind this response, and inventing a blank user turn would
+		// be a fabricated transcript. The frozen kernel assembles from the
+		// session's own context when Messages is empty (runtime/kernel.go:573),
+		// which is the contract's own way of saying "no input this turn".
+		messages: nil,
+		abort:    ctx,
+	})
+}
+
+// instructionFor returns the generation instruction for a submitted plan.
+//
+// The greeting gets its own because it is the only response generated with
+// nothing to respond to: the session instruction describes how to answer a
+// caller, and answering nobody with it produces silence or a non-sequitur. If
+// the deployment configured none, the session instruction is used unchanged —
+// this package supplies no words of its own.
+func (p *Pipeline) instructionFor(plan conversation.Plan) string {
+	if plan.NextState == conversation.StateGreeting && p.cfg.GreetingSystem != "" {
+		return p.cfg.GreetingSystem
+	}
+	return p.cfg.System
+}
+
+// speakRequest is one accepted plan on its way to the caller's ear.
+//
+// The two producers differ in three fields and nothing else: a caller turn
+// carries the transcript as its message and the session as its abort source; a
+// plan submitted through [Pipeline.Speak] carries no message, possibly a
+// different instruction, and the submitter's context.
+type speakRequest struct {
+	turn TurnID
+
+	// plan is the decision the conversation already made. It is not
+	// re-litigated here; it selects the completion event and nothing else.
+	plan conversation.Plan
+
+	// system is the generation instruction for THIS response.
+	system string
+
+	// messages is the generation input. EMPTY IS MEANINGFUL: the frozen kernel
+	// assembles from the session's own context when no message is supplied
+	// (runtime/kernel.go:573), which is how a response with no caller
+	// utterance behind it is expressed without inventing one.
+	messages []rt.Message
+
+	// abort is the external cancellation source, checked before any lifecycle
+	// event is sent. For a caller turn it is the session context, which the
+	// completion path already checked; for Speak it is the submitter's context,
+	// so a cancelled greeting reports neither completion nor abandonment.
+	abort context.Context
+}
+
+// completionEvent chooses which lifecycle event ends this response.
+//
+// # Both are legal here, and that is the danger
+//
+// The frozen engine accepts EventSpeechComplete AND EventGreetingComplete from
+// StateGreeting, and both leave the conversation in listening. They are not
+// interchangeable: greeting-complete releases the floor to nobody, which is what
+// the opening announcement means, while speech-complete hands the floor to the
+// caller as the answer to something they said. And EventGreetingComplete is
+// accepted mid-conversation too, so sending it everywhere would "work" while
+// recording an opening turn in the middle of a call.
+//
+// Plan.NextState is the typed discriminator the frozen contract already
+// provides: handleStart returns StateGreeting, every ordinary speaking plan
+// returns StateSpeaking. No string is compared, and nothing is inferred.
+func completionEvent(plan conversation.Plan) conversation.EventKind {
+	if plan.NextState == conversation.StateGreeting {
+		return conversation.EventGreetingComplete
+	}
+	return conversation.EventSpeechComplete
+}
+
+// deliverPlan authorises, generates, synthesises and delivers one accepted
+// plan, then tells the conversation what became of it.
+//
+// # One implementation, two producers
+//
+// This is the response engine, and there is exactly one of it. The transcript
+// loop reaches it with the caller's words; [Pipeline.Speak] reaches it with a
+// plan the conversation decided without one. Everything between authorisation
+// and delivery is identical for both, because it was already independent of the
+// transcript — the only thing a response needs from the caller is the message
+// that goes into the generation request.
+//
+// The returned error is for a caller that is waiting; the transcript loop has
+// nobody to report to and discards it. Failures are recorded and the turn is
+// ended either way.
+func (p *Pipeline) deliverPlan(ctx context.Context, req speakRequest) error {
+	turn := req.turn
+
+	// abandon reports that an accepted response will not be spoken, unless the
+	// submitter has already walked away. A cancelled response was not
+	// abandoned mid-flight — the conversation it belonged to is going away.
+	abandon := func(reason string) {
+		if req.abort.Err() != nil {
+			return
+		}
+		p.abandonResponse(reason)
 	}
 
 	// ---- authorisation, with no branch around it --------------------------
@@ -991,11 +1348,15 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		if err := p.cfg.FSM.To(p.ctx, StateListening, ReasonGovernanceDeny); err != nil {
 			p.note(err)
 		}
+		// A denial is a domain outcome, not a fault, so it is NOT reported as
+		// one. The response simply will not be spoken, and the caller must be
+		// able to speak again.
+		abandon(ReasonGovernanceDeny)
 		p.m.TurnsCompleted.Inc(string(OutcomeDenied))
 		if p.observer != nil {
 			p.observer.OnTurnComplete(OutcomeDenied, decision.Reason)
 		}
-		return
+		return fmt.Errorf("%w: %s", ErrGovernanceDenied, decision.Outcome)
 	}
 
 	// ---- synthesis opened BEFORE generation starts ------------------------
@@ -1005,14 +1366,16 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	// startup on the critical path of every response.
 	voice, err := p.cfg.Registry.PickTTS(p.cfg.Language)
 	if err != nil {
-		p.note(fmt.Errorf("%w: synthesis: %v", ErrProviderUnavailable, err))
+		failure := fmt.Errorf("%w: synthesis: %v", ErrProviderUnavailable, err)
+		p.note(failure)
+		abandon(ReasonUnavailable)
 		p.failTurn(ReasonUnavailable)
-		return
+		return failure
 	}
 
 	if err := p.cfg.FSM.To(p.ctx, StateSynthesizing, ReasonOK); err != nil {
 		p.note(err)
-		return
+		return err
 	}
 
 	generation := p.generation.Load()
@@ -1027,9 +1390,11 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	if err != nil {
 		p.m.ProviderFailures.Inc(string(voice.ID()), string(KindTTS), ReasonStartFailed)
 		p.cfg.Registry.Report(ProviderID(voice.ID()), speech.OutcomeFailure)
-		p.note(fmt.Errorf("%w: opening synthesis: %v", ErrProviderUnavailable, err))
+		failure := fmt.Errorf("%w: opening synthesis: %v", ErrProviderUnavailable, err)
+		p.note(failure)
+		abandon(ReasonStartFailed)
 		p.failTurn(ReasonStartFailed)
-		return
+		return failure
 	}
 
 	p.mu.Lock()
@@ -1051,8 +1416,9 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		p.note(err)
 		_ = ttsStream.Close()
 		<-audioDone
+		abandon(ReasonInvalidOutput)
 		p.failTurn(ReasonInvalidOutput)
-		return
+		return err
 	}
 
 	sink := &synthesisSink{
@@ -1066,16 +1432,18 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	dispatcher, err := p.cfg.Generator.Generate(ctx, rt.GenerateSpec{
 		SessionID:       rt.SessionID(p.cfg.Session),
 		Tier:            p.cfg.Tier,
-		System:          p.cfg.System,
-		Messages:        []rt.Message{{Role: rt.RoleUser, Content: final.Text}},
+		System:          req.system,
+		Messages:        req.messages,
 		MaxOutputTokens: p.cfg.MaxOutputTokens,
 	}, sink)
 	if err != nil {
-		p.note(fmt.Errorf("%w: generation: %v", ErrProviderFailed, err))
+		failure := fmt.Errorf("%w: generation: %v", ErrProviderFailed, err)
+		p.note(failure)
 		_ = ttsStream.Close()
 		<-audioDone
+		abandon(ReasonUnavailable)
 		p.failTurn(ReasonUnavailable)
-		return
+		return failure
 	}
 
 	p.mu.Lock()
@@ -1105,7 +1473,34 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	p.mu.Unlock()
 
 	if p.ctx.Err() != nil {
-		return // the session ended; the terminal transition already happened
+		// The session ended; the terminal transition already happened.
+		return p.ctx.Err()
+	}
+
+	// THE SUBMITTER WALKED AWAY.
+	//
+	// A response whose caller cancelled it is neither complete nor abandoned
+	// mid-flight: there is nobody left to tell. Sending a lifecycle event here
+	// would put a record of a finished greeting on a call that is going away.
+	//
+	// For a turn the caller started this is the session context, already
+	// checked immediately above, so nothing about that path changes.
+	if err := req.abort.Err(); err != nil {
+		// The SESSION, however, is still alive, and it is currently holding the
+		// floor for a response that will not finish. Left there it could never
+		// take another turn — speaking is not a state inbound audio can start
+		// from. The machine goes back to listening; the conversation is told
+		// nothing, because the thing that would have been told is gone.
+		if p.cfg.FSM.State().AgentHoldsFloor() {
+			if terr := p.cfg.FSM.To(p.ctx, StateListening, ReasonCancelled); terr != nil {
+				p.note(terr)
+			}
+		}
+		p.m.TurnsCompleted.Inc(string(OutcomeCancelled))
+		if p.observer != nil {
+			p.observer.OnTurnComplete(OutcomeCancelled, ReasonCancelled)
+		}
+		return err
 	}
 
 	// A BARGE-IN ALREADY ENDED THIS TURN.
@@ -1120,20 +1515,95 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		if p.observer != nil {
 			p.observer.OnTurnComplete(OutcomeInterrupted, ReasonBargeIn)
 		}
-		return
+		// Not nil: a submitter waiting on this response must not be told it
+		// finished. It did not — the caller talked over it, and EventInterrupt
+		// has already moved the floor.
+		return fmt.Errorf("voice: the response was superseded (%s)", ReasonBargeIn)
 	}
 
 	if err := p.cfg.FSM.To(p.ctx, StateListening, ReasonOK); err != nil {
 		p.note(err)
-		return
+		return err
 	}
+
+	// THE AGENT HAS FINISHED ITS OUTPUT, so the floor is no longer its own.
+	//
+	// WHICH event says so is [completionEvent]'s decision, taken from the plan
+	// that was spoken: the opening announcement ends with EventGreetingComplete,
+	// every other response with EventSpeechComplete. Both are accepted by the
+	// frozen engine in both situations and both reach listening, so choosing
+	// wrongly is invisible in the state and visible only in the turn record —
+	// which is why the choice is made from a typed field rather than guessed.
+	//
+	// EventSpeechComplete is defined as "the agent finishing its output"
+	// (conversation/engine.go:24), and handleSpeechComplete is the ONLY thing
+	// that performs the handoff: Release(PartyAgent) -> transition ->
+	// Acquire(PartyCaller). Without it the conversation stays in speaking with
+	// the agent holding the floor, and every later caller turn is planned as a
+	// no-op — measured as one spoken response followed by silence.
+	//
+	// THIS IS THE ONLY PLACE IT MAY BE SENT. Every path where the agent did not
+	// actually finish speaking has already returned above:
+	//
+	//   - session ended or cancelled      -> p.ctx.Err() != nil
+	//   - barge-in superseded this turn   -> p.generation.Load() != generation,
+	//                                        where EventInterrupt owns the floor
+	//   - governance denied               -> returned at the decision
+	//   - generation or synthesis failed  -> failTurn
+	//
+	// Sent BEFORE OnTurnComplete so that an observer told the turn is complete
+	// can rely on the floor having already moved.
+	//
+	// A failure here is recorded and does not undo the turn: the audio has
+	// already reached the caller, so there is nothing to roll back. ErrTerminal
+	// is expected and ignored — a conversation that ended during this turn is
+	// not a fault, and the frozen engine refuses the event by design.
+	kind := completionEvent(req.plan)
+	if _, err := p.cfg.Planner.Handle(conversation.Event{
+		Kind:  kind,
+		Party: conversation.PartyAgent,
+	}); err != nil && !errors.Is(err, conversation.ErrTerminal) {
+		p.note(fmt.Errorf("%w: conversation: %s: %v", ErrProviderFailed, kind, err))
+	}
+
 	p.m.TurnsCompleted.Inc(string(OutcomeCompleted))
 	if p.observer != nil {
 		p.observer.OnTurnComplete(OutcomeCompleted, ReasonOK)
 	}
+	return nil
 }
 
 // failTurn ends a turn on a fault without ending the session.
+// abandonResponse tells the conversation that an accepted response plan will
+// not be spoken, then lets the caller talk again.
+//
+// Called only from paths where the planner returned ActionRespond and no audio
+// reached the caller. Without it the conversation keeps the agent's floor and
+// every later caller utterance is classified as a backchannel and ignored — a
+// silent stuck call.
+//
+// It is NOT EventSpeechComplete: nothing was said. It is NOT EventInterrupt:
+// nothing interrupted. It repairs lifecycle state only — no retry, no apology,
+// no escalation — and the original failure or governance decision is left
+// untouched for observability.
+//
+// ErrTerminal is expected and ignored: a conversation that ended during the
+// turn needs no floor returned, and the frozen engine refuses the event by
+// design.
+func (p *Pipeline) abandonResponse(reason string) {
+	if p.ctx.Err() != nil {
+		return
+	}
+	if _, err := p.cfg.Planner.Handle(conversation.Event{
+		Kind:   conversation.EventResponseAbandoned,
+		Party:  conversation.PartyAgent,
+		Reason: reason,
+	}); err != nil && !errors.Is(err, conversation.ErrTerminal) {
+		p.note(fmt.Errorf("%w: conversation: response abandoned: %v",
+			ErrProviderFailed, err))
+	}
+}
+
 func (p *Pipeline) failTurn(reason string) {
 	if p.ctx.Err() != nil {
 		return

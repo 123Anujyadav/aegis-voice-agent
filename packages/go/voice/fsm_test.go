@@ -73,8 +73,12 @@ func TestFSM_TableIsExhaustivelyCorrect(t *testing.T) {
 	// as data here rather than reading transitionTable is the point: a test that
 	// consulted the table would pass for any table.
 	expected := map[SessionState]map[SessionState]bool{
-		StateCreated:          {StateListening: true},
-		StateListening:        {StateSpeakingDetected: true},
+		StateCreated: {StateListening: true},
+		// Thinking is reachable from listening because the agent may start a
+		// turn of its own: Pipeline.Speak submits a plan the conversation has
+		// already decided — the greeting — which has no caller utterance to be
+		// recognised first.
+		StateListening:        {StateSpeakingDetected: true, StateThinking: true},
 		StateSpeakingDetected: {StateTranscribing: true, StateListening: true},
 		StateTranscribing:     {StateThinking: true, StateListening: true},
 		StateThinking:         {StateSynthesizing: true, StateListening: true},

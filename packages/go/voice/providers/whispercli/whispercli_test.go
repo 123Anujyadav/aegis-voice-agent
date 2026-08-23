@@ -839,3 +839,65 @@ func TestAdapter_FailedChildIsReportedNotSilent(t *testing.T) {
 	}
 	t.Logf("failed child reported: %v", s.Err())
 }
+
+// TestAdapter_AFailedSpawnStillClosesResults pins the port contract on the
+// failure path.
+//
+// # Why this is not obvious
+//
+// speech.STTStream says the provider closes Results when the stream ends
+// (speech/provider.go:189). A spawn that FAILS ends the stream as surely as one
+// that succeeds — but the error return makes it feel like the work never
+// started, and the channel was left open.
+//
+// A consumer blocked on Results then waits forever. Measured in Phase 16 T10,
+// through the real pipeline: a turn that never completed and a session stuck in
+// transcribing for two minutes, on a machine where the configured executable
+// existed and could not be run.
+func TestAdapter_AFailedSpawnStillClosesResults(t *testing.T) {
+	t.Parallel()
+
+	// A file that exists — so construction and availability both succeed — and
+	// that the operating system will refuse to execute.
+	cfg := testConfig(t)
+	notExecutable := filepath.Join(t.TempDir(), "whisper")
+	if err := os.WriteFile(notExecutable, []byte("this is not a program"), 0o600); err != nil {
+		t.Fatalf("writing the stand-in: %v", err)
+	}
+	cfg.Executable = notExecutable
+	cfg.Process.StartTimeout = 10 * time.Second
+
+	p, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	s, err := p.OpenSTT(context.Background(), speech.STTConfig{
+		Session: "ss-spawnfail", Turn: "st-spawnfail",
+		Language: "en", Format: testFormat(),
+	})
+	if err != nil {
+		t.Fatalf("OpenSTT: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+
+	for _, f := range frames(t, 5) {
+		if werr := s.Write(f); werr != nil {
+			t.Fatalf("Write: %v", werr)
+		}
+	}
+
+	if cerr := s.CloseSend(); cerr == nil {
+		t.Fatal("a spawn that cannot succeed reported success")
+	}
+
+	// THE POINT: bounded, because an unclosed channel is exactly the defect.
+	select {
+	case _, ok := <-s.Results():
+		if ok {
+			t.Error("a transcript segment arrived from a process that never ran")
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("Results was never closed after the spawn failed; every consumer " +
+			"blocked on it waits forever")
+	}
+}

@@ -35,6 +35,26 @@ const (
 	EventFault
 	// EventHangup is the caller ending the call.
 	EventHangup
+	// EventResponseAbandoned reports that an accepted response plan will not
+	// produce agent speech, so the agent's floor must be released without
+	// claiming that anything was said.
+	//
+	// It exists because nothing else in this vocabulary can express it.
+	// [EventSpeechComplete] would assert speech that never happened and would
+	// derive the next state from the previous plan's Expectation, leaving the
+	// engine awaiting an answer to a question the caller never heard;
+	// [EventInterrupt] would record a barge-in that did not occur; EventFault
+	// moves state without touching the floor at all, and neither terminates nor
+	// recovers it. Without this event a denied or failed response leaves the
+	// agent holding the floor, and every later caller utterance is classified
+	// as a backchannel and ignored — a silent stuck call.
+	//
+	// LIFECYCLE RECOVERY ONLY. It does not retry, apologise, escalate or
+	// terminate; those remain policy decisions above this engine.
+	//
+	// APPENDED AT THE END DELIBERATELY: this block is iota-based, so inserting
+	// anywhere else would renumber every event after it.
+	EventResponseAbandoned
 )
 
 // String renders the event kind for logs and metric labels.
@@ -60,6 +80,8 @@ func (k EventKind) String() string {
 		return "fault"
 	case EventHangup:
 		return "hangup"
+	case EventResponseAbandoned:
+		return "response_abandoned"
 	default:
 		return "start"
 	}
@@ -497,6 +519,8 @@ func (c *Conversation) Handle(e Event) (Plan, error) {
 	case EventToolComplete:
 		return Plan{Action: ActionRespond, Reason: "tool_complete", NextState: StateSpeaking},
 			c.transition(StateThinking, TriggerToolComplete, e.Reason)
+	case EventResponseAbandoned:
+		return c.handleResponseAbandoned(e)
 	case EventSilence:
 		return c.handleSilence()
 	case EventUtterance:
@@ -580,6 +604,44 @@ func (c *Conversation) handleSpeechComplete() (Plan, error) {
 	}
 	c.turns.Acquire(PartyCaller, false)
 	return Plan{Action: ActionWait, Reason: "awaiting_caller", NextState: next}, nil
+}
+
+// handleResponseAbandoned releases the agent's floor when a planned response
+// will not be spoken.
+//
+// # Why this is not handleSpeechComplete
+//
+// The two differ in exactly one respect that matters, and it is the reason this
+// handler exists separately. handleSpeechComplete derives the next state from
+// the previous plan's Expectation, because the agent asked something and the
+// caller is about to answer it. Here the agent said NOTHING, so there is no
+// question outstanding and no expectation to honour: the conversation returns to
+// plain listening. Reusing stateForExpectation would leave the engine waiting
+// for a yes/no nobody was asked for.
+//
+// # What it deliberately does not do
+//
+// No interruption is recorded — nothing interrupted the agent, the response
+// simply never arrived. Nothing is escalated, retried or terminated, and no
+// governance decision is revisited. This repairs lifecycle state and nothing
+// else; what the caller is told about the failure is policy that belongs above
+// this engine.
+func (c *Conversation) handleResponseAbandoned(e Event) (Plan, error) {
+	// The agent may not hold the floor if the response was abandoned before it
+	// was ever acquired. Release is safe either way: TurnManager ignores a
+	// release from a party that does not hold it.
+	c.turns.Release(PartyAgent, ExpectNothing)
+
+	if err := c.transition(StateListening, TriggerResponseAbandoned, e.Reason); err != nil {
+		return Plan{}, err
+	}
+	c.turns.Acquire(PartyCaller, false)
+
+	return Plan{
+		Action:    ActionWait,
+		Reason:    "response_abandoned",
+		NextState: StateListening,
+	}, nil
 }
 
 // handleInterrupt applies an interruption.

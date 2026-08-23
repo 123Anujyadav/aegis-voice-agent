@@ -2,11 +2,13 @@ package voice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 
 	audiobridge "github.com/callscreen/callscreen-platform/packages/go/audiobridge"
 	audiointel "github.com/callscreen/callscreen-platform/packages/go/audiointel"
+	"github.com/callscreen/callscreen-platform/packages/go/conversation"
 )
 
 // ---------------------------------------------------------------------------
@@ -136,6 +138,37 @@ func (c *interruptController) Interrupt(ctx context.Context, reason string) erro
 	}
 	if err := p.cfg.FSM.To(ctx, StateListening, ReasonBargeIn); err != nil {
 		return err
+	}
+
+	// THE DIALOGUE MUST BE TOLD, or the barge-in is only half delivered.
+	//
+	// Everything above moves THIS layer: the generation counter, the
+	// synthesiser, and the session FSM. None of it touches the conversation, so
+	// before this the frozen InterruptionEngine recorded nothing in production
+	// and the dialogue floor was never yielded — the caller barged in, the
+	// audio stopped, and the conversation still believed the agent was
+	// speaking.
+	//
+	// The session needs no lookup: one Pipeline serves one session, and
+	// p.cfg.Planner IS that session's conversation. No registry, no map, no
+	// shared state.
+	//
+	// InterruptionUser is the frozen kind for a caller barge-in, and its
+	// handler force-yields the floor to the caller (engine.go handleInterrupt).
+	// The reason is the bounded code this layer was given; it is never caller
+	// content.
+	//
+	// A failure here does NOT fail the interruption: the audio has already been
+	// stopped and the caller is already talking, so reporting failure would
+	// misdescribe what happened. ErrTerminal is expected and ignored — a
+	// conversation that ended needs no floor returned.
+	if _, err := p.cfg.Planner.Handle(conversation.Event{
+		Kind:         conversation.EventInterrupt,
+		Interruption: conversation.InterruptionUser,
+		Party:        conversation.PartyCaller,
+		Reason:       reason,
+	}); err != nil && !errors.Is(err, conversation.ErrTerminal) {
+		p.note(fmt.Errorf("%w: conversation: interrupt: %v", ErrProviderFailed, err))
 	}
 
 	c.delivered.Add(1)
