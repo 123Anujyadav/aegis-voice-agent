@@ -31,6 +31,12 @@ at all.
 | [0015](0015-postgresql-driver-pgx.md) | PostgreSQL driver | Accepted | **pgx/v5** — the platform's first third-party dependency; durable goldens behind the existing port |
 | [0016](0016-intent-classification.md) | Intent classification | Accepted | **Implement the existing `conversation.IntentClassifier` port**; deterministic rule/lexicon default, no model, no second engine |
 | [0017](0017-service-wiring.md) | Service wiring | Accepted | **Register a `platform.Runner` in `services/go/voice` owning a `voiceintel.Bridge`**; existing seams only, provider-fed pipeline stages deferred |
+| [0018](0018-voice-provider-architecture.md) | Voice provider architecture | Proposed | **Wire the existing `voice.Pipeline` using the exported deterministic provider fakes** behind the real registry/router; process-backed and cloud providers deferred, no frozen change |
+| [0019](0019-speech-complete-ownership.md) | Speech-complete ownership | Proposed (partially blocked) | **`voice.Pipeline` emits `EventSpeechComplete` at the delivery boundary** for successfully spoken turns; the event for denied/failed turns is an open product decision |
+| [0020](0020-response-abandoned.md) | Response abandoned | Proposed (blocked) | **A new `EventResponseAbandoned` is the only way to release the agent floor when a planned response is never spoken** — `EventFault` provably cannot, since nothing moves the floor but speech-complete and interrupt; needs product + frozen-module approval |
+| [0021](0021-pipeline-speak-seam.md) | The plan-input seam | Accepted | **`Pipeline.Speak` submits a decided plan into the existing response path**, and the completion event is chosen from the typed `Plan.NextState` — greeting vs speech — because both are accepted everywhere and differ only in the recorded trigger and the floor |
+| [0022](0022-internal-call-driver.md) | Internal call driver | Accepted | **A `platform.Runner` owns call identity, lifetime and teardown with NO session registry** — the returned `*Call` is the session and lifetime is carried by context; the production build registers no driver because it has no providers |
+| [0023](0023-binary-test-fixture-provenance.md) | Binary test fixture provenance | Accepted | **A `testdata/` binary may be committed only with a README recording origin, a SHA-256 and byte size, synthetic content, and no external toolchain at test or build time** — authorises the one speech fixture, not media or recorded voices |
 
 ---
 

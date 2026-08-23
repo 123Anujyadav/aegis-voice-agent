@@ -52,6 +52,11 @@ gradlew.bat     text eol=crlf
 *.mp3           binary
 *.opus          binary
 *.pcm           binary
+# Headerless PCM carrying a .raw extension — the Phase 16 speech fixture
+# (ADR-0023). Without this it falls under "* text=auto eol=lf" and git decides
+# by heuristic; a mis-guess would strip 0x0D bytes from the samples and corrupt
+# audio whose SHA-256 is pinned by test.
+*.raw           binary
 
 # --- Generated code: collapse in PR diffs -----------------------------------
 # Marked as generated so review focuses on the .proto source of truth, not the
