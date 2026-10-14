@@ -64,6 +64,8 @@ use (
 	./packages/go/speech
 	./packages/go/telemetry
 	./packages/go/telephony
+	./packages/go/telephonyredis
+	./packages/go/telephonystore
 	./packages/go/toolruntime
 	./services/go/analytics
 	./services/go/billing
