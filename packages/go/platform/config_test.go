@@ -435,3 +435,84 @@ func TestConfigError_ErrorFormatsEveryProblem(t *testing.T) {
 		t.Errorf("expected two bulleted lines, got: %s", msg)
 	}
 }
+
+// TestServiceConfig_NameIsNotReadFromTheEnvironment is the regression guard for
+// a defect that stopped every service from starting.
+//
+// ServiceConfig.Name once carried `env:"SERVICE_NAME" required:"true"`. Nothing
+// supplied that variable — the only ConfigMap in infra/ does not define it, and
+// LoadConfig looks it up prefixed, as CS_<SERVICE>_SERVICE_NAME. So LoadConfig
+// failed with "required but not set", run() returned the error, and the process
+// exited 1 before reaching the very next line, which assigns the name from the
+// binary's own constant.
+//
+// The requirement also contradicted the architecture. Every cmd/server/main.go
+// states it: "The service name is fixed by the binary, not by the environment.
+// Allowing it to be overridden would let a misconfigured deployment report
+// itself as a different service and corrupt every dashboard it appears in."
+//
+// This asserts the property, not the absence of a tag: a config with no
+// SERVICE_NAME in the environment must load cleanly, and setting SERVICE_NAME
+// must not influence the result.
+func TestServiceConfig_NameIsNotReadFromTheEnvironment(t *testing.T) {
+	// Not parallel: t.Setenv forbids it.
+	t.Setenv("CS_TEST_ENVIRONMENT", "development")
+
+	var cfg ServiceConfig
+	if err := LoadConfig(&cfg, "CS_TEST"); err != nil {
+		t.Fatalf("LoadConfig failed with no SERVICE_NAME set: %v\n"+
+			"Name must be a computed field; requiring it from the environment "+
+			"prevents every service from starting.", err)
+	}
+	if cfg.Name != "" {
+		t.Errorf("Name = %q after LoadConfig, want empty; it is assigned by the "+
+			"caller from a compile-time constant, not loaded", cfg.Name)
+	}
+
+	// Even when the variable exists, it must be ignored.
+	t.Setenv("CS_TEST_SERVICE_NAME", "impersonated-service")
+
+	var second ServiceConfig
+	if err := LoadConfig(&second, "CS_TEST"); err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if second.Name != "" {
+		t.Errorf("Name = %q; the environment overrode the service identity, "+
+			"which is exactly what fixing it by the binary prevents", second.Name)
+	}
+}
+
+// TestServiceConfig_ValidateRejectsEmptyName pins Validate as the only check
+// that an empty Name is refused.
+//
+// Because Name is no longer loaded, LoadConfig can no longer report it missing.
+// Validate is the only remaining check, and it has to be real: an empty name is
+// the service label on every log record, metric and span, so an unnamed service
+// is unattributable precisely when attribution matters.
+func TestServiceConfig_ValidateRejectsEmptyName(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"", "   ", "\t"} {
+		cfg := ServiceConfig{
+			Name:              name,
+			Environment:       "development",
+			Region:            "in-south-1",
+			Version:           "dev",
+			HTTPPort:          8080,
+			HealthPort:        8081,
+			LogLevel:          "info",
+			LogFormat:         "json",
+			ShutdownTimeout:   25 * time.Second,
+			ReadHeaderTimeout: 5 * time.Second,
+		}
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatalf("Validate accepted Name %q; an unnamed service is "+
+				"unattributable in logs, metrics and traces", name)
+		}
+		if !strings.Contains(err.Error(), "Name is empty") {
+			t.Errorf("Validate error for Name %q does not name the field: %v", name, err)
+		}
+	}
+}
