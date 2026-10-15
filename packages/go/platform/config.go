@@ -265,7 +265,27 @@ func assign(field reflect.Value, raw string) error {
 type ServiceConfig struct {
 	// Name identifies the service, matching its directory under services/go.
 	// It is attached to every log record, metric and trace span.
-	Name string `env:"SERVICE_NAME" required:"true"`
+	//
+	// COMPUTED, NOT READ FROM THE ENVIRONMENT — deliberately carries no `env`
+	// tag, which is the documented mechanism above for a field LoadConfig must
+	// skip. Every cmd/server/main.go assigns it from a compile-time constant
+	// immediately after LoadConfig returns, for the reason stated there:
+	//
+	//	"The service name is fixed by the binary, not by the environment.
+	//	 Allowing it to be overridden would let a misconfigured deployment
+	//	 report itself as a different service and corrupt every dashboard it
+	//	 appears in."
+	//
+	// It previously carried `env:"SERVICE_NAME" required:"true"`, which
+	// contradicted that: LoadConfig demanded a variable the architecture
+	// forbids honouring, and every caller discarded the value one line later.
+	// Nothing supplied it, so every service failed to start with
+	// "CS_<SERVICE>_SERVICE_NAME is required but not set" before reaching the
+	// assignment that would have set it correctly.
+	//
+	// [ServiceConfig.Validate] enforces that it is non-empty, so a caller that
+	// forgets to assign it fails loudly rather than logging an empty service.
+	Name string
 
 	// Environment is one of development, staging or production. It gates
 	// behaviour that must differ by tier, such as whether stack traces may be
@@ -276,8 +296,10 @@ type ServiceConfig struct {
 	// telemetry so that residency can be audited from logs alone.
 	Region string `env:"REGION" default:"in-south-1"`
 
-	// Version is the build version injected at container build time. Used to
-	// attribute error-rate changes to a specific rollout.
+	// Version attributes error-rate changes to a specific rollout. It is read
+	// from the environment here, but every Go service overwrites it with the
+	// binary's own build metadata (BuildInfo), as it does Name, so the
+	// environment value is ignored (LogBuildInfo reports when it differs).
 	Version string `env:"VERSION" default:"dev"`
 
 	// HTTPPort is the port the service's HTTP listener binds.
@@ -313,6 +335,17 @@ type ServiceConfig struct {
 // returns a *ConfigError listing every violation.
 func (c *ServiceConfig) Validate() error {
 	problems := make([]string, 0, 4)
+
+	// Name carries no `env` tag, so LoadConfig cannot supply it and cannot
+	// report it missing. This is the only check that catches a caller which
+	// forgot to assign it from its compile-time constant. An empty name is not
+	// cosmetic: it is the service label on every log record, metric and span,
+	// so an unnamed service is unattributable in exactly the incident where
+	// attribution matters.
+	if strings.TrimSpace(c.Name) == "" {
+		problems = append(problems, "Name is empty; it is set from the "+
+			"service's compile-time constant, not from the environment")
+	}
 
 	switch c.Environment {
 	case "development", "staging", "production":
