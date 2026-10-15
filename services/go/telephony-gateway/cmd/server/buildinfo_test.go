@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -124,6 +125,25 @@ func TestVersion_MalformedLinkerValuesAreRejectedNotReported(t *testing.T) {
 	}
 }
 
+// A lockedBuffer collects a child process's output, which exec.Cmd copies from
+// its own goroutine while the process runs, so every access is locked.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 // Normal startup with malformed metadata: the process does not crash on it,
 // logs which fields it replaced, and reports the honest default version.
 func TestStartup_MalformedMetadataDoesNotStopTheService(t *testing.T) {
@@ -140,7 +160,7 @@ func TestStartup_MalformedMetadataDoesNotStopTheService(t *testing.T) {
 	cmd := exec.Command(bin)
 	cmd.Env = append(startupEnv(), fmt.Sprintf("%s_HTTP_PORT=%d", envPrefix, pick()), fmt.Sprintf("%s_HEALTH_PORT=%d", envPrefix, hp),
 		envPrefix+"_VERSION=from-the-environment")
-	var logs bytes.Buffer
+	var logs lockedBuffer
 	cmd.Stdout, cmd.Stderr = &logs, &logs
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)

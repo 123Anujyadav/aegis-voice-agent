@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,12 +16,18 @@ func startupEnv() []string {
 	return []string{"PATH=" + os.Getenv("PATH"), "SYSTEMROOT=" + os.Getenv("SYSTEMROOT")}
 }
 
-func checkStartup(t *testing.T, healthPort int, logs *bytes.Buffer) {
+func checkStartup(t *testing.T, healthPort int, logs *lockedBuffer) {
 	t.Helper()
 	if v := readyVersion(t, healthPort); v != "dev" {
 		t.Errorf("/readyz version = %q; want the honest default, not the environment's or the malformed value", v)
 	}
-	time.Sleep(100 * time.Millisecond) // let the startup log lines flush
+	// The build lines are logged before health is served, but the parent copies
+	// them from a pipe asynchronously: wait (bounded) for the last of them
+	// instead of sleeping a fixed time. wantBuildLogs reports what is missing.
+	last := `"variable":"` + envPrefix + `_VERSION"`
+	for deadline := time.Now().Add(10 * time.Second); !strings.Contains(logs.String(), last) && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+	}
 	wantBuildLogs(t, logs.String())
 }
 

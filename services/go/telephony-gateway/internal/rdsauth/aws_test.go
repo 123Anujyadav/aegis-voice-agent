@@ -968,8 +968,10 @@ func TestAWS_RunningFenceLogsSubPhasesWithoutSecrets(t *testing.T) {
 	if fc.Owned() {
 		t.Error("owner without a database")
 	}
-	for _, leak := range []string{stsKeyID, stsSecret, stsSession, secret, "web-identity-jwt", id.RoleARN, id.WebIdentityTokenFile,
-		SessionName, "127.0.0.1", "fence_iam", "X-Amz", "Action=connect"} {
+	for _, leak := range []string{
+		stsKeyID, stsSecret, stsSession, secret, "web-identity-jwt", id.RoleARN, id.WebIdentityTokenFile,
+		SessionName, "127.0.0.1", "fence_iam", "X-Amz", "Action=connect",
+	} {
 		if strings.Contains(read(), leak) {
 			t.Errorf("log contains %q", leak)
 		}

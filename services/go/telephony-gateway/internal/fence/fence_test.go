@@ -119,10 +119,11 @@ type rig struct {
 func newRig(t *testing.T, dialErr error, sessions ...*fakeSession) *rig {
 	t.Helper()
 	r := &rig{c: newClock(), sess: sessions, logs: &bytes.Buffer{}, ran: make(chan error, 1)}
-	var logMu sync.Mutex
+	// r.mu guards r.logs for both the writer (the fence's Run goroutine) and
+	// the reader (logText); a separate writer mutex would not exclude the read.
 	log := slog.New(slog.NewTextHandler(writerFunc(func(p []byte) (int, error) {
-		logMu.Lock()
-		defer logMu.Unlock()
+		r.mu.Lock()
+		defer r.mu.Unlock()
 		return r.logs.Write(p)
 	}), nil))
 	dial := func(context.Context) (Session, error) {
@@ -360,8 +361,10 @@ func TestFence_ShutdownDropsOwnershipAndReleasesTheLock(t *testing.T) {
 // conversion split for every class of key, including negative keys.
 func TestAdvisoryKeyParts_MatchesTheUnsignedSplit(t *testing.T) {
 	t.Parallel()
-	keys := []int64{0, 1, -1, 42, 4242, 0x7fffffff, 0x80000000, 0xffffffff, 1 << 32, -(1 << 32),
-		-0x80000000, math.MaxInt64, math.MinInt64, math.MinInt64 + 1, 0x123456789abcdef, -0x123456789abcdef}
+	keys := []int64{
+		0, 1, -1, 42, 4242, 0x7fffffff, 0x80000000, 0xffffffff, 1 << 32, -(1 << 32),
+		-0x80000000, math.MaxInt64, math.MinInt64, math.MinInt64 + 1, 0x123456789abcdef, -0x123456789abcdef,
+	}
 	for i := int64(0); i < 64; i++ {
 		keys = append(keys, int64(1)<<i, -(int64(1) << i))
 	}

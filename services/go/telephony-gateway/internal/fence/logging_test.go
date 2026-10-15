@@ -187,8 +187,10 @@ func TestGatewayLogger_FailedPreparationKeepsReachedPhasesOnly(t *testing.T) {
 			})
 			rec := l.records(t, "cannot open a database session")[0]
 			got := phases(t, rec)
-			absent := []string{PhaseCredentialsSign, PhaseDNS, PhaseTCP, PhaseTLS, PhaseAuth, PhaseSessionCheck,
-				PhaseConnect, PhasePrimary, PhaseLock, PhaseHeartbeat}
+			absent := []string{
+				PhaseCredentialsSign, PhaseDNS, PhaseTCP, PhaseTLS, PhaseAuth, PhaseSessionCheck,
+				PhaseConnect, PhasePrimary, PhaseLock, PhaseHeartbeat,
+			}
 			if len(c.present) == 1 {
 				absent = append(absent, PhaseCredentialsSTS)
 			}

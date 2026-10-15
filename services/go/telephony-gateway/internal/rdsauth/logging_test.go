@@ -71,8 +71,10 @@ func TestAWS_SubPhasesSurviveTheGatewayLogger(t *testing.T) {
 	if strings.Contains(out, "[REDACTED]") {
 		t.Errorf("a field was redacted:\n%s", out)
 	}
-	for _, leak := range []string{stsKeyID, stsSecret, stsSession, secret, "web-identity-jwt", id.RoleARN, id.WebIdentityTokenFile,
-		SessionName, "127.0.0.1", "fence_iam", "X-Amz", "Action=connect"} {
+	for _, leak := range []string{
+		stsKeyID, stsSecret, stsSession, secret, "web-identity-jwt", id.RoleARN, id.WebIdentityTokenFile,
+		SessionName, "127.0.0.1", "fence_iam", "X-Amz", "Action=connect",
+	} {
 		if strings.Contains(out, leak) {
 			t.Errorf("log contains %q", leak)
 		}
