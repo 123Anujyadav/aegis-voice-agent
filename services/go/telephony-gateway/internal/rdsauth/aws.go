@@ -103,7 +103,7 @@ func buildToken(ctx context.Context, provider aws.CredentialsProvider, endpoint,
 	return tok, nil
 }
 
-// retrieval is one credential preparation's marker. guardedProvider — which
+// retrieval is one credential preparation's marker. The guardedProvider — which
 // the SDK's cache runs ONLY for the call that starts a refresh (a cache hit
 // never calls it; a concurrent caller joins the running refresh without it) —
 // sets the state, so "did THIS call refresh" is observed, not guessed.
@@ -150,6 +150,8 @@ var errTokenFileUnreadable = errors.New("rdsauth: web-identity token file unread
 // STS exchange, so kubelet's rotation of the projected token is picked up.
 type tokenFile string
 
+// GetIdentityToken implements stscreds.IdentityTokenRetriever: the file's
+// content, or only the fixed errTokenFileUnreadable.
 func (f tokenFile) GetIdentityToken() ([]byte, error) {
 	b, err := os.ReadFile(string(f))
 	if err != nil || len(bytes.TrimSpace(b)) == 0 {
@@ -215,14 +217,15 @@ var errMalformedCredentials = errors.New("rdsauth: STS returned unusable credent
 //     cached nor used to sign.
 type guardedProvider struct{ inner aws.CredentialsProvider }
 
+// Retrieve implements aws.CredentialsProvider with the guarantees above.
 func (g guardedProvider) Retrieve(ctx context.Context) (creds aws.Credentials, err error) {
-	r, _ := ctx.Value(retrievalKey{}).(*retrieval)
-	if r != nil {
+	r, marked := ctx.Value(retrievalKey{}).(*retrieval)
+	if marked && r != nil {
 		r.state.Store(refreshRunning)
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithCancel(ctx)
 		defer cancel()
-		stop := context.AfterFunc(r.dial, cancel)
+		stop := context.AfterFunc(r.dial, cancel) //nolint:contextcheck // R5: the refresh must end with the DIAL's context, not the cache's suppressed one
 		defer stop()
 	}
 	defer func() {

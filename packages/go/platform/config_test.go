@@ -482,7 +482,8 @@ func TestServiceConfig_NameIsNotReadFromTheEnvironment(t *testing.T) {
 	}
 }
 
-// TestServiceConfig_ValidateRejectsEmptyName.
+// TestServiceConfig_ValidateRejectsEmptyName pins Validate as the only check
+// that an empty Name is refused.
 //
 // Because Name is no longer loaded, LoadConfig can no longer report it missing.
 // Validate is the only remaining check, and it has to be real: an empty name is

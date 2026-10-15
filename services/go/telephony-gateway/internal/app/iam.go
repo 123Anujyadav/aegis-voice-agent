@@ -82,55 +82,73 @@ var iamQueryNamed = map[string]bool{
 }
 
 // checkIAMEnvironment applies the environment, region, PostgreSQL-environment
-// and IRSA rules. region is the (non-empty) FENCE_AWS_REGION value.
+// and IRSA rules. The region argument is the (non-empty) FENCE_AWS_REGION
+// value.
 func checkIAMEnvironment(prefix string, lookup Lookup, region string) error {
 	envName := prefix + "_" + EnvEnvironment
 	regionName := prefix + "_" + EnvFenceAWSRegion
-	var problems []string
+	problems := environmentRegionProblems(envName, regionName, lookup, region)
+	problems = append(problems, awsRegionProblems(regionName, lookup, region)...)
+	if pgSet := setVariables(lookup, pgxEnvironment); len(pgSet) > 0 {
+		problems = append(problems, "IAM mode forbids PostgreSQL client environment variables; unset "+strings.Join(pgSet, ", "))
+	}
+	if static := setVariables(lookup, staticAWSCredentials); len(static) > 0 {
+		problems = append(problems, "IAM mode uses IRSA only and forbids static AWS credentials; unset "+strings.Join(static, ", "))
+	}
+	problems = append(problems, irsaProblems(lookup)...)
+	if len(problems) > 0 {
+		return fmt.Errorf("%w: %s", ErrInvalidConfig, strings.Join(problems, "; "))
+	}
+	return nil
+}
 
+// environmentRegionProblems applies R4b: IAM mode needs ENVIRONMENT
+// explicitly staging or production, and region on that environment's
+// allow-list.
+func environmentRegionProblems(envName, regionName string, lookup Lookup, region string) []string {
 	env, envSet := lookup(envName)
 	switch {
 	case !envSet:
-		problems = append(problems, "IAM mode requires "+envName+" to be explicitly set to staging or production")
+		return []string{"IAM mode requires " + envName + " to be explicitly set to staging or production"}
 	case env == "development":
-		problems = append(problems, "IAM mode is not permitted when "+envName+" is development (no development region is approved)")
-	default:
-		allowed, ok := regionAllowList[env]
-		switch {
-		case !ok:
-			problems = append(problems, "IAM mode requires "+envName+" to be staging or production")
-		case !contains(allowed, region):
-			problems = append(problems, fmt.Sprintf("%s is not an approved region for %s=%s (approved: %s)",
-				regionName, envName, env, strings.Join(allowed, ", ")))
-		}
+		return []string{"IAM mode is not permitted when " + envName + " is development (no development region is approved)"}
 	}
+	allowed, ok := regionAllowList[env]
+	switch {
+	case !ok:
+		return []string{"IAM mode requires " + envName + " to be staging or production"}
+	case !contains(allowed, region):
+		return []string{fmt.Sprintf("%s is not an approved region for %s=%s (approved: %s)",
+			regionName, envName, env, strings.Join(allowed, ", "))}
+	}
+	return nil
+}
 
+// awsRegionProblems applies H3: webhook-injected AWS regions must match.
+func awsRegionProblems(regionName string, lookup Lookup, region string) []string {
+	var problems []string
 	for _, v := range []string{"AWS_REGION", "AWS_DEFAULT_REGION"} {
 		if val, ok := lookup(v); ok && val != region {
 			problems = append(problems, v+" is set and does not match "+regionName)
 		}
 	}
+	return problems
+}
 
-	var pgSet []string
-	for _, v := range pgxEnvironment {
+// setVariables returns, in list order, the variables of names that are set.
+func setVariables(lookup Lookup, names []string) []string {
+	var set []string
+	for _, v := range names {
 		if _, ok := lookup(v); ok {
-			pgSet = append(pgSet, v)
+			set = append(set, v)
 		}
 	}
-	if len(pgSet) > 0 {
-		problems = append(problems, "IAM mode forbids PostgreSQL client environment variables; unset "+strings.Join(pgSet, ", "))
-	}
+	return set
+}
 
-	var static []string
-	for _, v := range staticAWSCredentials {
-		if _, ok := lookup(v); ok {
-			static = append(static, v)
-		}
-	}
-	if len(static) > 0 {
-		problems = append(problems, "IAM mode uses IRSA only and forbids static AWS credentials; unset "+strings.Join(static, ", "))
-	}
-
+// irsaProblems requires the IRSA role and a readable projected token file.
+func irsaProblems(lookup Lookup) []string {
+	var problems []string
 	if role, ok := lookup("AWS_ROLE_ARN"); !ok || strings.TrimSpace(role) == "" {
 		problems = append(problems, "IAM mode requires AWS_ROLE_ARN (IRSA)")
 	}
@@ -141,11 +159,7 @@ func checkIAMEnvironment(prefix string, lookup Lookup, region string) error {
 	case !readableRegularFile(tokenFile):
 		problems = append(problems, "AWS_WEB_IDENTITY_TOKEN_FILE does not name a readable regular file")
 	}
-
-	if len(problems) > 0 {
-		return fmt.Errorf("%w: %s", ErrInvalidConfig, strings.Join(problems, "; "))
-	}
-	return nil
+	return problems
 }
 
 // iamTarget is what the raw connection string says; the parsed configuration
@@ -168,14 +182,37 @@ func validateIAMDSN(name, dsn string) (iamTarget, error) {
 	if err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") || u.Opaque != "" {
 		return fail("IAM mode requires a URL-form connection string (postgres://…) (value not shown)")
 	}
-	var problems []string
-	if u.User == nil || u.User.Username() == "" {
-		problems = append(problems, "must name a database user")
-	} else if _, hasPassword := u.User.Password(); hasPassword {
-		problems = append(problems, "must not contain a password (IAM tokens are generated per connection)")
+	problems := dsnUserProblems(u)
+	hostname, port, hostProblems := dsnHostPort(u)
+	problems = append(problems, hostProblems...)
+	database := strings.TrimPrefix(u.Path, "/")
+	if database == "" || strings.Contains(database, "/") {
+		problems = append(problems, "must name exactly one database")
 	}
-	hostname := u.Hostname()
-	var port uint16
+	if u.Fragment != "" {
+		problems = append(problems, "must not contain a fragment")
+	}
+	problems = append(problems, dsnQueryProblems(u.RawQuery)...)
+	if len(problems) > 0 {
+		return fail(strings.Join(problems, "; "))
+	}
+	return iamTarget{host: hostname, port: port, user: u.User.Username(), database: database}, nil
+}
+
+// dsnUserProblems requires a user and forbids a password in the string.
+func dsnUserProblems(u *url.URL) []string {
+	if u.User == nil || u.User.Username() == "" {
+		return []string{"must name a database user"}
+	}
+	if _, hasPassword := u.User.Password(); hasPassword {
+		return []string{"must not contain a password (IAM tokens are generated per connection)"}
+	}
+	return nil
+}
+
+// dsnHostPort requires exactly one network host with an explicit port.
+func dsnHostPort(u *url.URL) (hostname string, port uint16, problems []string) {
+	hostname = u.Hostname()
 	switch {
 	case strings.Contains(u.Host, ","):
 		problems = append(problems, "must name exactly one host (the cluster writer endpoint)")
@@ -188,58 +225,69 @@ func validateIAMDSN(name, dsn string) (iamTarget, error) {
 		}
 		port = uint16(p)
 	}
-	database := strings.TrimPrefix(u.Path, "/")
-	if database == "" || strings.Contains(database, "/") {
-		problems = append(problems, "must name exactly one database")
-	}
-	if u.Fragment != "" {
-		problems = append(problems, "must not contain a fragment")
-	}
+	return hostname, port, problems
+}
 
-	q, qerr := url.ParseQuery(u.RawQuery)
-	if qerr != nil {
-		problems = append(problems, "query cannot be parsed (value not shown)")
-	} else {
-		unsupported := false
-		var named []string
-		for k, vs := range q {
-			switch {
-			case !iamQueryAllowed[k] && iamQueryNamed[k]:
-				named = append(named, k)
-			case !iamQueryAllowed[k]:
-				unsupported = true
-			case len(vs) != 1:
-				problems = append(problems, "query parameter "+k+" must appear exactly once")
-			}
-		}
-		sort.Strings(named)
-		for _, k := range named {
-			problems = append(problems, "query parameter "+k+" is not permitted in IAM mode")
-		}
-		if unsupported {
-			problems = append(problems, "an unsupported query parameter is present (name not shown)")
-		}
-		if v := q["sslmode"]; len(v) != 1 || v[0] != "verify-full" {
-			problems = append(problems, "IAM mode requires sslmode=verify-full")
-		}
-		switch v := q["sslrootcert"]; {
-		case len(v) != 1 || v[0] == "":
-			problems = append(problems, "IAM mode requires sslrootcert naming a CA bundle file")
-		case v[0] == "system":
-			problems = append(problems, "IAM mode forbids sslrootcert=system; name an explicit CA bundle file")
-		case !filepath.IsAbs(v[0]):
-			problems = append(problems, "sslrootcert must be an absolute path")
-		case !readableRegularFile(v[0]):
-			problems = append(problems, "sslrootcert does not name a readable regular file")
-		}
-		if v := q["target_session_attrs"]; len(v) != 1 || v[0] != "read-write" {
-			problems = append(problems, "IAM mode requires target_session_attrs=read-write")
+// dsnQueryProblems applies the query rules (B1, M2): only allowed
+// parameters, each once; verify-full TLS with an explicit CA file; the
+// read-write session check. Values are never echoed.
+func dsnQueryProblems(rawQuery string) []string {
+	q, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return []string{"query cannot be parsed (value not shown)"}
+	}
+	problems := dsnQueryKeyProblems(q)
+	problems = append(problems, dsnTLSProblems(q)...)
+	if v := q["target_session_attrs"]; len(v) != 1 || v[0] != "read-write" {
+		problems = append(problems, "IAM mode requires target_session_attrs=read-write")
+	}
+	return problems
+}
+
+// dsnQueryKeyProblems reports repeated allowed parameters, then refused
+// parameters whose names are safe to show (sorted), then whether any other
+// unsupported parameter is present (name not shown).
+func dsnQueryKeyProblems(q url.Values) []string {
+	var problems, named []string
+	unsupported := false
+	for k, vs := range q {
+		switch {
+		case !iamQueryAllowed[k] && iamQueryNamed[k]:
+			named = append(named, k)
+		case !iamQueryAllowed[k]:
+			unsupported = true
+		case len(vs) != 1:
+			problems = append(problems, "query parameter "+k+" must appear exactly once")
 		}
 	}
-	if len(problems) > 0 {
-		return fail(strings.Join(problems, "; "))
+	sort.Strings(named)
+	for _, k := range named {
+		problems = append(problems, "query parameter "+k+" is not permitted in IAM mode")
 	}
-	return iamTarget{host: hostname, port: port, user: u.User.Username(), database: database}, nil
+	if unsupported {
+		problems = append(problems, "an unsupported query parameter is present (name not shown)")
+	}
+	return problems
+}
+
+// dsnTLSProblems requires sslmode=verify-full and an explicit, absolute,
+// readable CA bundle (never sslrootcert=system).
+func dsnTLSProblems(q url.Values) []string {
+	var problems []string
+	if v := q["sslmode"]; len(v) != 1 || v[0] != "verify-full" {
+		problems = append(problems, "IAM mode requires sslmode=verify-full")
+	}
+	switch v := q["sslrootcert"]; {
+	case len(v) != 1 || v[0] == "":
+		problems = append(problems, "IAM mode requires sslrootcert naming a CA bundle file")
+	case v[0] == "system":
+		problems = append(problems, "IAM mode forbids sslrootcert=system; name an explicit CA bundle file")
+	case !filepath.IsAbs(v[0]):
+		problems = append(problems, "sslrootcert must be an absolute path")
+	case !readableRegularFile(v[0]):
+		problems = append(problems, "sslrootcert does not name a readable regular file")
+	}
+	return problems
 }
 
 // validateIAMParsed checks that pgx's parsed configuration is exactly what the
@@ -271,11 +319,11 @@ func validateIAMParsed(name string, want iamTarget, c *pgx.ConnConfig) error {
 }
 
 func readableRegularFile(path string) bool {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: the path is operator configuration (CA bundle or IRSA token file); probing it is the purpose
 	if err != nil {
 		return false
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck // read-only probe: a Close error carries no information about the file
 	info, err := f.Stat()
 	return err == nil && info.Mode().IsRegular()
 }

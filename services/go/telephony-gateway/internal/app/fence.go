@@ -127,18 +127,58 @@ type FenceSettings struct {
 //   - errors name variables and rules, never values or the DSN file's content.
 func LoadFence(prefix string, lookup Lookup) (FenceSettings, error) {
 	names := FenceVariables(prefix)
-	values := make([]string, len(names))
-	present := make([]bool, len(names))
-	anyPresent := false
-	for i, n := range names {
-		values[i], present[i] = lookup(n)
-		anyPresent = anyPresent || present[i]
-	}
+	values, present, anyPresent := readFenceVariables(names, lookup)
 	if !anyPresent {
 		return FenceSettings{Configured: false, Missing: names}, nil
 	}
 
-	var missing, problems []string
+	missing, problems := requiredFenceProblems(names, values, present)
+	if len(missing) > 0 {
+		return FenceSettings{}, fmt.Errorf("%w: incomplete; also set %s", ErrInvalidConfig, strings.Join(missing, ", "))
+	}
+	problems = append(problems, whitespaceProblems(names, values, present)...)
+	mode := AuthMode(values[varAuthMode])
+	problems = append(problems, authModeProblems(mode, names, values, present)...)
+	cfg, timingProblems := parseFenceTimings(names, values)
+	problems = append(problems, timingProblems...)
+	if len(problems) > 0 {
+		return FenceSettings{}, fmt.Errorf("%w: %s", ErrInvalidConfig, strings.Join(problems, "; "))
+	}
+	if err := cfg.Validate(); err != nil {
+		return FenceSettings{}, fmt.Errorf("%w: %s and %s: %w", ErrInvalidConfig, names[varInterval], names[varTimeout], err)
+	}
+
+	conn, err := fenceConnection(prefix, mode, lookup, names, values)
+	if err != nil {
+		return FenceSettings{}, err
+	}
+	s := FenceSettings{Configured: true, Mode: mode, Region: values[varRegion], Config: cfg, Conn: conn}
+	if mode == AuthIAM {
+		role, _ := lookup("AWS_ROLE_ARN")
+		tokenFile, _ := lookup("AWS_WEB_IDENTITY_TOKEN_FILE")
+		s.IAM = rdsauth.Identity{Region: values[varRegion], RoleARN: role, WebIdentityTokenFile: tokenFile}
+		if s.IAM.Validate() != nil {
+			return FenceSettings{}, fmt.Errorf("%w: the IRSA identity is incomplete or malformed (AWS_ROLE_ARN, AWS_WEB_IDENTITY_TOKEN_FILE)", ErrInvalidConfig)
+		}
+	}
+	return s, nil
+}
+
+// readFenceVariables looks up every fence variable. The anyPresent result
+// reports whether at least one is present (set, even if empty).
+func readFenceVariables(names []string, lookup Lookup) (values []string, present []bool, anyPresent bool) {
+	values = make([]string, len(names))
+	present = make([]bool, len(names))
+	for i, n := range names {
+		values[i], present[i] = lookup(n)
+		anyPresent = anyPresent || present[i]
+	}
+	return values, present, anyPresent
+}
+
+// requiredFenceProblems names the required variables (all but the region)
+// that are absent, and reports those present but empty.
+func requiredFenceProblems(names, values []string, present []bool) (missing, problems []string) {
 	for i := varDSNFile; i <= varAuthMode; i++ {
 		switch {
 		case !present[i]:
@@ -147,31 +187,48 @@ func LoadFence(prefix string, lookup Lookup) (FenceSettings, error) {
 			problems = append(problems, names[i]+" is set but empty")
 		}
 	}
-	if len(missing) > 0 {
-		return FenceSettings{}, fmt.Errorf("%w: incomplete; also set %s", ErrInvalidConfig, strings.Join(missing, ", "))
-	}
+	return missing, problems
+}
+
+// whitespaceProblems reports present values with surrounding whitespace.
+func whitespaceProblems(names, values []string, present []bool) []string {
+	var problems []string
 	for i, v := range values {
 		if present[i] && strings.TrimSpace(v) != v {
 			problems = append(problems, names[i]+" has leading or trailing whitespace")
 		}
 	}
-	mode := AuthMode(values[varAuthMode])
+	return problems
+}
+
+// authModeProblems applies the mode rules: the region is required in IAM
+// mode and must be absent in password mode (M3); any other non-empty mode is
+// invalid (an empty one is already reported as set but empty).
+func authModeProblems(mode AuthMode, names, values []string, present []bool) []string {
 	switch mode {
 	case AuthPassword:
 		if present[varRegion] {
-			problems = append(problems, names[varRegion]+" must not be set in password mode")
+			return []string{names[varRegion] + " must not be set in password mode"}
 		}
 	case AuthIAM:
 		if !present[varRegion] {
-			problems = append(problems, names[varRegion]+" is required in IAM mode")
-		} else if values[varRegion] == "" {
-			problems = append(problems, names[varRegion]+" is set but empty")
+			return []string{names[varRegion] + " is required in IAM mode"}
+		}
+		if values[varRegion] == "" {
+			return []string{names[varRegion] + " is set but empty"}
 		}
 	default:
 		if values[varAuthMode] != "" {
-			problems = append(problems, names[varAuthMode]+" must be iam or password")
+			return []string{names[varAuthMode] + " must be iam or password"}
 		}
 	}
+	return nil
+}
+
+// parseFenceTimings parses the lock key and the two durations. The Config is
+// meaningful only when no problem is reported.
+func parseFenceTimings(names, values []string) (fence.Config, []string) {
+	var problems []string
 	key, err := strconv.ParseInt(values[varLockKey], 10, 64)
 	if err != nil || key == 0 {
 		problems = append(problems, names[varLockKey]+" must be a non-zero 64-bit integer")
@@ -184,41 +241,27 @@ func LoadFence(prefix string, lookup Lookup) (FenceSettings, error) {
 	if err != nil || timeout <= 0 {
 		problems = append(problems, names[varTimeout]+" must be a positive duration")
 	}
-	if len(problems) > 0 {
-		return FenceSettings{}, fmt.Errorf("%w: %s", ErrInvalidConfig, strings.Join(problems, "; "))
-	}
-	cfg := fence.Config{LockKey: key, HeartbeatInterval: interval, HeartbeatTimeout: timeout}
-	if err := cfg.Validate(); err != nil {
-		return FenceSettings{}, fmt.Errorf("%w: %s and %s: %w", ErrInvalidConfig, names[varInterval], names[varTimeout], err)
-	}
+	return fence.Config{LockKey: key, HeartbeatInterval: interval, HeartbeatTimeout: timeout}, problems
+}
 
-	envName := prefix + "_" + EnvEnvironment
-	var conn *pgx.ConnConfig
+// fenceConnection applies the mode's environment rules and reads the DSN
+// file: password mode only with ENVIRONMENT explicitly development (R2); IAM
+// mode with the static IAM rules (iam.go). The mode is already validated.
+func fenceConnection(prefix string, mode AuthMode, lookup Lookup, names, values []string) (*pgx.ConnConfig, error) {
 	switch mode {
 	case AuthPassword:
+		envName := prefix + "_" + EnvEnvironment
 		if env, set := lookup(envName); !set || env != "development" {
-			return FenceSettings{}, fmt.Errorf("%w: password mode requires %s to be explicitly set to development", ErrInvalidConfig, envName)
+			return nil, fmt.Errorf("%w: password mode requires %s to be explicitly set to development", ErrInvalidConfig, envName)
 		}
-		conn, err = readDSNFile(names[varDSNFile], values[varDSNFile])
+		return readDSNFile(names[varDSNFile], values[varDSNFile])
 	case AuthIAM:
 		if err := checkIAMEnvironment(prefix, lookup, values[varRegion]); err != nil {
-			return FenceSettings{}, err
+			return nil, err
 		}
-		conn, err = readIAMDSN(names[varDSNFile], values[varDSNFile], values[varRegion])
+		return readIAMDSN(names[varDSNFile], values[varDSNFile], values[varRegion])
 	}
-	if err != nil {
-		return FenceSettings{}, err
-	}
-	s := FenceSettings{Configured: true, Mode: mode, Region: values[varRegion], Config: cfg, Conn: conn}
-	if mode == AuthIAM {
-		role, _ := lookup("AWS_ROLE_ARN")
-		tokenFile, _ := lookup("AWS_WEB_IDENTITY_TOKEN_FILE")
-		s.IAM = rdsauth.Identity{Region: values[varRegion], RoleARN: role, WebIdentityTokenFile: tokenFile}
-		if err := s.IAM.Validate(); err != nil {
-			return FenceSettings{}, fmt.Errorf("%w: the IRSA identity is incomplete or malformed (AWS_ROLE_ARN, AWS_WEB_IDENTITY_TOKEN_FILE)", ErrInvalidConfig)
-		}
-	}
-	return s, nil
+	return nil, nil
 }
 
 // readDSNFile reads and parses the DSN file (password mode). Errors name the
@@ -263,7 +306,7 @@ func readIAMDSN(name, path, region string) (*pgx.ConnConfig, error) {
 
 // readDSNText reads the DSN file's single line. Errors name the variable only.
 func readDSNText(name, path string) (string, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: the path is the operator-configured DSN file; reading it is the purpose
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return "", fmt.Errorf("%w: %s: the file does not exist", ErrInvalidConfig, name)
@@ -272,8 +315,8 @@ func readDSNText(name, path string) (string, error) {
 	case err != nil:
 		return "", fmt.Errorf("%w: %s: the file cannot be opened", ErrInvalidConfig, name)
 	}
-	defer f.Close()
-	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+	defer f.Close() //nolint:errcheck // read-only file, already fully read: a Close error cannot lose data
+	if info, serr := f.Stat(); serr != nil || !info.Mode().IsRegular() {
 		return "", fmt.Errorf("%w: %s: not a regular file", ErrInvalidConfig, name)
 	}
 	data, err := io.ReadAll(io.LimitReader(f, MaxDSNFileBytes+1))
@@ -296,8 +339,11 @@ func readDSNText(name, path string) (string, error) {
 // notConfigured keeps readiness false while the fence is unconfigured.
 type notConfigured struct{ missing []string }
 
+// Name implements platform.Checker: the fence's health-check name.
 func (notConfigured) Name() string { return fence.Name }
 
+// Check implements platform.Checker: always not ready (fence.ErrNotOwner),
+// naming the unset variables.
 func (n notConfigured) Check(context.Context) error {
 	return fmt.Errorf("%w: not configured; set %s", fence.ErrNotOwner, strings.Join(n.missing, ", "))
 }
@@ -339,8 +385,8 @@ func WireFence(svc *platform.Service, health *platform.Health, prefix string, lo
 		if iamCredentials == nil {
 			return nil, ErrIAMAdapterUnavailable
 		}
-		creds, err := iamCredentials(s.IAM)
-		if err != nil {
+		creds, cerr := iamCredentials(s.IAM)
+		if cerr != nil {
 			return nil, fmt.Errorf("%w: the IAM credential source could not be constructed (details withheld)", ErrInvalidConfig)
 		}
 		if dial, err = fence.PgxCredentialDialer(s.Conn, creds); err != nil {

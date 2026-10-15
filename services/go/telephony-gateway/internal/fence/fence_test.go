@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -355,6 +356,27 @@ func TestFence_ShutdownDropsOwnershipAndReleasesTheLock(t *testing.T) {
 	}
 }
 
+// P1-50: advisoryKeyParts (bit operations) equals the former unsigned
+// conversion split for every class of key, including negative keys.
+func TestAdvisoryKeyParts_MatchesTheUnsignedSplit(t *testing.T) {
+	t.Parallel()
+	keys := []int64{0, 1, -1, 42, 4242, 0x7fffffff, 0x80000000, 0xffffffff, 1 << 32, -(1 << 32),
+		-0x80000000, math.MaxInt64, math.MinInt64, math.MinInt64 + 1, 0x123456789abcdef, -0x123456789abcdef}
+	for i := int64(0); i < 64; i++ {
+		keys = append(keys, int64(1)<<i, -(int64(1) << i))
+	}
+	for _, k := range keys {
+		hi, lo := advisoryKeyParts(k)
+		wantHi, wantLo := int64(uint64(k)>>32), int64(uint64(k)&0xffffffff)
+		if hi != wantHi || lo != wantLo {
+			t.Errorf("advisoryKeyParts(%d) = %d, %d; want %d, %d", k, hi, lo, wantHi, wantLo)
+		}
+		if hi < 0 || hi > 0xffffffff || lo < 0 || lo > 0xffffffff {
+			t.Errorf("advisoryKeyParts(%d) = %d, %d: outside the oid range", k, hi, lo)
+		}
+	}
+}
+
 // Fail-closed readiness through the real platform health handler: not ready
 // until owner; not ready again after a loss.
 func TestFence_ReadinessIsFalseUnlessOwner(t *testing.T) {
@@ -372,7 +394,7 @@ func TestFence_ReadinessIsFalseUnlessOwner(t *testing.T) {
 	h.MarkReady() // the service lifecycle marks ready; the fence must still veto
 	ready := func() int {
 		rec := httptest.NewRecorder()
-		h.ReadinessHandler()(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+		h.ReadinessHandler()(rec, httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody))
 		return rec.Code
 	}
 	if ready() != http.StatusServiceUnavailable {

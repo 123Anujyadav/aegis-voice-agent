@@ -246,6 +246,13 @@ func newTestLogger(b *strings.Builder, mu *sync.Mutex) *slog.Logger {
 
 const secretText = "SECRETMARKER-reason"
 
+// sameError reports whether got is exactly the category want: it matches
+// errors.Is AND carries no further text, since redact must never wrap
+// details around a category.
+func sameError(got, want error) bool {
+	return got != nil && errors.Is(got, want) && got.Error() == want.Error()
+}
+
 type reasonErr struct{ reason, text string }
 
 func (e reasonErr) Error() string             { return e.text }
@@ -294,7 +301,7 @@ func (timeoutErr) Temporary() bool { return true }
 func TestRedact_NamesNetworkFailuresWithoutDetails(t *testing.T) {
 	t.Parallel()
 	got := redact(fmt.Errorf("connect: %w", timeoutErr{}))
-	if got != errNetwork || strings.Contains(got.Error(), "10.0.0.1") {
+	if !sameError(got, errNetwork) || strings.Contains(got.Error(), "10.0.0.1") {
 		t.Errorf("redact = %v", got)
 	}
 }

@@ -43,8 +43,8 @@ var ErrTokenUnavailable = errors.New("rdsauth: RDS IAM token unavailable (detail
 // can be logged (fence.CredentialsReason) while every detail stays withheld.
 const (
 	ReasonSTSAccessDenied         = "sts_access_denied"
-	ReasonSTSInvalidIdentityToken = "sts_invalid_identity_token"
-	ReasonSTSExpiredToken         = "sts_expired_token"
+	ReasonSTSInvalidIdentityToken = "sts_invalid_identity_token" //nolint:gosec // G101: a failure-reason label, not a credential
+	ReasonSTSExpiredToken         = "sts_expired_token"          //nolint:gosec // G101: a failure-reason label, not a credential
 	ReasonSTSIdentityProvider     = "sts_identity_provider_error"
 	ReasonSTSRegionDisabled       = "sts_region_disabled"
 	ReasonSTSThrottled            = "sts_throttled"

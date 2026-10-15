@@ -333,7 +333,7 @@ func TestTiming_WirePhasesOverVerifyFullTLS(t *testing.T) {
 
 	bad, badHandshakes := fakeAuthPostgres(t, newTestCA(t, "untrusted-ca").leaf(t, "localhost", net.ParseIP("127.0.0.1")))
 	got, err = dialOnce(t, dsn("127.0.0.1", bad))
-	if err == nil || redact(err) != errTLSVerification {
+	if err == nil || !sameError(redact(err), errTLSVerification) {
 		t.Fatalf("untrusted certificate: err %v (redacted %v)", err, redact(err))
 	}
 	wantPhases(t, "bad certificate", got, []string{PhaseCredentials, PhaseDNS, PhaseTCP, PhaseTLS, PhaseConnect}, []string{PhaseAuth, PhaseSessionCheck})

@@ -28,12 +28,18 @@ const fenceTestDSNEnv = "CS_TELEPHONY_GATEWAY_FENCE_TEST_DSN"
 func freePorts(t *testing.T, n int) []int {
 	t.Helper()
 	ports := make([]int, n)
+	listeners := make([]net.Listener, 0, n)
+	defer func() {
+		for _, l := range listeners {
+			_ = l.Close()
+		}
+	}()
 	for i := range ports {
 		l, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer l.Close()
+		listeners = append(listeners, l)
 		ports[i] = l.Addr().(*net.TCPAddr).Port
 	}
 	return ports

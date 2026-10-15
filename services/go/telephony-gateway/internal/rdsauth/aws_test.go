@@ -33,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/callscreen/callscreen-platform/services/go/telephony-gateway/internal/fence"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // P1-A1 (A2/A3) — the AWS SDK binding, OFFLINE: a local fake STS and a local
@@ -297,9 +298,10 @@ func TestAWS_AnUnreadableWebIdentityTokenFileFailsWithoutContactingSTS(t *testin
 }
 
 // The SDK's credentials cache runs the STS exchange with the caller's
-// cancellation suppressed. guardedProvider re-binds it to the dial: a hung STS
-// call is abandoned when the dial's context ends, and it does not block the
-// next dial.
+// cancellation suppressed. The guardedProvider re-binds it to the dial: a hung
+// STS call is abandoned when the dial's context ends, and it does not block
+// the next dial. (The tests below prove it.)
+
 // tripContext is a dial context whose deadline the TEST triggers: trip()
 // closes Done, and Err then reports context.DeadlineExceeded — exactly what a
 // timer deadline does to the code under test, which observes a dial's end
@@ -354,7 +356,7 @@ func hungSTS(t *testing.T) (f *fakeSTS, arrived, abandoned <-chan struct{}) {
 }
 
 // startPassword runs Password in the background and returns its result.
-func startPassword(s *Source, ctx context.Context) <-chan error {
+func startPassword(ctx context.Context, s *Source) <-chan error {
 	res := make(chan error, 1)
 	go func() { _, err := s.Password(ctx, writerHost, 5432, "fence_iam"); res <- err }()
 	return res
@@ -384,7 +386,7 @@ func TestAWS_AHungSTSIsBoundedByTheDialAndDoesNotBlockTheNext(t *testing.T) {
 	s := f.source(t, identityWithTokenFile(t))
 
 	ctx := newTripContext(t)
-	res := startPassword(s, ctx)
+	res := startPassword(ctx, s)
 	awaitArrival(t, arrived, res)
 	select {
 	case err := <-res:
@@ -434,7 +436,7 @@ func TestAWS_ATimerDeadlineEndsAPasswordOnAHungSTS(t *testing.T) {
 	f, _, _ := hungSTS(t)
 	s := f.source(t, identityWithTokenFile(t))
 	select {
-	case err := <-startPassword(s, testCtx(t, 300*time.Millisecond)):
+	case err := <-startPassword(testCtx(t, 300*time.Millisecond), s):
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("err = %v, want DeadlineExceeded", err)
 		}
@@ -620,37 +622,88 @@ func TestAWS_TokensReachPostgresOnlyOverVerifiedTLS(t *testing.T) {
 		return d
 	}
 
+	// Every dial must end in one of two ways: the server's refusal (SQLSTATE
+	// 28P01, so the token reached PostgreSQL over verified TLS), or the
+	// HARNESS's per-dial bound (DeadlineExceeded) on a starved host — the
+	// fail-closed path, possibly before any token was sent (P1-50, F-10: the
+	// old test counted such a dial as a connection that should carry a
+	// token). Anything else fails. Dials repeat (bounded) until two dials
+	// were REFUSED: the server answers only after it has recorded the token,
+	// so a refusal proves that dial's token arrived, whatever the scheduler
+	// does afterwards (P1-51: counting recorded tokens instead could stop
+	// after a token whose refusal the starved client never read).
+	const maxDials = 8 // liveness bound for a loaded host, not a product value
 	port, passwords, conns := fakePostgres(t, leaf(caCert, caKey, net.ParseIP("127.0.0.1")))
 	dial := dialer(port)
-	for i := 0; i < 2; i++ {
-		if i > 0 {
+	refused, timedOut := 0, 0
+	for attempt := 0; refused < 2; attempt++ {
+		if attempt == maxDials {
+			t.Fatalf("only %d of %d dials were refused by the server (%d at the harness deadline, %d tokens recorded)",
+				refused, maxDials, timedOut, len(passwords()))
+		}
+		if attempt > 0 {
 			time.Sleep(1100 * time.Millisecond) // SigV4 dates have one-second resolution
 		}
-		if sess, err := dial(testCtx(t, 5*time.Second)); err == nil || sess != nil {
-			t.Fatalf("dial %d succeeded against a server that refuses every login", i)
+		sess, err := dial(testCtx(t, 5*time.Second))
+		var pgErr *pgconn.PgError
+		switch {
+		case err == nil || sess != nil:
+			t.Fatalf("dial %d succeeded against a server that refuses every login", attempt)
+		case errors.As(err, &pgErr) && pgErr.Code == "28P01":
+			refused++
+		case errors.Is(err, context.DeadlineExceeded):
+			timedOut++ // the harness bound, not a product timing: fail closed
+		default:
+			t.Fatalf("dial %d: neither the server's refusal nor the harness deadline: %v", attempt, err)
 		}
 	}
 	got := passwords()
-	if len(got) != 2 || conns.Load() != 2 {
-		t.Fatalf("passwords = %d, connections = %d; want 2 and 2", len(got), conns.Load())
+	// A password is recorded only by a handler of an accepted connection, so
+	// reading passwords before conns makes this a strict invariant.
+	if n := conns.Load(); int64(len(got)) > n {
+		t.Fatalf("passwords = %d over %d connections; at most one token per connection", len(got), n)
 	}
+	if len(got) < refused {
+		t.Fatalf("%d refused dials but only %d recorded tokens; every refusal follows a received token", refused, len(got))
+	}
+	seen := map[string]bool{}
 	for _, p := range got {
 		parseToken(t, p, "127.0.0.1:"+strconv.Itoa(port), "fence_iam")
-	}
-	if got[0] == got[1] {
-		t.Error("the second connection reused the first token")
+		if seen[p] {
+			t.Error("a connection reused an earlier token")
+		}
+		seen[p] = true
 	}
 
-	// A certificate from another CA: the dial fails and no token is sent.
+	// A certificate from another CA: the dial fails at certificate
+	// verification and NO token is sent. The test requires a dial that really
+	// reached the server and failed verification (not one that only hit the
+	// harness deadline first), so it cannot pass without exercising TLS.
 	otherCA, otherKey, _ := testCert(t, nil, nil, &x509.Certificate{
 		Subject: pkix.Name{CommonName: "other-ca"}, IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign,
 	})
 	badPort, badPasswords, badConns := fakePostgres(t, leaf(otherCA, otherKey, net.ParseIP("127.0.0.1")))
-	if _, err := dialer(badPort)(testCtx(t, 5*time.Second)); err == nil {
-		t.Fatal("connected to a server with an untrusted certificate")
+	verified := false
+	for attempt := 0; !verified; attempt++ {
+		if attempt == maxDials {
+			t.Fatalf("no dial reached certificate verification in %d attempts", maxDials)
+		}
+		_, err := dialer(badPort)(testCtx(t, 5*time.Second))
+		var certErr *tls.CertificateVerificationError
+		switch {
+		case err == nil:
+			t.Fatal("connected to a server with an untrusted certificate")
+		case errors.As(err, &certErr):
+			verified = true
+		case !errors.Is(err, context.DeadlineExceeded):
+			t.Fatalf("untrusted server: neither a verification failure nor the harness deadline: %v", err)
+		}
+		if n := len(badPasswords()); n != 0 {
+			t.Fatalf("untrusted server received %d passwords; want 0", n)
+		}
 	}
-	if len(badPasswords()) != 0 || badConns.Load() != 1 {
-		t.Errorf("untrusted server received %d passwords over %d connections; want 0 over 1", len(badPasswords()), badConns.Load())
+	if badConns.Load() < 1 {
+		t.Error("the untrusted server saw no connection, yet verification was reported")
 	}
 }
 
@@ -802,7 +855,7 @@ func TestAWS_SubPhasesWhenTheDialTimesOutDuringARefresh(t *testing.T) {
 	s := f.source(t, identityWithTokenFile(t))
 	tm := fence.NewTimings()
 	ctx := newTripContext(t)
-	res := startPassword(s, fence.WithTimings(ctx, tm))
+	res := startPassword(fence.WithTimings(ctx, tm), s)
 	awaitArrival(t, arrived, res)
 	ctx.trip()
 	select {
@@ -981,7 +1034,8 @@ func checkDialRecords(t *testing.T, phases []map[string]any) (credentialed []map
 				t.Errorf("record %d: sub-phases (%v) exceed %s (%v)", i, sts+sign, fence.PhaseCredentials, total)
 			}
 			if outcome == string(fence.STSCredentialsRefreshed) {
-				if refreshed++; refreshed > 1 {
+				refreshed++
+				if refreshed > 1 {
 					t.Errorf("record %d: a second successful refresh of hour-long credentials", i)
 				}
 			} else if refreshed == 0 && !gaveUp {

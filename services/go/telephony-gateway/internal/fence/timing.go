@@ -73,7 +73,7 @@ const (
 	// PhaseCredentialsSTS and PhaseCredentialsSign are reported by a
 	// Credentials source (RecordCredentialPhase) and nest inside
 	// PhaseCredentials.
-	PhaseCredentialsSTS  = "login_prepare_sts"
+	PhaseCredentialsSTS  = "login_prepare_sts" //nolint:gosec // G101: a log field name, not a credential
 	PhaseCredentialsSign = "login_prepare_sign"
 	PhaseDNS             = "dns"
 	PhaseTCP             = "tcp"
@@ -101,22 +101,23 @@ var phaseOrder = []string{
 type STSCredentialsOutcome string
 
 const (
-	// STSCredentialsReused: valid credentials were returned and this call did
-	// not run the STS exchange itself (cached; or it joined an exchange
+	// STSCredentialsReused means valid credentials were returned and this
+	// call did not run the STS exchange itself (cached; or it joined an exchange
 	// another caller had started — the fence has one dialer, so in practice
 	// cached).
 	STSCredentialsReused STSCredentialsOutcome = "reused"
-	// STSCredentialsRefreshed: this call ran the STS exchange and it returned
-	// credentials that passed validation. Recorded only after that.
+	// STSCredentialsRefreshed means this call ran the STS exchange and it
+	// returned credentials that passed validation. Recorded only after that.
 	STSCredentialsRefreshed STSCredentialsOutcome = "refreshed"
-	// STSCredentialsRefreshFailed: this call ran the STS exchange and it
+	// STSCredentialsRefreshFailed means this call ran the STS exchange and it
 	// failed (error, panic or unusable credentials).
 	STSCredentialsRefreshFailed STSCredentialsOutcome = "refresh_failed"
-	// STSCredentialsRefreshIncomplete: this call started the STS exchange but
-	// stopped waiting (its context ended) before the exchange finished.
+	// STSCredentialsRefreshIncomplete means this call started the STS
+	// exchange but stopped waiting (its context ended) before it finished.
 	STSCredentialsRefreshIncomplete STSCredentialsOutcome = "refresh_incomplete"
-	// STSCredentialsUnavailable: no credentials, and this call did not run
-	// the exchange (for example it was cancelled while another refresh ran).
+	// STSCredentialsUnavailable means no credentials, and this call did not
+	// run the exchange (for example it was cancelled while another refresh
+	// ran).
 	STSCredentialsUnavailable STSCredentialsOutcome = "unavailable"
 )
 
@@ -177,6 +178,8 @@ func (t *Timings) STSCredentials() STSCredentialsOutcome {
 	return t.sts
 }
 
+// NewTimings returns an empty collector for one acquisition attempt or one
+// heartbeat.
 func NewTimings() *Timings { return &Timings{d: make(map[string]time.Duration, len(phaseOrder))} }
 
 func (t *Timings) set(phase string, d time.Duration) {
@@ -221,6 +224,8 @@ func (t *Timings) attr() slog.Attr {
 
 type timingsKey struct{}
 
+// WithTimings returns ctx carrying t, so the dial's hooks and a Credentials
+// source record into it.
 func WithTimings(ctx context.Context, t *Timings) context.Context {
 	return context.WithValue(ctx, timingsKey{}, t)
 }
@@ -228,13 +233,17 @@ func WithTimings(ctx context.Context, t *Timings) context.Context {
 // timingsFrom returns the attempt's collector, or nil (recording is a no-op)
 // for a context that carries none.
 func timingsFrom(ctx context.Context) *Timings {
-	t, _ := ctx.Value(timingsKey{}).(*Timings)
+	t, ok := ctx.Value(timingsKey{}).(*Timings)
+	if !ok {
+		return nil
+	}
 	return t
 }
 
 // instrumentedConnect connects with pgx, recording the dns, tcp, tls, auth,
-// session_check and connect phases into ctx's collector. c must be a per-dial
-// copy: its hooks are replaced by timing wrappers around the originals.
+// session_check and connect phases into ctx's collector. The config c must be
+// a per-dial copy: its hooks are replaced by timing wrappers around the
+// originals.
 func instrumentedConnect(ctx context.Context, c *pgx.ConnConfig) (*pgx.Conn, error) {
 	t := timingsFrom(ctx)
 	if t == nil {

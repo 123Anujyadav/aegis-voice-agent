@@ -116,7 +116,7 @@ func TestLoadFence_InvalidOrPartialConfigurationIsRefusedWithoutEchoingValues(t 
 
 func readiness(h *platform.Health) (int, string) {
 	rec := httptest.NewRecorder()
-	h.ReadinessHandler()(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	h.ReadinessHandler()(rec, httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody))
 	return rec.Code, rec.Body.String()
 }
 
@@ -125,12 +125,18 @@ func newService(t *testing.T) (*platform.Service, *platform.Health, platform.Ser
 	// Both listeners stay open until both ports are known, so the OS cannot
 	// hand out the same free port twice (a flake seen under -count=2).
 	var ports [2]int
+	var listeners []net.Listener
+	defer func() {
+		for _, l := range listeners {
+			_ = l.Close()
+		}
+	}()
 	for i := range ports {
 		l, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer l.Close()
+		listeners = append(listeners, l)
 		ports[i] = l.Addr().(*net.TCPAddr).Port
 	}
 	cfg := platform.ServiceConfig{

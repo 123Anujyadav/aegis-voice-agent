@@ -74,7 +74,7 @@ func writeCA(t *testing.T, dir string) string {
 // for it is ever made.
 const writerHost = "telephony.cluster-abc123def456.ap-south-1.rds.amazonaws.com"
 
-func iamDSNWith(ca string, extra string) string {
+func iamDSNWith(ca, extra string) string {
 	return iamDSNFor(writerHost, ca, extra)
 }
 

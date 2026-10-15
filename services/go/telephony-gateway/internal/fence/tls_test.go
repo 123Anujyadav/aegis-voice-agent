@@ -139,7 +139,7 @@ func TestVerifyFullRefusesABadServerCertificateWithoutFallback(t *testing.T) {
 		cancel()
 		if err == nil {
 			t.Errorf("%s: connected despite a bad certificate", name)
-		} else if redact(err) != errTLSVerification {
+		} else if !sameError(redact(err), errTLSVerification) {
 			t.Errorf("%s: redacted as %q, want the TLS verification category", name, redact(err))
 		}
 		if got := conns.Load(); got != 1 {

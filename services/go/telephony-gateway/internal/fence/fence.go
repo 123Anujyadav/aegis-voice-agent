@@ -148,7 +148,7 @@ type Fence struct {
 	started  bool
 }
 
-// New builds a fence. log is required.
+// New builds a fence. The logger is required.
 func New(cfg Config, dial Dialer, log *slog.Logger) (*Fence, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -229,7 +229,9 @@ func (f *Fence) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			break
 		}
-		_ = f.sleep(ctx, f.cfg.HeartbeatInterval)
+		if f.sleep(ctx, f.cfg.HeartbeatInterval) != nil {
+			break // the pause ended because ctx did: stopping
+		}
 	}
 	return nil
 }
@@ -245,7 +247,7 @@ func (f *Fence) holdOnce(ctx context.Context) {
 		f.log.WarnContext(ctx, "fence: cannot open a database session", slog.String("error", redact(err).Error()), t.attr())
 		return
 	}
-	defer f.release(sess)
+	defer f.release(ctx, sess)
 
 	pctx, pcancel := context.WithTimeout(ctx, f.cfg.HeartbeatTimeout)
 	var primary bool
@@ -326,13 +328,15 @@ func (f *Fence) lose() {
 
 // release ends ownership FIRST, then unlocks and closes the session, each
 // bounded, ignoring failures (a session the server cannot reach is released by
-// the server when it notices).
-func (f *Fence) release(sess Session) {
+// the server when it notices). The bound is a fresh timeout detached from
+// ctx's cancellation: release usually runs because ctx was just cancelled,
+// and must still try.
+func (f *Fence) release(ctx context.Context, sess Session) {
 	f.lose()
-	ctx, cancel := context.WithTimeout(context.Background(), f.cfg.HeartbeatTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), f.cfg.HeartbeatTimeout)
 	defer cancel()
-	_ = sess.Unlock(ctx, f.cfg.LockKey)
-	_ = sess.Close(ctx)
+	_ = sess.Unlock(ctx, f.cfg.LockKey) //nolint:errcheck // best effort after lose(): ownership is already dropped (fail closed)
+	_ = sess.Close(ctx)                 //nolint:errcheck // best effort: an unreachable session is released by the server
 }
 
 // Shutdown implements platform.Runner: stop, drop ownership, release the lock,
@@ -359,7 +363,7 @@ func (f *Fence) Shutdown(ctx context.Context) error {
 // ---------------------------------------------------------------------------
 
 // PgxDialer opens a dedicated pgx connection (not a pool) for each session.
-// cfg is copied per dial.
+// Each dial uses its own copy of cfg.
 func PgxDialer(cfg *pgx.ConnConfig) Dialer {
 	return func(ctx context.Context) (Session, error) {
 		conn, err := instrumentedConnect(ctx, cfg.Copy())
@@ -391,6 +395,7 @@ func (e credentialsError) Error() string {
 	return "fence: database credentials unavailable: " + e.reason + " (details withheld)"
 }
 
+// Is makes every credentialsError match ErrCredentialsUnavailable.
 func (e credentialsError) Is(target error) bool { return target == ErrCredentialsUnavailable }
 
 func safeReason(r string) bool {
@@ -471,12 +476,14 @@ func ParseDSN(dsn string) (*pgx.ConnConfig, error) {
 
 type pgSession struct{ conn *pgx.Conn }
 
+// Primary implements Session: the server is not in recovery.
 func (s pgSession) Primary(ctx context.Context) (bool, error) {
 	var primary bool
 	err := s.conn.QueryRow(ctx, `SELECT NOT pg_is_in_recovery()`).Scan(&primary)
 	return primary, err
 }
 
+// TryLock implements Session with pg_try_advisory_lock (never waits).
 func (s pgSession) TryLock(ctx context.Context, key int64) (bool, error) {
 	var ok bool
 	err := s.conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1::bigint)`, key).Scan(&ok)
@@ -486,8 +493,7 @@ func (s pgSession) TryLock(ctx context.Context, key int64) (bool, error) {
 // Holds asks pg_locks about THIS backend. A bigint advisory key is stored as
 // classid = high 32 bits, objid = low 32 bits, objsubid = 1.
 func (s pgSession) Holds(ctx context.Context, key int64) (bool, error) {
-	hi := int64(uint64(key) >> 32)
-	lo := int64(uint64(key) & 0xffffffff)
+	hi, lo := advisoryKeyParts(key)
 	var held bool
 	err := s.conn.QueryRow(ctx, `SELECT NOT pg_is_in_recovery() AND EXISTS (
     SELECT 1 FROM pg_locks
@@ -496,11 +502,19 @@ func (s pgSession) Holds(ctx context.Context, key int64) (bool, error) {
 	return held, err
 }
 
+// advisoryKeyParts splits a bigint advisory-lock key as pg_locks stores it:
+// the high and the low 32 bits, each as an unsigned value (0 … 2^32-1).
+func advisoryKeyParts(key int64) (hi, lo int64) {
+	return (key >> 32) & 0xffffffff, key & 0xffffffff
+}
+
+// Unlock implements Session with pg_advisory_unlock.
 func (s pgSession) Unlock(ctx context.Context, key int64) error {
 	_, err := s.conn.Exec(ctx, `SELECT pg_advisory_unlock($1::bigint)`, key)
 	return err
 }
 
+// Close implements Session: it ends the connection.
 func (s pgSession) Close(ctx context.Context) error { return s.conn.Close(ctx) }
 
 // Fixed, detail-free categories for failures redact cannot otherwise name.
