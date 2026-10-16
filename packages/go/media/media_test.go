@@ -859,6 +859,108 @@ func TestConfig_RefusesASweepSlowerThanTheStallTimeout(t *testing.T) {
 	}
 }
 
+// budgetStore records the deadline Stop gives the shutdown snapshot write.
+type budgetStore struct {
+	*MemoryStreamStore
+	budget chan time.Duration
+}
+
+func (b budgetStore) SaveBatch(ctx context.Context, snaps []StreamSnapshot) error {
+	if dl, ok := ctx.Deadline(); ok {
+		select {
+		case b.budget <- time.Until(dl):
+		default: // only the first write is measured
+		}
+	}
+	return b.MemoryStreamStore.SaveBatch(ctx, snaps)
+}
+
+// The shutdown snapshot gets SnapshotTimeout, and DrainTimeout when that is
+// zero, so the production default (zero) keeps the budget it always had.
+func TestStop_SnapshotBudgetIsSnapshotTimeoutOrDrainTimeout(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		snapshot time.Duration
+		atMost   time.Duration // upper bound: the configured budget
+		// over is a lower bound proving the drain budget did not apply; zero
+		// means unchecked (a starved process may already be past the deadline).
+		over time.Duration
+	}{
+		"zero falls back to DrainTimeout": {snapshot: 0, atMost: 50 * time.Millisecond},
+		"its own budget":                  {snapshot: time.Minute, atMost: time.Minute, over: 50 * time.Millisecond},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg := TestConfig()
+			cfg.DrainTimeout = 50 * time.Millisecond
+			cfg.SnapshotTimeout = tc.snapshot
+			store := budgetStore{NewMemoryStreamStore(), make(chan time.Duration, 1)}
+			h := harness(t, WithHarnessConfig(cfg))
+			r, err := New(cfg, WithClock(h.Clock), WithStreamStore(store))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.Background()
+			if _, err := r.Start(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := r.Coordinator().Open(ctx, h.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := r.Stop(ctx); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case got := <-store.budget:
+				if got > tc.atMost || (tc.over > 0 && got <= tc.over) {
+					t.Errorf("snapshot budget = %v, want in (%v, %v]", got, tc.over, tc.atMost)
+				}
+			default:
+				t.Fatal("Stop did not write a snapshot for a live stream")
+			}
+		})
+	}
+}
+
+func TestConfig_RefusesANegativeSnapshotTimeout(t *testing.T) {
+	t.Parallel()
+	cfg := TestConfig()
+	cfg.SnapshotTimeout = -time.Second
+	var found bool
+	for _, p := range cfg.validate() {
+		if strings.Contains(p, "SnapshotTimeout") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("a negative snapshot timeout was accepted")
+	}
+}
+
+// Zero SnapshotTimeout must mean the drain budget, never a zero one: a zero
+// budget would fail every production shutdown snapshot instantly. Checked on
+// the resolver itself, so no timing is involved.
+func TestConfig_SnapshotTimeoutZeroMeansDrainTimeout(t *testing.T) {
+	t.Parallel()
+
+	def := DefaultConfig()
+	if got := def.snapshotTimeout(); got != def.DrainTimeout || got <= 0 {
+		t.Errorf("default snapshot budget = %v, want DrainTimeout %v", got, def.DrainTimeout)
+	}
+
+	zero := DefaultConfig()
+	zero.SnapshotTimeout = 0
+	if got := zero.snapshotTimeout(); got != zero.DrainTimeout {
+		t.Errorf("snapshot budget with SnapshotTimeout 0 = %v, want DrainTimeout %v", got, zero.DrainTimeout)
+	}
+
+	own := DefaultConfig()
+	own.SnapshotTimeout = time.Minute
+	if got := own.snapshotTimeout(); got != time.Minute {
+		t.Errorf("snapshot budget = %v, want the configured %v", got, time.Minute)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------

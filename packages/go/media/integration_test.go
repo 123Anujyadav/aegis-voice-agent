@@ -744,8 +744,12 @@ func TestFailure_StallDetection(t *testing.T) {
 	h.Clock.Advance(h.Runtime.Config().StallTimeout + time.Second)
 	stalled := h.Runtime.Sweep(ctx)
 
-	if stalled != 1 {
-		t.Errorf("Sweep detected %d stalls, want 1", stalled)
+	// Advance also fires the runtime's own sweepLoop ticker, so that sweep may
+	// claim the stall first and this call then reports 0. Which sweeper wins is
+	// scheduling; what must hold either way is asserted below: the stream is
+	// timed out, and exactly once.
+	if stalled != 0 && stalled != 1 {
+		t.Errorf("Sweep detected %d stalls, want at most 1", stalled)
 	}
 	if s.State() != StateTimeout {
 		t.Errorf("state = %s after the stall deadline, want timeout", s.State())
@@ -754,6 +758,24 @@ func TestFailure_StallDetection(t *testing.T) {
 	// terminal.
 	if !s.State().HoldsResources() {
 		t.Error("a timed-out stream reports holding no resources")
+	}
+
+	// Stop joins sweepLoop, so a background sweep's bookkeeping (history and
+	// metric, recorded after the state change) is complete before counting.
+	if _, err := h.Runtime.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	timeouts := 0
+	for _, rec := range s.History() {
+		if rec.To == StateTimeout && rec.Reason == "stall_deadline" {
+			timeouts++
+		}
+	}
+	if timeouts != 1 {
+		t.Errorf("stream timed out %d times for one stall, want exactly 1", timeouts)
+	}
+	if got := h.Metrics.Transitions.Value(string(StateActive), string(StateTimeout)); got != 1 {
+		t.Errorf("active->timeout transitions = %d, want exactly 1", got)
 	}
 }
 
@@ -948,9 +970,27 @@ func TestRestore_RefusesTerminalAndUnreadableSnapshots(t *testing.T) {
 	}
 }
 
+// snapshotConfig is TestConfig for a test whose assertions need Stop's
+// shutdown snapshot to be written. That write has a REAL-time budget, and a
+// starved process (a loaded CI runner, -race) can outlast any fixed one; the
+// test would then fail on an empty store, not on what it tests. So the budget
+// is the time left before the test's own deadline: bounded by the test
+// timeout rather than by a guessed duration, as FakeClock.BlockUntil is.
+// Without a deadline (-timeout 0) TestConfig's budget stands.
+func snapshotConfig(t *testing.T) Config {
+	t.Helper()
+	cfg := TestConfig()
+	if dl, ok := t.Deadline(); ok {
+		if left := time.Until(dl); left > cfg.SnapshotTimeout {
+			cfg.SnapshotTimeout = left
+		}
+	}
+	return cfg
+}
+
 func TestRecovery_ConcludesStreamsWithNoSource(t *testing.T) {
 	t.Parallel()
-	first := started(t)
+	first := started(t, WithHarnessConfig(snapshotConfig(t)))
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
@@ -992,7 +1032,7 @@ func TestRecovery_ConcludesStreamsWithNoSource(t *testing.T) {
 
 func TestRecovery_ResumesStreamsWithAnAttachedSource(t *testing.T) {
 	t.Parallel()
-	cfg := TestConfig()
+	cfg := snapshotConfig(t)
 	cfg.Snapshot = SnapshotConfig{IncludeAudio: true, MaxAudioFrames: 10}
 
 	first := started(t, WithHarnessConfig(cfg))
@@ -1076,7 +1116,7 @@ func TestRecovery_IsDeterministic(t *testing.T) {
 	ctx := context.Background()
 
 	sequence := func() []StreamID {
-		h := started(t)
+		h := started(t, WithHarnessConfig(snapshotConfig(t)))
 		for i := 0; i < 5; i++ {
 			if _, err := h.Open(ctx); err != nil {
 				t.Fatal(err)
@@ -1158,7 +1198,7 @@ func TestShutdown_TerminatesWithLiveStreams(t *testing.T) {
 
 func TestShutdown_SnapshotsAndIsIdempotent(t *testing.T) {
 	t.Parallel()
-	h := started(t)
+	h := started(t, WithHarnessConfig(snapshotConfig(t)))
 	ctx := context.Background()
 
 	for i := 0; i < 4; i++ {

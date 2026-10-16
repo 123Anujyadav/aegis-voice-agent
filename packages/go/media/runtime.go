@@ -66,6 +66,13 @@ type Config struct {
 	// [MediaRuntime.drain].
 	DrainTimeout time.Duration
 
+	// SnapshotTimeout bounds the shutdown snapshot write that follows the
+	// drain, also in REAL time. Zero means DrainTimeout, which is what the
+	// snapshot has always been given. It is separate so that a short drain
+	// (tests keep it short because a drain with live streams waits it out)
+	// does not also starve the snapshot that recovery depends on.
+	SnapshotTimeout time.Duration
+
 	// SweepInterval is how often the stall sweeper runs.
 	SweepInterval time.Duration
 
@@ -142,6 +149,9 @@ func (c Config) validate() []string {
 	if c.PumpInterval < 0 {
 		problems = append(problems, "config: PumpInterval must not be negative")
 	}
+	if c.SnapshotTimeout < 0 {
+		problems = append(problems, "config: SnapshotTimeout must not be negative")
+	}
 
 	// The sweeper cannot enforce a deadline shorter than its own period.
 	if c.SweepInterval > 0 && c.StallTimeout > 0 && c.SweepInterval > c.StallTimeout {
@@ -160,6 +170,15 @@ func (c Config) validate() []string {
 
 	problems = append(problems, c.Pipeline.validate()...)
 	return problems
+}
+
+// snapshotTimeout is the shutdown snapshot's real-time budget: SnapshotTimeout,
+// or DrainTimeout when it is zero.
+func (c Config) snapshotTimeout() time.Duration {
+	if c.SnapshotTimeout > 0 {
+		return c.SnapshotTimeout
+	}
+	return c.DrainTimeout
 }
 
 // Option customises a runtime.
@@ -310,7 +329,7 @@ func (r *MediaRuntime) Stop(ctx context.Context) (int, error) {
 	abandoned := r.drain(ctx)
 
 	if r.store != nil {
-		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cfg.DrainTimeout)
+		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cfg.snapshotTimeout())
 		if n, err := r.snapshotAll(sctx); err != nil {
 			r.logger.ErrorContext(ctx, "shutdown snapshot failed; live streams will not recover",
 				slog.String("error", err.Error()))
