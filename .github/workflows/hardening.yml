@@ -51,7 +51,8 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: "1.25.x"
+  # Matches pr-go.yml: a supported release line (see the note there).
+  GO_VERSION: "1.26.x"
   GOTOOLCHAIN: "local"
   GOFLAGS: "-mod=readonly"
   # The AI plane. Listed explicitly rather than discovered, because these are
