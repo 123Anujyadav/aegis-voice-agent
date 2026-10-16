@@ -1459,8 +1459,10 @@ func TestStress_LongRunningStreamDoesNotGrow(t *testing.T) {
 	t.Logf("clock: %s", stats.Clock)
 }
 
-var _ = fmt.Sprintf
-var _ = strings.Contains
+var (
+	_ = fmt.Sprintf
+	_ = strings.Contains
+)
 
 // ---------------------------------------------------------------------------
 // Jitter window

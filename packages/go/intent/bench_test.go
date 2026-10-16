@@ -291,7 +291,8 @@ func BenchmarkClassify_ConcurrencyScaling(b *testing.B) {
 		b.Run(fmt.Sprintf("goroutines=%d", goroutines), func(b *testing.B) {
 			c := benchClassifier(b)
 			u := conversation.Utterance{
-				Text: "please call me back on 9876543210", ASRConfidence: 0.95}
+				Text: "please call me back on 9876543210", ASRConfidence: 0.95,
+			}
 
 			if cands, _, err := c.Classify(u, conversation.ExpectNothing); err != nil ||
 				len(cands) != 1 {

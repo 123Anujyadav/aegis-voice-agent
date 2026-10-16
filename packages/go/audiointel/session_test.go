@@ -148,8 +148,10 @@ func TestRuntime_RefusesInvalidSessionContext(t *testing.T) {
 		{"bad direction", SessionContext{Direction: "sideways", Format: h.Config.Format}},
 		{"stereo", SessionContext{
 			Direction: DirectionInbound,
-			Format: media.AudioFormat{Format: media.FormatPCM16,
-				Layout: media.LayoutStereo, Rate: media.Rate8kHz, Codec: media.CodecPCM},
+			Format: media.AudioFormat{
+				Format: media.FormatPCM16,
+				Layout: media.LayoutStereo, Rate: media.Rate8kHz, Codec: media.CodecPCM,
+			},
 		}},
 		{"malformed call identifier", SessionContext{
 			Call: "Call With Spaces", Direction: DirectionInbound, Format: h.Config.Format,

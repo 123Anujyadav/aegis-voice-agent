@@ -30,8 +30,10 @@ const (
 
 // AllDropReasons returns every reason.
 func AllDropReasons() []DropReason {
-	return []DropReason{DropInvalid, DropFormat, DropLate, DropDuplicate,
-		DropTooEarly, DropBufferFull, DropNotAccepting, DropTimestamp, DropOversized}
+	return []DropReason{
+		DropInvalid, DropFormat, DropLate, DropDuplicate,
+		DropTooEarly, DropBufferFull, DropNotAccepting, DropTimestamp, DropOversized,
+	}
 }
 
 // PipelineResult describes what happened to one frame.
@@ -157,8 +159,8 @@ type Pipeline struct {
 	// droppedTotal mirrors the sum of dropped, so the pump loop can read it
 	// without copying the map. See DroppedTotal.
 	droppedTotal uint64
-	gaps      uint64
-	gapFrames uint64
+	gaps         uint64
+	gapFrames    uint64
 }
 
 // NewPipeline builds a pipeline.

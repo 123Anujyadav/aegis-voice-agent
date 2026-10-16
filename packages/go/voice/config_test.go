@@ -391,17 +391,25 @@ func TestConfig_EveryFieldHasARejectingCase(t *testing.T) {
 		{"FrameInterval", func(c *Config) { c.FrameInterval = 0 }, "FrameInterval"},
 		{"MaxSessions", func(c *Config) { c.MaxSessions = 0 }, "MaxSessions"},
 		{"TurnTimeout", func(c *Config) { c.TurnTimeout = 0 }, "TurnTimeout"},
-		{"MaxTranscriptChars", func(c *Config) { c.MaxTranscriptChars = 0 },
-			"MaxTranscriptChars"},
-		{"MaxResponseChars", func(c *Config) { c.MaxResponseChars = 0 },
-			"MaxResponseChars"},
+		{
+			"MaxTranscriptChars", func(c *Config) { c.MaxTranscriptChars = 0 },
+			"MaxTranscriptChars",
+		},
+		{
+			"MaxResponseChars", func(c *Config) { c.MaxResponseChars = 0 },
+			"MaxResponseChars",
+		},
 
 		{"STT.ID", func(c *Config) { c.STT.ID = "Bad ID" }, "not a valid label"},
 		{"STT.Language", func(c *Config) { c.STT.Language = "" }, "Language must be set"},
-		{"STT.ResultTimeout", func(c *Config) { c.STT.ResultTimeout = 0 },
-			"ResultTimeout"},
-		{"STT.MaxPendingFrames", func(c *Config) { c.STT.MaxPendingFrames = 0 },
-			"MaxPendingFrames"},
+		{
+			"STT.ResultTimeout", func(c *Config) { c.STT.ResultTimeout = 0 },
+			"ResultTimeout",
+		},
+		{
+			"STT.MaxPendingFrames", func(c *Config) { c.STT.MaxPendingFrames = 0 },
+			"MaxPendingFrames",
+		},
 		{"STT.Threads", func(c *Config) { c.STT.Threads = -1 }, "Threads"},
 		{"STT.SampleRate", func(c *Config) { c.STT.SampleRate = 1 }, "SampleRate"},
 
@@ -409,34 +417,58 @@ func TestConfig_EveryFieldHasARejectingCase(t *testing.T) {
 		{"TTS.Language", func(c *Config) { c.TTS.Language = "" }, "Language must be set"},
 		{"TTS.Speed", func(c *Config) { c.TTS.Speed = 0 }, "Speed"},
 		{"TTS.ChunkTimeout", func(c *Config) { c.TTS.ChunkTimeout = 0 }, "ChunkTimeout"},
-		{"TTS.MaxPendingChunks", func(c *Config) { c.TTS.MaxPendingChunks = 0 },
-			"MaxPendingChunks"},
-		{"TTS.MaxPendingFrames", func(c *Config) { c.TTS.MaxPendingFrames = 0 },
-			"MaxPendingFrames"},
+		{
+			"TTS.MaxPendingChunks", func(c *Config) { c.TTS.MaxPendingChunks = 0 },
+			"MaxPendingChunks",
+		},
+		{
+			"TTS.MaxPendingFrames", func(c *Config) { c.TTS.MaxPendingFrames = 0 },
+			"MaxPendingFrames",
+		},
 
 		{"Model.Endpoint", func(c *Config) { c.Model.Endpoint = "" }, "Endpoint must be set"},
-		{"Model.EndpointScheme", func(c *Config) { c.Model.Endpoint = "tcp://x" },
-			"http or https"},
+		{
+			"Model.EndpointScheme", func(c *Config) { c.Model.Endpoint = "tcp://x" },
+			"http or https",
+		},
 		{"Model.Model", func(c *Config) { c.Model.Model = "" }, "Model must be set"},
-		{"Model.RequestTimeout", func(c *Config) { c.Model.RequestTimeout = 0 },
-			"RequestTimeout"},
-		{"Model.FirstTokenTimeout", func(c *Config) { c.Model.FirstTokenTimeout = 0 },
-			"FirstTokenTimeout"},
-		{"Model.MaxOutputTokens", func(c *Config) { c.Model.MaxOutputTokens = 0 },
-			"MaxOutputTokens"},
-		{"Model.MaxPendingChunks", func(c *Config) { c.Model.MaxPendingChunks = 0 },
-			"MaxPendingChunks"},
+		{
+			"Model.RequestTimeout", func(c *Config) { c.Model.RequestTimeout = 0 },
+			"RequestTimeout",
+		},
+		{
+			"Model.FirstTokenTimeout", func(c *Config) { c.Model.FirstTokenTimeout = 0 },
+			"FirstTokenTimeout",
+		},
+		{
+			"Model.MaxOutputTokens", func(c *Config) { c.Model.MaxOutputTokens = 0 },
+			"MaxOutputTokens",
+		},
+		{
+			"Model.MaxPendingChunks", func(c *Config) { c.Model.MaxPendingChunks = 0 },
+			"MaxPendingChunks",
+		},
 
-		{"Process.StartTimeout", func(c *Config) { c.STT.Process.StartTimeout = 0 },
-			"StartTimeout"},
-		{"Process.StopTimeout", func(c *Config) { c.STT.Process.StopTimeout = 0 },
-			"StopTimeout"},
-		{"Process.MaxStderrBytes", func(c *Config) { c.STT.Process.MaxStderrBytes = 0 },
-			"MaxStderrBytes"},
-		{"Process.MaxRestarts", func(c *Config) { c.STT.Process.MaxRestarts = -1 },
-			"MaxRestarts"},
-		{"Process.RestartBackoff", func(c *Config) { c.STT.Process.RestartBackoff = 0 },
-			"RestartBackoff"},
+		{
+			"Process.StartTimeout", func(c *Config) { c.STT.Process.StartTimeout = 0 },
+			"StartTimeout",
+		},
+		{
+			"Process.StopTimeout", func(c *Config) { c.STT.Process.StopTimeout = 0 },
+			"StopTimeout",
+		},
+		{
+			"Process.MaxStderrBytes", func(c *Config) { c.STT.Process.MaxStderrBytes = 0 },
+			"MaxStderrBytes",
+		},
+		{
+			"Process.MaxRestarts", func(c *Config) { c.STT.Process.MaxRestarts = -1 },
+			"MaxRestarts",
+		},
+		{
+			"Process.RestartBackoff", func(c *Config) { c.STT.Process.RestartBackoff = 0 },
+			"RestartBackoff",
+		},
 	}
 
 	for _, tc := range cases {

@@ -271,11 +271,13 @@ func (h *HumanRuntime) Resolve(id DecisionID, r Resolution, by, note string) (*E
 	if by == "" {
 		return nil, &ConfigError{Problems: []string{
 			"escalation: ResolvedBy is required; an anonymous approval is an approval " +
-				"nobody can be asked about"}}
+				"nobody can be asked about",
+		}}
 	}
 	if r == ResolutionPending {
 		return nil, &ConfigError{Problems: []string{
-			"escalation: cannot resolve to pending"}}
+			"escalation: cannot resolve to pending",
+		}}
 	}
 
 	h.mu.Lock()

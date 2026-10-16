@@ -303,8 +303,10 @@ func TestRuntime_RefusesBeyondCapacity(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = r.Stop(context.Background()) })
 
-	sc := SessionContext{Correlation: "c", Language: LangEnglishIN,
-		Format: media.PCM16Mono8k(), Prosody: DefaultProsody()}
+	sc := SessionContext{
+		Correlation: "c", Language: LangEnglishIN,
+		Format: media.PCM16Mono8k(), Prosody: DefaultProsody(),
+	}
 	for i := 0; i < 2; i++ {
 		if _, err := r.Open(context.Background(), sc); err != nil {
 			t.Fatalf("session %d: %v", i, err)
@@ -494,8 +496,10 @@ func TestRuntime_ClosingASessionFreesItsSlot(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = r.Stop(context.Background()) })
 
-	sc := SessionContext{Correlation: "c", Language: LangEnglishIN,
-		Format: media.PCM16Mono8k(), Prosody: DefaultProsody()}
+	sc := SessionContext{
+		Correlation: "c", Language: LangEnglishIN,
+		Format: media.PCM16Mono8k(), Prosody: DefaultProsody(),
+	}
 
 	// Open and close well past capacity. If Close leaked its registry entry,
 	// this would refuse with backpressure on the third iteration.

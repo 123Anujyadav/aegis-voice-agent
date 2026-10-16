@@ -285,9 +285,11 @@ func (r *Registry) Register(reg Registration) error {
 	})
 
 	if r.audit != nil {
-		_ = r.audit.Record(AuditEntry{At: now, Kind: AuditRegistered,
+		_ = r.audit.Record(AuditEntry{
+			At: now, Kind: AuditRegistered,
 			Descriptor: reg.Descriptor(), Reason: reg.Lifecycle.String(),
-			Details: map[string]string{"owner": reg.Contract.Owner}})
+			Details: map[string]string{"owner": reg.Contract.Owner},
+		})
 	}
 	return nil
 }

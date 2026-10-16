@@ -254,8 +254,10 @@ func (s *fakeSession) Execute(ctx context.Context, step Step) StepResult {
 		_ = s.subject.Clock.Sleep(ctx, s.subject.Delay)
 	}
 	if step.Name == s.subject.FailOnStep {
-		return StepResult{Failed: true, Outcome: "scripted_failure",
-			Detail: "the harness was told to fail this step"}
+		return StepResult{
+			Failed: true, Outcome: "scripted_failure",
+			Detail: "the harness was told to fail this step",
+		}
 	}
 
 	if handler, ok := s.subject.Handlers[step.Op]; ok {
@@ -279,13 +281,15 @@ func (s *fakeSession) Execute(ctx context.Context, step Step) StepResult {
 	if step.Inject != nil {
 		outcome = string(step.Inject.Kind)
 		s.events = append(s.events, EventRecord{
-			Type: "injected", Fields: Values{"kind": S(string(step.Inject.Kind))}})
+			Type: "injected", Fields: Values{"kind": S(string(step.Inject.Kind))},
+		})
 	}
 
 	result := StepResult{Output: out, Outcome: outcome}
 	s.applyState(step, result)
 	s.events = append(s.events, EventRecord{
-		Type: "step_done", Fields: Values{"op": S(step.Op)}})
+		Type: "step_done", Fields: Values{"op": S(step.Op)},
+	})
 	return result
 }
 

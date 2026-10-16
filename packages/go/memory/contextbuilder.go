@@ -213,8 +213,10 @@ func (b *ContextBuilder) Build(req ContextRequest) (AssembledContext, error) {
 	specs := scopeSpecs()
 	wanted := req.Scopes
 	if len(wanted) == 0 {
-		wanted = []ContextScope{ScopeRuntime, ScopePersonal, ScopeBusiness,
-			ScopeConversation, ScopeShared, ScopeTemporary}
+		wanted = []ContextScope{
+			ScopeRuntime, ScopePersonal, ScopeBusiness,
+			ScopeConversation, ScopeShared, ScopeTemporary,
+		}
 	}
 	sort.SliceStable(wanted, func(i, j int) bool {
 		return specs[wanted[i]].priority < specs[wanted[j]].priority

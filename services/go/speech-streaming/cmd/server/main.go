@@ -9,8 +9,10 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 )
 
-const serviceName = "speech-streaming"
-const envPrefix = "CS_SPEECH_STREAMING"
+const (
+	serviceName = "speech-streaming"
+	envPrefix   = "CS_SPEECH_STREAMING"
+)
 
 func main() {
 	if err := run(); err != nil {

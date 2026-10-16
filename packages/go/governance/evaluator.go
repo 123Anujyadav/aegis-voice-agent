@@ -143,7 +143,8 @@ func (e Evaluator) Evaluate(snap *PolicySnapshot, r Request, now time.Time) Deci
 			// shows which policy was in play when risk raised the outcome.
 		}
 		obligations = append(obligations, []Obligation{{
-			Kind: ObligationAudit, Target: "risk", Reason: reason, Policy: "<risk>"}})
+			Kind: ObligationAudit, Target: "risk", Reason: reason, Policy: "<risk>",
+		}})
 	}
 
 	obligations = append(obligations,
@@ -220,8 +221,10 @@ func (e Evaluator) evaluateScope(snap *PolicySnapshot, scope Scope, r Request, n
 			continue
 		}
 
-		entry := TraceEntry{Policy: p.ID, Version: p.Version, Scope: p.Scope,
-			Priority: p.Priority}
+		entry := TraceEntry{
+			Policy: p.ID, Version: p.Version, Scope: p.Scope,
+			Priority: p.Priority,
+		}
 
 		if active, why := p.Active(now); !active {
 			entry.Skipped = why

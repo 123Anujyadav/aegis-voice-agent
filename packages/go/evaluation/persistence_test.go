@@ -183,16 +183,36 @@ func TestRecord_ExpiredHonoursLegalHold(t *testing.T) {
 		want bool
 		why  string
 	}{
-		{"past deadline", Record{ExpiresAt: now.Add(-time.Hour)}, true,
-			"a record past its deadline is expired"},
-		{"future deadline", Record{ExpiresAt: now.Add(time.Hour)}, false,
-			"a record before its deadline is not expired"},
-		{"zero deadline", Record{}, false,
-			"a zero deadline means never expires, not expires immediately"},
-		{"held past deadline", Record{ExpiresAt: now.Add(-time.Hour), LegalHold: true}, false,
-			"a legal hold outranks the retention deadline"},
-		{"exactly at deadline", Record{ExpiresAt: now}, true,
-			"the deadline is inclusive"},
+		{
+			"past deadline",
+			Record{ExpiresAt: now.Add(-time.Hour)},
+			true,
+			"a record past its deadline is expired",
+		},
+		{
+			"future deadline",
+			Record{ExpiresAt: now.Add(time.Hour)},
+			false,
+			"a record before its deadline is not expired",
+		},
+		{
+			"zero deadline",
+			Record{},
+			false,
+			"a zero deadline means never expires, not expires immediately",
+		},
+		{
+			"held past deadline",
+			Record{ExpiresAt: now.Add(-time.Hour), LegalHold: true},
+			false,
+			"a legal hold outranks the retention deadline",
+		},
+		{
+			"exactly at deadline",
+			Record{ExpiresAt: now},
+			true,
+			"the deadline is inclusive",
+		},
 	}
 
 	for _, tc := range cases {
@@ -412,8 +432,10 @@ func TestMigrator_RefusesAGappedChain(t *testing.T) {
 	t.Parallel()
 	// A migration that discovers mid-run that it cannot proceed leaves the
 	// store in a state no version describes.
-	_, err := NewMigrator(Migration{From: 1, To: 3, Description: "skips v2",
-		Apply: func(r Record) (Record, error) { return r, nil }})
+	_, err := NewMigrator(Migration{
+		From: 1, To: 3, Description: "skips v2",
+		Apply: func(r Record) (Record, error) { return r, nil },
+	})
 	if err == nil {
 		t.Error("a migration spanning two versions was accepted")
 	}

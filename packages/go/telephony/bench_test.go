@@ -2,7 +2,6 @@ package telephony
 
 import (
 	"context"
-
 	"testing"
 
 	rt "github.com/callscreen/callscreen-platform/packages/go/runtime"

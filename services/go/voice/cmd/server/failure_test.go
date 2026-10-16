@@ -308,7 +308,8 @@ func TestT7_TerminalSessionRefusesFurtherWork(t *testing.T) {
 		utter("are you still there"),
 		{Kind: conversation.EventSpeechComplete},
 		{Kind: conversation.EventUtterance, Utterance: conversation.Utterance{
-			Text: "hello", ASRConfidence: 0.99}, Party: conversation.PartyCaller},
+			Text: "hello", ASRConfidence: 0.99,
+		}, Party: conversation.PartyCaller},
 	} {
 		_, err := p.Handle(e)
 		if err == nil {
@@ -374,7 +375,8 @@ func TestT7_CancellationIsObservedAtTheSupportedBoundary(t *testing.T) {
 					lastErr.Store(fmt.Sprintf("unexpected intent %q", plan.Intent))
 				}
 				if _, err := p.Handle(conversation.Event{
-					Kind: conversation.EventSpeechComplete}); err != nil {
+					Kind: conversation.EventSpeechComplete,
+				}); err != nil {
 					lastErr.Store(err.Error())
 					<-ctx.Done()
 					observed.Store(true)

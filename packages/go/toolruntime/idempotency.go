@@ -137,8 +137,10 @@ func NewLedger(clock rt.Clock, metrics *Metrics, ttl time.Duration, max int) *Le
 	if max <= 0 {
 		max = 10_000
 	}
-	return &Ledger{clock: clock, metrics: metrics, ttl: ttl, max: max,
-		entries: make(map[IdempotencyKey]*LedgerEntry)}
+	return &Ledger{
+		clock: clock, metrics: metrics, ttl: ttl, max: max,
+		entries: make(map[IdempotencyKey]*LedgerEntry),
+	}
 }
 
 // Claim takes ownership of a key, or reports the existing entry.

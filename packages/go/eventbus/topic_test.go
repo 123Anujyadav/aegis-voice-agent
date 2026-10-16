@@ -20,32 +20,32 @@ func TestParseTopic_Valid(t *testing.T) {
 		wantVersion int
 	}{
 		{
-			name:        "canonical example",
-			input:       "telephony.call.answered.v1",
-			wantDomain:  "telephony", wantEntity: "call",
+			name:       "canonical example",
+			input:      "telephony.call.answered.v1",
+			wantDomain: "telephony", wantEntity: "call",
 			wantEvent: "answered", wantVersion: 1,
 		},
 		{
-			name:        "underscores inside segments",
-			input:       "billing.subscription_plan.price_changed.v2",
-			wantDomain:  "billing", wantEntity: "subscription_plan",
+			name:       "underscores inside segments",
+			input:      "billing.subscription_plan.price_changed.v2",
+			wantDomain: "billing", wantEntity: "subscription_plan",
 			wantEvent: "price_changed", wantVersion: 2,
 		},
 		{
-			name:        "multi digit version",
-			input:       "ai.transcript.finalised.v12",
-			wantDomain:  "ai", wantEntity: "transcript",
+			name:       "multi digit version",
+			input:      "ai.transcript.finalised.v12",
+			wantDomain: "ai", wantEntity: "transcript",
 			wantEvent: "finalised", wantVersion: 12,
 		},
 		{
-			name:        "single character segments",
-			input:       "a.b.c.v1",
-			wantDomain:  "a", wantEntity: "b", wantEvent: "c", wantVersion: 1,
+			name:       "single character segments",
+			input:      "a.b.c.v1",
+			wantDomain: "a", wantEntity: "b", wantEvent: "c", wantVersion: 1,
 		},
 		{
-			name:        "digits inside segments",
-			input:       "telephony.sip2.invite_received.v1",
-			wantDomain:  "telephony", wantEntity: "sip2",
+			name:       "digits inside segments",
+			input:      "telephony.sip2.invite_received.v1",
+			wantDomain: "telephony", wantEntity: "sip2",
 			wantEvent: "invite_received", wantVersion: 1,
 		},
 	}

@@ -251,7 +251,8 @@ func newPersonaRuntimeFrom(reg map[PersonaID]Persona, initial PersonaID, clock r
 	}
 	if _, ok := reg[initial]; !ok {
 		return nil, &ConfigError{Problems: []string{
-			"persona: initial persona " + string(initial) + " is not registered"}}
+			"persona: initial persona " + string(initial) + " is not registered",
+		}}
 	}
 	return &PersonaRuntime{clock: clock, metrics: metrics, registry: reg, active: initial}, nil
 }

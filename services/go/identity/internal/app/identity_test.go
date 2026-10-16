@@ -67,7 +67,6 @@ func TestIdentityService_TokenRotationAndReuse(t *testing.T) {
 	if err != ErrTokenReused {
 		t.Fatalf("expected ErrTokenReused, got: %v", err)
 	}
-
 }
 
 func TestIdentityService_PlayIntegrityVerification(t *testing.T) {

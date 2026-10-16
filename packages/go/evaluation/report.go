@@ -441,8 +441,10 @@ func failureHeatmap(run Run) Heatmap {
 			if !ok || c.total == 0 {
 				continue
 			}
-			h.Cells = append(h.Cells, HeatmapCell{Row: row, Col: col,
-				Value: float64(c.failed) / float64(c.total), Count: c.total})
+			h.Cells = append(h.Cells, HeatmapCell{
+				Row: row, Col: col,
+				Value: float64(c.failed) / float64(c.total), Count: c.total,
+			})
 		}
 	}
 	return h
@@ -480,8 +482,10 @@ func latencyHeatmap(run Run) Heatmap {
 			if !ok || c.n == 0 {
 				continue
 			}
-			h.Cells = append(h.Cells, HeatmapCell{Row: row, Col: col,
-				Value: (c.total / time.Duration(c.n)).Seconds(), Count: c.n})
+			h.Cells = append(h.Cells, HeatmapCell{
+				Row: row, Col: col,
+				Value: (c.total / time.Duration(c.n)).Seconds(), Count: c.n,
+			})
 		}
 	}
 	return h

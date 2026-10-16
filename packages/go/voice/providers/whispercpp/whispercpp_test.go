@@ -364,10 +364,14 @@ func TestAdapter_WAVHeaderRefusesUnsupportedFormats(t *testing.T) {
 	t.Parallel()
 
 	for name, format := range map[string]media.AudioFormat{
-		"stereo": {Format: media.FormatPCM16, Layout: media.LayoutStereo,
-			Rate: media.Rate16kHz, Codec: media.CodecPCM},
-		"pcm32": {Format: media.FormatPCM32, Layout: media.LayoutMono,
-			Rate: media.Rate16kHz, Codec: media.CodecPCM},
+		"stereo": {
+			Format: media.FormatPCM16, Layout: media.LayoutStereo,
+			Rate: media.Rate16kHz, Codec: media.CodecPCM,
+		},
+		"pcm32": {
+			Format: media.FormatPCM32, Layout: media.LayoutMono,
+			Rate: media.Rate16kHz, Codec: media.CodecPCM,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -402,8 +406,10 @@ func TestAdapter_ClosedStreamRefusesWrites(t *testing.T) {
 
 	s := &stream{cfg: testConfig(t), closed: true}
 
-	if err := s.Write(media.Frame{Format: media.PCM16Mono16k(),
-		Payload: make([]byte, 320)}); !errors.Is(err, ErrClosed) {
+	if err := s.Write(media.Frame{
+		Format:  media.PCM16Mono16k(),
+		Payload: make([]byte, 320),
+	}); !errors.Is(err, ErrClosed) {
 		t.Errorf("err = %v, want ErrClosed", err)
 	}
 }

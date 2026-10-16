@@ -37,8 +37,10 @@ const (
 
 // AllFailureKinds returns every kind, in declaration order.
 func AllFailureKinds() []FailureKind {
-	return []FailureKind{FailTimeout, FailDropEvent, FailMemory, FailTool,
-		FailPermission, FailGovernance, FailCancellation}
+	return []FailureKind{
+		FailTimeout, FailDropEvent, FailMemory, FailTool,
+		FailPermission, FailGovernance, FailCancellation,
+	}
 }
 
 // Failure is one fault to inject at a step.

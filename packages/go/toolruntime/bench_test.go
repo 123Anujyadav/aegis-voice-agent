@@ -32,8 +32,10 @@ func benchIntent(cap CapabilityID) ToolIntent {
 	return ToolIntent{
 		ID: NewIntentID(), Correlation: NewCorrelationID(), Session: "s", Actor: "a",
 		Grant: Grant{Actor: "a"},
-		Requests: []CapabilityRequest{{Ref: "only", Capability: cap,
-			Version: AnyVersion(), Args: Arguments{"query": String("benchmark query")}}},
+		Requests: []CapabilityRequest{{
+			Ref: "only", Capability: cap,
+			Version: AnyVersion(), Args: Arguments{"query": String("benchmark query")},
+		}},
 	}
 }
 
@@ -87,10 +89,14 @@ func BenchmarkExecuteMutating(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		intent := ToolIntent{ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
+		intent := ToolIntent{
+			ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
 			Grant: Grant{Actor: "a"},
-			Requests: []CapabilityRequest{{Ref: "w", Capability: "write", Version: AnyVersion(),
-				Args: Arguments{"subject": String(fmt.Sprintf("s%08d", i))}}}}
+			Requests: []CapabilityRequest{{
+				Ref: "w", Capability: "write", Version: AnyVersion(),
+				Args: Arguments{"subject": String(fmt.Sprintf("s%08d", i))},
+			}},
+		}
 		if _, err := h.Runtime.Execute(ctx, intent); err != nil {
 			b.Fatal(err)
 		}
@@ -106,10 +112,14 @@ func BenchmarkReplay(b *testing.B) {
 	ctx := context.Background()
 
 	corr := NewCorrelationID()
-	intent := ToolIntent{ID: NewIntentID(), Correlation: corr, Actor: "a",
+	intent := ToolIntent{
+		ID: NewIntentID(), Correlation: corr, Actor: "a",
 		Grant: Grant{Actor: "a"},
-		Requests: []CapabilityRequest{{Ref: "w", Capability: "write", Version: AnyVersion(),
-			Args: Arguments{"subject": String("fixed")}}}}
+		Requests: []CapabilityRequest{{
+			Ref: "w", Capability: "write", Version: AnyVersion(),
+			Args: Arguments{"subject": String("fixed")},
+		}},
+	}
 	if _, err := h.Runtime.Execute(ctx, intent); err != nil {
 		b.Fatal(err)
 	}
@@ -146,17 +156,25 @@ func BenchmarkPlanFiveStep(b *testing.B) {
 			CapabilityID(fmt.Sprintf("cap%d", i))), &FakeTool{})
 	}
 
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "a", Capability: "cap0", Version: AnyVersion(), Args: Arguments{"query": String("a")}},
 			{Ref: "b", Capability: "cap1", Version: AnyVersion(), Args: Arguments{"query": String("b")}},
-			{Ref: "c", Capability: "cap2", Version: AnyVersion(), Args: Arguments{"query": String("c")},
-				DependsOn: []string{"a"}},
-			{Ref: "d", Capability: "cap3", Version: AnyVersion(), Args: Arguments{"query": String("d")},
-				DependsOn: []string{"b"}},
-			{Ref: "e", Capability: "cap4", Version: AnyVersion(), Args: Arguments{"query": String("e")},
-				DependsOn: []string{"c", "d"}},
-		}}
+			{
+				Ref: "c", Capability: "cap2", Version: AnyVersion(), Args: Arguments{"query": String("c")},
+				DependsOn: []string{"a"},
+			},
+			{
+				Ref: "d", Capability: "cap3", Version: AnyVersion(), Args: Arguments{"query": String("d")},
+				DependsOn: []string{"b"},
+			},
+			{
+				Ref: "e", Capability: "cap4", Version: AnyVersion(), Args: Arguments{"query": String("e")},
+				DependsOn: []string{"c", "d"},
+			},
+		},
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -207,8 +225,10 @@ func BenchmarkRegistryRegister(b *testing.B) {
 	for i := 0; i < 50; i++ {
 		h.Register(ReadContract(ToolID(fmt.Sprintf("t%02d", i)), "1.0.0", "cap"), &FakeTool{})
 	}
-	reg := Registration{Contract: ReadContract("churn", "1.0.0", "cap"),
-		Tool: &FakeTool{}, Lifecycle: LifecycleActive, Health: HealthHealthy}
+	reg := Registration{
+		Contract: ReadContract("churn", "1.0.0", "cap"),
+		Tool:     &FakeTool{}, Lifecycle: LifecycleActive, Health: HealthHealthy,
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -365,8 +385,10 @@ func BenchmarkEventDispatch(b *testing.B) {
 
 func BenchmarkAuditRecord(b *testing.B) {
 	a := NewRecordingAuditor(1 << 20)
-	entry := AuditEntry{Kind: AuditExecutionCompleted, Execution: "e",
-		Descriptor: Descriptor{Tool: "t", Version: "1.0.0"}, Phase: PhaseComplete}
+	entry := AuditEntry{
+		Kind: AuditExecutionCompleted, Execution: "e",
+		Descriptor: Descriptor{Tool: "t", Version: "1.0.0"}, Phase: PhaseComplete,
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -404,13 +426,17 @@ func BenchmarkPlanFingerprint(b *testing.B) {
 		h.Register(ReadContract(ToolID(fmt.Sprintf("t%d", i)), "1.0.0",
 			CapabilityID(fmt.Sprintf("cap%d", i))), &FakeTool{})
 	}
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "a", Capability: "cap0", Version: AnyVersion(), Args: Arguments{"query": String("a")}},
 			{Ref: "b", Capability: "cap1", Version: AnyVersion(), Args: Arguments{"query": String("b")}},
-			{Ref: "c", Capability: "cap2", Version: AnyVersion(), Args: Arguments{"query": String("c")},
-				DependsOn: []string{"a", "b"}},
-		}}
+			{
+				Ref: "c", Capability: "cap2", Version: AnyVersion(), Args: Arguments{"query": String("c")},
+				DependsOn: []string{"a", "b"},
+			},
+		},
+	}
 	plan, err := h.Runtime.Plan(intent)
 	if err != nil {
 		b.Fatal(err)
@@ -424,8 +450,10 @@ func BenchmarkPlanFingerprint(b *testing.B) {
 }
 
 func BenchmarkValueCanonicalLarge(b *testing.B) {
-	args := Arguments{"blob": String(strings.Repeat("x", 4096)),
-		"list": List(String("a"), String("b"), String("c"), Int(1), Bool(true))}
+	args := Arguments{
+		"blob": String(strings.Repeat("x", 4096)),
+		"list": List(String("a"), String("b"), String("c"), Int(1), Bool(true)),
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()

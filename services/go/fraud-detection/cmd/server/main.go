@@ -9,8 +9,10 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 )
 
-const serviceName = "fraud-detection"
-const envPrefix = "CS_FRAUD_DETECTION"
+const (
+	serviceName = "fraud-detection"
+	envPrefix   = "CS_FRAUD_DETECTION"
+)
 
 func main() {
 	if err := run(); err != nil {

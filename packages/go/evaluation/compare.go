@@ -331,7 +331,8 @@ func failureDifferences(base, obs Observation) []Difference {
 			was = "failed"
 		}
 		out = append(out, Difference{
-			Kind: DiffFailure, Step: s.Name, Was: was, Now: "failed: " + s.Detail})
+			Kind: DiffFailure, Step: s.Name, Was: was, Now: "failed: " + s.Detail,
+		})
 	}
 	return out
 }
@@ -342,7 +343,8 @@ func behaviourDifferences(base, obs Observation) []Difference {
 	if len(base.Steps) != len(obs.Steps) {
 		out = append(out, Difference{
 			Kind: DiffStepCount,
-			Was:  fmt.Sprint(len(base.Steps)), Now: fmt.Sprint(len(obs.Steps))})
+			Was:  fmt.Sprint(len(base.Steps)), Now: fmt.Sprint(len(obs.Steps)),
+		})
 	}
 
 	baseByName := make(map[string]StepObservation, len(base.Steps))
@@ -356,30 +358,40 @@ func behaviourDifferences(base, obs Observation) []Difference {
 
 	for _, s := range base.Steps {
 		if _, ok := obsByName[s.Name]; !ok {
-			out = append(out, Difference{Kind: DiffStepMissing, Step: s.Name,
-				Was: s.Outcome, Now: "<absent>"})
+			out = append(out, Difference{
+				Kind: DiffStepMissing, Step: s.Name,
+				Was: s.Outcome, Now: "<absent>",
+			})
 		}
 	}
 
 	for _, s := range obs.Steps {
 		b, ok := baseByName[s.Name]
 		if !ok {
-			out = append(out, Difference{Kind: DiffStepAdded, Step: s.Name,
-				Was: "<absent>", Now: s.Outcome})
+			out = append(out, Difference{
+				Kind: DiffStepAdded, Step: s.Name,
+				Was: "<absent>", Now: s.Outcome,
+			})
 			continue
 		}
 
 		if b.Outcome != s.Outcome {
-			out = append(out, Difference{Kind: DiffOutcome, Step: s.Name,
-				Was: b.Outcome, Now: s.Outcome})
+			out = append(out, Difference{
+				Kind: DiffOutcome, Step: s.Name,
+				Was: b.Outcome, Now: s.Outcome,
+			})
 		}
 		for _, field := range b.Output.Diff(s.Output) {
-			out = append(out, Difference{Kind: DiffOutput, Step: s.Name, Field: field,
-				Was: b.Output.Get(field).Display(), Now: s.Output.Get(field).Display()})
+			out = append(out, Difference{
+				Kind: DiffOutput, Step: s.Name, Field: field,
+				Was: b.Output.Get(field).Display(), Now: s.Output.Get(field).Display(),
+			})
 		}
 		for _, field := range b.State.Diff(s.State) {
-			out = append(out, Difference{Kind: DiffState, Step: s.Name, Field: field,
-				Was: b.State.Get(field).Display(), Now: s.State.Get(field).Display()})
+			out = append(out, Difference{
+				Kind: DiffState, Step: s.Name, Field: field,
+				Was: b.State.Get(field).Display(), Now: s.State.Get(field).Display(),
+			})
 		}
 		if was, now := eventSignature(b.Events), eventSignature(s.Events); was != now {
 			out = append(out, Difference{Kind: DiffEvents, Step: s.Name, Was: was, Now: now})
@@ -434,8 +446,10 @@ func latencyDifferences(base, obs Observation, tol Tolerances) []Difference {
 		}
 		ratio := float64(s.Duration) / float64(was)
 		if ratio > tol.LatencyRatio {
-			out = append(out, Difference{Kind: DiffLatency, Step: s.Name,
-				Was: was.String(), Now: s.Duration.String(), Ratio: ratio})
+			out = append(out, Difference{
+				Kind: DiffLatency, Step: s.Name,
+				Was: was.String(), Now: s.Duration.String(), Ratio: ratio,
+			})
 		}
 	}
 	return out
@@ -451,8 +465,10 @@ func metricDifferences(base, obs Observation, tol Tolerances) []Difference {
 		}
 		if was == 0 {
 			if now != 0 {
-				out = append(out, Difference{Kind: DiffMetric, Field: name,
-					Was: "0", Now: fmt.Sprintf("%g", now)})
+				out = append(out, Difference{
+					Kind: DiffMetric, Field: name,
+					Was: "0", Now: fmt.Sprintf("%g", now),
+				})
 			}
 			continue
 		}
@@ -461,9 +477,11 @@ func metricDifferences(base, obs Observation, tol Tolerances) []Difference {
 			delta = -delta
 		}
 		if delta > allowed {
-			out = append(out, Difference{Kind: DiffMetric, Field: name,
+			out = append(out, Difference{
+				Kind: DiffMetric, Field: name,
 				Was: fmt.Sprintf("%g", was), Now: fmt.Sprintf("%g", now),
-				Ratio: now / was})
+				Ratio: now / was,
+			})
 		}
 	}
 	return out

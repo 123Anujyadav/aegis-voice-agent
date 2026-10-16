@@ -344,16 +344,20 @@ func (e *EvaluationRuntime) Execute(ctx context.Context, s Scenario) ScenarioRes
 
 	if e.stopped.Load() {
 		res.Verdict = VerdictFail
-		res.Comparison = Comparison{Verdict: VerdictFail, Scenario: s.ID,
-			Subject: s.SubjectName, Reason: "runtime_closed"}
+		res.Comparison = Comparison{
+			Verdict: VerdictFail, Scenario: s.ID,
+			Subject: s.SubjectName, Reason: "runtime_closed",
+		}
 		return res
 	}
 
 	sub, ok := e.subjects.Get(s.SubjectName)
 	if !ok {
 		res.Verdict = VerdictFail
-		res.Comparison = Comparison{Verdict: VerdictFail, Scenario: s.ID,
-			Subject: s.SubjectName, Reason: "subject_not_registered"}
+		res.Comparison = Comparison{
+			Verdict: VerdictFail, Scenario: s.ID,
+			Subject: s.SubjectName, Reason: "subject_not_registered",
+		}
 		e.count(res)
 		return res
 	}
@@ -364,8 +368,10 @@ func (e *EvaluationRuntime) Execute(ctx context.Context, s Scenario) ScenarioRes
 	required := append(append([]Capability(nil), s.Requires...), RequiredInjections(s)...)
 	if missing := MissingCapabilities(sub, required); len(missing) > 0 {
 		res.Verdict = VerdictSkipped
-		res.Comparison = Comparison{Verdict: VerdictSkipped, Scenario: s.ID,
-			Subject: s.SubjectName, Reason: "missing_capability", Skipped: missing}
+		res.Comparison = Comparison{
+			Verdict: VerdictSkipped, Scenario: s.ID,
+			Subject: s.SubjectName, Reason: "missing_capability", Skipped: missing,
+		}
 		res.Duration = e.clock.Since(start)
 		e.count(res)
 		if e.metrics != nil {
@@ -395,13 +401,17 @@ func (e *EvaluationRuntime) Execute(ctx context.Context, s Scenario) ScenarioRes
 	case obs.Failed():
 		// No baseline AND the run failed. The failure is the finding; a
 		// missing baseline is not what anybody needs to hear about first.
-		res.Comparison = Comparison{Verdict: VerdictFail, Scenario: s.ID,
+		res.Comparison = Comparison{
+			Verdict: VerdictFail, Scenario: s.ID,
 			Subject: s.SubjectName, ObservedBehaviour: obs.BehaviourPrint(),
-			Reason: "scenario_failed_no_baseline"}
+			Reason: "scenario_failed_no_baseline",
+		}
 	default:
-		res.Comparison = Comparison{Verdict: VerdictNoBaseline, Scenario: s.ID,
+		res.Comparison = Comparison{
+			Verdict: VerdictNoBaseline, Scenario: s.ID,
 			Subject: s.SubjectName, ObservedBehaviour: obs.BehaviourPrint(),
-			Reason: "no_approved_golden"}
+			Reason: "no_approved_golden",
+		}
 	}
 	res.Verdict = res.Comparison.Verdict
 
@@ -459,7 +469,8 @@ func (e *EvaluationRuntime) observe(ctx context.Context, sub Subject, s Scenario
 	defer cancel()
 
 	session, err := sub.Open(runCtx, SessionSpec{
-		Scenario: s.ID, Seed: s.Seed, Params: s.Params.Clone()})
+		Scenario: s.ID, Seed: s.Seed, Params: s.Params.Clone(),
+	})
 	if err != nil {
 		obs.Error = "open_failed: " + err.Error()
 		obs.FinishedAt = e.clock.Now()

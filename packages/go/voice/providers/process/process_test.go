@@ -297,7 +297,6 @@ func TestProcess_StartsBecomesReadyAndStops(t *testing.T) {
 	if p.Running() {
 		t.Error("still running after Stop")
 	}
-
 }
 
 // TestProcess_StopLeavesNoOrphan is §10's central guarantee, checked by
