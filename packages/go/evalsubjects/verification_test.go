@@ -96,6 +96,111 @@ func bootstrap(t *testing.T, r *ev.EvaluationRuntime) {
 	}
 }
 
+// reproduced reports whether a result reproduced its approved baseline's
+// behaviour: a pass, or a drift whose only differences are step latencies.
+//
+// The tests using it run every scenario while the rest of this file runs in
+// parallel, and one of them runs sixteen goroutines on purpose. A single
+// observation's step time under that load says nothing about the engine: on a
+// clock that resolves microseconds, a step whose 89 µs baseline was taken by
+// bootstrap measured 1.5 ms under contention (×17), and that is drift
+// (measurement_changed) by [ev.DefaultTolerances]. A clock as coarse as
+// Windows' (about 520 µs) raises the floor above every step these scenarios
+// take, which is why the drift appeared on Linux CI and never locally.
+//
+// Narrow on purpose. The behaviour fingerprints must match and every
+// difference must be a latency one, so a changed outcome, output, state, event,
+// metric, failure or scenario version still fails. Latency itself is measured
+// over distributions, as DefaultTolerances prescribes: by the benchmark engine,
+// which TestVerification_Benchmarks exercises and logs rather than asserts.
+func reproduced(res ev.ScenarioResult) bool {
+	switch res.Verdict {
+	case ev.VerdictPass:
+		return true
+	case ev.VerdictDrift:
+	default:
+		return false
+	}
+	c := res.Comparison
+	if c.Reason != "measurement_changed" || c.BaselineBehaviour == "" ||
+		c.BaselineBehaviour != c.ObservedBehaviour || len(c.Differences) == 0 {
+		return false
+	}
+	for _, d := range c.Differences {
+		if d.Kind != ev.DiffLatency {
+			return false
+		}
+	}
+	return true
+}
+
+// TestVerification_ReproducedToleratesOnlyLatency pins what [reproduced]
+// accepts, deterministically: the comparison is computed from a real baseline
+// with scripted step durations rather than measured, so neither the clock nor
+// machine load decides the outcome.
+func TestVerification_ReproducedToleratesOnlyLatency(t *testing.T) {
+	t.Parallel()
+	r := platform(t)
+	bootstrap(t, r)
+
+	s := r.Registry().Scenarios()[0]
+	golden, err := r.Goldens().Baseline(s.Key())
+	if err != nil {
+		t.Fatalf("baseline for %s: %v", s.ID, err)
+	}
+	tol := ev.DefaultTolerances()
+
+	// withSteps returns a copy of the baseline observation with every step
+	// timed at d and the first step's outcome replaced when outcome is set.
+	withSteps := func(d time.Duration, outcome string) ev.Observation {
+		obs := golden.Observation
+		obs.Steps = append([]ev.StepObservation(nil), obs.Steps...)
+		for i := range obs.Steps {
+			obs.Steps[i].Duration = d
+		}
+		if outcome != "" {
+			obs.Steps[0].Outcome = outcome
+		}
+		return obs
+	}
+	baseline := golden
+	baseline.Observation = withSteps(10*tol.LatencyFloor, "")
+	result := func(obs ev.Observation) ev.ScenarioResult {
+		c := ev.Compare(baseline, obs, tol)
+		return ev.ScenarioResult{
+			Scenario: s.ID, Subject: s.SubjectName,
+			Verdict: c.Verdict, Comparison: c, Observation: obs,
+		}
+	}
+
+	same := result(withSteps(10*tol.LatencyFloor, ""))
+	if same.Verdict != ev.VerdictPass || !reproduced(same) {
+		t.Errorf("identical observation: %s, reproduced=%v",
+			same.Comparison.Summary(), reproduced(same))
+	}
+
+	// The CI failure: identical behaviour, a step slower than the ratio allows.
+	slower := result(withSteps(10*tol.LatencyFloor*time.Duration(4*tol.LatencyRatio), ""))
+	if slower.Verdict != ev.VerdictDrift || slower.Comparison.Reason != "measurement_changed" {
+		t.Fatalf("a latency-only change must be drift (measurement_changed), got %s",
+			slower.Comparison.Summary())
+	}
+	if !reproduced(slower) {
+		t.Errorf("latency-only drift rejected: %s", slower.Comparison.Summary())
+	}
+
+	// A behaviour change must still fail, slower or not.
+	changed := result(withSteps(10*tol.LatencyFloor*time.Duration(4*tol.LatencyRatio),
+		"evaluator-injected-outcome"))
+	if changed.Comparison.Reason != "behaviour_changed" {
+		t.Fatalf("a changed outcome must be behaviour_changed, got %s",
+			changed.Comparison.Summary())
+	}
+	if reproduced(changed) {
+		t.Errorf("behaviour drift accepted: %s", changed.Comparison.Summary())
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Registration and coverage
 // ---------------------------------------------------------------------------
@@ -175,15 +280,19 @@ func TestVerification_EndToEnd(t *testing.T) {
 	t.Logf("%s", report.Summary())
 
 	counts := run.Counts()
-	if counts[ev.VerdictPass] != len(run.Results) {
-		t.Errorf("expected every scenario to reproduce its approved baseline, got %v",
-			counts)
-		for _, res := range run.Results {
-			if res.Verdict != ev.VerdictPass {
-				t.Errorf("  %s/%s: %s — %s",
-					res.Subject, res.Scenario, res.Verdict, res.Comparison.Summary())
-			}
+	var slower int
+	for _, res := range run.Results {
+		switch {
+		case !reproduced(res):
+			t.Errorf("  %s/%s did not reproduce its approved baseline (%v): %s — %s",
+				res.Subject, res.Scenario, counts, res.Verdict, res.Comparison.Summary())
+		case res.Verdict != ev.VerdictPass:
+			slower++
+			t.Logf("  latency only, behaviour reproduced: %s", res.Comparison.Summary())
 		}
+	}
+	if slower > 0 {
+		t.Logf("%d of %d scenarios drifted on latency alone", slower, len(run.Results))
 	}
 	if !report.Releasable() {
 		t.Errorf("run is not releasable: %d blockers", len(report.Blocking))
@@ -491,10 +600,12 @@ func TestVerification_ConcurrentEvaluation(t *testing.T) {
 	ctx := context.Background()
 
 	var (
-		mu       sync.Mutex
-		verdicts = map[ev.Verdict]int{}
-		start    = make(chan struct{})
-		wg       sync.WaitGroup
+		mu          sync.Mutex
+		verdicts    = map[ev.Verdict]int{}
+		reproducing int
+		rejected    []string
+		start       = make(chan struct{})
+		wg          sync.WaitGroup
 	)
 
 	for g := 0; g < goroutines; g++ {
@@ -503,14 +614,24 @@ func TestVerification_ConcurrentEvaluation(t *testing.T) {
 			defer wg.Done()
 			<-start
 			local := map[ev.Verdict]int{}
+			var held int
+			var bad []string
 			for i := 0; i < iterations; i++ {
 				s := scenarios[(g+i)%len(scenarios)]
-				local[r.Execute(ctx, s).Verdict]++
+				res := r.Execute(ctx, s)
+				local[res.Verdict]++
+				if reproduced(res) {
+					held++
+				} else {
+					bad = append(bad, res.Comparison.Summary())
+				}
 			}
 			mu.Lock()
 			for v, n := range local {
 				verdicts[v] += n
 			}
+			reproducing += held
+			rejected = append(rejected, bad...)
 			mu.Unlock()
 		}(g)
 	}
@@ -518,9 +639,19 @@ func TestVerification_ConcurrentEvaluation(t *testing.T) {
 	close(start)
 	wg.Wait()
 
+	// Every evaluation must reproduce its baseline's behaviour. Latency-only
+	// drift is counted in verdicts but tolerated: see [reproduced].
 	total := goroutines * iterations
-	if verdicts[ev.VerdictPass] != total {
-		t.Errorf("expected %d passes under concurrency, got %v", total, verdicts)
+	if reproducing != total {
+		t.Errorf("expected %d evaluations to reproduce their baseline under "+
+			"concurrency, got %d (%v)", total, reproducing, verdicts)
+		for i, s := range rejected {
+			if i == 5 {
+				t.Errorf("  … and %d more", len(rejected)-i)
+				break
+			}
+			t.Errorf("  %s", s)
+		}
 	}
 	t.Logf("%d concurrent evaluations across %d goroutines: %v",
 		total, goroutines, verdicts)
