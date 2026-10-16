@@ -200,7 +200,8 @@ func (r *TelephonyRuntime) Start(ctx context.Context) (RecoveryReport, error) {
 		r.mu.Unlock()
 		return RecoveryReport{}, &ConfigError{Problems: []string{
 			"start: no provider registered; a telephony runtime with no provider " +
-				"can accept no calls and would fail every request at admission"}}
+				"can accept no calls and would fail every request at admission",
+		}}
 	}
 	r.mu.Unlock()
 
@@ -576,7 +577,8 @@ const (
 // Returns the outcome and an error only for [SignalRejected]. A caller that
 // treats every non-applied outcome as a failure will be wrong most of the time.
 func (d *CallDispatcher) Dispatch(ctx context.Context, id CallID,
-	to CallState, reason string) (SignalOutcome, error) {
+	to CallState, reason string,
+) (SignalOutcome, error) {
 	sess, err := d.rt.registry.Get(id)
 	if err != nil {
 		d.rt.metrics.InvalidTransitions.Inc("unknown", string(to))

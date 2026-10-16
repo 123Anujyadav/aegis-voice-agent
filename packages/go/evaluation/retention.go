@@ -337,7 +337,8 @@ type RetentionManager struct {
 // alternative — silently deleting what a policy said to archive — is a
 // compliance failure that looks exactly like correct operation.
 func NewRetentionManager(repo Repository, schedule RetentionSchedule,
-	archiver Archiver, clock rt.Clock) (*RetentionManager, error) {
+	archiver Archiver, clock rt.Clock,
+) (*RetentionManager, error) {
 	var problems []string
 	if repo == nil {
 		problems = append(problems, "retention: a repository is required")
@@ -358,8 +359,10 @@ func NewRetentionManager(repo Repository, schedule RetentionSchedule,
 	if clock == nil {
 		clock = rt.SystemClock{}
 	}
-	return &RetentionManager{repo: repo, schedule: schedule,
-		archiver: archiver, clock: clock}, nil
+	return &RetentionManager{
+		repo: repo, schedule: schedule,
+		archiver: archiver, clock: clock,
+	}, nil
 }
 
 // Schedule returns the schedule in force.
@@ -476,7 +479,8 @@ func (m *RetentionManager) Enforce(ctx context.Context) (RetentionReport, error)
 }
 
 func (m *RetentionManager) dueFor(ctx context.Context, p RetentionPolicy,
-	now time.Time) ([]Record, error) {
+	now time.Time,
+) ([]Record, error) {
 	recs, err := m.repo.List(ctx, Query{Kinds: p.Kinds})
 	if err != nil {
 		return nil, err

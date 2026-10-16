@@ -87,8 +87,10 @@ func NewMediaMetrics() *MediaMetrics {
 	// Jitter and lateness: sub-millisecond to a quarter second. Beyond 250 ms a
 	// conversation is unusable, so the top bucket is "broken" rather than a
 	// value worth resolving.
-	jitterSecs := []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.02, 0.04,
-		0.06, 0.1, 0.15, 0.25}
+	jitterSecs := []float64{
+		0.0001, 0.0005, 0.001, 0.005, 0.01, 0.02, 0.04,
+		0.06, 0.1, 0.15, 0.25,
+	}
 
 	// Buffer depth: one frame to five seconds. A buffer deeper than a second is
 	// already a latency problem; the upper buckets exist to show how bad.

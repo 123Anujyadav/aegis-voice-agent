@@ -171,8 +171,10 @@ func (k Kind) Valid() bool { return k >= KindConversation && k <= KindPolicy }
 // AllKinds returns every kind, in declaration order. Used by sweeps and by
 // exhaustive tests.
 func AllKinds() []Kind {
-	return []Kind{KindConversation, KindSession, KindUser, KindBusiness,
-		KindPreference, KindContact, KindScratchpad, KindPolicy}
+	return []Kind{
+		KindConversation, KindSession, KindUser, KindBusiness,
+		KindPreference, KindContact, KindScratchpad, KindPolicy,
+	}
 }
 
 // AllTiers returns every tier, in declaration order.

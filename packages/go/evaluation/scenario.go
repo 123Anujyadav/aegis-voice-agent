@@ -50,8 +50,10 @@ func (k ScenarioKind) String() string {
 
 // AllScenarioKinds returns every kind, in declaration order.
 func AllScenarioKinds() []ScenarioKind {
-	return []ScenarioKind{KindConversation, KindMemory, KindTool, KindGovernance,
-		KindRuntime, KindEmergency, KindFailure, KindRecovery}
+	return []ScenarioKind{
+		KindConversation, KindMemory, KindTool, KindGovernance,
+		KindRuntime, KindEmergency, KindFailure, KindRecovery,
+	}
 }
 
 // Scenario is a program of steps run against a subject.

@@ -101,6 +101,7 @@ func (s *benchSTT) Capabilities() speech.Capabilities {
 		SampleRates: []media.SampleRate{media.Rate16kHz},
 	}
 }
+
 func (s *benchSTT) OpenSTT(context.Context, speech.STTConfig) (speech.STTStream, error) {
 	return nil, errors.New("bench: not opened")
 }
@@ -115,6 +116,7 @@ func (s *benchTTS) Capabilities() speech.Capabilities {
 		SampleRates: []media.SampleRate{media.Rate16kHz},
 	}
 }
+
 func (s *benchTTS) OpenTTS(context.Context, speech.TTSConfig) (speech.TTSStream, error) {
 	return nil, errors.New("bench: not opened")
 }

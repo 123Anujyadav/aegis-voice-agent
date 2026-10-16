@@ -313,16 +313,22 @@ func (p PrivacyRules) PrivacyObligations(a Action, by PolicyID) []Obligation {
 	var out []Obligation
 
 	if p.MustMask(a.Classification) {
-		out = append(out, Obligation{Kind: ObligationMask, Target: "log",
-			Reason: "classification_" + a.Classification.String(), Policy: by})
+		out = append(out, Obligation{
+			Kind: ObligationMask, Target: "log",
+			Reason: "classification_" + a.Classification.String(), Policy: by,
+		})
 	}
 	if a.Kind == ActionExternal && !p.MayExport(a.Classification) {
-		out = append(out, Obligation{Kind: ObligationRedact, Target: "export",
-			Reason: "export_not_permitted", Policy: by})
+		out = append(out, Obligation{
+			Kind: ObligationRedact, Target: "export",
+			Reason: "export_not_permitted", Policy: by,
+		})
 	}
 	if a.Classification.Personal() {
-		out = append(out, Obligation{Kind: ObligationAudit, Target: a.Kind.String(),
-			Reason: "personal_data", Policy: by})
+		out = append(out, Obligation{
+			Kind: ObligationAudit, Target: a.Kind.String(),
+			Reason: "personal_data", Policy: by,
+		})
 	}
 
 	sort.Slice(out, func(i, j int) bool {

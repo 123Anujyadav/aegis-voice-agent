@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrOutboxClosed  = errors.New("outbox: storage is closed")
+	ErrOutboxClosed   = errors.New("outbox: storage is closed")
 	ErrInvalidMessage = errors.New("outbox: invalid payload or topic")
 )
 

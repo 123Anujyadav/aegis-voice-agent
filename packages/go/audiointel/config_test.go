@@ -18,8 +18,10 @@ func TestConfig_DefaultIsValid(t *testing.T) {
 	for _, format := range []media.AudioFormat{
 		media.PCM16Mono8k(),
 		media.PCM16Mono16k(),
-		{Format: media.FormatPCM32, Layout: media.LayoutMono,
-			Rate: media.Rate24kHz, Codec: media.CodecPCM},
+		{
+			Format: media.FormatPCM32, Layout: media.LayoutMono,
+			Rate: media.Rate24kHz, Codec: media.CodecPCM,
+		},
 	} {
 		if err := DefaultConfig(format).Validate(); err != nil {
 			t.Fatalf("DefaultConfig(%s) is invalid: %v", format, err)
@@ -42,20 +44,26 @@ func TestConfig_RefusesUnanalysableFormats(t *testing.T) {
 	}{
 		{
 			name: "stereo",
-			format: media.AudioFormat{Format: media.FormatPCM16,
-				Layout: media.LayoutStereo, Rate: media.Rate8kHz, Codec: media.CodecPCM},
+			format: media.AudioFormat{
+				Format: media.FormatPCM16,
+				Layout: media.LayoutStereo, Rate: media.Rate8kHz, Codec: media.CodecPCM,
+			},
 			want: "mixing policy",
 		},
 		{
 			name: "opaque codec",
-			format: media.AudioFormat{Format: media.FormatPCM16,
-				Layout: media.LayoutMono, Rate: media.Rate8kHz, Codec: media.CodecOpaque},
+			format: media.AudioFormat{
+				Format: media.FormatPCM16,
+				Layout: media.LayoutMono, Rate: media.Rate8kHz, Codec: media.CodecOpaque,
+			},
 			want: "cannot be inspected",
 		},
 		{
 			name: "unset format",
-			format: media.AudioFormat{Layout: media.LayoutMono,
-				Rate: media.Rate8kHz, Codec: media.CodecPCM},
+			format: media.AudioFormat{
+				Layout: media.LayoutMono,
+				Rate:   media.Rate8kHz, Codec: media.CodecPCM,
+			},
 			want: "sample format",
 		},
 	}
@@ -79,8 +87,10 @@ func TestConfig_AcceptsBothPCMWidths(t *testing.T) {
 	t.Parallel()
 
 	for _, sf := range []media.SampleFormat{media.FormatPCM16, media.FormatPCM32} {
-		f := media.AudioFormat{Format: sf, Layout: media.LayoutMono,
-			Rate: media.Rate8kHz, Codec: media.CodecPCM}
+		f := media.AudioFormat{
+			Format: sf, Layout: media.LayoutMono,
+			Rate: media.Rate8kHz, Codec: media.CodecPCM,
+		}
 		if err := validateAnalysisFormat(f); err != nil {
 			t.Fatalf("%s was refused: %v", sf, err)
 		}
@@ -123,32 +133,44 @@ func TestConfig_EveryFieldHasARejectingCase(t *testing.T) {
 			c.Noise.RiseAlpha = 0.5
 			c.Noise.FallAlpha = 0.1
 		}, "smaller than FallAlpha"},
-		{"Noise.MaxRiseDBPerSecond", func(c *Config) { c.Noise.MaxRiseDBPerSecond = 0 },
-			"MaxRiseDBPerSecond"},
+		{
+			"Noise.MaxRiseDBPerSecond", func(c *Config) { c.Noise.MaxRiseDBPerSecond = 0 },
+			"MaxRiseDBPerSecond",
+		},
 		{"Noise.MinFloor", func(c *Config) { c.Noise.MinFloor = 0 }, "MinFloor"},
 		{"Noise.MaxFloor", func(c *Config) { c.Noise.MaxFloor = 1e-9 }, "MaxFloor"},
-		{"Noise.ConfidenceFrames", func(c *Config) { c.Noise.ConfidenceFrames = 0 },
-			"ConfidenceFrames"},
+		{
+			"Noise.ConfidenceFrames", func(c *Config) { c.Noise.ConfidenceFrames = 0 },
+			"ConfidenceFrames",
+		},
 		{"Noise.QuietFloor", func(c *Config) { c.Noise.QuietFloor = 0 }, "QuietFloor"},
 		{"Noise.QuietFloorBelowMinFloor", func(c *Config) {
 			c.Noise.MinFloor = 1e-3
 			c.Noise.QuietFloor = 1e-6
 		}, "could ever be classified as quiet"},
-		{"Noise.TransientModulation", func(c *Config) { c.Noise.TransientModulation = 0 },
-			"TransientModulation"},
+		{
+			"Noise.TransientModulation", func(c *Config) { c.Noise.TransientModulation = 0 },
+			"TransientModulation",
+		},
 
 		// VAD.
-		{"VAD.OnsetThresholdDB", func(c *Config) { c.VAD.OnsetThresholdDB = 0 },
-			"OnsetThresholdDB"},
-		{"VAD.ReleaseThresholdDB", func(c *Config) { c.VAD.ReleaseThresholdDB = 0 },
-			"ReleaseThresholdDB"},
+		{
+			"VAD.OnsetThresholdDB", func(c *Config) { c.VAD.OnsetThresholdDB = 0 },
+			"OnsetThresholdDB",
+		},
+		{
+			"VAD.ReleaseThresholdDB", func(c *Config) { c.VAD.ReleaseThresholdDB = 0 },
+			"ReleaseThresholdDB",
+		},
 		{"VAD.NoHysteresis", func(c *Config) {
 			c.VAD.ReleaseThresholdDB = c.VAD.OnsetThresholdDB
 		}, "hysteresis"},
 		{"VAD.MinOnsetFrames", func(c *Config) { c.VAD.MinOnsetFrames = 0 }, "MinOnsetFrames"},
 		{"VAD.MinSilence", func(c *Config) { c.VAD.MinSilence = 0 }, "MinSilence"},
-		{"VAD.MinSilenceSubFrame", func(c *Config) { c.VAD.MinSilence = time.Nanosecond },
-			"shorter than one frame"},
+		{
+			"VAD.MinSilenceSubFrame", func(c *Config) { c.VAD.MinSilence = time.Nanosecond },
+			"shorter than one frame",
+		},
 		{"VAD.MinSpeech", func(c *Config) { c.VAD.MinSpeech = -1 }, "MinSpeech"},
 		{"VAD.ZCRMin", func(c *Config) { c.VAD.ZCRMin = -0.1 }, "ZCRMin"},
 		{"VAD.ZCRMax", func(c *Config) { c.VAD.ZCRMax = 1.5 }, "ZCRMax"},
@@ -156,16 +178,24 @@ func TestConfig_EveryFieldHasARejectingCase(t *testing.T) {
 			c.VAD.ZCRMin = 0.8
 			c.VAD.ZCRMax = 0.2
 		}, "below ZCRMax"},
-		{"VAD.MinEnergyModulation", func(c *Config) { c.VAD.MinEnergyModulation = -1 },
-			"MinEnergyModulation"},
-		{"VAD.AbsoluteSilenceRMS", func(c *Config) { c.VAD.AbsoluteSilenceRMS = 0 },
-			"AbsoluteSilenceRMS"},
-		{"VAD.NoiseHoldFrames", func(c *Config) { c.VAD.NoiseHoldFrames = 0 },
-			"NoiseHoldFrames"},
+		{
+			"VAD.MinEnergyModulation", func(c *Config) { c.VAD.MinEnergyModulation = -1 },
+			"MinEnergyModulation",
+		},
+		{
+			"VAD.AbsoluteSilenceRMS", func(c *Config) { c.VAD.AbsoluteSilenceRMS = 0 },
+			"AbsoluteSilenceRMS",
+		},
+		{
+			"VAD.NoiseHoldFrames", func(c *Config) { c.VAD.NoiseHoldFrames = 0 },
+			"NoiseHoldFrames",
+		},
 
 		// Silence.
-		{"Silence.InterWordMax", func(c *Config) { c.Silence.InterWordMax = 0 },
-			"InterWordMax"},
+		{
+			"Silence.InterWordMax", func(c *Config) { c.Silence.InterWordMax = 0 },
+			"InterWordMax",
+		},
 		{"Silence.InterSentenceMax", func(c *Config) {
 			c.Silence.InterSentenceMax = c.Silence.InterWordMax
 		}, "must exceed"},
@@ -175,12 +205,18 @@ func TestConfig_EveryFieldHasARejectingCase(t *testing.T) {
 		{"Silence.ThinkingMin", func(c *Config) { c.Silence.ThinkingMin = 0 }, "ThinkingMin"},
 
 		// Endpoint.
-		{"Endpoint.SilenceWindow", func(c *Config) { c.Endpoint.SilenceWindow = 0 },
-			"SilenceWindow"},
-		{"Endpoint.MinSpeechDuration", func(c *Config) { c.Endpoint.MinSpeechDuration = -1 },
-			"MinSpeechDuration"},
-		{"Endpoint.MaxTurnDuration", func(c *Config) { c.Endpoint.MaxTurnDuration = 0 },
-			"MaxTurnDuration"},
+		{
+			"Endpoint.SilenceWindow", func(c *Config) { c.Endpoint.SilenceWindow = 0 },
+			"SilenceWindow",
+		},
+		{
+			"Endpoint.MinSpeechDuration", func(c *Config) { c.Endpoint.MinSpeechDuration = -1 },
+			"MinSpeechDuration",
+		},
+		{
+			"Endpoint.MaxTurnDuration", func(c *Config) { c.Endpoint.MaxTurnDuration = 0 },
+			"MaxTurnDuration",
+		},
 		{"Endpoint.MaxTurn<=MinSpeech", func(c *Config) {
 			c.Endpoint.MinSpeechDuration = 2 * time.Second
 			c.Endpoint.MaxTurnDuration = time.Second
@@ -192,24 +228,34 @@ func TestConfig_EveryFieldHasARejectingCase(t *testing.T) {
 		// Barge-in.
 		{"BargeIn.MinInterval", func(c *Config) { c.BargeIn.MinInterval = 0 }, "MinInterval"},
 		{"BargeIn.MaxAge", func(c *Config) { c.BargeIn.MaxAge = 0 }, "MaxAge"},
-		{"BargeIn.ConfirmFrames", func(c *Config) { c.BargeIn.ConfirmFrames = -1 },
-			"ConfirmFrames"},
+		{
+			"BargeIn.ConfirmFrames", func(c *Config) { c.BargeIn.ConfirmFrames = -1 },
+			"ConfirmFrames",
+		},
 
 		// Overlap.
 		{"Overlap.MinDuration", func(c *Config) { c.Overlap.MinDuration = 0 }, "MinDuration"},
-		{"Overlap.ResolveAfter", func(c *Config) { c.Overlap.ResolveAfter = 0 },
-			"ResolveAfter"},
+		{
+			"Overlap.ResolveAfter", func(c *Config) { c.Overlap.ResolveAfter = 0 },
+			"ResolveAfter",
+		},
 		{"Overlap.EchoCorrelationPenalty", func(c *Config) {
 			c.Overlap.EchoCorrelationPenalty = 2
 		}, "EchoCorrelationPenalty"},
-		{"Overlap.MinConfidence", func(c *Config) { c.Overlap.MinConfidence = -1 },
-			"MinConfidence"},
+		{
+			"Overlap.MinConfidence", func(c *Config) { c.Overlap.MinConfidence = -1 },
+			"MinConfidence",
+		},
 
 		// Quality.
-		{"Quality.MinSignalRMS", func(c *Config) { c.Quality.MinSignalRMS = 0 },
-			"MinSignalRMS"},
-		{"Quality.DegradedClipRatio", func(c *Config) { c.Quality.DegradedClipRatio = 0 },
-			"DegradedClipRatio"},
+		{
+			"Quality.MinSignalRMS", func(c *Config) { c.Quality.MinSignalRMS = 0 },
+			"MinSignalRMS",
+		},
+		{
+			"Quality.DegradedClipRatio", func(c *Config) { c.Quality.DegradedClipRatio = 0 },
+			"DegradedClipRatio",
+		},
 		{"Quality.MaxClipRatio", func(c *Config) {
 			c.Quality.MaxClipRatio = c.Quality.DegradedClipRatio
 		}, "MaxClipRatio"},
@@ -217,25 +263,39 @@ func TestConfig_EveryFieldHasARejectingCase(t *testing.T) {
 			c.Quality.DegradedSNRDB = 1
 			c.Quality.MinSNRDB = 20
 		}, "DegradedSNRDB"},
-		{"Quality.DegradedGapRatio", func(c *Config) { c.Quality.DegradedGapRatio = 0 },
-			"DegradedGapRatio"},
-		{"Quality.MaxGapRatio", func(c *Config) { c.Quality.MaxGapRatio = 1.5 },
-			"MaxGapRatio"},
-		{"Quality.MinDynamicRange", func(c *Config) { c.Quality.MinDynamicRange = -1 },
-			"MinDynamicRange"},
-		{"Quality.WindowFrames", func(c *Config) { c.Quality.WindowFrames = 0 },
-			"WindowFrames"},
-		{"Quality.HysteresisFrames", func(c *Config) { c.Quality.HysteresisFrames = 0 },
-			"HysteresisFrames"},
+		{
+			"Quality.DegradedGapRatio", func(c *Config) { c.Quality.DegradedGapRatio = 0 },
+			"DegradedGapRatio",
+		},
+		{
+			"Quality.MaxGapRatio", func(c *Config) { c.Quality.MaxGapRatio = 1.5 },
+			"MaxGapRatio",
+		},
+		{
+			"Quality.MinDynamicRange", func(c *Config) { c.Quality.MinDynamicRange = -1 },
+			"MinDynamicRange",
+		},
+		{
+			"Quality.WindowFrames", func(c *Config) { c.Quality.WindowFrames = 0 },
+			"WindowFrames",
+		},
+		{
+			"Quality.HysteresisFrames", func(c *Config) { c.Quality.HysteresisFrames = 0 },
+			"HysteresisFrames",
+		},
 
 		// Continuity.
 		{"Continuity.MaxTimestampJump", func(c *Config) {
 			c.Continuity.MaxTimestampJump = 0
 		}, "MaxTimestampJump"},
-		{"Continuity.WindowFrames", func(c *Config) { c.Continuity.WindowFrames = 0 },
-			"WindowFrames"},
-		{"Continuity.RestoreFrames", func(c *Config) { c.Continuity.RestoreFrames = 0 },
-			"RestoreFrames"},
+		{
+			"Continuity.WindowFrames", func(c *Config) { c.Continuity.WindowFrames = 0 },
+			"WindowFrames",
+		},
+		{
+			"Continuity.RestoreFrames", func(c *Config) { c.Continuity.RestoreFrames = 0 },
+			"RestoreFrames",
+		},
 	}
 
 	for _, tc := range cases {

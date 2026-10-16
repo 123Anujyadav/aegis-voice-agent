@@ -280,7 +280,8 @@ func assertNoStaleOutput(t *testing.T, p voice.Planner, c *conversation.Conversa
 		utteranceEvent("are you still there"),
 		{Kind: conversation.EventSpeechComplete},
 		{Kind: conversation.EventUtterance, Utterance: conversation.Utterance{
-			Text: "hello", ASRConfidence: 0.99}, Party: conversation.PartyCaller},
+			Text: "hello", ASRConfidence: 0.99,
+		}, Party: conversation.PartyCaller},
 	} {
 		// Driven through voice.Planner -- the interface voice actually holds --
 		// so a wrapper that swallows the terminal refusal and answers anyway is
@@ -332,7 +333,8 @@ func failureBridge(t *testing.T, script *conversation.ScriptedClassifier) *voice
 
 // runTurn opens the floor, delivers one event and records the outcome.
 func runTurn(t *testing.T, b *voiceintel.Bridge, id string, e conversation.Event,
-	script *conversation.ScriptedClassifier) outcome {
+	script *conversation.ScriptedClassifier,
+) outcome {
 	t.Helper()
 
 	p, err := b.Planner(conversation.ConversationID(id), "")
@@ -1148,7 +1150,8 @@ func TestFailure_DeterministicAcrossRepeats(t *testing.T) {
 			return runTurn(t, b, fmt.Sprintf("d-mal-%d", n), conversation.Event{
 				Kind: conversation.EventUtterance,
 				Utterance: conversation.Utterance{
-					Text: "\x00\x01 sk-live-SECRET", ASRConfidence: 0.95},
+					Text: "\x00\x01 sk-live-SECRET", ASRConfidence: 0.95,
+				},
 				Party: conversation.PartyCaller,
 			}, s)
 		},

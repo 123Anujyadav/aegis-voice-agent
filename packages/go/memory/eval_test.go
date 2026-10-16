@@ -201,8 +201,10 @@ func TestEvaluation_ScopeNeverLeaks(t *testing.T) {
 		},
 		{
 			"conversation 1 query returns conversation 2",
-			Query{Subject: "subject-a", Attribute: AttrConversation, Value: "conv-1",
-				MaxSensitivity: Internal, Limit: 1000},
+			Query{
+				Subject: "subject-a", Attribute: AttrConversation, Value: "conv-1",
+				MaxSensitivity: Internal, Limit: 1000,
+			},
 			func(r *Record) bool { return r.Value.Attributes[AttrConversation] != "conv-1" },
 		},
 		{

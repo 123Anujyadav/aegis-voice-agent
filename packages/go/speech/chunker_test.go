@@ -23,54 +23,74 @@ func TestChunker_Boundaries(t *testing.T) {
 		want []string
 	}{
 		// Mandatory 15 — Hindi with the Devanagari danda.
-		{"hindi devanagari danda",
+		{
+			"hindi devanagari danda",
 			"नमस्ते। आप कैसे हैं।",
-			[]string{"नमस्ते।", "आप कैसे हैं।"}},
+			[]string{"नमस्ते।", "आप कैसे हैं।"},
+		},
 
 		// Mandatory 17 — Devanagari with mixed terminators.
-		{"devanagari mixed terminators",
+		{
+			"devanagari mixed terminators",
 			"क्या हाल है? बहुत बढ़िया! ठीक है।",
-			[]string{"क्या हाल है?", "बहुत बढ़िया!", "ठीक है।"}},
+			[]string{"क्या हाल है?", "बहुत बढ़िया!", "ठीक है।"},
+		},
 
 		// Mandatory 16 — Hinglish in Latin script.
-		{"hinglish code mixed",
+		{
+			"hinglish code mixed",
 			"Aapka OTP hai 4 5 6. Please share mat kijiye. Thank you!",
-			[]string{"Aapka OTP hai 4 5 6.", "Please share mat kijiye.", "Thank you!"}},
+			[]string{"Aapka OTP hai 4 5 6.", "Please share mat kijiye.", "Thank you!"},
+		},
 
 		// Mandatory 18 — Devanagari and Latin in one utterance.
-		{"devanagari and latin mixed",
+		{
+			"devanagari and latin mixed",
 			"मैं आपकी help कर सकता हूँ। Please hold.",
-			[]string{"मैं आपकी help कर सकता हूँ।", "Please hold."}},
+			[]string{"मैं आपकी help कर सकता हूँ।", "Please hold."},
+		},
 
 		// Mandatory 19 — decimal numbers must not split.
-		{"decimals",
+		{
+			"decimals",
 			"The amount is 1234.56 rupees. Confirm please.",
-			[]string{"The amount is 1234.56 rupees.", "Confirm please."}},
+			[]string{"The amount is 1234.56 rupees.", "Confirm please."},
+		},
 
 		// Mandatory 20 — phone numbers must not split.
-		{"phone number",
+		{
+			"phone number",
 			"Call 022.2222.3333 now. Thanks.",
-			[]string{"Call 022.2222.3333 now.", "Thanks."}},
+			[]string{"Call 022.2222.3333 now.", "Thanks."},
+		},
 
 		// Mandatory 21 — OTP-like digit runs must not split.
-		{"otp digits",
+		{
+			"otp digits",
 			"Your code is 4 8 2 9 1 6. Do not share.",
-			[]string{"Your code is 4 8 2 9 1 6.", "Do not share."}},
+			[]string{"Your code is 4 8 2 9 1 6.", "Do not share."},
+		},
 
 		// Mandatory 22 — URLs must not split.
-		{"url",
+		{
+			"url",
 			"Visit example.co.in for details. Bye.",
-			[]string{"Visit example.co.in for details.", "Bye."}},
+			[]string{"Visit example.co.in for details.", "Bye."},
+		},
 
 		// Mandatory 23 — abbreviations must not split.
-		{"abbreviations",
+		{
+			"abbreviations",
 			"Dr. Sharma will call. Mr. Rao agreed.",
-			[]string{"Dr. Sharma will call.", "Mr. Rao agreed."}},
+			[]string{"Dr. Sharma will call.", "Mr. Rao agreed."},
+		},
 
 		// Initials are the other abbreviation shape.
-		{"initials",
+		{
+			"initials",
 			"A. K. Sharma is calling. Please hold.",
-			[]string{"A. K. Sharma is calling.", "Please hold."}},
+			[]string{"A. K. Sharma is calling.", "Please hold."},
+		},
 
 		// Short sentences are legal and must survive.
 		{"short sentences", "Yes. No. Ok.", []string{"Yes.", "No.", "Ok."}},
@@ -82,9 +102,11 @@ func TestChunker_Boundaries(t *testing.T) {
 		{"double danda", "श्लोक॥ अगला वाक्य।", []string{"श्लोक॥", "अगला वाक्य।"}},
 
 		// A rupee amount in Devanagari context — decimal rule is script-neutral.
-		{"decimal in devanagari",
+		{
+			"decimal in devanagari",
 			"आपका बैलेंस 1234.56 है। धन्यवाद।",
-			[]string{"आपका बैलेंस 1234.56 है।", "धन्यवाद।"}},
+			[]string{"आपका बैलेंस 1234.56 है।", "धन्यवाद।"},
+		},
 	}
 
 	for _, tc := range cases {

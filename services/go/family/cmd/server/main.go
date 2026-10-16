@@ -9,8 +9,10 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 )
 
-const serviceName = "family"
-const envPrefix = "CS_FAMILY"
+const (
+	serviceName = "family"
+	envPrefix   = "CS_FAMILY"
+)
 
 func main() {
 	if err := run(); err != nil {

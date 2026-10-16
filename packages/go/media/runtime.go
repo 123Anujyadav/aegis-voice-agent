@@ -577,8 +577,10 @@ type MediaScheduler struct {
 
 // NewMediaScheduler builds a scheduler.
 func NewMediaScheduler(cfg Config, reg *MediaRegistry, m *MediaMetrics) *MediaScheduler {
-	return &MediaScheduler{cfg: cfg, registry: reg, metrics: m,
-		perSource: make(map[SourceID]int)}
+	return &MediaScheduler{
+		cfg: cfg, registry: reg, metrics: m,
+		perSource: make(map[SourceID]int),
+	}
 }
 
 // Admit decides whether a stream may open, and reserves a slot if so.
@@ -750,7 +752,8 @@ func (c *MediaCoordinator) Fail(ctx context.Context, id StreamID, reason string)
 }
 
 func (c *MediaCoordinator) conclude(ctx context.Context, id StreamID,
-	to StreamState, reason string) error {
+	to StreamState, reason string,
+) error {
 	s, err := c.rt.registry.Get(id)
 	if err != nil {
 		return err

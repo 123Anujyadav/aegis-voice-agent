@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	ErrNotFound      = errors.New("repository: entity not found")
-	ErrAlreadyExists = errors.New("repository: entity already exists")
+	ErrNotFound       = errors.New("repository: entity not found")
+	ErrAlreadyExists  = errors.New("repository: entity already exists")
 	ErrOptimisticLock = errors.New("repository: optimistic lock failure")
 )
 

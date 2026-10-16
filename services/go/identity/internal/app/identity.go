@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-
 	"github.com/callscreen/callscreen-platform/packages/go/middleware"
 )
 

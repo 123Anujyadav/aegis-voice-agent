@@ -220,35 +220,63 @@ func TestPromotion_DecisionTable(t *testing.T) {
 		now  time.Time
 		want TierDecision
 	}{
-		{"pinned never moves",
-			&Record{Tier: TierWorking, State: StateActive, Pinned: true,
-				CreatedAt: base, AccessedAt: base.Add(-time.Hour)},
-			base, TierHold},
-		{"idle working expires",
-			&Record{Tier: TierWorking, State: StateActive,
-				CreatedAt: base, AccessedAt: base},
-			base.Add(31 * time.Second), TierExpireNow},
-		{"hot enough promotes",
-			&Record{Tier: TierWorking, State: StateActive, AccessCount: 3,
-				CreatedAt: base, AccessedAt: base.Add(6 * time.Second)},
-			base.Add(6 * time.Second), TierPromoteUp},
-		{"hot but too young holds",
-			&Record{Tier: TierWorking, State: StateActive, AccessCount: 10,
-				CreatedAt: base, AccessedAt: base.Add(time.Second)},
-			base.Add(time.Second), TierHold},
-		{"idle short-term demotes",
-			&Record{Tier: TierShortTerm, State: StateActive,
-				CreatedAt: base, AccessedAt: base},
-			base.Add(11 * time.Minute), TierDemoteDown},
-		{"derived does not promote by default",
-			&Record{Tier: TierShortTerm, State: StateActive, AccessCount: 99,
+		{
+			"pinned never moves",
+			&Record{
+				Tier: TierWorking, State: StateActive, Pinned: true,
+				CreatedAt: base, AccessedAt: base.Add(-time.Hour),
+			},
+			base, TierHold,
+		},
+		{
+			"idle working expires",
+			&Record{
+				Tier: TierWorking, State: StateActive,
+				CreatedAt: base, AccessedAt: base,
+			},
+			base.Add(31 * time.Second), TierExpireNow,
+		},
+		{
+			"hot enough promotes",
+			&Record{
+				Tier: TierWorking, State: StateActive, AccessCount: 3,
+				CreatedAt: base, AccessedAt: base.Add(6 * time.Second),
+			},
+			base.Add(6 * time.Second), TierPromoteUp,
+		},
+		{
+			"hot but too young holds",
+			&Record{
+				Tier: TierWorking, State: StateActive, AccessCount: 10,
+				CreatedAt: base, AccessedAt: base.Add(time.Second),
+			},
+			base.Add(time.Second), TierHold,
+		},
+		{
+			"idle short-term demotes",
+			&Record{
+				Tier: TierShortTerm, State: StateActive,
+				CreatedAt: base, AccessedAt: base,
+			},
+			base.Add(11 * time.Minute), TierDemoteDown,
+		},
+		{
+			"derived does not promote by default",
+			&Record{
+				Tier: TierShortTerm, State: StateActive, AccessCount: 99,
 				CreatedAt: base, AccessedAt: base.Add(10 * time.Second),
-				Provenance: Provenance{Derived: true}},
-			base.Add(10 * time.Second), TierHold},
-		{"inactive record holds",
-			&Record{Tier: TierWorking, State: StateArchived,
-				CreatedAt: base, AccessedAt: base},
-			base.Add(time.Hour), TierHold},
+				Provenance: Provenance{Derived: true},
+			},
+			base.Add(10 * time.Second), TierHold,
+		},
+		{
+			"inactive record holds",
+			&Record{
+				Tier: TierWorking, State: StateArchived,
+				CreatedAt: base, AccessedAt: base,
+			},
+			base.Add(time.Hour), TierHold,
+		},
 	}
 
 	for _, tc := range cases {
@@ -264,8 +292,10 @@ func TestPromotion_IsDeterministic(t *testing.T) {
 	t.Parallel()
 	p := DefaultPromotionPolicy()
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	r := &Record{Tier: TierWorking, State: StateActive, AccessCount: 3,
-		CreatedAt: base, AccessedAt: base.Add(6 * time.Second)}
+	r := &Record{
+		Tier: TierWorking, State: StateActive, AccessCount: 3,
+		CreatedAt: base, AccessedAt: base.Add(6 * time.Second),
+	}
 
 	first := p.Evaluate(r, base.Add(6*time.Second))
 	for i := 0; i < 100; i++ {
@@ -277,8 +307,10 @@ func TestPromotion_IsDeterministic(t *testing.T) {
 
 func TestPromotion_ConfigRejectsImpossibleWindows(t *testing.T) {
 	t.Parallel()
-	p := PromotionPolicy{AccessesToPromote: 1, IdleToDemote: time.Second,
-		IdleToExpire: 10 * time.Second}
+	p := PromotionPolicy{
+		AccessesToPromote: 1, IdleToDemote: time.Second,
+		IdleToExpire: 10 * time.Second,
+	}
 	if len(p.validate()) == 0 {
 		t.Fatal("a record that expires before it can be demoted is a misconfiguration")
 	}
@@ -688,8 +720,10 @@ func TestRetrieval_OrderIsDeterministic(t *testing.T) {
 
 	var first []string
 	for i := 0; i < 20; i++ {
-		res, _ := b.Retriever.Search(Query{Subject: "s", Order: OrderRecent,
-			MaxSensitivity: Internal}, "")
+		res, _ := b.Retriever.Search(Query{
+			Subject: "s", Order: OrderRecent,
+			MaxSensitivity: Internal,
+		}, "")
 		got := make([]string, 0, len(res.Records))
 		for _, r := range res.Records {
 			got = append(got, r.Key.Name)
@@ -719,18 +753,26 @@ func TestRetrieval_PlanSelectionUsesTheRightIndex(t *testing.T) {
 		query Query
 		want  string
 	}{
-		{"name -> primary",
+		{
+			"name -> primary",
 			Query{Subject: "s", Name: "k", Kinds: []Kind{KindConversation}, MaxSensitivity: Internal},
-			"primary"},
-		{"attribute -> secondary",
+			"primary",
+		},
+		{
+			"attribute -> secondary",
 			Query{Attribute: AttrConversation, Value: "c1", MaxSensitivity: Internal},
-			"secondary:" + AttrConversation},
-		{"time -> time index",
+			"secondary:" + AttrConversation,
+		},
+		{
+			"time -> time index",
 			Query{Subject: "s", From: h.Clock.Now().Add(-time.Hour), MaxSensitivity: Internal},
-			"time"},
-		{"subject+kind -> kind scan",
+			"time",
+		},
+		{
+			"subject+kind -> kind scan",
 			Query{Subject: "s", Kinds: []Kind{KindConversation}, MaxSensitivity: Internal},
-			"primary_scan:kind"},
+			"primary_scan:kind",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -807,8 +849,10 @@ func TestEvents_CarryIdentifiersNotContent(t *testing.T) {
 
 func TestEvents_TopicNamingMatchesTheFrozenConvention(t *testing.T) {
 	t.Parallel()
-	for _, e := range []EventType{EventCreated, EventUpdated, EventDeleted,
-		EventExpired, EventPromoted, EventDemoted, EventMerged, EventArchived} {
+	for _, e := range []EventType{
+		EventCreated, EventUpdated, EventDeleted,
+		EventExpired, EventPromoted, EventDemoted, EventMerged, EventArchived,
+	} {
 		topic := e.Topic()
 		if !strings.HasPrefix(topic, "memory.record.") || !strings.HasSuffix(topic, ".v1") {
 			t.Errorf("topic %q does not match <domain>.<entity>.<event>.v<major>", topic)

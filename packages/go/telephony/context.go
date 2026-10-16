@@ -84,8 +84,10 @@ const (
 
 // AllCapabilities returns every capability.
 func AllCapabilities() []Capability {
-	return []Capability{CapDial, CapAnswer, CapReject, CapHangup,
-		CapHold, CapMute, CapTransfer, CapRecord, CapDTMF}
+	return []Capability{
+		CapDial, CapAnswer, CapReject, CapHangup,
+		CapHold, CapMute, CapTransfer, CapRecord, CapDTMF,
+	}
 }
 
 // String implements fmt.Stringer.

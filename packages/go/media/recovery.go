@@ -311,7 +311,8 @@ func (r *MediaRuntime) recoverStreams(ctx context.Context) (RecoveryReport, erro
 
 // recoverOne rebuilds a single stream and decides its fate.
 func (r *MediaRuntime) recoverOne(ctx context.Context, snap StreamSnapshot,
-	check SourceCheck) (RecoveryOutcome, int) {
+	check SourceCheck,
+) (RecoveryOutcome, int) {
 	cfg := r.cfg.Pipeline
 	cfg.Format = snap.Context.Format
 	cfg.Buffer.Format = snap.Context.Format

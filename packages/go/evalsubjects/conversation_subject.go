@@ -128,7 +128,8 @@ func (s *conversationSession) Execute(ctx context.Context, step ev.Step) ev.Step
 		}
 		if err := s.conv.Escalate("evaluation"); err != nil {
 			return result("escalate_refused", ev.Values{
-				"state": ev.S(s.conv.State().String())})
+				"state": ev.S(s.conv.State().String()),
+			})
 		}
 		s.record("escalated")
 		return result(ok, ev.Values{"state": ev.S(s.conv.State().String())})
@@ -139,7 +140,8 @@ func (s *conversationSession) Execute(ctx context.Context, step ev.Step) ev.Step
 		}
 		if err := s.conv.End("evaluation"); err != nil {
 			return result("end_refused", ev.Values{
-				"state": ev.S(s.conv.State().String())})
+				"state": ev.S(s.conv.State().String()),
+			})
 		}
 		s.record("ended")
 		return result(ok, ev.Values{

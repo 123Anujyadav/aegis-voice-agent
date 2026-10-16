@@ -208,8 +208,10 @@ func (l *LatencyController) Enter(s Stage) (end func(), run bool) {
 	overThreshold := float64(elapsed) > float64(l.cfg.Total)*l.cfg.DegradeThreshold
 	if overThreshold && s.Skippable() {
 		l.degraded = true
-		l.records = append(l.records, Reservation{Stage: s, Started: now, Ended: now,
-			Budget: budget, Skipped: true})
+		l.records = append(l.records, Reservation{
+			Stage: s, Started: now, Ended: now,
+			Budget: budget, Skipped: true,
+		})
 		l.mu.Unlock()
 		l.metrics.BudgetExceeded.Inc(s.String())
 		return func() {}, false

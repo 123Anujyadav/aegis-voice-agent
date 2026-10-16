@@ -36,8 +36,10 @@ func (t EventType) Topic() string { return "tool.execution." + string(t) + ".v1"
 
 // AllEventTypes returns every published type, in declaration order.
 func AllEventTypes() []EventType {
-	return []EventType{EventStarted, EventCompleted, EventFailed, EventCancelled,
-		EventTimedOut, EventRetried, EventRolledBack, EventPermissionDenied}
+	return []EventType{
+		EventStarted, EventCompleted, EventFailed, EventCancelled,
+		EventTimedOut, EventRetried, EventRolledBack, EventPermissionDenied,
+	}
 }
 
 // Event is one published execution event.

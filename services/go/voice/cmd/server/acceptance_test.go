@@ -279,7 +279,8 @@ func runAcceptance(vi *voiceIntelligence, id conversation.ConversationID, f acce
 			})
 		case opOverlap:
 			plan, hErr = p.Handle(conversation.Event{
-				Kind: conversation.EventOverlap, Party: conversation.PartyCaller})
+				Kind: conversation.EventOverlap, Party: conversation.PartyCaller,
+			})
 		case opSilence:
 			plan, hErr = p.Handle(conversation.Event{Kind: conversation.EventSilence})
 		case opEnd:
@@ -536,8 +537,10 @@ func TestT11_NoCallerContentLeaksIntoMachineFields(t *testing.T) {
 		}
 		for _, e := range conv.Context().Export(conversation.SensitiveValue) {
 			machine = append(machine,
-				struct{ field, value string }{"context[" + e.Key + "]",
-					fmt.Sprintf("%v", e.Value)})
+				struct{ field, value string }{
+					"context[" + e.Key + "]",
+					fmt.Sprintf("%v", e.Value),
+				})
 		}
 		for _, m := range machine {
 			for _, s := range sensitive {
@@ -892,7 +895,8 @@ func TestT11_MultiTurnWithContextRepeatsAcrossFreshServices(t *testing.T) {
 			}
 			if n+1 < len(sequence) {
 				if _, err := p.Handle(conversation.Event{
-					Kind: conversation.EventSpeechComplete}); err != nil {
+					Kind: conversation.EventSpeechComplete,
+				}); err != nil {
 					t.Fatalf("pass %d turn %d: speech-complete: %v", pass, n, err)
 				}
 			}

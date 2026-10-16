@@ -174,7 +174,8 @@ type Stream struct {
 
 // newStream builds a stream. Callers go through [MediaRegistry.Create].
 func newStream(id StreamID, sess SessionID, sc StreamContext, cfg PipelineConfig,
-	initial StreamState, clock rt.Clock) (*Stream, error) {
+	initial StreamState, clock rt.Clock,
+) (*Stream, error) {
 	if err := sc.Validate(); err != nil {
 		return nil, err
 	}
@@ -250,7 +251,8 @@ func (s *Stream) Transition(to StreamState, reason string) error {
 	s.mu.Lock()
 	s.seq++
 	s.appendHistoryLocked(TransitionRecord{
-		From: from, To: to, Reason: reason, At: now, Seq: s.seq})
+		From: from, To: to, Reason: reason, At: now, Seq: s.seq,
+	})
 	s.updatedAt = now
 
 	if to == StateActive && s.startedAt.IsZero() {

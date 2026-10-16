@@ -379,22 +379,32 @@ func (r *ConsentRegistry) Check(subject SubjectID, basis string) ConsentCheck {
 	var check ConsentCheck
 	switch {
 	case !ok:
-		check = ConsentCheck{State: ConsentRevoked, Reason: "not_found",
-			Err: fmt.Errorf("%w: %s/%s", ErrConsentNotFound, subject, basis)}
+		check = ConsentCheck{
+			State: ConsentRevoked, Reason: "not_found",
+			Err: fmt.Errorf("%w: %s/%s", ErrConsentNotFound, subject, basis),
+		}
 	case snapshot.State == ConsentRevoked:
-		check = ConsentCheck{State: ConsentRevoked, Record: snapshot, Reason: "revoked",
-			Err: fmt.Errorf("%w: %s/%s", ErrConsentRevoked, subject, basis)}
+		check = ConsentCheck{
+			State: ConsentRevoked, Record: snapshot, Reason: "revoked",
+			Err: fmt.Errorf("%w: %s/%s", ErrConsentRevoked, subject, basis),
+		}
 	case snapshot.TermsVersion < currentTerms:
-		check = ConsentCheck{State: ConsentSuperseded, Record: snapshot,
+		check = ConsentCheck{
+			State: ConsentSuperseded, Record: snapshot,
 			Reason: "superseded", RequiredTerms: currentTerms,
 			Err: fmt.Errorf("%w: %s/%s agreed to terms v%d, current is v%d",
-				ErrConsentSuperseded, subject, basis, snapshot.TermsVersion, currentTerms)}
+				ErrConsentSuperseded, subject, basis, snapshot.TermsVersion, currentTerms),
+		}
 	case !snapshot.Live(now):
-		check = ConsentCheck{State: ConsentExpired, Record: snapshot, Reason: "expired",
-			Err: fmt.Errorf("%w: %s/%s", ErrConsentExpired, subject, basis)}
+		check = ConsentCheck{
+			State: ConsentExpired, Record: snapshot, Reason: "expired",
+			Err: fmt.Errorf("%w: %s/%s", ErrConsentExpired, subject, basis),
+		}
 	default:
-		check = ConsentCheck{Valid: true, State: ConsentGranted, Record: snapshot,
-			Reason: "valid"}
+		check = ConsentCheck{
+			Valid: true, State: ConsentGranted, Record: snapshot,
+			Reason: "valid",
+		}
 	}
 
 	if r.metrics != nil {
