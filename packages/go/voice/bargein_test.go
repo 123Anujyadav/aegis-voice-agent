@@ -237,6 +237,7 @@ type bargeOpts struct {
 	sinkDelay      time.Duration
 	noController   bool
 	refuse         bool
+	onStateEvent   func(context.Context, VoiceEvent)
 }
 
 // newBargeHarness builds a pipeline whose Phase 11C seam is a real adapter.
@@ -271,6 +272,7 @@ func newBargeHarness(t *testing.T, o bargeOpts) *bargeHarness {
 		ttsSynthDelay:  o.ttsSynthDelay,
 		sinkDelay:      o.sinkDelay,
 		maxFrames:      256,
+		onStateEvent:   o.onStateEvent,
 	})
 
 	session := &fakeSpeechSession{}
@@ -1306,6 +1308,213 @@ func TestBargeIn_TurnsEndingAsTheCallerInterruptsKeepOneOwnerOfTheFloor(t *testi
 		}
 		_ = h.pipeline.Disconnect()
 		<-h.pipeline.Done()
+
+		assertEveryGenerationWasAnInterruption(t, h, attempt)
+		if t.Failed() {
+			return
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// The floor lock
+// ---------------------------------------------------------------------------
+
+// TestBargeIn_OutsideTheFloorNothingCanMoveTheTurn pins the invariant that
+// lets a turn's pre-synthesis exits — emptyTurn, failTurn, the governance
+// denial — run without the floor lock.
+//
+// Until a turn moves the session to synthesizing it holds no floor, and in
+// those states the session is that turn's alone:
+//
+//   - an interruption is refused there, under the lock, before it bumps the
+//     generation or touches Phase 11C or the turn;
+//   - a superseded turn's only later moves are the generation-guarded ones,
+//     which leave a newer turn's state alone.
+func TestBargeIn_OutsideTheFloorNothingCanMoveTheTurn(t *testing.T) {
+	t.Parallel()
+
+	h := newBargeHarness(t, bargeOpts{})
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = h.pipeline.Disconnect() }()
+	ctx := context.Background()
+
+	// A turn that was superseded before this one began.
+	stale := h.pipeline.Generation()
+	h.pipeline.generation.Add(1)
+	current := h.pipeline.Generation()
+
+	states := []SessionState{
+		StateListening, StateSpeakingDetected, StateTranscribing, StateThinking,
+	}
+	for i, state := range states {
+		if i > 0 {
+			if err := h.fsm.To(ctx, state, ReasonOK); err != nil {
+				t.Fatalf("driving the session to %s: %v", state, err)
+			}
+		}
+
+		err := h.pipeline.interrupts.Interrupt(ctx, audiointel.ReasonCallerSpoke)
+		if err == nil {
+			t.Fatalf("%s: an interruption was accepted with no floor to take", state)
+		}
+		var te *TransitionError
+		if errors.As(err, &te) {
+			t.Errorf("%s: the refusal came from a transition (%v), so the "+
+				"generation had already been bumped", state, err)
+		}
+
+		if interrupted, err := h.pipeline.yieldFloor(stale, ReasonOK); !interrupted || err != nil {
+			t.Errorf("%s: a superseded turn's hand-back was not refused "+
+				"(interrupted=%t err=%v)", state, interrupted, err)
+		}
+		turnCtx, cancel := context.WithCancel(ctx)
+		if superseded, err := h.pipeline.startSpeaking(turnCtx, stale); !superseded || err != nil {
+			t.Errorf("%s: a superseded turn was allowed to start speaking "+
+				"(superseded=%t err=%v)", state, superseded, err)
+		}
+		cancel()
+		h.pipeline.failSynthesis(stale, ReasonUnavailable)
+
+		if got := h.fsm.State(); got != state {
+			t.Fatalf("the session moved from %s to %s", state, got)
+		}
+		if got := h.pipeline.Generation(); got != current {
+			t.Fatalf("%s: the generation moved to %d", state, got)
+		}
+	}
+
+	if got := h.session.interrupts.Load(); got != 0 {
+		t.Errorf("Phase 11C was interrupted %d times with no floor to take", got)
+	}
+	if got := h.pipeline.BargeIns(); got != 0 {
+		t.Errorf("%d interruptions were counted delivered", got)
+	}
+	if got := h.pipeline.interrupts.RefusedByFloor(); got != uint64(len(states)) {
+		t.Errorf("%d refusals by floor recorded, want %d", got, len(states))
+	}
+	if err := h.pipeline.Err(); err != nil {
+		t.Errorf("the pipeline recorded a fault: %v", err)
+	}
+}
+
+// TestBargeIn_ABrokerStuckDuringAnInterruptionCannotHoldTheCallOpen exercises
+// the floor lock's worst case: the interruption holds it across the session
+// FSM's synchronous publish, and the broker does not return.
+//
+// The broker here honours its context — the event port's contract — and
+// nothing else. While it blocks, the interrupted turn wants the floor back and
+// waits; the call must still end on hang-up, because stop needs neither the
+// floor nor the stuck goroutine, and cancelling the session releases the
+// broker. A broker that ignored its context would hang the goroutine
+// publishing into it, lock or no lock; that is outside what this can bound.
+func TestBargeIn_ABrokerStuckDuringAnInterruptionCannotHoldTheCallOpen(t *testing.T) {
+	t.Parallel()
+
+	stuck := make(chan struct{})
+	var once sync.Once
+	h := newBargeHarness(t, bargeOpts{
+		onStateEvent: func(ctx context.Context, e VoiceEvent) {
+			if e.Type == EventStateChanged && e.To == StateInterrupted {
+				once.Do(func() { close(stuck) })
+				<-ctx.Done()
+			}
+		},
+	})
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	h.feedUntil(t, 20*time.Second, func() bool { return h.out.count() > 0 })
+	h.intel.mu.Lock()
+	h.intel.bargeAt = h.intel.frames + 1
+	h.intel.mu.Unlock()
+
+	// One frame carries the detection; the interruption then sticks in the
+	// broker, holding the floor.
+	_ = h.pipeline.WriteFrame(testFrame(5000))
+	select {
+	case <-stuck:
+	case <-time.After(20 * time.Second):
+		t.Fatal("the interruption never reached the broker")
+	}
+
+	ended := make(chan error, 1)
+	go func() { ended <- h.pipeline.Disconnect() }()
+	select {
+	case err := <-ended:
+		if err != nil {
+			t.Fatalf("Disconnect: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("hanging up blocked behind an interruption stuck in the broker")
+	}
+	select {
+	case <-h.pipeline.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("the pipeline never stopped: a goroutine is still waiting on the floor")
+	}
+
+	if got := h.fsm.State(); got != StateCompleted {
+		t.Errorf("the call ended in %s, want completed", got)
+	}
+	// The stuck interruption bumped the generation and was then cut short by
+	// the hang-up: counted, not excused.
+	assertEveryGenerationWasAnInterruption(t, h, 0)
+}
+
+// TestBargeIn_ASlowBrokerSlowsTheFloorButNeverStopsIt puts bounded latency on
+// every state-change publish — each held under the floor lock — while the
+// caller interrupts constantly and turns end on their own.
+//
+// It bounds the cost: hand-offs wait for each other's publishes, so a slow
+// broker slows interruptions, but every interruption still lands, the call
+// still ends, and the accounting is still exact.
+func TestBargeIn_ASlowBrokerSlowsTheFloorButNeverStopsIt(t *testing.T) {
+	// Not parallel: constant scheduler pressure, as the stress tests above.
+
+	for attempt := 0; attempt < 8; attempt++ {
+		h := newBargeHarness(t, bargeOpts{
+			repeat:         true,
+			tokens:         []string{"Hi."},
+			tokenGap:       time.Millisecond,
+			framesPerChunk: 2,
+			ttsSynthDelay:  time.Millisecond,
+			sinkDelay:      time.Millisecond,
+			onStateEvent: func(context.Context, VoiceEvent) {
+				time.Sleep(2 * time.Millisecond)
+			},
+		})
+		if err := h.pipeline.Start(context.Background()); err != nil {
+			t.Fatalf("attempt %d: Start: %v", attempt, err)
+		}
+
+		h.feedUntil(t, 30*time.Second, func() bool { return h.out.count() > 0 })
+		h.intel.mu.Lock()
+		h.intel.bargeAt = h.intel.frames + 1
+		h.intel.mu.Unlock()
+
+		for i := 0; i < 200; i++ {
+			_ = h.pipeline.WriteFrame(testFrame(uint64(4000 + i)))
+			time.Sleep(500 * time.Microsecond)
+		}
+		if h.pipeline.BargeIns() == 0 {
+			t.Fatalf("attempt %d: no interruption landed behind a slow broker", attempt)
+		}
+
+		ended := make(chan struct{})
+		go func() {
+			_ = h.pipeline.Disconnect()
+			<-h.pipeline.Done()
+			close(ended)
+		}()
+		select {
+		case <-ended:
+		case <-time.After(15 * time.Second):
+			t.Fatalf("attempt %d: the call did not end behind a slow broker", attempt)
+		}
 
 		assertEveryGenerationWasAnInterruption(t, h, attempt)
 		if t.Failed() {
