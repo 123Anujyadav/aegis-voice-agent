@@ -35,7 +35,7 @@ func liveSpeechSession(t *testing.T) (*speech.SpeechSession, *speech.FakeTTSProv
 	if err != nil {
 		t.Fatalf("building the Phase 11C runtime: %v", err)
 	}
-	if err := runtime.Start(context.Background()); err != nil {
+	if err = runtime.Start(context.Background()); err != nil {
 		t.Fatalf("starting the Phase 11C runtime: %v", err)
 	}
 	t.Cleanup(func() { _, _ = runtime.Stop(context.Background()) })
@@ -44,10 +44,10 @@ func liveSpeechSession(t *testing.T) (*speech.SpeechSession, *speech.FakeTTSProv
 		speech.ScriptedPartials([]string{"hello"}, "hello there."), clock)
 	tts := speech.NewFakeTTSProvider("voice", 4, clock)
 
-	if err := runtime.Router().RegisterSTT(stt, speech.TierPrimary); err != nil {
+	if err = runtime.Router().RegisterSTT(stt, speech.TierPrimary); err != nil {
 		t.Fatal(err)
 	}
-	if err := runtime.Router().RegisterTTS(tts, speech.TierPrimary); err != nil {
+	if err = runtime.Router().RegisterTTS(tts, speech.TierPrimary); err != nil {
 		t.Fatal(err)
 	}
 
@@ -231,7 +231,7 @@ func TestBridge_BargeInCancelsRealPhase11CSynthesis(t *testing.T) {
 
 	// A quiet line first, with nobody speaking. The floor converges here.
 	for _, f := range audiointel.WarmupFrames(gen, cfg) {
-		if _, err := audio.Analyze(ctx, f, ctxState, nil, nil); err != nil {
+		if _, err = audio.Analyze(ctx, f, ctxState, nil, nil); err != nil {
 			t.Fatalf("warm-up: %v", err)
 		}
 	}
@@ -305,8 +305,8 @@ func TestBridge_BargeInCancelsRealPhase11CSynthesis(t *testing.T) {
 
 // TestBridge_EndpointReachesPhase11C drives the other half of the contract.
 //
-// speech.SpeechSession.EndOfSpeech documents itself as "the VAD boundary, not a
-// VAD" and points at exactly this layer. ADR-0005 C6 records that endpointing
+// The method speech.SpeechSession.EndOfSpeech documents itself as "the VAD
+// boundary, not a VAD" and points at exactly this layer. ADR-0005 C6 records that endpointing
 // is ours and vendor endpointing is disabled or ignored — this is where the two
 // statements meet.
 func TestBridge_EndpointReachesPhase11C(t *testing.T) {
@@ -326,7 +326,7 @@ func TestBridge_EndpointReachesPhase11C(t *testing.T) {
 		Payload: make([]byte, 320),
 		Arrival: clock.Now(),
 	}
-	if err := session.PushAudio(frame); err != nil {
+	if err = session.PushAudio(frame); err != nil {
 		t.Fatal(err)
 	}
 
