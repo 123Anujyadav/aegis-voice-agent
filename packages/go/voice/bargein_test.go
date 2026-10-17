@@ -435,6 +435,62 @@ func TestBargeIn_OldGenerationIsRejectedAndTheNewOneIsSpoken(t *testing.T) {
 		playedFromOld, controllerCall)
 }
 
+// queuedTTSStream is a synthesis stream whose audio is already produced and
+// waiting: the state an interruption finds a stream in whenever synthesis runs
+// ahead of playback, which is most of the time.
+type queuedTTSStream struct{ audio chan media.Frame }
+
+func (s *queuedTTSStream) Synthesize(speech.Chunk) error { return nil }
+func (s *queuedTTSStream) Audio() <-chan media.Frame     { return s.audio }
+func (s *queuedTTSStream) CloseSend() error              { return nil }
+func (s *queuedTTSStream) Close() error                  { return nil }
+
+// TestBargeIn_AudioQueuedAtTheInterruptionIsWithheldAndCounted pins the
+// accounting TestBargeIn_OldGenerationIsRejectedAndTheNewOneIsSpoken only
+// reached by scheduling chance (once in CI: "no frames were recorded as
+// withheld").
+//
+// After an interruption the pump's select has two ready cases — the cancelled
+// turn and the queued audio — and Go picks between them at random. Whatever
+// was still queued when it picked the cancellation used to be abandoned
+// uncounted, so an interruption that stopped every queued frame could report
+// that it withheld none. Nothing reached the caller either way; the counter
+// that exists to prove it did not was what lied.
+func TestBargeIn_AudioQueuedAtTheInterruptionIsWithheldAndCounted(t *testing.T) {
+	t.Parallel()
+
+	h := newBargeHarness(t, bargeOpts{})
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = h.pipeline.Disconnect() }()
+
+	const queued = 16
+	stream := &queuedTTSStream{audio: make(chan media.Frame, queued)}
+	for i := 0; i < queued; i++ {
+		stream.audio <- testFrame(uint64(i))
+	}
+
+	turnCtx, cancel := context.WithCancel(context.Background())
+	generation := h.pipeline.Generation()
+
+	// The interruption, in interruptController.Interrupt's order: the
+	// generation first, then the turn's context via abortActiveTurn.
+	h.pipeline.generation.Add(1)
+	cancel()
+
+	before := h.pipeline.StaleFramesBlocked()
+	h.pipeline.pumpAudio(turnCtx, TurnID("t-interrupted"), stream, generation)
+
+	if got := h.out.count(); got != 0 {
+		t.Errorf("%d frames of a superseded generation reached media", got)
+	}
+	if got := h.pipeline.StaleFramesBlocked() - before; got != queued {
+		t.Errorf("%d frames recorded as withheld, want all %d that were queued "+
+			"when the caller interrupted", got, queued)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Inbound audio survives
 // ---------------------------------------------------------------------------
@@ -1102,20 +1158,13 @@ func TestBargeIn_RepeatedInterruptionsUnderLoadDoNotEndTheCall(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 
-		delivered := h.pipeline.BargeIns()
-
 		// THE PROPERTY: a caller who keeps interrupting is still on the call.
 		if h.fsm.Terminal() {
 			t.Fatalf("attempt %d: repeated barge-ins ended the call; state=%s "+
 				"delivered=%d generation=%d pipeline_err=%v",
-				attempt, h.fsm.State(), delivered, h.pipeline.Generation(),
+				attempt, h.fsm.State(), h.pipeline.BargeIns(), h.pipeline.Generation(),
 				h.pipeline.Err())
 		}
-
-		// DIAG (temporary, P1-92): read generation at the same point the
-		// original assertion did, but record it instead of failing here so the
-		// post-shutdown counters can be compared.
-		snapGen := h.pipeline.Generation()
 
 		for _, c := range h.fsm.History() {
 			if !CanTransition(c.From, c.To) {
@@ -1127,44 +1176,115 @@ func TestBargeIn_RepeatedInterruptionsUnderLoadDoNotEndTheCall(t *testing.T) {
 		_ = h.pipeline.Disconnect()
 		<-h.pipeline.Done()
 
-		// DIAG: after full shutdown. stop() bumps the generation exactly once.
-		finalGen := h.pipeline.Generation()
-		finalDel := h.pipeline.BargeIns()
-		h.intel.mu.Lock()
-		outcomes := append([]error(nil), h.intel.outcomes...)
-		h.intel.mu.Unlock()
-		var okN, floorN, otherN, transN int
-		trans := map[string]int{}
-		var others []string
-		for _, err := range outcomes {
-			var te *TransitionError
-			switch {
-			case err == nil:
-				okN++
-			case errors.As(err, &te):
-				transN++
-				trans[fmt.Sprintf("%s->%s", te.From, te.To)]++
-			case strings.Contains(err.Error(), "does not hold the floor"):
-				floorN++
-			default:
-				otherN++
-				others = append(others, err.Error())
-			}
+		assertEveryGenerationWasAnInterruption(t, h, attempt)
+	}
+}
+
+// assertEveryGenerationWasAnInterruption checks the generation counter against
+// what moved it, once the pipeline has fully stopped.
+//
+// # Why after shutdown, and not mid-call
+//
+// This test used to compare the generation with the delivered count while
+// frames were still being analysed. An interruption bumps the generation first
+// and counts its delivery last, so a comparison taken while one was in flight
+// could disagree with nothing wrong. After Done every goroutine has finished
+// and the identity is exact: one bump per delivered interruption, plus stop's
+// one — so an excess is a bump that no interruption was delivered for.
+//
+// # What an excess meant (P1-92)
+//
+// It was always a transition the interruption had refused after bumping: the
+// turn handed the floor back on its own between the floor check and the move.
+// The refusal reached the analyser as a TransitionError, so the outcomes say
+// which edge; that is what this reports if it recurs.
+//
+// # The one refusal that is not that
+//
+// The call can end while an interruption is in flight — here, Disconnect while
+// frames are still being analysed. The interruption has bumped the generation;
+// its next move is then refused FROM the terminal state, because nothing
+// follows one. That interruption truly was not delivered — there was no call
+// left to deliver it to — so it is counted, separately, rather than excused:
+// the identity stays exact, and only a refusal from a live state fails it.
+func assertEveryGenerationWasAnInterruption(t *testing.T, h *bargeHarness, attempt int) {
+	t.Helper()
+
+	gen, delivered := h.pipeline.Generation(), h.pipeline.BargeIns()
+	refused := map[string]int{}
+	var endedDuring uint64
+	for _, err := range h.intel.results() {
+		var te *TransitionError
+		if !errors.As(err, &te) {
+			continue
 		}
-		excess := int64(finalGen) - int64(finalDel) - 1
-		t.Logf("BARGEDIAG attempt=%d snap_delivered=%d snap_gen=%d snap_mismatch=%t "+
-			"final_delivered=%d final_gen=%d final_excess=%d outcomes=%d ok=%d floor=%d "+
-			"trans=%d other=%d trans_detail=%v refusedByFloor=%d speechRefusals=%d "+
-			"identity_ok=%t others=%q",
-			attempt, delivered, snapGen, snapGen != delivered,
-			finalDel, finalGen, excess, len(outcomes), okN, floorN,
-			transN, otherN, trans, h.pipeline.interrupts.RefusedByFloor(),
-			h.pipeline.interrupts.SpeechRefusals(),
-			excess == int64(transN) && uint64(okN) == finalDel, others)
-		if snapGen != delivered {
-			t.Errorf("attempt %d: generation is %d after %d interruptions at the "+
-				"original snapshot; after shutdown gen=%d delivered=%d excess=%d trans=%v",
-				attempt, snapGen, delivered, finalGen, finalDel, excess, trans)
+		if te.From.Terminal() {
+			endedDuring++
+			continue
+		}
+		refused[fmt.Sprintf("%s->%s", te.From, te.To)]++
+	}
+
+	if want := delivered + 1 + endedDuring; gen != want {
+		t.Errorf("attempt %d: generation %d after %d delivered interruptions, %d cut "+
+			"short by the call ending, and one stop: want %d; transitions refused "+
+			"after a bump: %v", attempt, gen, delivered, endedDuring, want, refused)
+	}
+	if len(refused) > 0 {
+		t.Errorf("attempt %d: interruptions had transitions refused: %v", attempt, refused)
+	}
+	if err := h.pipeline.Err(); err != nil {
+		t.Errorf("attempt %d: the pipeline recorded a fault: %v", attempt, err)
+	}
+}
+
+// TestBargeIn_TurnsEndingAsTheCallerInterruptsKeepOneOwnerOfTheFloor races the
+// two ways a response's floor is handed back: the turn finishing on its own,
+// and the caller interrupting it.
+//
+// Short responses and a fast synthesiser make turns end within milliseconds,
+// and the caller interrupts on every frame, so the two meet constantly. Before
+// the floor lock, against go1.26.9 -race, 54 of 150 attempts recorded a
+// pipeline fault ("cannot move listening -> thinking" — an interrupted turn's
+// late completion had moved the NEXT turn back to listening) and 6 left a
+// generation bump with no interruption behind it. The repeated-interruption
+// test above reaches the same windows only rarely, which is why it flaked.
+func TestBargeIn_TurnsEndingAsTheCallerInterruptsKeepOneOwnerOfTheFloor(t *testing.T) {
+	t.Parallel()
+
+	for attempt := 0; attempt < 40; attempt++ {
+		h := newBargeHarness(t, bargeOpts{
+			repeat:         true,
+			tokens:         []string{"Hi."},
+			tokenGap:       time.Millisecond,
+			framesPerChunk: 2,
+			ttsSynthDelay:  time.Millisecond,
+			sinkDelay:      time.Millisecond,
+		})
+		if err := h.pipeline.Start(context.Background()); err != nil {
+			t.Fatalf("attempt %d: Start: %v", attempt, err)
+		}
+
+		h.feedUntil(t, 30*time.Second, func() bool { return h.out.count() > 0 })
+		h.intel.mu.Lock()
+		h.intel.bargeAt = h.intel.frames + 1
+		h.intel.mu.Unlock()
+
+		for i := 0; i < 300; i++ {
+			_ = h.pipeline.WriteFrame(testFrame(uint64(4000 + i)))
+			time.Sleep(200 * time.Microsecond)
+		}
+
+		if h.fsm.Terminal() {
+			t.Fatalf("attempt %d: the call ended; state=%s err=%v",
+				attempt, h.fsm.State(), h.pipeline.Err())
+		}
+		_ = h.pipeline.Disconnect()
+		<-h.pipeline.Done()
+
+		assertEveryGenerationWasAnInterruption(t, h, attempt)
+		if t.Failed() {
+			return
 		}
 	}
 }
