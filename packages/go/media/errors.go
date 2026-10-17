@@ -58,6 +58,11 @@ var (
 	ErrSnapshotNotFound = errors.New("media: snapshot not found")
 )
 
+// errStateChanged reports that a stream left the state a conditional move was
+// predicated on. A lost race, not a refused transition: it never matches
+// ErrInvalidTransition and is never counted as one.
+var errStateChanged = errors.New("media: stream state changed")
+
 // ConfigError reports one or more configuration problems.
 //
 // EVERY problem, not the first. A configuration with four mistakes should

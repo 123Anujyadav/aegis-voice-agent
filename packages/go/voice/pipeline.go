@@ -329,6 +329,11 @@ type Pipeline struct {
 	// and is dropped if that generation is no longer current.
 	generation atomic.Uint64
 
+	// ending is set by stop before its generation bump. A turn goroutine that
+	// sees the generation move consults it to tell a call ending from a
+	// barge-in: both supersede the turn, only one is an interruption.
+	ending atomic.Bool
+
 	frames chan media.Frame
 
 	ctx    context.Context
@@ -342,6 +347,25 @@ type Pipeline struct {
 
 	// interrupts is this pipeline's audiointel.SpeechController.
 	interrupts *interruptController
+
+	// floor serialises every decision about who holds the floor: an
+	// interruption taking it, and the turn goroutine starting to speak or
+	// handing it back.
+	//
+	// Each of those is "look, then move" — the floor check and the generation
+	// bump in [interruptController.Interrupt], the generation check and the
+	// transition when a turn ends or first speaks. Unserialised, one side's
+	// look and move straddled the other's, and the loser's move landed on a
+	// state it never saw: an interruption bumped the generation and then had
+	// its transition refused (a generation with no interruption behind it),
+	// or an interrupted turn's late "turn complete" moved the NEXT turn back
+	// to listening, which then failed that turn and left the caller
+	// unanswered.
+	//
+	// Never held across media delivery or a wait on any goroutine that takes
+	// it. The turn goroutine takes it only for a generation read and one
+	// transition (whose state-change event the FSM publishes synchronously).
+	floor sync.Mutex
 
 	mu       sync.Mutex
 	started  bool
@@ -538,11 +562,29 @@ func (p *Pipeline) Fail(reason string, cause error) error {
 func (p *Pipeline) stop(end SessionState, reason string) error {
 	var err error
 	p.stopOnce.Do(func() {
+		// Before the bump, so a turn goroutine that sees the generation move
+		// knows the call is ending and does not report it as an interruption.
+		p.ending.Store(true)
+
 		// The generation bump comes FIRST. Everything already synthesised for
 		// the current turn becomes stale at this instant, so a frame in flight
 		// cannot overtake the teardown and reach the caller after the session
 		// ended.
 		p.generation.Add(1)
+
+		// And the turn's context straight after it — the second guard, armed
+		// with the first, as abortActiveTurn does for a barge-in. A frame
+		// already inside Deliver passed the generation check before the bump;
+		// only this cancellation stops it. Left to the session cancel below,
+		// it waited out the terminal transition, whose event the FSM publishes
+		// synchronously, and a frame finishing delivery in that window reached
+		// the caller after the call had ended.
+		p.mu.Lock()
+		cancelTurn := p.activeTurnCancel
+		p.mu.Unlock()
+		if cancelTurn != nil {
+			cancelTurn()
+		}
 
 		err = p.cfg.FSM.To(context.Background(), end, reason)
 
@@ -596,6 +638,21 @@ func (p *Pipeline) note(err error) {
 	if p.failure == nil {
 		p.failure = err
 	}
+}
+
+// noteTransition records a turn's refused transition as a fault — unless the
+// call ended underneath the turn.
+//
+// A caller can hang up while their turn is mid-flight; the turn's next move is
+// then refused because nothing follows a terminal state. That is ordinary at
+// hang-up — [Pipeline.classifyTransitionRace] says the same of an opening turn
+// — and recording it made Err report a fault for a call that simply ended. A
+// refusal while the session is still live is still a fault, and still noted.
+func (p *Pipeline) noteTransition(err error) {
+	if errors.Is(err, ErrInvalidTransition) && p.cfg.FSM.Terminal() {
+		return
+	}
+	p.note(err)
 }
 
 // ---------------------------------------------------------------------------
@@ -906,8 +963,14 @@ func (p *Pipeline) recognize(turn TurnID, provider speech.ProviderID, stream spe
 // ordinary pause look like an outage in every dashboard that counts them.
 func (p *Pipeline) emptyTurn(reason string) {
 	p.closeRecognition()
+	// A caller who hangs up mid-utterance did not complete a turn. stop closes
+	// the recognition stream after cancelling the session, so recognize can
+	// arrive here from a hang-up as easily as from silence.
+	if p.sessionEnding() {
+		return
+	}
 	if err := p.cfg.FSM.To(p.ctx, StateListening, reason); err != nil {
-		p.note(err)
+		p.noteTransition(err)
 	}
 	p.m.TurnsCompleted.Inc(string(OutcomeCompleted))
 	if p.observer != nil {
@@ -924,7 +987,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	p.closeRecognition()
 
 	if err := p.cfg.FSM.To(p.ctx, StateThinking, ReasonOK); err != nil {
-		p.note(err)
+		p.noteTransition(err)
 		return
 	}
 
@@ -989,7 +1052,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 			At:     p.clock.Now(),
 		})
 		if err := p.cfg.FSM.To(p.ctx, StateListening, ReasonGovernanceDeny); err != nil {
-			p.note(err)
+			p.noteTransition(err)
 		}
 		p.m.TurnsCompleted.Inc(string(OutcomeDenied))
 		if p.observer != nil {
@@ -1010,12 +1073,18 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		return
 	}
 
-	if err := p.cfg.FSM.To(p.ctx, StateSynthesizing, ReasonOK); err != nil {
-		p.note(err)
+	// The floor is taken and this turn's generation read in one step. Read
+	// afterwards, an interruption landing in between would leave this turn
+	// holding a generation that is already current again — and treating the
+	// session as its own after the caller had taken it back.
+	p.floor.Lock()
+	err = p.cfg.FSM.To(p.ctx, StateSynthesizing, ReasonOK)
+	generation := p.generation.Load()
+	p.floor.Unlock()
+	if err != nil {
+		p.noteTransition(err)
 		return
 	}
-
-	generation := p.generation.Load()
 
 	ttsStream, err := voice.OpenTTS(ctx, speech.TTSConfig{
 		Session:  speech.SessionID(p.cfg.Session),
@@ -1028,7 +1097,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		p.m.ProviderFailures.Inc(string(voice.ID()), string(KindTTS), ReasonStartFailed)
 		p.cfg.Registry.Report(ProviderID(voice.ID()), speech.OutcomeFailure)
 		p.note(fmt.Errorf("%w: opening synthesis: %v", ErrProviderUnavailable, err))
-		p.failTurn(ReasonStartFailed)
+		p.failSynthesis(generation, ReasonStartFailed)
 		return
 	}
 
@@ -1051,7 +1120,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		p.note(err)
 		_ = ttsStream.Close()
 		<-audioDone
-		p.failTurn(ReasonInvalidOutput)
+		p.failSynthesis(generation, ReasonInvalidOutput)
 		return
 	}
 
@@ -1074,7 +1143,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		p.note(fmt.Errorf("%w: generation: %v", ErrProviderFailed, err))
 		_ = ttsStream.Close()
 		<-audioDone
-		p.failTurn(ReasonUnavailable)
+		p.failSynthesis(generation, ReasonUnavailable)
 		return
 	}
 
@@ -1104,8 +1173,8 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	}
 	p.mu.Unlock()
 
-	if p.ctx.Err() != nil {
-		return // the session ended; the terminal transition already happened
+	if p.sessionEnding() {
+		return // the call is ending; stop makes the terminal transition
 	}
 
 	// A BARGE-IN ALREADY ENDED THIS TURN.
@@ -1115,16 +1184,15 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	// announce itself complete or move a state machine that has already moved
 	// on — listening -> listening is not a declared edge, and attempting it
 	// would record an invalid transition for an interruption that worked.
-	if p.generation.Load() != generation {
-		p.m.TurnsCompleted.Inc(string(OutcomeInterrupted))
-		if p.observer != nil {
-			p.observer.OnTurnComplete(OutcomeInterrupted, ReasonBargeIn)
+	interrupted, err := p.yieldFloor(generation, ReasonOK)
+	if interrupted {
+		if !p.sessionEnding() {
+			p.endInterrupted()
 		}
 		return
 	}
-
-	if err := p.cfg.FSM.To(p.ctx, StateListening, ReasonOK); err != nil {
-		p.note(err)
+	if err != nil {
+		p.noteTransition(err)
 		return
 	}
 	p.m.TurnsCompleted.Inc(string(OutcomeCompleted))
@@ -1133,15 +1201,73 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	}
 }
 
+// yieldFloor returns the session to listening at the end of a turn that took the
+// floor — unless an interruption already did, which it reports.
+//
+// # One step, under the floor lock
+//
+// Checked and moved separately, the two orders both went wrong. An interruption
+// landing between them had its own transition refused once this turn had moved
+// the session — a generation bump with no interruption delivered. And a turn
+// that read the generation just before an interruption, then resumed after the
+// caller's NEXT turn had begun, moved that turn back to listening: transcribing
+// and thinking both declare an edge to listening, so nothing refused it, and the
+// next turn then failed on its own transition and never answered.
+func (p *Pipeline) yieldFloor(generation uint64, reason string) (interrupted bool, err error) {
+	p.floor.Lock()
+	defer p.floor.Unlock()
+	if p.generation.Load() != generation {
+		return true, nil
+	}
+	return false, p.cfg.FSM.To(p.ctx, StateListening, reason)
+}
+
+// sessionEnding reports whether the call is ending or has ended: stop has begun,
+// or the session context is gone. A turn that finds it so leaves the terminal
+// transition to stop and reports nothing of its own.
+func (p *Pipeline) sessionEnding() bool {
+	return p.ending.Load() || p.ctx.Err() != nil
+}
+
+// endInterrupted records a turn that an interruption ended.
+func (p *Pipeline) endInterrupted() {
+	p.m.TurnsCompleted.Inc(string(OutcomeInterrupted))
+	if p.observer != nil {
+		p.observer.OnTurnComplete(OutcomeInterrupted, ReasonBargeIn)
+	}
+}
+
+// failSynthesis is failTurn for a turn that already holds the floor: if an
+// interruption has taken it back, the session is not this turn's to move.
+func (p *Pipeline) failSynthesis(generation uint64, reason string) {
+	if p.sessionEnding() {
+		return
+	}
+	interrupted, err := p.yieldFloor(generation, reason)
+	if interrupted {
+		if !p.sessionEnding() {
+			p.endInterrupted()
+		}
+		return
+	}
+	if err != nil {
+		p.noteTransition(err)
+	}
+	p.m.TurnsCompleted.Inc(string(OutcomeFailed))
+	if p.observer != nil {
+		p.observer.OnTurnComplete(OutcomeFailed, reason)
+	}
+}
+
 // failTurn ends a turn on a fault without ending the session.
 func (p *Pipeline) failTurn(reason string) {
-	if p.ctx.Err() != nil {
+	if p.sessionEnding() {
 		return
 	}
 	// A failed turn returns the floor rather than killing the call: one
 	// provider hiccup should not end a conversation the caller is still in.
 	if err := p.cfg.FSM.To(p.ctx, StateListening, reason); err != nil {
-		p.note(err)
+		p.noteTransition(err)
 	}
 	p.m.TurnsCompleted.Inc(string(OutcomeFailed))
 	if p.observer != nil {
@@ -1284,6 +1410,7 @@ func (p *Pipeline) pumpAudio(
 	for {
 		select {
 		case <-p.ctx.Done():
+			p.withholdQueued(stream, generation)
 			return
 
 		case <-turnCtx.Done():
@@ -1294,6 +1421,7 @@ func (p *Pipeline) pumpAudio(
 			// whole CALL ended, because the audio channel never closes and the
 			// session context is still live. The turn timeout exists precisely
 			// so one wedged provider costs one answer rather than the call.
+			p.withholdQueued(stream, generation)
 			return
 
 		case frame, ok := <-stream.Audio():
@@ -1304,18 +1432,21 @@ func (p *Pipeline) pumpAudio(
 			// Both guards, in the order that makes the window smallest: the
 			// cheap comparison first, the context immediately before handover.
 			if p.generation.Load() != generation || turnCtx.Err() != nil {
-				p.mu.Lock()
-				p.stale++
-				p.mu.Unlock()
-				p.m.StaleChunksBlocked.Inc()
-				p.m.DroppedChunks.Inc(string(StageAudioOut), ReasonStaleChunk)
+				p.withhold(1)
 				continue
 			}
 
 			if !spoke {
 				spoke = true
-				if err := p.cfg.FSM.To(p.ctx, StateSpeaking, ReasonOK); err != nil {
-					p.note(err)
+				superseded, err := p.startSpeaking(turnCtx, generation)
+				if superseded {
+					// Interrupted between the guard above and here. The
+					// session is the caller's now; this frame is stale.
+					p.withhold(1)
+					continue
+				}
+				if err != nil {
+					p.noteTransition(err)
 					return
 				}
 			}
@@ -1324,10 +1455,8 @@ func (p *Pipeline) pumpAudio(
 				if turnCtx.Err() != nil {
 					// The turn was abandoned mid-handover. Not a delivery
 					// failure — the frame was correctly refused.
-					p.mu.Lock()
-					p.stale++
-					p.mu.Unlock()
-					p.m.StaleChunksBlocked.Inc()
+					p.withhold(1)
+					p.withholdQueued(stream, generation)
 					return
 				}
 				if errors.Is(err, ErrBackpressure) {
@@ -1343,6 +1472,71 @@ func (p *Pipeline) pumpAudio(
 			}
 		}
 	}
+}
+
+// startSpeaking moves the session to speaking for the turn's first frame, unless
+// an interruption has superseded the turn — checked under the floor lock, so the
+// answer cannot change before the transition is made. Unserialised, a turn that
+// lost that race moved a session that was no longer its own, and the refusal
+// was recorded as a pipeline fault.
+func (p *Pipeline) startSpeaking(turnCtx context.Context, generation uint64) (superseded bool, err error) {
+	p.floor.Lock()
+	defer p.floor.Unlock()
+	if p.generation.Load() != generation || turnCtx.Err() != nil {
+		return true, nil
+	}
+	return false, p.cfg.FSM.To(p.ctx, StateSpeaking, ReasonOK)
+}
+
+// withhold records n synthesised frames that were never delivered because their
+// generation had been superseded.
+func (p *Pipeline) withhold(n uint64) {
+	if n == 0 {
+		return
+	}
+	p.mu.Lock()
+	p.stale += n
+	p.mu.Unlock()
+	p.m.StaleChunksBlocked.Add(float64(n))
+	p.m.DroppedChunks.Add(float64(n), string(StageAudioOut), ReasonStaleChunk)
+}
+
+// withholdQueued accounts for the audio a superseded turn leaves behind.
+//
+// # Abandoned is still withheld
+//
+// When the pump leaves on cancellation, frames the synthesiser already produced
+// are still queued on the stream. They are withheld for exactly the reason the
+// per-frame guard withholds one — their generation was superseded — and
+// leaving them uncounted made StaleFramesBlocked depend on which case the
+// pump's select happened to pick: an interruption that stopped forty frames
+// could report zero.
+//
+// Only when the generation moved. A turn that merely timed out was not
+// superseded, and its leftovers are not stale output.
+//
+// Non-blocking and bounded by the queue's capacity, so a producer that is
+// still unwinding cannot hold the turn goroutine here.
+func (p *Pipeline) withholdQueued(stream speech.TTSStream, generation uint64) {
+	if p.generation.Load() == generation {
+		return
+	}
+	audio := stream.Audio()
+	var n uint64
+	for i := 0; i < cap(audio); i++ {
+		select {
+		case _, ok := <-audio:
+			if !ok {
+				p.withhold(n)
+				return
+			}
+			n++
+			continue
+		default:
+		}
+		break
+	}
+	p.withhold(n)
 }
 
 // publish emits an event without letting a broker failure affect the call.

@@ -363,33 +363,52 @@ func (p *Process) awaitReady(ctx context.Context, ready <-chan error) error {
 	timer := time.NewTimer(p.cfg.StartTimeout)
 	defer timer.Stop()
 
-	select {
-	case err := <-ready:
-		if err != nil {
-			// Stop joins every goroutine this Process started, including the
-			// stderr drain — so once it returns, the ring holds everything the
-			// child ever wrote and the tail below is complete.
-			_ = p.Stop(context.Background())
-			if errors.Is(err, ErrExited) {
-				return fmt.Errorf("%w\nstderr: %s", err, p.StderrTail())
+	// exited is disabled once the child has gone, so the loop then waits for
+	// the readiness verdict alone.
+	exited := p.exited
+
+	for {
+		select {
+		case err := <-ready:
+			if err != nil {
+				// Stop joins every goroutine this Process started, including the
+				// stderr drain — so once it returns, the ring holds everything
+				// the child ever wrote and the tail below is complete.
+				_ = p.Stop(context.Background())
+				if errors.Is(err, ErrExited) {
+					return fmt.Errorf("%w\nstderr: %s", err, p.StderrTail())
+				}
+				return err
 			}
-			return err
+			// Usable, even if it has exited since: that exit is reported where
+			// exits are, through Exited and ExitError.
+			return nil
+
+		case <-exited:
+			// The child is gone — but whether it was READY first is the stdout
+			// reader's verdict, not this one's. A child that reports ready and
+			// then dies can exit while its banner still sits unread in the
+			// pipe; with both cases ready, select picked either, and a start
+			// that had succeeded was reported as "exited during startup".
+			//
+			// The reader always delivers exactly one verdict once stdout ends,
+			// and the pipe keeps what the child wrote after it is gone, so the
+			// wait stays bounded by the same deadline and context.
+			exited = nil
+
+		case <-ctx.Done():
+			_ = p.Stop(context.Background())
+			return fmt.Errorf("%w: %v", ErrStartFailed, ctx.Err())
+
+		case <-timer.C:
+			_ = p.Stop(context.Background())
+			if exited == nil {
+				return fmt.Errorf("%w during startup: %v\nstderr: %s",
+					ErrExited, p.exitError(), p.StderrTail())
+			}
+			return fmt.Errorf("%w after %s\nstderr: %s",
+				ErrReadinessTimeout, p.cfg.StartTimeout, p.StderrTail())
 		}
-		return nil
-
-	case <-p.exited:
-		_ = p.Stop(context.Background())
-		return fmt.Errorf("%w during startup: %v\nstderr: %s",
-			ErrExited, p.exitError(), p.StderrTail())
-
-	case <-ctx.Done():
-		_ = p.Stop(context.Background())
-		return fmt.Errorf("%w: %v", ErrStartFailed, ctx.Err())
-
-	case <-timer.C:
-		_ = p.Stop(context.Background())
-		return fmt.Errorf("%w after %s\nstderr: %s",
-			ErrReadinessTimeout, p.cfg.StartTimeout, p.StderrTail())
 	}
 }
 

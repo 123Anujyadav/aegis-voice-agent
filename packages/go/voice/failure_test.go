@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -601,9 +602,19 @@ func TestFailure_BargeInDuringTTS(t *testing.T) {
 
 	bh.feedUntil(t, 20*time.Second, func() bool { return bh.out.count() > 0 })
 
-	playedBefore := bh.out.countFrom(0)
+	// The baseline is what the interrupted turn had delivered AT the
+	// interruption. It used to be taken here, before the detection was even
+	// armed: a frame that finished its delivery while the barge-in frame was
+	// still on its way through ingest was then counted as a leak — on a loaded
+	// CI runner, 2 of 10 runs. That frame played before the caller interrupted,
+	// which is correct.
+	var playedAtInterrupt atomic.Int64
+	playedAtInterrupt.Store(-1)
 
 	bh.intel.mu.Lock()
+	bh.intel.onInterrupted = func() {
+		playedAtInterrupt.CompareAndSwap(-1, int64(bh.out.countFrom(0)))
+	}
 	bh.intel.bargeAt = bh.intel.frames + 1
 	bh.intel.mu.Unlock()
 
@@ -616,9 +627,13 @@ func TestFailure_BargeInDuringTTS(t *testing.T) {
 
 	// No old-generation audio, no stale queue, no stale session.
 	time.Sleep(300 * time.Millisecond)
-	if after := bh.out.countFrom(0); after != playedBefore {
-		t.Errorf("%d frames of the interrupted turn reached media afterwards",
-			after-playedBefore)
+	played := playedAtInterrupt.Load()
+	if played < 0 {
+		t.Fatal("the interruption was counted but never observed delivered")
+	}
+	if after := int64(bh.out.countFrom(0)); after != played {
+		t.Errorf("%d frames of the interrupted turn reached media after the "+
+			"interruption was delivered", after-played)
 	}
 	if withheld := bh.pipeline.StaleFramesBlocked(); withheld == 0 {
 		t.Error("nothing was withheld; the generation guard did not engage")

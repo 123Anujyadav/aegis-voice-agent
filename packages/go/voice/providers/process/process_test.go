@@ -509,6 +509,47 @@ func TestProcess_CrashAfterReadyIsObservable(t *testing.T) {
 	}
 }
 
+// TestProcess_ReadyThenExitedBeforeTheBannerIsReadStillStarts pins the
+// interleaving TestProcess_CrashAfterReadyIsObservable only met under load
+// (once in a full -race run: "Start: process: exited during startup").
+//
+// The child reports READY and exits 50ms later. If its exit is observed
+// before the stdout reader has delivered the READY verdict, Start used to
+// choose between the two at random and could report a start that succeeded
+// as a startup failure. A readiness probe slower than the child's lifetime
+// makes that order certain.
+func TestProcess_ReadyThenExitedBeforeTheBannerIsReadStillStarts(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig(t, "crash-after-ready")
+	probe := cfg.Ready
+	cfg.Ready = func(line string) (bool, error) {
+		if line == "READY" {
+			time.Sleep(300 * time.Millisecond)
+		}
+		return probe(line)
+	}
+
+	p, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Start(context.Background()); err != nil {
+		t.Fatalf("Start: a child that reported READY before exiting did not "+
+			"start: %v", err)
+	}
+	defer func() { _ = p.Stop(context.Background()) }()
+
+	select {
+	case <-p.Exited():
+	case <-time.After(5 * time.Second):
+		t.Fatal("the crash after readiness was never observed")
+	}
+	if p.ExitError() == nil {
+		t.Error("a non-zero exit after readiness produced no error")
+	}
+}
+
 // TestProcess_UnresponsiveChildIsKilled is the guarantee that there is no
 // indefinite wait and no orphan.
 func TestProcess_UnresponsiveChildIsKilled(t *testing.T) {
