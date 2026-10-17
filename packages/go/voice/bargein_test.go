@@ -1112,12 +1112,10 @@ func TestBargeIn_RepeatedInterruptionsUnderLoadDoNotEndTheCall(t *testing.T) {
 				h.pipeline.Err())
 		}
 
-		// One delivery, one generation. A third increment means stop() ran.
-		if got := h.pipeline.Generation(); got != delivered {
-			t.Fatalf("attempt %d: generation is %d after %d interruptions; the "+
-				"extra increment means the session was stopped",
-				attempt, got, delivered)
-		}
+		// DIAG (temporary, P1-92): read generation at the same point the
+		// original assertion did, but record it instead of failing here so the
+		// post-shutdown counters can be compared.
+		snapGen := h.pipeline.Generation()
 
 		for _, c := range h.fsm.History() {
 			if !CanTransition(c.From, c.To) {
@@ -1128,5 +1126,45 @@ func TestBargeIn_RepeatedInterruptionsUnderLoadDoNotEndTheCall(t *testing.T) {
 
 		_ = h.pipeline.Disconnect()
 		<-h.pipeline.Done()
+
+		// DIAG: after full shutdown. stop() bumps the generation exactly once.
+		finalGen := h.pipeline.Generation()
+		finalDel := h.pipeline.BargeIns()
+		h.intel.mu.Lock()
+		outcomes := append([]error(nil), h.intel.outcomes...)
+		h.intel.mu.Unlock()
+		var okN, floorN, otherN, transN int
+		trans := map[string]int{}
+		var others []string
+		for _, err := range outcomes {
+			var te *TransitionError
+			switch {
+			case err == nil:
+				okN++
+			case errors.As(err, &te):
+				transN++
+				trans[fmt.Sprintf("%s->%s", te.From, te.To)]++
+			case strings.Contains(err.Error(), "does not hold the floor"):
+				floorN++
+			default:
+				otherN++
+				others = append(others, err.Error())
+			}
+		}
+		excess := int64(finalGen) - int64(finalDel) - 1
+		t.Logf("BARGEDIAG attempt=%d snap_delivered=%d snap_gen=%d snap_mismatch=%t "+
+			"final_delivered=%d final_gen=%d final_excess=%d outcomes=%d ok=%d floor=%d "+
+			"trans=%d other=%d trans_detail=%v refusedByFloor=%d speechRefusals=%d "+
+			"identity_ok=%t others=%q",
+			attempt, delivered, snapGen, snapGen != delivered,
+			finalDel, finalGen, excess, len(outcomes), okN, floorN,
+			transN, otherN, trans, h.pipeline.interrupts.RefusedByFloor(),
+			h.pipeline.interrupts.SpeechRefusals(),
+			excess == int64(transN) && uint64(okN) == finalDel, others)
+		if snapGen != delivered {
+			t.Errorf("attempt %d: generation is %d after %d interruptions at the "+
+				"original snapshot; after shutdown gen=%d delivered=%d excess=%d trans=%v",
+				attempt, snapGen, delivered, finalGen, finalDel, excess, trans)
+		}
 	}
 }
