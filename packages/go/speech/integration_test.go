@@ -301,16 +301,21 @@ func TestSTT_PartialsThenFinalReachTheAssembler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Drain until the final arrives or we run out of patience.
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if _, ok := asm.Final(turn.ID); ok {
-			break
-		}
-		if time.Now().After(deadline) {
+	// Wait for the final's NOTIFICATION, not for the assembler to hold it.
+	//
+	// The orchestrator applies the final to the assembler, then moves the turn
+	// to final, then notifies on Segments — so polling the assembler can land
+	// between the first two and see a turn still finalizing (once in a full
+	// -race package run; 50/50 with that gap widened). The notification is sent
+	// after the transition, which makes the state assertion below exact.
+	deadline := time.After(2 * time.Second)
+	for final := false; !final; {
+		select {
+		case seg := <-o.Segments():
+			final = seg.IsFinal
+		case <-deadline:
 			t.Fatalf("no final transcript arrived; state=%s", turn.State())
 		}
-		time.Sleep(time.Millisecond)
 	}
 
 	fin, _ := asm.Final(turn.ID)
