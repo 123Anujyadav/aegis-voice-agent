@@ -87,14 +87,20 @@ func run() error {
 // instantiating the bridge itself. It returns the intelligence runner as well
 // as the service so a caller can assert on what was wired; run ignores it,
 // because nothing in the request path reaches for it through a global.
+//
+// Any options are passed to voiceintel.New unchanged. The run function passes
+// none, so the service it starts is exactly the one built without them. They
+// exist so a test can run this same path on a controlled clock (see
+// newVoiceIntelligence).
 func buildService(
 	cfg platform.ServiceConfig,
 	logger *slog.Logger,
 	health *platform.Health,
+	opts ...voiceintel.Option,
 ) (*platform.Service, *voiceIntelligence, error) {
 	svc := platform.NewService(cfg, logger, health)
 
-	intelligence, err := newVoiceIntelligence(logger)
+	intelligence, err := newVoiceIntelligence(logger, opts...)
 	if err != nil {
 		// Fail startup. A voice service that cannot build its classifier must
 		// not come up pretending to have one — every utterance would silently
@@ -130,8 +136,22 @@ var _ platform.Runner = (*voiceIntelligence)(nil)
 // voiceintel.New with no options builds intent.New(intent.DefaultConfig()) and
 // passes it to conversation.NewEngine through WithClassifier. No test double,
 // no nil classifier, no fallback-only engine.
-func newVoiceIntelligence(log *slog.Logger) (*voiceIntelligence, error) {
-	bridge, err := voiceintel.New()
+//
+// # Why opts exist
+//
+// The conversation engine measures each decision cycle against a wall-clock
+// latency budget and skips skippable stages, intent classification first, once
+// the cycle passes its degrade threshold. That is intended degradation under
+// load, and production keeps it: run passes no options, so the engine reads
+// the system clock exactly as before.
+//
+// It also made T9's real-clock determinism tests sensitive to scheduler
+// stalls: under -race on a loaded runner, a stalled cycle took the fallback
+// intent and the signature drifted. The options let those tests inject a
+// controlled clock (voiceintel.WithClock) through this production path,
+// rather than building the bridge outside it.
+func newVoiceIntelligence(log *slog.Logger, opts ...voiceintel.Option) (*voiceIntelligence, error) {
+	bridge, err := voiceintel.New(opts...)
 	if err != nil {
 		return nil, err
 	}
