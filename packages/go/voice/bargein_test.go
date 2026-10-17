@@ -1011,7 +1011,17 @@ func TestBargeIn_MeasuresOrchestrationLatency(t *testing.T) {
 		h.intel.bargeAt = h.intel.frames + 1
 		h.intel.mu.Unlock()
 
-		h.feedUntil(t, 20*time.Second, func() bool { return h.pipeline.BargeIns() > 0 })
+		// Wait for the SAMPLE, not for the delivery count. The controller counts
+		// the interruption before it returns, and the analyser records the
+		// latency only once it has — so a poll on BargeIns could land between
+		// the two and find no sample (once in a full-package -race run).
+		h.feedUntil(t, 20*time.Second, func() bool {
+			_, ok := h.intel.lastLatency()
+			return ok
+		})
+		if got := h.pipeline.BargeIns(); got == 0 {
+			t.Fatal("a latency was sampled for an interruption that was not delivered")
+		}
 
 		// Measured around the controller call, inside the analyser — the same
 		// place Phase 11D measures it.
