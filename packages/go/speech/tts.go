@@ -322,6 +322,17 @@ func (o *TTSOrchestrator) pump(
 // The generation is compared under the lock so a concurrent Cancel either finds
 // this stream live or finds it already retired here, never both.
 func (o *TTSOrchestrator) retire(stream TTSStream, provider ProviderID, gen uint64) {
+	// Nothing else closes a stream that ended on its own, and Close is what
+	// releases the provider's resources. Idempotent, so a racing Cancel closing
+	// it as well is harmless.
+	//
+	// Closed FIRST: before the stream is retired, so "not speaking" never
+	// describes a stream that still holds its provider; and before the outcome
+	// is reported, because Close is where a stream reports an engine that died
+	// mid-utterance — the TTSStream port has no other call to fail with. Audio
+	// that simply stopped is not a success.
+	closeErr := stream.Close()
+
 	o.mu.Lock()
 	current := o.generation.Load() == gen
 	var release context.CancelFunc
@@ -332,14 +343,6 @@ func (o *TTSOrchestrator) retire(stream TTSStream, provider ProviderID, gen uint
 	}
 	o.mu.Unlock()
 
-	// Nothing else closes a stream that ended on its own, and Close is what
-	// releases the provider's resources. Idempotent, so a racing Cancel closing
-	// it as well is harmless.
-	//
-	// Closed BEFORE the outcome is reported, because Close is where a stream
-	// reports an engine that died mid-utterance — the TTSStream port has no
-	// other call to fail with. Audio that simply stopped is not a success.
-	closeErr := stream.Close()
 	if release != nil {
 		release()
 	}
