@@ -43,13 +43,17 @@ func evalIntent(reqs ...CapabilityRequest) ToolIntent {
 }
 
 func read(ref string, cap CapabilityID, deps ...string) CapabilityRequest {
-	return CapabilityRequest{Ref: ref, Capability: cap, Version: AnyVersion(),
-		Args: Arguments{"query": String(ref)}, DependsOn: deps}
+	return CapabilityRequest{
+		Ref: ref, Capability: cap, Version: AnyVersion(),
+		Args: Arguments{"query": String(ref)}, DependsOn: deps,
+	}
 }
 
 func write(ref string, cap CapabilityID, deps ...string) CapabilityRequest {
-	return CapabilityRequest{Ref: ref, Capability: cap, Version: AnyVersion(),
-		Args: Arguments{"subject": String(ref)}, DependsOn: deps}
+	return CapabilityRequest{
+		Ref: ref, Capability: cap, Version: AnyVersion(),
+		Args: Arguments{"subject": String(ref)}, DependsOn: deps,
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -72,8 +76,10 @@ func TestEvaluation_EveryPlanShapeExecutesAsPlanned(t *testing.T) {
 		{"single", []CapabilityRequest{read("a", "lookup")}, "single", 1},
 		{"sequential", []CapabilityRequest{read("a", "lookup"), read("b", "enrich", "a")}, "sequential", 2},
 		{"parallel", []CapabilityRequest{read("a", "lookup"), read("b", "enrich")}, "parallel", 2},
-		{"mixed", []CapabilityRequest{read("a", "lookup"), read("b", "enrich"),
-			write("c", "book", "a", "b")}, "mixed", 3},
+		{"mixed", []CapabilityRequest{
+			read("a", "lookup"), read("b", "enrich"),
+			write("c", "book", "a", "b"),
+		}, "mixed", 3},
 	}
 
 	matched := 0
@@ -301,8 +307,10 @@ func TestEvaluation_EveryRefusalIsNamedAndActionable(t *testing.T) {
 			return evalIntent(read("a", "sick")), ErrNoHealthyProvider
 		}, ErrNoHealthyProvider},
 		{"version unsatisfiable", func(h *Harness) (ToolIntent, error) {
-			return evalIntent(CapabilityRequest{Ref: "a", Capability: "lookup",
-				Version: MajorVersion(7), Args: Arguments{"query": String("q")}}), ErrVersionUnsatisfiable
+			return evalIntent(CapabilityRequest{
+				Ref: "a", Capability: "lookup",
+				Version: MajorVersion(7), Args: Arguments{"query": String("q")},
+			}), ErrVersionUnsatisfiable
 		}, ErrVersionUnsatisfiable},
 		{"missing permission", func(h *Harness) (ToolIntent, error) {
 			c := ReadContract("guarded", "1.0.0", "guarded")
@@ -317,8 +325,10 @@ func TestEvaluation_EveryRefusalIsNamedAndActionable(t *testing.T) {
 			return evalIntent(read("a", "recorded")), ErrConsentRequired
 		}, ErrConsentRequired},
 		{"invalid input", func(h *Harness) (ToolIntent, error) {
-			return evalIntent(CapabilityRequest{Ref: "a", Capability: "lookup",
-				Version: AnyVersion(), Args: Arguments{}}), ErrInvalidInput
+			return evalIntent(CapabilityRequest{
+				Ref: "a", Capability: "lookup",
+				Version: AnyVersion(), Args: Arguments{},
+			}), ErrInvalidInput
 		}, ErrInvalidInput},
 		{"invalid output", func(h *Harness) (ToolIntent, error) {
 			c := ReadContract("liar", "1.0.0", "liar")
@@ -333,8 +343,10 @@ func TestEvaluation_EveryRefusalIsNamedAndActionable(t *testing.T) {
 			c.Input = []FieldSpec{{Name: "query", Kind: ValueString, Required: true}}
 			c.Budget = Budget{InputBytes: 16}
 			h.Register(c, &FakeTool{})
-			return evalIntent(CapabilityRequest{Ref: "a", Capability: "big", Version: AnyVersion(),
-				Args: Arguments{"query": String("a string well over sixteen bytes long")}}), ErrBudgetExceeded
+			return evalIntent(CapabilityRequest{
+				Ref: "a", Capability: "big", Version: AnyVersion(),
+				Args: Arguments{"query": String("a string well over sixteen bytes long")},
+			}), ErrBudgetExceeded
 		}, ErrBudgetExceeded},
 	}
 

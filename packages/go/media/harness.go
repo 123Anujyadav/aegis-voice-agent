@@ -63,6 +63,7 @@ type harnessOptions struct {
 	format  AudioFormat
 	check   SourceCheck
 	noStore bool
+	manual  bool
 }
 
 // WithHarnessConfig overrides the configuration.
@@ -89,6 +90,18 @@ func WithHarnessSourceCheck(f SourceCheck) HarnessOption {
 // no-recovery path.
 func WithoutStreamStore() HarnessOption {
 	return func(o *harnessOptions) { o.noStore = true }
+}
+
+// WithManualSweep builds a runtime without its background stall sweeper, so a
+// test's own [MediaRuntime.Sweep] is the only one.
+//
+// For a test that asserts what a sweep RETURNS. Advancing the fake clock past
+// a deadline also fires the background sweeper's ticker, and that sweep can
+// claim the stall first, leaving the explicit one to report zero — which of the
+// two wins is scheduling, not behaviour. The same reasoning keeps the pump off
+// in TestConfig.
+func WithManualSweep() HarnessOption {
+	return func(o *harnessOptions) { o.manual = true }
 }
 
 // NewHarness builds a runtime with a fake clock and an in-memory store.
@@ -121,6 +134,9 @@ func NewHarness(opts ...HarnessOption) (*Harness, error) {
 	}
 	if o.check != nil {
 		runtimeOpts = append(runtimeOpts, WithSourceCheck(o.check))
+	}
+	if o.manual {
+		runtimeOpts = append(runtimeOpts, withManualSweep())
 	}
 
 	r, err := New(o.cfg, runtimeOpts...)

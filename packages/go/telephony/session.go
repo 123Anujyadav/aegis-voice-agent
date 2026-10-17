@@ -119,7 +119,8 @@ type CallSession struct {
 
 // newSession builds a session. Callers go through [CallRegistry.Create].
 func newSession(id CallID, sess SessionID, corr CorrelationID, cc CallContext,
-	initial CallState, clock rt.Clock) (*CallSession, error) {
+	initial CallState, clock rt.Clock,
+) (*CallSession, error) {
 	if err := cc.Validate(); err != nil {
 		return nil, err
 	}

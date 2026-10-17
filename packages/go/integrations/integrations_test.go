@@ -12,6 +12,7 @@ func (f *FailingMockProvider) Name() string { return "FailingMock" }
 func (f *FailingMockProvider) InitiateCall(ctx context.Context, from, to string) (string, error) {
 	return "", errors.New("mock call failed")
 }
+
 func (f *FailingMockProvider) HealthCheck(ctx context.Context) error {
 	return errors.New("unhealthy")
 }

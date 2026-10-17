@@ -202,13 +202,15 @@ func (r *MediaRegistry) ShardDepths() []int {
 
 // Create builds a stream and registers it.
 func (r *MediaRegistry) Create(sc StreamContext, cfg PipelineConfig,
-	clock rt.Clock) (*Stream, error) {
+	clock rt.Clock,
+) (*Stream, error) {
 	return r.CreateWithID(NewStreamID(), sc, cfg, clock)
 }
 
 // CreateWithID builds a stream with a caller-supplied identifier.
 func (r *MediaRegistry) CreateWithID(id StreamID, sc StreamContext,
-	cfg PipelineConfig, clock rt.Clock) (*Stream, error) {
+	cfg PipelineConfig, clock rt.Clock,
+) (*Stream, error) {
 	if !id.Valid() {
 		return nil, invariant("INV-MED-5",
 			"stream identifier %q is malformed; it must carry the strm_ prefix", id)

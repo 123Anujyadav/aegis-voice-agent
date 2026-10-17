@@ -92,8 +92,10 @@ func (e *Executor) Execute(ctx context.Context, step Step, plan Plan, grant Gran
 	start := e.clock.Now()
 	execID := NewExecutionID()
 
-	res := ExecutionResult{Execution: execID, Step: step.ID, Ref: step.Ref,
-		Descriptor: step.Descriptor}
+	res := ExecutionResult{
+		Execution: execID, Step: step.ID, Ref: step.Ref,
+		Descriptor: step.Descriptor,
+	}
 
 	contract := step.Contract
 	budget := plan.Budget.tighten(contract.Budget.withDefaults(e.defaultBudget))
@@ -330,8 +332,8 @@ func (e *Executor) Execute(ctx context.Context, step Step, plan Plan, grant Gran
 // invokeOnce performs one attempt under a per-attempt deadline.
 func (e *Executor) invokeOnce(ctx context.Context, step Step, contract Contract,
 	args Arguments, execID ExecutionID, attempt int, key IdempotencyKey,
-	plan Plan, grant Grant, budget Budget, sink *meteredSink, lease *Lease) (Result, error) {
-
+	plan Plan, grant Grant, budget Budget, sink *meteredSink, lease *Lease,
+) (Result, error) {
 	deadline := e.clock.Now().Add(contract.Timeout)
 	if !plan.Deadline.IsZero() && plan.Deadline.Before(deadline) {
 		deadline = plan.Deadline
@@ -498,8 +500,8 @@ func (e *Executor) budgetRemaining(ctx context.Context, plan Plan, budget Budget
 }
 
 func (e *Executor) replay(entry *LedgerEntry, res ExecutionResult, plan Plan, step Step,
-	execID ExecutionID, inputPrint Fingerprint, start time.Time) ExecutionResult {
-
+	execID ExecutionID, inputPrint Fingerprint, start time.Time,
+) ExecutionResult {
 	res.Result = entry.Result.Clone()
 	res.Replayed = true
 	res.Attempts = 0
@@ -518,8 +520,8 @@ func (e *Executor) replay(entry *LedgerEntry, res ExecutionResult, plan Plan, st
 }
 
 func (e *Executor) succeed(plan Plan, step Step, execID ExecutionID, attempt int,
-	inputPrint Fingerprint, out Result, d time.Duration) {
-
+	inputPrint Fingerprint, out Result, d time.Duration,
+) {
 	if e.metrics != nil {
 		e.metrics.Completed.Inc(string(step.Descriptor.Tool), string(step.Capability))
 		e.metrics.ExecutionLatency.Observe(d.Seconds(), string(step.Descriptor.Tool))
@@ -532,8 +534,8 @@ func (e *Executor) succeed(plan Plan, step Step, execID ExecutionID, attempt int
 }
 
 func (e *Executor) fail(plan Plan, step Step, execID ExecutionID, res ExecutionResult,
-	inputPrint Fingerprint, cause error) {
-
+	inputPrint Fingerprint, cause error,
+) {
 	reason := shortReason(cause)
 	if e.metrics != nil {
 		e.metrics.Failed.Inc(string(step.Descriptor.Tool), string(res.Phase), reason)
@@ -568,8 +570,8 @@ func (e *Executor) fail(plan Plan, step Step, execID ExecutionID, res ExecutionR
 }
 
 func (e *Executor) journal(j *Journal, step Step, contract Contract, execID ExecutionID,
-	attempt int, args Arguments, out Result, key IdempotencyKey, plan Plan, grant Grant, budget Budget) {
-
+	attempt int, args Arguments, out Result, key IdempotencyKey, plan Plan, grant Grant, budget Budget,
+) {
 	if j == nil || !contract.Effect.Mutating() {
 		return
 	}
@@ -595,8 +597,8 @@ func (e *Executor) toolFor(d Descriptor) Tool {
 }
 
 func (e *Executor) emit(t EventType, plan Plan, step Step, execID ExecutionID, attempt int,
-	phase Phase, reason string, in Fingerprint, out Result, d time.Duration) {
-
+	phase Phase, reason string, in Fingerprint, out Result, d time.Duration,
+) {
 	if e.events == nil {
 		return
 	}
@@ -614,8 +616,8 @@ func (e *Executor) emit(t EventType, plan Plan, step Step, execID ExecutionID, a
 }
 
 func (e *Executor) record(kind AuditKind, plan Plan, step Step, execID ExecutionID, attempt int,
-	phase Phase, reason string, args Arguments, out Result, d time.Duration) {
-
+	phase Phase, reason string, args Arguments, out Result, d time.Duration,
+) {
 	if e.audit == nil {
 		return
 	}

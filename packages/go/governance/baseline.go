@@ -46,8 +46,10 @@ func secretsNeverStored() Policy {
 		Enabled: true,
 		Rules: []Rule{{
 			Name: "refuse-secret-classification",
-			When: []Condition{{Field: FieldClassification, Selector: SelAtLeast,
-				Value: Str("secret")}},
+			When: []Condition{{
+				Field: FieldClassification, Selector: SelAtLeast,
+				Value: Str("secret"),
+			}},
 			Then:        OutcomeDeny,
 			Reason:      "secret_material",
 			Explanation: "secret material is never stored or transmitted by this platform",
@@ -77,15 +79,19 @@ func personalDataNeedsBasis() Policy {
 				When: []Condition{
 					{Field: FieldClassification, Selector: SelAtLeast, Value: Str("personal")},
 					{Field: FieldClassification, Selector: SelLessThan, Value: Str("secret")},
-					{Field: FieldOperation, Selector: SelIn,
-						Values: []string{"write", "update", "export", "send", "schedule"}},
+					{
+						Field: FieldOperation, Selector: SelIn,
+						Values: []string{"write", "update", "export", "send", "schedule"},
+					},
 				},
 				Then:        OutcomeRequireConsent,
 				Reason:      "personal_data_retention",
 				Explanation: "retaining or sharing personal data requires a lawful basis",
 				Obligations: []Obligation{
-					{Kind: ObligationConsent, Target: "data_processing",
-						Reason: "personal_data", Policy: "baseline.personal-data"},
+					{
+						Kind: ObligationConsent, Target: "data_processing",
+						Reason: "personal_data", Policy: "baseline.personal-data",
+					},
 				},
 			},
 			{
@@ -120,16 +126,22 @@ func irreversibleNeedsConfirmation() Policy {
 		Enabled: true,
 		Rules: []Rule{{
 			Name: "irreversible-confirm",
-			When: []Condition{{Field: FieldReversibility, Selector: SelEquals,
-				Value: Str("never")}},
+			When: []Condition{{
+				Field: FieldReversibility, Selector: SelEquals,
+				Value: Str("never"),
+			}},
 			Then:        OutcomeRequireConfirmation,
 			Reason:      "irreversible_action",
 			Explanation: "this action cannot be undone, so it is confirmed before it happens",
 			Obligations: []Obligation{
-				{Kind: ObligationConfirmation, Target: "user",
-					Reason: "irreversible", Policy: "baseline.irreversible"},
-				{Kind: ObligationAudit, Target: "irreversible",
-					Reason: "irreversible", Policy: "baseline.irreversible"},
+				{
+					Kind: ObligationConfirmation, Target: "user",
+					Reason: "irreversible", Policy: "baseline.irreversible",
+				},
+				{
+					Kind: ObligationAudit, Target: "irreversible",
+					Reason: "irreversible", Policy: "baseline.irreversible",
+				},
 			},
 		}},
 		Default:       OutcomeAllow,
@@ -157,8 +169,10 @@ func externalActionsRestricted() Policy {
 			Reason:      "unclassified_external_action",
 			Explanation: "an external action with no governing policy is reviewed by a person",
 			Obligations: []Obligation{
-				{Kind: ObligationApproval, Target: "operator",
-					Reason: "external_action", Policy: "baseline.external"},
+				{
+					Kind: ObligationApproval, Target: "operator",
+					Reason: "external_action", Policy: "baseline.external",
+				},
 			},
 		}},
 		Default:       OutcomeRequireHuman,
@@ -183,8 +197,10 @@ func readsAllowed() Policy {
 		Enabled:     true,
 		Rules: []Rule{{
 			Name: "allow-reads",
-			When: []Condition{{Field: FieldReversibility, Selector: SelEquals,
-				Value: Str("none")}},
+			When: []Condition{{
+				Field: FieldReversibility, Selector: SelEquals,
+				Value: Str("none"),
+			}},
 			Then:        OutcomeAllow,
 			Reason:      "non_mutating",
 			Explanation: "the action changes nothing",

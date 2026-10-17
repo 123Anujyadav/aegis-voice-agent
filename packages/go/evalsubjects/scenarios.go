@@ -71,7 +71,8 @@ func Suites() []ev.Suite {
 }
 
 func scenario(id ev.ScenarioID, kind ev.ScenarioKind, subject ev.SubjectName,
-	title string, steps ...ev.Step) ev.Scenario {
+	title string, steps ...ev.Step,
+) ev.Scenario {
 	return ev.Scenario{
 		ID: id, Version: 1, Kind: kind, Title: title, Owner: "platform-quality",
 		SubjectName: subject, Steps: steps, Tolerances: ev.DefaultTolerances(),
@@ -100,14 +101,22 @@ func runtimeScenarios() ev.ScenarioSet {
 		// Eviction under budget pressure, and pinned messages surviving it.
 		scenario("runtime.window-evicts", ev.KindRuntime, SubjectRuntime,
 			"A context window evicts under budget pressure and keeps pinned messages",
-			ev.Step{Name: "pin", Op: "window_append",
-				Args: ev.Values{"text": ev.S("a pinned instruction"), "pinned": ev.B(true)}},
-			ev.Step{Name: "fill-1", Op: "window_append",
-				Args: ev.Values{"text": ev.S("a long conversational message that consumes budget")}},
-			ev.Step{Name: "fill-2", Op: "window_append",
-				Args: ev.Values{"text": ev.S("another long conversational message consuming budget")}},
-			ev.Step{Name: "fill-3", Op: "window_append",
-				Args: ev.Values{"text": ev.S("a third long conversational message consuming budget")}},
+			ev.Step{
+				Name: "pin", Op: "window_append",
+				Args: ev.Values{"text": ev.S("a pinned instruction"), "pinned": ev.B(true)},
+			},
+			ev.Step{
+				Name: "fill-1", Op: "window_append",
+				Args: ev.Values{"text": ev.S("a long conversational message that consumes budget")},
+			},
+			ev.Step{
+				Name: "fill-2", Op: "window_append",
+				Args: ev.Values{"text": ev.S("another long conversational message consuming budget")},
+			},
+			ev.Step{
+				Name: "fill-3", Op: "window_append",
+				Args: ev.Values{"text": ev.S("a third long conversational message consuming budget")},
+			},
 			ev.Step{Name: "assemble", Op: "window_assemble"},
 		),
 
@@ -157,8 +166,10 @@ func memoryScenarios() ev.ScenarioSet {
 	return ev.ScenarioSet{
 		scenario("memory.store-retrieve", ev.KindMemory, SubjectMemory,
 			"A stored record is retrievable and reports its tier",
-			ev.Step{Name: "store", Op: "store",
-				Args: ev.Values{"name": ev.S("greeting"), "data": ev.S("hello")}},
+			ev.Step{
+				Name: "store", Op: "store",
+				Args: ev.Values{"name": ev.S("greeting"), "data": ev.S("hello")},
+			},
 			ev.Step{Name: "retrieve", Op: "retrieve", Args: ev.Values{"name": ev.S("greeting")}},
 			ev.Step{Name: "count", Op: "count"},
 		),
@@ -184,9 +195,11 @@ func memoryScenarios() ev.ScenarioSet {
 		// oversized record the engine's own size cap rejects.
 		scenario("memory.oversized-refused", ev.KindFailure, SubjectMemory,
 			"An oversized record is refused by the engine's own size cap",
-			ev.Step{Name: "store", Op: "store",
+			ev.Step{
+				Name: "store", Op: "store",
 				Args:   ev.Values{"name": ev.S("huge")},
-				Inject: &ev.Failure{Kind: ev.FailMemory, Detail: "oversized_record"}},
+				Inject: &ev.Failure{Kind: ev.FailMemory, Detail: "oversized_record"},
+			},
 		),
 	}
 }
@@ -199,45 +212,67 @@ func toolScenarios() ev.ScenarioSet {
 	return ev.ScenarioSet{
 		scenario("tool.execute", ev.KindTool, SubjectTool,
 			"A registered tool executes and reports one attempt",
-			ev.Step{Name: "register", Op: "register_read",
-				Args: ev.Values{"capability": ev.S("lookup")}},
-			ev.Step{Name: "execute", Op: "execute",
-				Args: ev.Values{"capability": ev.S("lookup")}},
-			ev.Step{Name: "calls", Op: "tool_calls",
-				Args: ev.Values{"capability": ev.S("lookup")}},
+			ev.Step{
+				Name: "register", Op: "register_read",
+				Args: ev.Values{"capability": ev.S("lookup")},
+			},
+			ev.Step{
+				Name: "execute", Op: "execute",
+				Args: ev.Values{"capability": ev.S("lookup")},
+			},
+			ev.Step{
+				Name: "calls", Op: "tool_calls",
+				Args: ev.Values{"capability": ev.S("lookup")},
+			},
 		),
 
 		// INV-TOOL-8: building a plan executes nothing. The tool's call count
 		// must not move, which is exactly what this scenario observes.
 		scenario("tool.plan-is-inert", ev.KindTool, SubjectTool,
 			"Building a plan invokes no tool",
-			ev.Step{Name: "register", Op: "register_read",
-				Args: ev.Values{"capability": ev.S("lookup")}},
+			ev.Step{
+				Name: "register", Op: "register_read",
+				Args: ev.Values{"capability": ev.S("lookup")},
+			},
 			ev.Step{Name: "plan", Op: "plan", Args: ev.Values{"capability": ev.S("lookup")}},
-			ev.Step{Name: "calls", Op: "tool_calls",
-				Args: ev.Values{"capability": ev.S("lookup")}},
+			ev.Step{
+				Name: "calls", Op: "tool_calls",
+				Args: ev.Values{"capability": ev.S("lookup")},
+			},
 		),
 
 		// INV-TOOL-3: two executions in one correlation produce one tool call.
 		scenario("tool.idempotency", ev.KindTool, SubjectTool,
 			"A repeated mutating execution in one correlation invokes the tool once",
-			ev.Step{Name: "register", Op: "register_write",
-				Args: ev.Values{"capability": ev.S("book")}},
-			ev.Step{Name: "first", Op: "execute",
-				Args: ev.Values{"capability": ev.S("book"), "correlation": ev.S("fixed")}},
-			ev.Step{Name: "second", Op: "execute",
-				Args: ev.Values{"capability": ev.S("book"), "correlation": ev.S("fixed")}},
-			ev.Step{Name: "calls", Op: "tool_calls",
-				Args: ev.Values{"capability": ev.S("book")}},
+			ev.Step{
+				Name: "register", Op: "register_write",
+				Args: ev.Values{"capability": ev.S("book")},
+			},
+			ev.Step{
+				Name: "first", Op: "execute",
+				Args: ev.Values{"capability": ev.S("book"), "correlation": ev.S("fixed")},
+			},
+			ev.Step{
+				Name: "second", Op: "execute",
+				Args: ev.Values{"capability": ev.S("book"), "correlation": ev.S("fixed")},
+			},
+			ev.Step{
+				Name: "calls", Op: "tool_calls",
+				Args: ev.Values{"capability": ev.S("book")},
+			},
 		),
 
 		scenario("tool.failure-is-classified", ev.KindFailure, SubjectTool,
 			"A failing tool produces a classified outcome rather than a crash",
-			ev.Step{Name: "register", Op: "register_read",
+			ev.Step{
+				Name: "register", Op: "register_read",
 				Args:   ev.Values{"capability": ev.S("broken"), "max_attempts": ev.N(1)},
-				Inject: &ev.Failure{Kind: ev.FailTool, Detail: "always_fails"}},
-			ev.Step{Name: "execute", Op: "execute",
-				Args: ev.Values{"capability": ev.S("broken")}},
+				Inject: &ev.Failure{Kind: ev.FailTool, Detail: "always_fails"},
+			},
+			ev.Step{
+				Name: "execute", Op: "execute",
+				Args: ev.Values{"capability": ev.S("broken")},
+			},
 			ev.Step{Name: "health", Op: "health"},
 		),
 	}
@@ -272,10 +307,14 @@ func governanceScenarios() ev.ScenarioSet {
 		// Risk raising an outcome, and never lowering it.
 		scenario("governance.risk-raises", ev.KindGovernance, SubjectGovernance,
 			"Critical risk raises an outcome that policy alone would permit",
-			ev.Step{Name: "low", Op: "decide",
-				Args: ev.Values{"action": ev.S("read"), "risk": ev.S("low")}},
-			ev.Step{Name: "critical", Op: "decide",
-				Args: ev.Values{"action": ev.S("read"), "risk": ev.S("critical")}},
+			ev.Step{
+				Name: "low", Op: "decide",
+				Args: ev.Values{"action": ev.S("read"), "risk": ev.S("low")},
+			},
+			ev.Step{
+				Name: "critical", Op: "decide",
+				Args: ev.Values{"action": ev.S("read"), "risk": ev.S("critical")},
+			},
 		),
 
 		// INV-GOV-3: an emergency relaxes what it may and never compliance.
@@ -288,9 +327,11 @@ func governanceScenarios() ev.ScenarioSet {
 
 		scenario("governance.malformed-refused", ev.KindFailure, SubjectGovernance,
 			"A malformed action is refused as malformed, not as a policy denial",
-			ev.Step{Name: "decide", Op: "decide",
+			ev.Step{
+				Name: "decide", Op: "decide",
 				Args:   ev.Values{"action": ev.S("read")},
-				Inject: &ev.Failure{Kind: ev.FailGovernance, Detail: "malformed_action"}},
+				Inject: &ev.Failure{Kind: ev.FailGovernance, Detail: "malformed_action"},
+			},
 		),
 	}
 }

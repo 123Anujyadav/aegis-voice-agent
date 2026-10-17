@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-
 	"strings"
 	"testing"
 	"time"
@@ -45,12 +44,16 @@ func TestFormat_BytesAndDuration(t *testing.T) {
 	}{
 		{"8k mono pcm16 / 20ms", PCM16Mono8k(), 20 * time.Millisecond, 320},
 		{"16k mono pcm16 / 20ms", PCM16Mono16k(), 20 * time.Millisecond, 640},
-		{"48k stereo pcm16 / 20ms",
+		{
+			"48k stereo pcm16 / 20ms",
 			AudioFormat{FormatPCM16, LayoutStereo, Rate48kHz, CodecPCM},
-			20 * time.Millisecond, 3840},
-		{"8k mono pcm32 / 20ms",
+			20 * time.Millisecond, 3840,
+		},
+		{
+			"8k mono pcm32 / 20ms",
 			AudioFormat{FormatPCM32, LayoutMono, Rate8kHz, CodecPCM},
-			20 * time.Millisecond, 640},
+			20 * time.Millisecond, 640,
+		},
 	}
 
 	for _, tc := range cases {
@@ -252,8 +255,10 @@ func TestBuffer_ReadPayloadIsBorrowed(t *testing.T) {
 
 	// ...and then writing enough to wrap the backing array.
 	for i := 0; i < 4; i++ {
-		if err := b.Write(Frame{Sequence: uint64(i + 2), Format: format,
-			Payload: []byte{9, 9, 9, 9}}); err != nil {
+		if err := b.Write(Frame{
+			Sequence: uint64(i + 2), Format: format,
+			Payload: []byte{9, 9, 9, 9},
+		}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := b.Read(); err != nil {
@@ -277,8 +282,10 @@ func TestBuffer_ReadPayloadIsBorrowed(t *testing.T) {
 	f, _ := b2.Read()
 	safe := f.Clone()
 	for i := 0; i < 4; i++ {
-		_ = b2.Write(Frame{Sequence: uint64(i + 2), Format: format,
-			Payload: []byte{9, 9, 9, 9}})
+		_ = b2.Write(Frame{
+			Sequence: uint64(i + 2), Format: format,
+			Payload: []byte{9, 9, 9, 9},
+		})
 		_, _ = b2.Read()
 	}
 	if safe.Payload[0] != 1 {

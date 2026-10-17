@@ -66,8 +66,10 @@ func TestSim_GreetingAlwaysPrecedesConversation(t *testing.T) {
 
 	// An utterance before Start cannot be processed as a turn, because Idle is
 	// not an awaiting state.
-	plan, _ := c.Handle(Event{Kind: EventUtterance, Party: PartyCaller,
-		Utterance: Utterance{Text: "hello", ASRConfidence: 1}})
+	plan, _ := c.Handle(Event{
+		Kind: EventUtterance, Party: PartyCaller,
+		Utterance: Utterance{Text: "hello", ASRConfidence: 1},
+	})
 	if plan.Action == ActionRespond {
 		t.Fatal("the engine answered before the announcement played")
 	}
@@ -368,8 +370,10 @@ func TestFailure_RecoveryWithSnapshotResumes(t *testing.T) {
 	c, _ := h.Begin("recover-snap")
 	s := NewSimulator(c, h.Clock).Start()
 
-	_ = c.Context().Set(Entry{Key: "caller_name_known", Value: true,
-		Scope: ScopeConversation, Sensitivity: Internal})
+	_ = c.Context().Set(Entry{
+		Key: "caller_name_known", Value: true,
+		Scope: ScopeConversation, Sensitivity: Internal,
+	})
 	c.Context().TakeSnapshot("before_fault")
 
 	s.Do(Event{Kind: EventFault, Reason: "internal"})
@@ -502,8 +506,10 @@ func TestStress_ConcurrentEventsOnOneConversation(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			kinds := []EventKind{EventUtterance, EventSpeechComplete,
-				EventOverlap, EventSilence}
+			kinds := []EventKind{
+				EventUtterance, EventSpeechComplete,
+				EventOverlap, EventSilence,
+			}
 			_, _ = c.Handle(Event{
 				Kind: kinds[i%len(kinds)], Party: PartyCaller,
 				Utterance: Utterance{Text: "hello", ASRConfidence: 1},

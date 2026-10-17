@@ -84,8 +84,10 @@ func NewMetrics() *Metrics {
 	// Stage buckets are fine-grained and top out well below one second. The
 	// whole conversation-decision budget is ~150 ms (see latency.go); a bucket
 	// at 2 s would tell us nothing about a stage that is supposed to take 5.
-	stage := []float64{0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.035, 0.05,
-		0.075, 0.1, 0.15, 0.25, 0.5, 1.0}
+	stage := []float64{
+		0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.035, 0.05,
+		0.075, 0.1, 0.15, 0.25, 0.5, 1.0,
+	}
 
 	// Turn and conversation buckets are seconds-scale: a screening runs 20–40 s
 	// (ADR-0002 §11) and turn length is the number that decides cost.

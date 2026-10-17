@@ -52,7 +52,8 @@ type FeatureWindow struct {
 func NewFeatureWindow(capacity int) (*FeatureWindow, error) {
 	if capacity <= 0 {
 		return nil, &ConfigError{Problems: []string{
-			fmt.Sprintf("window: capacity %d must be positive", capacity)}}
+			fmt.Sprintf("window: capacity %d must be positive", capacity),
+		}}
 	}
 	return &FeatureWindow{buf: make([]FrameFeatures, capacity)}, nil
 }

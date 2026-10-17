@@ -108,9 +108,11 @@ func TestOutcome_ZeroValueIsDeny(t *testing.T) {
 func TestOutcome_SeverityOrderIsTotalAndDenyIsHighest(t *testing.T) {
 	t.Parallel()
 
-	all := []Outcome{OutcomeDeny, OutcomeAllow, OutcomeEscalate, OutcomeRequireConfirmation,
+	all := []Outcome{
+		OutcomeDeny, OutcomeAllow, OutcomeEscalate, OutcomeRequireConfirmation,
 		OutcomeRequireConsent, OutcomeRequireHuman, OutcomeRequireSupervisor,
-		OutcomeRetryLater, OutcomeQueue, OutcomeDefer}
+		OutcomeRetryLater, OutcomeQueue, OutcomeDefer,
+	}
 
 	for _, o := range all {
 		if o == OutcomeDeny {
@@ -163,9 +165,11 @@ func TestCondition_SelectorsBehaveAsDocumented(t *testing.T) {
 	t.Parallel()
 
 	req := Request{
-		Action: Action{Kind: ActionTool, Operation: "invoke", Resource: "calendar.check",
+		Action: Action{
+			Kind: ActionTool, Operation: "invoke", Resource: "calendar.check",
 			Reversibility: ReversibleFully, Classification: ClassPersonal,
-			Attributes: Attrs{"count": Num(5), "flagged": Flag(true)}},
+			Attributes: Attrs{"count": Num(5), "flagged": Flag(true)},
+		},
 		Actor: "actor-1", Subject: "subj-1", Roles: []string{"receptionist", "operator"},
 		Risk: RiskAssessment{Level: RiskHigh},
 	}
@@ -208,8 +212,10 @@ func TestCondition_AbsentFieldIsFalseForEveryComparison(t *testing.T) {
 
 	req := Request{Action: Action{Kind: ActionMemory, Operation: "read"}, Actor: "a"}
 
-	comparisons := []Selector{SelEquals, SelNotEquals, SelGreaterThan, SelLessThan,
-		SelAtLeast, SelIn, SelNotIn, SelPrefix}
+	comparisons := []Selector{
+		SelEquals, SelNotEquals, SelGreaterThan, SelLessThan,
+		SelAtLeast, SelIn, SelNotIn, SelPrefix,
+	}
 	for _, sel := range comparisons {
 		c := Condition{Field: "nothing_here", Selector: sel, Value: Str("x"), Values: []string{"x"}}
 		if c.Matches(req) {
@@ -228,8 +234,10 @@ func TestCondition_BuiltinsCannotBeShadowed(t *testing.T) {
 	t.Parallel()
 
 	req := Request{
-		Action: Action{Kind: ActionMemory, Operation: "write", Classification: ClassSensitive,
-			Attributes: Attrs{"classification": Str("public"), "kind": Str("conversation")}},
+		Action: Action{
+			Kind: ActionMemory, Operation: "write", Classification: ClassSensitive,
+			Attributes: Attrs{"classification": Str("public"), "kind": Str("conversation")},
+		},
 		Actor: "a",
 	}
 
@@ -249,9 +257,11 @@ func TestPolicy_ValidationCatchesTheDangerousMistakes(t *testing.T) {
 	t.Parallel()
 
 	base := func() Policy {
-		return Policy{ID: "p", Version: 1, Scope: ScopeGlobal, Owner: "team",
+		return Policy{
+			ID: "p", Version: 1, Scope: ScopeGlobal, Owner: "team",
 			Enabled: true, DefaultReason: "default",
-			Rules: []Rule{{Name: "r", Then: OutcomeAllow, Reason: "ok"}}}
+			Rules: []Rule{{Name: "r", Then: OutcomeAllow, Reason: "ok"}},
+		}
 	}
 
 	cases := []struct {
@@ -268,10 +278,14 @@ func TestPolicy_ValidationCatchesTheDangerousMistakes(t *testing.T) {
 		{"duplicate rule names", func(p *Policy) {
 			p.Rules = append(p.Rules, Rule{Name: "r", Then: OutcomeDeny, Reason: "x"})
 		}, "duplicate rule name"},
-		{"override outside emergency", func(p *Policy) { p.Override = true },
-			"Override is permitted only in the emergency and compliance scopes"},
-		{"temporary without end", func(p *Policy) { p.Scope = ScopeTemporary },
-			"temporary policy requires EffectiveUntil"},
+		{
+			"override outside emergency", func(p *Policy) { p.Override = true },
+			"Override is permitted only in the emergency and compliance scopes",
+		},
+		{
+			"temporary without end", func(p *Policy) { p.Scope = ScopeTemporary },
+			"temporary policy requires EffectiveUntil",
+		},
 		{"blanket allow with no rules", func(p *Policy) {
 			p.Rules = nil
 			p.Default = OutcomeAllow
@@ -682,7 +696,8 @@ func TestRisk_AggregationIsMonotonic(t *testing.T) {
 
 	for i := 0; i < 20; i++ {
 		signals = append(signals, Signal{
-			Source: fmt.Sprintf("calm%d", i), Kind: "nothing", Level: RiskLow, Weight: 1})
+			Source: fmt.Sprintf("calm%d", i), Kind: "nothing", Level: RiskLow, Weight: 1,
+		})
 		got := agg.Aggregate(signals...)
 		if got.Level < base.Level {
 			t.Fatalf("adding a low signal lowered the aggregate from %s to %s",
@@ -840,8 +855,10 @@ func TestHuman_EscalationResolvesOnceAndOnlyOnce(t *testing.T) {
 	h := newHarness(t)
 	hr := h.Engine.Human()
 
-	d := Decision{ID: NewDecisionID(), Outcome: OutcomeRequireSupervisor,
-		Reason: "test", ActionLabel: "tool:invoke"}
+	d := Decision{
+		ID: NewDecisionID(), Outcome: OutcomeRequireSupervisor,
+		Reason: "test", ActionLabel: "tool:invoke",
+	}
 	if _, err := hr.Raise(d, EscalationSupervisor, time.Minute); err != nil {
 		t.Fatal(err)
 	}
@@ -911,17 +928,23 @@ func TestValidator_RefusesContentShapedAttributes(t *testing.T) {
 
 	long := strings.Repeat("x", 300)
 	err := v.Check(Request{
-		Action: Action{Kind: ActionMemory, Operation: "read", Reversibility: ReversibleNone,
-			Attributes: Attrs{"utterance": Str(long)}},
-		Actor: "a", Subject: "s"})
+		Action: Action{
+			Kind: ActionMemory, Operation: "read", Reversibility: ReversibleNone,
+			Attributes: Attrs{"utterance": Str(long)},
+		},
+		Actor: "a", Subject: "s",
+	})
 	if err == nil || !strings.Contains(err.Error(), "never content") {
 		t.Fatalf("a 300-character attribute was accepted: %v", err)
 	}
 
 	err = v.Check(Request{
-		Action: Action{Kind: ActionMemory, Operation: "read", Reversibility: ReversibleNone,
-			Attributes: Attrs{"transcript": Str("line one\nline two")}},
-		Actor: "a", Subject: "s"})
+		Action: Action{
+			Kind: ActionMemory, Operation: "read", Reversibility: ReversibleNone,
+			Attributes: Attrs{"transcript": Str("line one\nline two")},
+		},
+		Actor: "a", Subject: "s",
+	})
 	if err == nil || !strings.Contains(err.Error(), "line break") {
 		t.Fatalf("an attribute containing a line break was accepted: %v", err)
 	}
@@ -936,22 +959,38 @@ func TestValidator_RequiredFactsPerKind(t *testing.T) {
 		req      Request
 		contains string
 	}{
-		{"memory without subject",
-			Request{Action: Action{Kind: ActionMemory, Operation: "read",
-				Reversibility: ReversibleNone}, Actor: "a"},
-			"require a subject"},
-		{"tool without capability",
-			Request{Action: Action{Kind: ActionTool, Operation: "invoke",
-				Reversibility: ReversibleFully}, Actor: "a"},
-			`requires the "capability" attribute`},
-		{"unknown operation",
-			Request{Action: Action{Kind: ActionMemory, Operation: "obliterate",
-				Reversibility: ReversibleFully}, Actor: "a", Subject: "s"},
-			"is not one of"},
-		{"mutating operation claiming reversibility none",
-			Request{Action: Action{Kind: ActionMemory, Operation: "delete",
-				Reversibility: ReversibleNone}, Actor: "a", Subject: "s"},
-			"if that is true it is a read"},
+		{
+			"memory without subject",
+			Request{Action: Action{
+				Kind: ActionMemory, Operation: "read",
+				Reversibility: ReversibleNone,
+			}, Actor: "a"},
+			"require a subject",
+		},
+		{
+			"tool without capability",
+			Request{Action: Action{
+				Kind: ActionTool, Operation: "invoke",
+				Reversibility: ReversibleFully,
+			}, Actor: "a"},
+			`requires the "capability" attribute`,
+		},
+		{
+			"unknown operation",
+			Request{Action: Action{
+				Kind: ActionMemory, Operation: "obliterate",
+				Reversibility: ReversibleFully,
+			}, Actor: "a", Subject: "s"},
+			"is not one of",
+		},
+		{
+			"mutating operation claiming reversibility none",
+			Request{Action: Action{
+				Kind: ActionMemory, Operation: "delete",
+				Reversibility: ReversibleNone,
+			}, Actor: "a", Subject: "s"},
+			"if that is true it is a read",
+		},
 	}
 
 	for _, tc := range cases {

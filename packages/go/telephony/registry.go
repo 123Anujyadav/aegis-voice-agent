@@ -261,7 +261,8 @@ func (r *CallRegistry) Create(cc CallContext, clock rt.Clock) (*CallSession, err
 
 // CreateWithID builds a session with caller-supplied identifiers.
 func (r *CallRegistry) CreateWithID(id CallID, corr CorrelationID, cc CallContext,
-	clock rt.Clock) (*CallSession, error) {
+	clock rt.Clock,
+) (*CallSession, error) {
 	if !id.Valid() {
 		return nil, invariant("INV-TEL-1",
 			"call identifier %q is malformed; it must carry the call_ prefix", id)

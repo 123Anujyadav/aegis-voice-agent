@@ -212,7 +212,8 @@ func TestT3_LiveServiceResolvesANonFallbackIntent(t *testing.T) {
 	plan, err := p.Handle(conversation.Event{
 		Kind: conversation.EventUtterance,
 		Utterance: conversation.Utterance{
-			Text: "transfer me to rajesh", ASRConfidence: 0.95},
+			Text: "transfer me to rajesh", ASRConfidence: 0.95,
+		},
 		Party: conversation.PartyCaller,
 	})
 	if err != nil {

@@ -70,7 +70,8 @@ func confidenceBucket(c float64) string {
 
 // sigClassification renders a raw classifier result.
 func sigClassification(t *testing.T, c *intent.Classifier, text string,
-	expect conversation.Expectation) string {
+	expect conversation.Expectation,
+) string {
 	t.Helper()
 
 	cands, slots, err := c.Classify(
@@ -329,7 +330,8 @@ func matrix() []scenario {
 				}
 				sigs = append(sigs, sigPlan(plan))
 				if _, err := p.Handle(conversation.Event{
-					Kind: conversation.EventSpeechComplete}); err != nil {
+					Kind: conversation.EventSpeechComplete,
+				}); err != nil {
 					sigs = append(sigs, "err="+err.Error())
 					break
 				}

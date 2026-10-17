@@ -213,6 +213,11 @@ type recordingSTT struct {
 	// frames have been accepted, which is what a recogniser does when turn
 	// teardown closes it underneath the ingest goroutine. Zero disables it.
 	closeAfterWrites int64
+
+	// afterAudio holds the scripted transcript until the stream has accepted
+	// a frame. Set by the pipeline harness, which always feeds audio; a test
+	// that opens and drains a stream directly, with no audio, leaves it off.
+	afterAudio bool
 }
 
 func (r *recordingSTT) ID() speech.ProviderID { return r.id }
@@ -233,6 +238,7 @@ func (r *recordingSTT) OpenSTT(ctx context.Context, cfg speech.STTConfig) (speec
 		provider: r,
 		results:  make(chan speech.TranscriptSegment, len(r.segments)+1),
 		done:     make(chan struct{}),
+		heard:    make(chan struct{}),
 		cfg:      cfg,
 	}
 	go s.emit()
@@ -246,6 +252,15 @@ type recordingSTTStream struct {
 	cfg      speech.STTConfig
 	once     sync.Once
 	closed   atomic.Bool
+
+	// heard is closed by the first frame this stream accepts. The scripted
+	// transcript waits for it: a recogniser cannot transcribe audio it has not
+	// received. Emitting the moment the stream opened let the final — and the
+	// turn that closes recognition on it — race the very frame that opened the
+	// turn, which then never reached any recogniser (seen once on main in CI:
+	// TestBargeIn_DoesNotFlushInboundAudio, 8535 frames, none written).
+	heard     chan struct{}
+	heardOnce sync.Once
 }
 
 func (s *recordingSTTStream) emit() {
@@ -283,6 +298,14 @@ func (s *recordingSTTStream) emit() {
 		return
 	}
 
+	if s.provider.afterAudio {
+		select {
+		case <-s.heard:
+		case <-s.done:
+			return
+		}
+	}
+
 	for _, seg := range s.provider.segments {
 		if s.provider.gap > 0 {
 			select {
@@ -311,6 +334,7 @@ func (s *recordingSTTStream) Write(media.Frame) error {
 		// in a live call it is turn teardown racing frame ingest.
 		return speech.ErrSpeechSessionClosed
 	}
+	s.heardOnce.Do(func() { close(s.heard) })
 	return nil
 }
 func (s *recordingSTTStream) Results() <-chan speech.TranscriptSegment { return s.results }
@@ -579,6 +603,14 @@ func (c *countingSink) Deliver(ctx context.Context, f media.Frame) error {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// And again at the moment of playing, under the lock that counting reads
+	// take. When the delay and the cancellation are both ready the select
+	// above picks either, so without this a frame could be recorded as played
+	// AFTER the interruption had returned — and the leak a test then reported
+	// would be this double's, not the pipeline's.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if c.bound > 0 && len(c.frames) >= c.bound {
 		c.rejected++
 		return ErrBackpressure
@@ -727,6 +759,23 @@ type harnessOpts struct {
 	ttsOpenErr          error
 	ttsSynthErr         error
 	ttsFault            string
+
+	// onStateEvent, when set, sees every state-change event the session FSM
+	// publishes, synchronously, before the recording publisher does — the
+	// position of a real broker, so a test can make one slow. It receives the
+	// publish context, as a broker does.
+	onStateEvent func(context.Context, VoiceEvent)
+}
+
+// hookedPublisher runs a test's hook ahead of the publisher it wraps.
+type hookedPublisher struct {
+	inner EventPublisher
+	hook  func(context.Context, VoiceEvent)
+}
+
+func (h *hookedPublisher) Publish(ctx context.Context, e VoiceEvent) error {
+	h.hook(ctx, e)
+	return h.inner.Publish(ctx, e)
 }
 
 func defaultSegments() []speech.TranscriptSegment {
@@ -766,7 +815,8 @@ func newHarness(t *testing.T, o harnessOpts) *harness {
 
 	stt := &recordingSTT{
 		id: speech.ProviderID("stt-test"), segments: o.segments, gap: o.segmentGap,
-		openErr: o.sttOpenErr, fault: o.sttFault,
+		afterAudio: true,
+		openErr:    o.sttOpenErr, fault: o.sttFault,
 		closeAfterWrites: o.sttCloseAfterWrites,
 	}
 	tts := &recordingTTS{
@@ -790,9 +840,14 @@ func newHarness(t *testing.T, o harnessOpts) *harness {
 	metrics := NewVoiceMetrics()
 	pub := NewRecordingEventPublisher()
 
+	var fsmPub EventPublisher = pub
+	if o.onStateEvent != nil {
+		fsmPub = &hookedPublisher{inner: pub, hook: o.onStateEvent}
+	}
+
 	fsm, err := NewSessionFSM(FSMConfig{
 		Session: SessionID("ses-pipeline"), Call: CallID("call-1"),
-		Metrics: metrics, Publisher: pub,
+		Metrics: metrics, Publisher: fsmPub,
 	})
 	if err != nil {
 		t.Fatalf("NewSessionFSM: %v", err)
@@ -1247,6 +1302,114 @@ func TestPipeline_StaleAudioCannotReachMediaAfterCancellation(t *testing.T) {
 
 	t.Logf("stale-output guard: generation=%d, frames withheld=%d",
 		h.pipeline.Generation(), h.pipeline.StaleFramesBlocked())
+}
+
+// TestPipeline_AFrameInDeliveryWhenTheCallEndsIsNotPlayed pins the teardown's
+// half of the stale-output guard.
+//
+// Pipeline.stop bumps the generation first, so no NEW frame passes the guard — but a
+// frame already inside Deliver passed it before the bump. Only cancelling the
+// delivery's context stops that frame, and stop cancelled it last: after the
+// terminal transition, whose state-change event the FSM publishes
+// synchronously. A frame finishing its delivery in that window reached the
+// caller after the call had ended — once in ~150 full-package -race runs
+// ("1 frames reached media after cancellation"). A barge-in never had the gap:
+// abortActiveTurn cancels the turn's context straight after its bump.
+//
+// A broker that is slow on the terminal event holds that window open, and a
+// sink slower than nothing puts a frame inside it.
+func TestPipeline_AFrameInDeliveryWhenTheCallEndsIsNotPlayed(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, harnessOpts{
+		tokens:         []string{"Shall I read your recent transactions?"},
+		framesPerChunk: 60,
+		ttsSynthDelay:  20 * time.Millisecond,
+		sinkDelay:      40 * time.Millisecond,
+		onStateEvent: func(_ context.Context, e VoiceEvent) {
+			if e.Type == EventStateChanged && e.To.Terminal() {
+				time.Sleep(150 * time.Millisecond)
+			}
+		},
+	})
+
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	h.feed(t, 4)
+
+	deadline := time.After(20 * time.Second)
+	for h.out.count() == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("no audio ever reached media")
+		case <-time.After(time.Millisecond):
+		}
+	}
+
+	// The next frame is now inside its 40ms delivery.
+	before := h.out.count()
+	if err := h.pipeline.Cancel(ReasonRequested); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	<-h.pipeline.Done()
+
+	if after := h.out.count(); after != before {
+		t.Errorf("%d frames reached media after the call was ended (%d before, "+
+			"%d after)", after-before, before, after)
+	}
+	if h.pipeline.StaleFramesBlocked() == 0 {
+		t.Error("nothing was withheld: no frame was in flight, so this proved nothing")
+	}
+}
+
+// TestPipeline_HangingUpMidUtteranceCompletesNoTurn: a caller who hangs up while
+// still being recognised has not completed a turn.
+//
+// Pipeline.stop cancels the session and then closes the open recognition stream, so
+// recognize can see its context done and its results end together. When
+// select picked the results, recognize took its no-final path, emptyTurn, and
+// reported the turn COMPLETED to the observer and the metric for a call that
+// ended mid-utterance. Seen naturally in 1 of ~400 hang-ups under -race;
+// which case select picks is not controllable, so this takes that path
+// directly, in the state the race leaves it: after a real hang-up.
+func TestPipeline_HangingUpMidUtteranceCompletesNoTurn(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, harnessOpts{sttFault: "hang"})
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	h.feed(t, 4)
+
+	deadline := time.After(5 * time.Second)
+	for h.fsm.State() != StateTranscribing {
+		select {
+		case <-deadline:
+			t.Fatalf("recognition never started; state=%s", h.fsm.State())
+		case <-time.After(time.Millisecond):
+		}
+	}
+
+	if err := h.pipeline.Disconnect(); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	<-h.pipeline.Done()
+	completedByRace := h.metrics.TurnsCompleted.Total()
+
+	// recognize's no-final path, as it runs when the race goes the other way.
+	h.pipeline.emptyTurn(ReasonEmptyTranscript)
+
+	if got := h.metrics.TurnsCompleted.Total(); got != 0 {
+		t.Errorf("%d turns recorded completed for a call hung up mid-utterance "+
+			"(%d by the hang-up itself)", got, completedByRace)
+	}
+	for _, e := range h.obs.order() {
+		if e == "turn_complete" {
+			t.Error("the observer was told a turn completed after the caller hung " +
+				"up mid-utterance")
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

@@ -94,8 +94,10 @@ func NewHarness(opts ...HarnessOption) (*Harness, error) {
 	o := &harnessOptions{
 		cfg:    TestConfig(),
 		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		caps: []Capability{CapDial, CapAnswer, CapReject, CapHangup,
-			CapHold, CapMute, CapTransfer},
+		caps: []Capability{
+			CapDial, CapAnswer, CapReject, CapHangup,
+			CapHold, CapMute, CapTransfer,
+		},
 	}
 	for _, opt := range opts {
 		opt(o)

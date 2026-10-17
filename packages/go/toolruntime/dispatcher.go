@@ -162,8 +162,8 @@ func (s *planState) outcomes() []ExecutionResult {
 }
 
 func (d *ExecutionDispatcher) runStep(ctx context.Context, step Step, plan Plan,
-	grant Grant, state *planState, journal *Journal) error {
-
+	grant Grant, state *planState, journal *Journal,
+) error {
 	switch step.Kind {
 	case StepInvoke:
 		return d.runInvoke(ctx, step, plan, grant, state, journal)
@@ -181,12 +181,14 @@ func (d *ExecutionDispatcher) runStep(ctx context.Context, step Step, plan Plan,
 }
 
 func (d *ExecutionDispatcher) runInvoke(ctx context.Context, step Step, plan Plan,
-	grant Grant, state *planState, journal *Journal) error {
-
+	grant Grant, state *planState, journal *Journal,
+) error {
 	bound, err := d.bind(step, state)
 	if err != nil {
-		out := ExecutionResult{Step: step.ID, Ref: step.Ref, Descriptor: step.Descriptor,
-			Err: err, Phase: PhaseValidateIn}
+		out := ExecutionResult{
+			Step: step.ID, Ref: step.Ref, Descriptor: step.Descriptor,
+			Err: err, Phase: PhaseValidateIn,
+		}
 		state.add(out)
 		if step.Optional {
 			return nil
@@ -197,8 +199,10 @@ func (d *ExecutionDispatcher) runInvoke(ctx context.Context, step Step, plan Pla
 
 	release, err := d.scheduler.Acquire(ctx, classFor(step))
 	if err != nil {
-		out := ExecutionResult{Step: step.ID, Ref: step.Ref, Descriptor: step.Descriptor,
-			Err: err, Phase: PhaseAdmit}
+		out := ExecutionResult{
+			Step: step.ID, Ref: step.Ref, Descriptor: step.Descriptor,
+			Err: err, Phase: PhaseAdmit,
+		}
 		state.add(out)
 		if step.Optional {
 			return nil
@@ -224,8 +228,8 @@ func (d *ExecutionDispatcher) runInvoke(ctx context.Context, step Step, plan Pla
 }
 
 func (d *ExecutionDispatcher) runSequence(ctx context.Context, step Step, plan Plan,
-	grant Grant, state *planState, journal *Journal) error {
-
+	grant Grant, state *planState, journal *Journal,
+) error {
 	for _, child := range step.Children {
 		if err := d.runStep(ctx, child, plan, grant, state, journal); err != nil {
 			return err
@@ -242,8 +246,8 @@ func (d *ExecutionDispatcher) runSequence(ctx context.Context, step Step, plan P
 // nothing downstream can tell which. Letting every branch reach a definite
 // outcome means the journal knows exactly what needs undoing.
 func (d *ExecutionDispatcher) runParallel(ctx context.Context, step Step, plan Plan,
-	grant Grant, state *planState, journal *Journal) error {
-
+	grant Grant, state *planState, journal *Journal,
+) error {
 	var wg sync.WaitGroup
 	errs := make([]error, len(step.Children))
 
@@ -267,15 +271,17 @@ func (d *ExecutionDispatcher) runParallel(ctx context.Context, step Step, plan P
 }
 
 func (d *ExecutionDispatcher) runConditional(ctx context.Context, step Step, plan Plan,
-	grant Grant, state *planState, journal *Journal) error {
-
+	grant Grant, state *planState, journal *Journal,
+) error {
 	if step.Condition == nil {
 		return invariant("INV-TOOL-8", "conditional step %s has no condition", step.ID)
 	}
 	if !step.Condition.Evaluate(state.snapshot()) {
 		for _, leaf := range step.Leaves() {
-			state.add(ExecutionResult{Step: leaf.ID, Ref: leaf.Ref,
-				Descriptor: leaf.Descriptor, Skipped: true, Phase: PhasePlan})
+			state.add(ExecutionResult{
+				Step: leaf.ID, Ref: leaf.Ref,
+				Descriptor: leaf.Descriptor, Skipped: true, Phase: PhasePlan,
+			})
 		}
 		return nil
 	}
@@ -295,8 +301,8 @@ func (d *ExecutionDispatcher) runConditional(ctx context.Context, step Step, pla
 // mutating steps rather than falling through, and why the planner refuses a
 // fallback chain over an irreversible tool outright.
 func (d *ExecutionDispatcher) runFallback(ctx context.Context, step Step, plan Plan,
-	grant Grant, state *planState, journal *Journal) error {
-
+	grant Grant, state *planState, journal *Journal,
+) error {
 	var last error
 	for rank, child := range step.Children {
 		child.Optional = false // the CHAIN may be optional; a branch is not

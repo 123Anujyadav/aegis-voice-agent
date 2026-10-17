@@ -517,8 +517,10 @@ func (c *Conversation) handleStart() (Plan, error) {
 	if err := c.transition(StateGreeting, TriggerStart, ""); err != nil {
 		return Plan{}, err
 	}
-	return Plan{Action: ActionRespond, Reason: "greeting", NextState: StateGreeting,
-		Confidence: 1.0}, nil
+	return Plan{
+		Action: ActionRespond, Reason: "greeting", NextState: StateGreeting,
+		Confidence: 1.0,
+	}, nil
 }
 
 // handleGreetingComplete releases the opening turn.
@@ -538,19 +540,25 @@ func (c *Conversation) handleOverlap(e Event) (Plan, error) {
 		// The caller agreed with us. Continuing to speak is correct, and
 		// stopping would make the agent seem unable to hold a thought.
 		c.turns.ClearOverlap()
-		return Plan{Action: ActionIgnore, Reason: "backchannel",
-			NextState: c.fsm.State()}, nil
+		return Plan{
+			Action: ActionIgnore, Reason: "backchannel",
+			NextState: c.fsm.State(),
+		}, nil
 	case FloorQueued:
-		return Plan{Action: ActionIgnore, Reason: "floor_queued",
-			NextState: c.fsm.State()}, nil
+		return Plan{
+			Action: ActionIgnore, Reason: "floor_queued",
+			NextState: c.fsm.State(),
+		}, nil
 	case FloorGranted:
 		return c.handleInterrupt(Event{
 			Kind: EventInterrupt, Interruption: InterruptionUser,
 			Party: e.Party, Reason: "barge_in",
 		})
 	default:
-		return Plan{Action: ActionIgnore, Reason: "overlap_denied",
-			NextState: c.fsm.State()}, nil
+		return Plan{
+			Action: ActionIgnore, Reason: "overlap_denied",
+			NextState: c.fsm.State(),
+		}, nil
 	}
 }
 
@@ -766,8 +774,10 @@ func (c *Conversation) handleUtterance(e Event, latency *LatencyController) (Pla
 		if attempt == maxReplans-1 {
 			// Every proposal was refused. Escalating is the only honest exit —
 			// looping would spend the caller's time producing nothing.
-			plan = Plan{Action: ActionEscalate, Reason: "policy_exhausted",
-				NextState: StateEscalated, Confidence: 0.5, Escalation: "policy"}
+			plan = Plan{
+				Action: ActionEscalate, Reason: "policy_exhausted",
+				NextState: StateEscalated, Confidence: 0.5, Escalation: "policy",
+			}
 		}
 	}
 

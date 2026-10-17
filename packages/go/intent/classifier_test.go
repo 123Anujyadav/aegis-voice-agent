@@ -388,8 +388,10 @@ func TestNew_RejectsAnOutOfVocabularyRule(t *testing.T) {
 	t.Parallel()
 
 	_, err := intent.New(intent.Config{Rules: []intent.Rule{
-		{Name: conversation.IntentName("exfiltrate_everything"),
-			Cues: [][]string{{"hello"}}},
+		{
+			Name: conversation.IntentName("exfiltrate_everything"),
+			Cues: [][]string{{"hello"}},
+		},
 	}})
 	if err == nil {
 		t.Fatal("New accepted a rule naming an out-of-vocabulary intent")
@@ -545,8 +547,10 @@ func TestClassify_IsDeterministicAcross100Executions(t *testing.T) {
 		{"leave a message", conversation.ExpectSlotValue},
 		{"xyzzy", conversation.ExpectNothing},
 		{"", conversation.ExpectNothing},
-		{"hello yes no message call back transfer me repeat wait goodbye",
-			conversation.ExpectDisambiguation},
+		{
+			"hello yes no message call back transfer me repeat wait goodbye",
+			conversation.ExpectDisambiguation,
+		},
 	}
 
 	for _, f := range fixtures {

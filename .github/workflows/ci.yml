@@ -33,8 +33,9 @@ permissions:
 
 env:
   # Must be at least the highest `go` directive in go.work. The AI-plane
-  # modules declare go 1.25.0.
-  GO_VERSION: "1.25.x"
+  # modules declare go 1.25.0. Kept on a supported release line, matching
+  # pr-go.yml (see the note there).
+  GO_VERSION: "1.26.x"
   GOTOOLCHAIN: "local"
   GOFLAGS: "-mod=readonly"
 

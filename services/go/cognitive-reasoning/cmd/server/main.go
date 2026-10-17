@@ -9,8 +9,10 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 )
 
-const serviceName = "cognitive-reasoning"
-const envPrefix = "CS_COGNITIVE_REASONING"
+const (
+	serviceName = "cognitive-reasoning"
+	envPrefix   = "CS_COGNITIVE_REASONING"
+)
 
 func main() {
 	if err := run(); err != nil {

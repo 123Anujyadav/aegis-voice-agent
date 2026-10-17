@@ -185,10 +185,14 @@ func NewContextEngine(cfg ContextConfig, clock rt.Clock, metrics *Metrics) (*Con
 	if metrics == nil {
 		metrics = NewMetrics()
 	}
-	c := &ContextEngine{cfg: cfg, clock: clock, metrics: metrics,
-		scopes: make(map[Scope]map[string]Entry, 5)}
-	for _, s := range []Scope{ScopeConversation, ScopeSession, ScopeBusiness,
-		ScopeTemporary, ScopeShared} {
+	c := &ContextEngine{
+		cfg: cfg, clock: clock, metrics: metrics,
+		scopes: make(map[Scope]map[string]Entry, 5),
+	}
+	for _, s := range []Scope{
+		ScopeConversation, ScopeSession, ScopeBusiness,
+		ScopeTemporary, ScopeShared,
+	} {
 		c.scopes[s] = make(map[string]Entry)
 	}
 	return c, nil
@@ -275,8 +279,10 @@ func (c *ContextEngine) Get(scope Scope, key string) (Entry, bool) {
 // most recent first, so a value set for this turn wins over a session default,
 // which wins over organisation configuration.
 func (c *ContextEngine) Lookup(key string) (Entry, bool) {
-	for _, s := range []Scope{ScopeTemporary, ScopeConversation, ScopeSession,
-		ScopeShared, ScopeBusiness} {
+	for _, s := range []Scope{
+		ScopeTemporary, ScopeConversation, ScopeSession,
+		ScopeShared, ScopeBusiness,
+	} {
 		if e, ok := c.Get(s, key); ok {
 			return e, true
 		}
@@ -394,8 +400,10 @@ func (c *ContextEngine) Export(max Sensitivity) []Entry {
 	defer c.mu.RUnlock()
 
 	var out []Entry
-	for _, scope := range []Scope{ScopeConversation, ScopeSession, ScopeBusiness,
-		ScopeTemporary, ScopeShared} {
+	for _, scope := range []Scope{
+		ScopeConversation, ScopeSession, ScopeBusiness,
+		ScopeTemporary, ScopeShared,
+	} {
 		for _, e := range c.scopes[scope] {
 			if e.Expired(now) || e.Sensitivity > max {
 				continue

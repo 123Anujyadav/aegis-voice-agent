@@ -151,8 +151,10 @@ func BenchmarkBehaviourPrintLarge(b *testing.B) {
 
 func BenchmarkCompareMatching(b *testing.B) {
 	obs := benchObservation(10)
-	g := Golden{ID: "g", State: GoldenApproved, Observation: obs,
-		Behaviour: obs.BehaviourPrint()}
+	g := Golden{
+		ID: "g", State: GoldenApproved, Observation: obs,
+		Behaviour: obs.BehaviourPrint(),
+	}
 	tol := DefaultTolerances()
 
 	b.ReportAllocs()
@@ -166,8 +168,10 @@ func BenchmarkCompareMatching(b *testing.B) {
 // be found and described.
 func BenchmarkCompareDrifting(b *testing.B) {
 	baseline := benchObservation(10)
-	g := Golden{ID: "g", State: GoldenApproved, Observation: baseline,
-		Behaviour: baseline.BehaviourPrint()}
+	g := Golden{
+		ID: "g", State: GoldenApproved, Observation: baseline,
+		Behaviour: baseline.BehaviourPrint(),
+	}
 
 	drifted := baseline.Clone()
 	for i := range drifted.Steps {
@@ -193,8 +197,10 @@ func BenchmarkObservationClone(b *testing.B) {
 }
 
 func BenchmarkValuesFingerprint(b *testing.B) {
-	v := Values{"answer": S("a moderately long observed value"),
-		"count": N(42), "ok": B(true), "state": S("awaiting")}
+	v := Values{
+		"answer": S("a moderately long observed value"),
+		"count":  N(42), "ok": B(true), "state": S("awaiting"),
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -280,13 +286,19 @@ func BenchmarkDetectRegressions(b *testing.B) {
 	var baseResults, curResults []ScenarioResult
 	for i := 0; i < 50; i++ {
 		id := ScenarioID(fmt.Sprintf("s%02d", i))
-		obs := Observation{Scenario: id, ScenarioVersion: 1,
-			Steps: []StepObservation{{Name: "a", Op: "op", Outcome: "ok",
-				Duration: time.Millisecond}}}
+		obs := Observation{
+			Scenario: id, ScenarioVersion: 1,
+			Steps: []StepObservation{{
+				Name: "a", Op: "op", Outcome: "ok",
+				Duration: time.Millisecond,
+			}},
+		}
 		baseResults = append(baseResults, ScenarioResult{
-			Scenario: id, Subject: "fake", Verdict: VerdictPass, Observation: obs})
+			Scenario: id, Subject: "fake", Verdict: VerdictPass, Observation: obs,
+		})
 		curResults = append(curResults, ScenarioResult{
-			Scenario: id, Subject: "fake", Verdict: VerdictPass, Observation: obs})
+			Scenario: id, Subject: "fake", Verdict: VerdictPass, Observation: obs,
+		})
 	}
 	base := Run{ID: "base", Results: baseResults}
 	cur := Run{ID: "cur", Results: curResults}
@@ -349,8 +361,11 @@ func BenchmarkDashboard(b *testing.B) {
 func BenchmarkStoragePutRun(b *testing.B) {
 	storage := NewBoundedMemoryStorage(1000, 1000, 1000)
 	run := Run{ID: "r", Results: []ScenarioResult{
-		{Scenario: "s", Subject: "fake", Verdict: VerdictPass,
-			Observation: benchObservation(5)}}}
+		{
+			Scenario: "s", Subject: "fake", Verdict: VerdictPass,
+			Observation: benchObservation(5),
+		},
+	}}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -375,8 +390,10 @@ func BenchmarkClockResolution(b *testing.B) {
 }
 
 func benchObservation(steps int) Observation {
-	obs := Observation{Scenario: "bench", Subject: "fake", ScenarioVersion: 1,
-		Metrics: map[string]float64{"step_count": float64(steps)}}
+	obs := Observation{
+		Scenario: "bench", Subject: "fake", ScenarioVersion: 1,
+		Metrics: map[string]float64{"step_count": float64(steps)},
+	}
 	for i := 0; i < steps; i++ {
 		obs.Steps = append(obs.Steps, StepObservation{
 			Name: fmt.Sprintf("s%02d", i), Op: "op", Outcome: "ok",

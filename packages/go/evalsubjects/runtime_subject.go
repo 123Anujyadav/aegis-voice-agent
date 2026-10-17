@@ -88,7 +88,8 @@ func (s *runtimeSession) Execute(ctx context.Context, step ev.Step) ev.StepResul
 				report(fmt.Errorf("scripted failure"))
 				s.record("breaker_failure")
 				return result("reported_failure", ev.Values{
-					"state": ev.S(s.breaker.State().String())})
+					"state": ev.S(s.breaker.State().String()),
+				})
 			}
 		}
 		report(nil)
@@ -150,7 +151,8 @@ func (s *runtimeSession) Execute(ctx context.Context, step ev.Step) ev.StepResul
 		// in a behaviour fingerprint at all.
 		base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 		return result(ok, ev.Values{
-			"elapsed_ms": ev.N(float64(s.clock.Now().Sub(base).Milliseconds()))})
+			"elapsed_ms": ev.N(float64(s.clock.Now().Sub(base).Milliseconds())),
+		})
 
 	default:
 		return failed("unknown_op", "runtime subject has no operation "+step.Op)

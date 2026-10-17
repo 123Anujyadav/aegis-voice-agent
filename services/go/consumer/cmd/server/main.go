@@ -9,8 +9,10 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 )
 
-const serviceName = "consumer"
-const envPrefix = "CS_CONSUMER"
+const (
+	serviceName = "consumer"
+	envPrefix   = "CS_CONSUMER"
+)
 
 func main() {
 	if err := run(); err != nil {

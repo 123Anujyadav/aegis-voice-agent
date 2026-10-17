@@ -134,7 +134,8 @@ func NewNoiseAnalyzer(cfg Config) (*NoiseAnalyzer, error) {
 	}
 	if cfg.FrameInterval <= 0 {
 		return nil, &ConfigError{Problems: []string{
-			"noise: FrameInterval must be positive to bound the rise rate"}}
+			"noise: FrameInterval must be positive to bound the rise rate",
+		}}
 	}
 
 	// The rise clamp, converted from dB per second to a per-frame amplitude

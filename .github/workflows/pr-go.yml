@@ -36,7 +36,7 @@ permissions:
   contents: read
 
 env:
-  # Matches the highest `go` directive in the workspace. The AI-plane modules
+  # At least the highest `go` directive in the workspace. The AI-plane modules
   # (packages/go/runtime and everything built on it) declare go 1.25.0; a
   # toolchain older than that either hard-fails under GOTOOLCHAIN=local or
   # silently downloads a second toolchain that setup-go has not cached.
@@ -44,7 +44,14 @@ env:
   # Was pinned at 1.23.5 while those modules required 1.25.0. Nothing surfaced
   # it because this workflow has never executed — see
   # docs/hardening/CICD_READINESS_REPORT.md.
-  GO_VERSION: "1.25.x"
+  #
+  # Above the directive on purpose: the release line must still receive
+  # security fixes. go1.25.14 is affected by standard-library vulnerabilities
+  # (GO-2026-6603, -6605, -6607, -6608, -6610, -6611, -6612, -6613, -6617) that
+  # have no 1.25 fix and are fixed in go1.26.9, which govulncheck reports for
+  # every module that reaches net/http or crypto/tls. The `go` directives stay
+  # at their minimums.
+  GO_VERSION: "1.26.x"
   # No implicit toolchain downloads. The version this file declares is the
   # version the build uses, or the build fails and says so.
   GOTOOLCHAIN: "local"

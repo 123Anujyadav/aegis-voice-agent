@@ -246,8 +246,10 @@ func TestFrameAnalyzer_BothWidthsAgree(t *testing.T) {
 	}
 
 	f16 := media.PCM16Mono8k()
-	f32 := media.AudioFormat{Format: media.FormatPCM32, Layout: media.LayoutMono,
-		Rate: media.Rate8kHz, Codec: media.CodecPCM}
+	f32 := media.AudioFormat{
+		Format: media.FormatPCM32, Layout: media.LayoutMono,
+		Rate: media.Rate8kHz, Codec: media.CodecPCM,
+	}
 
 	a16 := mustAnalyzer(t, f16)
 	a32 := mustAnalyzer(t, f32)
@@ -360,10 +362,14 @@ func TestNewFrameAnalyzer_RefusesUnanalysableFormats(t *testing.T) {
 	t.Parallel()
 
 	for _, f := range []media.AudioFormat{
-		{Format: media.FormatPCM16, Layout: media.LayoutStereo,
-			Rate: media.Rate8kHz, Codec: media.CodecPCM},
-		{Format: media.FormatPCM16, Layout: media.LayoutMono,
-			Rate: media.Rate8kHz, Codec: media.CodecOpaque},
+		{
+			Format: media.FormatPCM16, Layout: media.LayoutStereo,
+			Rate: media.Rate8kHz, Codec: media.CodecPCM,
+		},
+		{
+			Format: media.FormatPCM16, Layout: media.LayoutMono,
+			Rate: media.Rate8kHz, Codec: media.CodecOpaque,
+		},
 		{},
 	} {
 		if _, err := NewFrameAnalyzer(f); err == nil {
@@ -655,8 +661,10 @@ func BenchmarkFrameAnalyzer_Analyze(b *testing.B) {
 }
 
 func BenchmarkFrameAnalyzer_AnalyzePCM32(b *testing.B) {
-	format := media.AudioFormat{Format: media.FormatPCM32, Layout: media.LayoutMono,
-		Rate: media.Rate16kHz, Codec: media.CodecPCM}
+	format := media.AudioFormat{
+		Format: media.FormatPCM32, Layout: media.LayoutMono,
+		Rate: media.Rate16kHz, Codec: media.CodecPCM,
+	}
 	a, err := NewFrameAnalyzer(format)
 	if err != nil {
 		b.Fatal(err)

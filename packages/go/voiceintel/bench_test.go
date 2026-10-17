@@ -47,7 +47,8 @@ func benchSession(b *testing.B, br *voiceintel.Bridge, id string) *conversation.
 		b.Fatalf("EventStart: %v", err)
 	}
 	if _, err := p.Handle(conversation.Event{
-		Kind: conversation.EventGreetingComplete}); err != nil {
+		Kind: conversation.EventGreetingComplete,
+	}); err != nil {
 		b.Fatalf("EventGreetingComplete: %v", err)
 	}
 	conv, ok := br.Conversation(conversation.ConversationID(id))
@@ -277,12 +278,18 @@ func BenchmarkResponseStrategy(b *testing.B) {
 		wantAction conversation.Action
 		wantIntent conversation.IntentName
 	}{
-		{"Respond", "please call me back on 9876543210",
-			conversation.ActionRespond, intent.IntentRequestCallback},
-		{"AskMissingSlot", "i want to leave a message",
-			conversation.ActionAsk, intent.IntentLeaveMessage},
-		{"Unknown", "zzzz qqqq wubble",
-			conversation.ActionRespond, conversation.IntentFallback},
+		{
+			"Respond", "please call me back on 9876543210",
+			conversation.ActionRespond, intent.IntentRequestCallback,
+		},
+		{
+			"AskMissingSlot", "i want to leave a message",
+			conversation.ActionAsk, intent.IntentLeaveMessage,
+		},
+		{
+			"Unknown", "zzzz qqqq wubble",
+			conversation.ActionRespond, conversation.IntentFallback,
+		},
 	}
 
 	for _, tc := range cases {
@@ -354,7 +361,8 @@ func BenchmarkTurnOnReusedSession(b *testing.B) {
 		b.Fatalf("fixture intent = %q", plan.Intent)
 	}
 	if _, err := conv.Handle(conversation.Event{
-		Kind: conversation.EventSpeechComplete}); err != nil {
+		Kind: conversation.EventSpeechComplete,
+	}); err != nil {
 		b.Fatalf("fixture speech complete: %v", err)
 	}
 
@@ -382,7 +390,8 @@ func BenchmarkTurnOnReusedSession(b *testing.B) {
 			b.Fatalf("iteration %d: %v", i, err)
 		}
 		if _, err := conv.Handle(conversation.Event{
-			Kind: conversation.EventSpeechComplete}); err != nil {
+			Kind: conversation.EventSpeechComplete,
+		}); err != nil {
 			b.Fatalf("iteration %d speech complete: %v", i, err)
 		}
 		turns++
@@ -423,7 +432,8 @@ func BenchmarkConcurrentSessions(b *testing.B) {
 					b.Fatalf("session %d intent = %q", i, plan.Intent)
 				}
 				if _, err := c.Handle(conversation.Event{
-					Kind: conversation.EventSpeechComplete}); err != nil {
+					Kind: conversation.EventSpeechComplete,
+				}); err != nil {
 					b.Fatalf("session %d speech complete: %v", i, err)
 				}
 			}
@@ -456,7 +466,8 @@ func BenchmarkConcurrentSessions(b *testing.B) {
 							return
 						}
 						if _, err := c.Handle(conversation.Event{
-							Kind: conversation.EventSpeechComplete}); err != nil {
+							Kind: conversation.EventSpeechComplete,
+						}); err != nil {
 							errCh <- err
 						}
 					}(c)

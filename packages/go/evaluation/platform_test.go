@@ -185,8 +185,10 @@ func TestScenario_ValidationCatchesTheDangerousMistakes(t *testing.T) {
 	t.Parallel()
 
 	base := func() Scenario {
-		return Scenario{ID: "s", Version: 1, Owner: "team", SubjectName: "subj",
-			Steps: []Step{{Name: "a", Op: "op"}}}
+		return Scenario{
+			ID: "s", Version: 1, Owner: "team", SubjectName: "subj",
+			Steps: []Step{{Name: "a", Op: "op"}},
+		}
 	}
 
 	cases := []struct {
@@ -344,11 +346,17 @@ func TestGolden_SupersededBaselinesAreRetained(t *testing.T) {
 func TestCompare_DistinguishesDriftFromFailure(t *testing.T) {
 	t.Parallel()
 
-	baseline := Observation{Scenario: "s", ScenarioVersion: 1,
-		Steps: []StepObservation{{Name: "a", Op: "op", Outcome: "ok",
-			Output: Values{"x": N(1)}}}}
-	g := Golden{ID: "g", State: GoldenApproved, Observation: baseline,
-		Behaviour: baseline.BehaviourPrint()}
+	baseline := Observation{
+		Scenario: "s", ScenarioVersion: 1,
+		Steps: []StepObservation{{
+			Name: "a", Op: "op", Outcome: "ok",
+			Output: Values{"x": N(1)},
+		}},
+	}
+	g := Golden{
+		ID: "g", State: GoldenApproved, Observation: baseline,
+		Behaviour: baseline.BehaviourPrint(),
+	}
 
 	same := Compare(g, baseline, DefaultTolerances())
 	if same.Verdict != VerdictPass {
@@ -384,10 +392,14 @@ func TestCompare_DistinguishesDriftFromFailure(t *testing.T) {
 func TestCompare_RefusesACrossVersionComparison(t *testing.T) {
 	t.Parallel()
 
-	baseline := Observation{Scenario: "s", ScenarioVersion: 1,
-		Steps: []StepObservation{{Name: "a", Outcome: "ok"}}}
-	g := Golden{ID: "g", State: GoldenApproved, Observation: baseline,
-		Behaviour: baseline.BehaviourPrint()}
+	baseline := Observation{
+		Scenario: "s", ScenarioVersion: 1,
+		Steps: []StepObservation{{Name: "a", Outcome: "ok"}},
+	}
+	g := Golden{
+		ID: "g", State: GoldenApproved, Observation: baseline,
+		Behaviour: baseline.BehaviourPrint(),
+	}
 
 	newer := baseline.Clone()
 	newer.ScenarioVersion = 2
@@ -404,18 +416,24 @@ func TestCompare_RefusesACrossVersionComparison(t *testing.T) {
 func TestCompare_BehaviourHasNoTolerance(t *testing.T) {
 	t.Parallel()
 
-	baseline := Observation{Scenario: "s", ScenarioVersion: 1,
-		Steps: []StepObservation{{Name: "a", Outcome: "ok", Output: Values{"n": N(100)}}}}
-	g := Golden{ID: "g", State: GoldenApproved, Observation: baseline,
-		Behaviour: baseline.BehaviourPrint()}
+	baseline := Observation{
+		Scenario: "s", ScenarioVersion: 1,
+		Steps: []StepObservation{{Name: "a", Outcome: "ok", Output: Values{"n": N(100)}}},
+	}
+	g := Golden{
+		ID: "g", State: GoldenApproved, Observation: baseline,
+		Behaviour: baseline.BehaviourPrint(),
+	}
 
 	// A one-part-in-a-hundred output change, with the loosest tolerances the
 	// type can express. Still drift.
 	tiny := baseline.Clone()
 	tiny.Steps[0].Output = Values{"n": N(101)}
 
-	c := Compare(g, tiny, Tolerances{LatencyRatio: 1000, LatencyFloor: time.Hour,
-		MetricDeltas: map[string]float64{"n": 100}})
+	c := Compare(g, tiny, Tolerances{
+		LatencyRatio: 1000, LatencyFloor: time.Hour,
+		MetricDeltas: map[string]float64{"n": 100},
+	})
 	if c.Verdict != VerdictDrift {
 		t.Fatalf("a behaviour change was tolerated away: %s", c.Verdict)
 	}
@@ -424,10 +442,14 @@ func TestCompare_BehaviourHasNoTolerance(t *testing.T) {
 func TestCompare_LatencyFloorSuppressesNoise(t *testing.T) {
 	t.Parallel()
 
-	baseline := Observation{Scenario: "s", ScenarioVersion: 1,
-		Steps: []StepObservation{{Name: "a", Outcome: "ok", Duration: 3 * time.Microsecond}}}
-	g := Golden{ID: "g", State: GoldenApproved, Observation: baseline,
-		Behaviour: baseline.BehaviourPrint()}
+	baseline := Observation{
+		Scenario: "s", ScenarioVersion: 1,
+		Steps: []StepObservation{{Name: "a", Outcome: "ok", Duration: 3 * time.Microsecond}},
+	}
+	g := Golden{
+		ID: "g", State: GoldenApproved, Observation: baseline,
+		Behaviour: baseline.BehaviourPrint(),
+	}
 
 	// A 3 µs step becoming 9 µs is a 3× ratio and pure scheduler noise.
 	noisy := baseline.Clone()
@@ -549,7 +571,8 @@ func TestRegistry_SuiteReferencingAnUnknownScenarioIsRefused(t *testing.T) {
 	h.Register(SimpleScenario("known", "fake", "op"))
 
 	err := h.Runtime.Registry().RegisterSuites(Suite{
-		ID: "s", Owner: "team", Scenarios: []ScenarioID{"known", "ghost"}})
+		ID: "s", Owner: "team", Scenarios: []ScenarioID{"known", "ghost"},
+	})
 	if err == nil || !strings.Contains(err.Error(), "unregistered scenario ghost") {
 		t.Fatalf("a suite naming a missing scenario was accepted: %v", err)
 	}
@@ -562,7 +585,8 @@ func TestRegistry_BenchmarkSuiteCannotRunInParallel(t *testing.T) {
 
 	err := h.Runtime.Registry().RegisterSuites(Suite{
 		ID: "b", Kind: KindBenchmark, Owner: "team",
-		Scenarios: []ScenarioID{"s"}, Parallel: true})
+		Scenarios: []ScenarioID{"s"}, Parallel: true,
+	})
 	if err == nil || !strings.Contains(err.Error(), "measure contention") {
 		t.Fatalf("a parallel benchmark suite was accepted: %v", err)
 	}
@@ -633,8 +657,10 @@ func TestExecute_AdapterPanicBecomesAFailedStep(t *testing.T) {
 	h := newHarness(t)
 	h.Fake.PanicOnStep = "boom"
 
-	s := Scenario{ID: "s", Version: 1, Owner: "test", SubjectName: "fake",
-		Steps: []Step{{Name: "boom", Op: "op"}}}
+	s := Scenario{
+		ID: "s", Version: 1, Owner: "test", SubjectName: "fake",
+		Steps: []Step{{Name: "boom", Op: "op"}},
+	}
 	h.Register(s)
 
 	res := h.Runtime.Execute(context.Background(), s)
@@ -810,22 +836,36 @@ func TestRegression_ReportsBothDirections(t *testing.T) {
 	t.Parallel()
 
 	base := Run{ID: "base", Label: "v1", Results: []ScenarioResult{
-		{Scenario: "steady", Subject: "s", Verdict: VerdictPass,
-			Observation: obsWith("steady", "ok", 0)},
-		{Scenario: "breaks", Subject: "s", Verdict: VerdictPass,
-			Observation: obsWith("breaks", "ok", 0)},
-		{Scenario: "heals", Subject: "s", Verdict: VerdictFail,
-			Observation: obsWith("heals", "ok", 0)},
+		{
+			Scenario: "steady", Subject: "s", Verdict: VerdictPass,
+			Observation: obsWith("steady", "ok", 0),
+		},
+		{
+			Scenario: "breaks", Subject: "s", Verdict: VerdictPass,
+			Observation: obsWith("breaks", "ok", 0),
+		},
+		{
+			Scenario: "heals", Subject: "s", Verdict: VerdictFail,
+			Observation: obsWith("heals", "ok", 0),
+		},
 	}}
 	cur := Run{ID: "cur", Label: "v2", Results: []ScenarioResult{
-		{Scenario: "steady", Subject: "s", Verdict: VerdictPass,
-			Observation: obsWith("steady", "ok", 0)},
-		{Scenario: "breaks", Subject: "s", Verdict: VerdictFail,
-			Observation: obsWith("breaks", "ok", 0)},
-		{Scenario: "heals", Subject: "s", Verdict: VerdictPass,
-			Observation: obsWith("heals", "ok", 0)},
-		{Scenario: "brand-new", Subject: "s", Verdict: VerdictNoBaseline,
-			Observation: obsWith("brand-new", "ok", 0)},
+		{
+			Scenario: "steady", Subject: "s", Verdict: VerdictPass,
+			Observation: obsWith("steady", "ok", 0),
+		},
+		{
+			Scenario: "breaks", Subject: "s", Verdict: VerdictFail,
+			Observation: obsWith("breaks", "ok", 0),
+		},
+		{
+			Scenario: "heals", Subject: "s", Verdict: VerdictPass,
+			Observation: obsWith("heals", "ok", 0),
+		},
+		{
+			Scenario: "brand-new", Subject: "s", Verdict: VerdictNoBaseline,
+			Observation: obsWith("brand-new", "ok", 0),
+		},
 	}}
 
 	report := DetectRegressions(base, cur, 2, 0)
@@ -850,11 +890,17 @@ func TestRegression_LatencyIsComparedIndependentlyOfBehaviour(t *testing.T) {
 	t.Parallel()
 
 	base := Run{ID: "base", Results: []ScenarioResult{
-		{Scenario: "s", Subject: "subj", Verdict: VerdictPass,
-			Observation: obsWith("s", "ok", 10*time.Millisecond)}}}
+		{
+			Scenario: "s", Subject: "subj", Verdict: VerdictPass,
+			Observation: obsWith("s", "ok", 10*time.Millisecond),
+		},
+	}}
 	cur := Run{ID: "cur", Results: []ScenarioResult{
-		{Scenario: "s", Subject: "subj", Verdict: VerdictPass,
-			Observation: obsWith("s", "ok", 100*time.Millisecond)}}}
+		{
+			Scenario: "s", Subject: "subj", Verdict: VerdictPass,
+			Observation: obsWith("s", "ok", 100*time.Millisecond),
+		},
+	}}
 
 	report := DetectRegressions(base, cur, 2, 0)
 	if len(report.Regressions) != 1 || report.Regressions[0].Kind != RegressionLatency {
@@ -876,8 +922,10 @@ func TestRegression_NoticesAChangedScenarioSet(t *testing.T) {
 }
 
 func obsWith(id ScenarioID, outcome string, d time.Duration) Observation {
-	return Observation{Scenario: id, ScenarioVersion: 1,
-		Steps: []StepObservation{{Name: "a", Op: "op", Outcome: outcome, Duration: d}}}
+	return Observation{
+		Scenario: id, ScenarioVersion: 1,
+		Steps: []StepObservation{{Name: "a", Op: "op", Outcome: outcome, Duration: d}},
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -968,7 +1016,8 @@ func TestScorecard_DriftIsNotUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	run := Run{Results: []ScenarioResult{
-		{Scenario: "a", Subject: "s", Verdict: VerdictDrift}}}
+		{Scenario: "a", Subject: "s", Verdict: VerdictDrift},
+	}}
 	if !Scorecards(run)[0].Healthy() {
 		t.Fatal("drift was reported as unhealthy; every deliberate improvement " +
 			"would look like an outage")

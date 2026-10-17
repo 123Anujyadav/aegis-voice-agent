@@ -146,8 +146,10 @@ func (m *Metrics) EscalationRate() float64 {
 		return 0
 	}
 	var n uint64
-	for _, o := range []Outcome{OutcomeEscalate, OutcomeRequireConfirmation,
-		OutcomeRequireHuman, OutcomeRequireSupervisor} {
+	for _, o := range []Outcome{
+		OutcomeEscalate, OutcomeRequireConfirmation,
+		OutcomeRequireHuman, OutcomeRequireSupervisor,
+	} {
 		n += m.Decisions.PrefixSum(o.String())
 	}
 	return float64(n) / float64(total)

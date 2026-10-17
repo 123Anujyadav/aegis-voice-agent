@@ -87,8 +87,10 @@ func TestIntegration_PinnedRecordSurvivesEverything(t *testing.T) {
 	h := newHarness(t)
 	b := h.Assistant()
 
-	pref := NewPreference("s", "language", Value{ContentType: "text/plain",
-		Data: []byte("hi-IN")}, Internal)
+	pref := NewPreference("s", "language", Value{
+		ContentType: "text/plain",
+		Data:        []byte("hi-IN"),
+	}, Internal)
 	pref.Provenance = Provenance{Source: "test"}
 	stored, err := b.Store.Store(pref)
 	if err != nil {
@@ -121,8 +123,10 @@ func TestIntegration_ForgetSpansEveryNamespace(t *testing.T) {
 	h := newHarness(t)
 	h.Grant("victim", "c1")
 
-	for _, ns := range []Namespace{NamespaceAssistant, NamespaceReceptionist,
-		NamespaceFraud, NamespaceTelephony} {
+	for _, ns := range []Namespace{
+		NamespaceAssistant, NamespaceReceptionist,
+		NamespaceFraud, NamespaceTelephony,
+	} {
 		b := h.Bundle(ns)
 		if _, err := b.Store.Store(PersonalRecord("victim", KindUser,
 			"name-"+ns.String(), "data", "c1")); err != nil {
@@ -166,8 +170,10 @@ func TestIntegration_LegalHoldSurvivesErasureAndIsReported(t *testing.T) {
 	h := newHarness(t)
 	b := h.Assistant()
 
-	held := NewPolicy("subj", "retention-choice", Value{ContentType: "text/plain",
-		Data: []byte("90d")})
+	held := NewPolicy("subj", "retention-choice", Value{
+		ContentType: "text/plain",
+		Data:        []byte("90d"),
+	})
 	held.Provenance = Provenance{Source: "test"}
 	if _, err := b.Store.Store(held); err != nil {
 		t.Fatalf("Store: %v", err)
@@ -781,8 +787,10 @@ func TestStress_ConcurrentReadWriteSweep(t *testing.T) {
 					return
 				default:
 				}
-				_, _ = b.Retriever.Search(Query{Subject: "s", Limit: 10,
-					MaxSensitivity: Internal}, "")
+				_, _ = b.Retriever.Search(Query{
+					Subject: "s", Limit: 10,
+					MaxSensitivity: Internal,
+				}, "")
 			}
 		}(i)
 	}

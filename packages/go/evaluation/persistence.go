@@ -58,8 +58,10 @@ const (
 
 // AllRecordKinds returns every kind, in a stable order.
 func AllRecordKinds() []RecordKind {
-	return []RecordKind{RecordRun, RecordObservation, RecordGolden,
-		RecordBenchmark, RecordTrend, RecordAudit}
+	return []RecordKind{
+		RecordRun, RecordObservation, RecordGolden,
+		RecordBenchmark, RecordTrend, RecordAudit,
+	}
 }
 
 // Record is the durable envelope.
@@ -709,7 +711,8 @@ func (r *MemoryRepository) Delete(ctx context.Context, key RecordKey) error {
 
 // SetLegalHold places or lifts a hold.
 func (r *MemoryRepository) SetLegalHold(ctx context.Context, key RecordKey,
-	hold bool, by, reason string) error {
+	hold bool, by, reason string,
+) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -847,7 +850,8 @@ func (r *MemoryRepository) Migrate(ctx context.Context, m Migrator) (MigrationRe
 		path, perr := m.Path(rec.Schema)
 		if perr != nil {
 			report.Failed = append(report.Failed, MigrationFailure{
-				Key: key, Schema: rec.Schema, Reason: perr.Error()})
+				Key: key, Schema: rec.Schema, Reason: perr.Error(),
+			})
 			continue
 		}
 
@@ -857,7 +861,8 @@ func (r *MemoryRepository) Migrate(ctx context.Context, m Migrator) (MigrationRe
 			next, aerr := step.Apply(migrated)
 			if aerr != nil {
 				report.Failed = append(report.Failed, MigrationFailure{
-					Key: key, Schema: migrated.Schema, Reason: aerr.Error()})
+					Key: key, Schema: migrated.Schema, Reason: aerr.Error(),
+				})
 				failed = true
 				break
 			}
@@ -979,7 +984,8 @@ func (r *MemoryRepository) Audit(ctx context.Context) ([]AuditEntry, error) {
 
 // auditLocked writes an audit record. The caller holds the write lock.
 func (r *MemoryRepository) auditLocked(action AuditAction, keys []RecordKey,
-	count int, policy, by, reason string) {
+	count int, policy, by, reason string,
+) {
 	r.nextID++
 	entry := AuditEntry{
 		ID: fmt.Sprintf("aud_%d", r.nextID), Action: action, Keys: keys,

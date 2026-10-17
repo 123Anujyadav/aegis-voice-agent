@@ -230,8 +230,10 @@ func NewCompressor(s *Store, policy CompressionPolicy, summarizer Summarizer) (*
 	if est == nil {
 		est = DefaultTokenEstimator()
 	}
-	return &Compressor{store: s, policy: policy, summarizer: summarizer,
-		estimator: est, metrics: s.metrics}, nil
+	return &Compressor{
+		store: s, policy: policy, summarizer: summarizer,
+		estimator: est, metrics: s.metrics,
+	}, nil
 }
 
 // Plan computes what compression would do to a group, without doing it.

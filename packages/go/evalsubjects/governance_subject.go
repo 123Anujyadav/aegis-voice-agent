@@ -87,8 +87,11 @@ func (s *governanceSession) Execute(ctx context.Context, step ev.Step) ev.StepRe
 		if level := step.Args.Str("risk"); level != "" {
 			if parsed, okLevel := gov.ParseRiskLevel(level); okLevel {
 				req.Risk = gov.RiskAssessment{
-					Signals: []gov.Signal{{Source: "evaluation", Kind: "scripted",
-						Level: parsed, Weight: 1}}}
+					Signals: []gov.Signal{{
+						Source: "evaluation", Kind: "scripted",
+						Level: parsed, Weight: 1,
+					}},
+				}
 			}
 		}
 
@@ -170,7 +173,8 @@ func (s *governanceSession) Execute(ctx context.Context, step ev.Step) ev.StepRe
 
 	case "escalations":
 		return result(ok, ev.Values{
-			"pending": ev.N(float64(s.h.Engine.Human().Depth()))})
+			"pending": ev.N(float64(s.h.Engine.Human().Depth())),
+		})
 
 	case "health":
 		rep := s.h.Engine.Coordinator().Health()
