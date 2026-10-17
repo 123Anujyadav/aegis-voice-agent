@@ -54,6 +54,13 @@ type bargeIntel struct {
 	// latencies records how long each controller call took, measured where
 	// Phase 11D measures it: around the call, from before to after.
 	latencies []time.Duration
+
+	// onInterrupted, when set, runs on the ingest goroutine the moment an
+	// interruption has been delivered — the instant after which nothing from
+	// the interrupted turn may reach media. A test that measures leakage takes
+	// its baseline here; one taken before the detection counts frames that
+	// were legitimately delivered while the detection was still on its way.
+	onInterrupted func()
 }
 
 func (s *bargeIntel) Analyze(
@@ -95,7 +102,12 @@ func (s *bargeIntel) Analyze(
 			s.mu.Lock()
 			s.outcomes = append(s.outcomes, err)
 			s.latencies = append(s.latencies, a.BargeIn.Latency)
+			hook := s.onInterrupted
 			s.mu.Unlock()
+
+			if err == nil && hook != nil {
+				hook()
+			}
 
 			if err != nil {
 				a.BargeIn.Outcome = audiointel.BargeInRefused
@@ -1250,7 +1262,10 @@ func assertEveryGenerationWasAnInterruption(t *testing.T, h *bargeHarness, attem
 // generation bump with no interruption behind it. The repeated-interruption
 // test above reaches the same windows only rarely, which is why it flaked.
 func TestBargeIn_TurnsEndingAsTheCallerInterruptsKeepOneOwnerOfTheFloor(t *testing.T) {
-	t.Parallel()
+	// Not parallel, like the repeated-interruption test above: this is constant
+	// scheduler pressure, and running it alongside the package's timing-
+	// sensitive parallel tests made them measure its load instead of their
+	// own behaviour.
 
 	for attempt := 0; attempt < 40; attempt++ {
 		h := newBargeHarness(t, bargeOpts{
