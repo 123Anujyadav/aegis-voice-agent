@@ -963,6 +963,12 @@ func (p *Pipeline) recognize(turn TurnID, provider speech.ProviderID, stream spe
 // ordinary pause look like an outage in every dashboard that counts them.
 func (p *Pipeline) emptyTurn(reason string) {
 	p.closeRecognition()
+	// A caller who hangs up mid-utterance did not complete a turn. stop closes
+	// the recognition stream after cancelling the session, so recognize can
+	// arrive here from a hang-up as easily as from silence.
+	if p.sessionEnding() {
+		return
+	}
 	if err := p.cfg.FSM.To(p.ctx, StateListening, reason); err != nil {
 		p.noteTransition(err)
 	}

@@ -738,18 +738,19 @@ type harnessOpts struct {
 
 	// onStateEvent, when set, sees every state-change event the session FSM
 	// publishes, synchronously, before the recording publisher does — the
-	// position of a real broker, so a test can make one slow.
-	onStateEvent func(VoiceEvent)
+	// position of a real broker, so a test can make one slow. It receives the
+	// publish context, as a broker does.
+	onStateEvent func(context.Context, VoiceEvent)
 }
 
 // hookedPublisher runs a test's hook ahead of the publisher it wraps.
 type hookedPublisher struct {
 	inner EventPublisher
-	hook  func(VoiceEvent)
+	hook  func(context.Context, VoiceEvent)
 }
 
 func (h *hookedPublisher) Publish(ctx context.Context, e VoiceEvent) error {
-	h.hook(e)
+	h.hook(ctx, e)
 	return h.inner.Publish(ctx, e)
 }
 
@@ -1300,7 +1301,7 @@ func TestPipeline_AFrameInDeliveryWhenTheCallEndsIsNotPlayed(t *testing.T) {
 		framesPerChunk: 60,
 		ttsSynthDelay:  20 * time.Millisecond,
 		sinkDelay:      40 * time.Millisecond,
-		onStateEvent: func(e VoiceEvent) {
+		onStateEvent: func(_ context.Context, e VoiceEvent) {
 			if e.Type == EventStateChanged && e.To.Terminal() {
 				time.Sleep(150 * time.Millisecond)
 			}
@@ -1334,6 +1335,55 @@ func TestPipeline_AFrameInDeliveryWhenTheCallEndsIsNotPlayed(t *testing.T) {
 	}
 	if h.pipeline.StaleFramesBlocked() == 0 {
 		t.Error("nothing was withheld: no frame was in flight, so this proved nothing")
+	}
+}
+
+// TestPipeline_HangingUpMidUtteranceCompletesNoTurn: a caller who hangs up while
+// still being recognised has not completed a turn.
+//
+// Pipeline.stop cancels the session and then closes the open recognition stream, so
+// recognize can see its context done and its results end together. When
+// select picked the results, recognize took its no-final path, emptyTurn, and
+// reported the turn COMPLETED to the observer and the metric for a call that
+// ended mid-utterance. Seen naturally in 1 of ~400 hang-ups under -race;
+// which case select picks is not controllable, so this takes that path
+// directly, in the state the race leaves it: after a real hang-up.
+func TestPipeline_HangingUpMidUtteranceCompletesNoTurn(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, harnessOpts{sttFault: "hang"})
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	h.feed(t, 4)
+
+	deadline := time.After(5 * time.Second)
+	for h.fsm.State() != StateTranscribing {
+		select {
+		case <-deadline:
+			t.Fatalf("recognition never started; state=%s", h.fsm.State())
+		case <-time.After(time.Millisecond):
+		}
+	}
+
+	if err := h.pipeline.Disconnect(); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	<-h.pipeline.Done()
+	completedByRace := h.metrics.TurnsCompleted.Total()
+
+	// recognize's no-final path, as it runs when the race goes the other way.
+	h.pipeline.emptyTurn(ReasonEmptyTranscript)
+
+	if got := h.metrics.TurnsCompleted.Total(); got != 0 {
+		t.Errorf("%d turns recorded completed for a call hung up mid-utterance "+
+			"(%d by the hang-up itself)", got, completedByRace)
+	}
+	for _, e := range h.obs.order() {
+		if e == "turn_complete" {
+			t.Error("the observer was told a turn completed after the caller hung " +
+				"up mid-utterance")
+		}
 	}
 }
 
