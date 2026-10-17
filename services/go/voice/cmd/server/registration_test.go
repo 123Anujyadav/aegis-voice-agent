@@ -13,6 +13,7 @@ import (
 
 	"github.com/callscreen/callscreen-platform/packages/go/conversation"
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
+	"github.com/callscreen/callscreen-platform/packages/go/voiceintel"
 )
 
 // Phase 14 T3 — real service construction and registration.
@@ -112,6 +113,16 @@ func freePort(t *testing.T) int {
 // returns once platform reports it ready. The caller cancels to stop it.
 func runningService(t *testing.T) (*logSink, *voiceIntelligence, context.CancelFunc, <-chan error) {
 	t.Helper()
+	return runningServiceWith(t)
+}
+
+// runningServiceWith is runningService with options passed through buildService
+// to voiceintel.New. With none it is runningService exactly; T9 passes a
+// controlled clock (see deterministicService in determinism_test.go).
+func runningServiceWith(t *testing.T, opts ...voiceintel.Option) (
+	*logSink, *voiceIntelligence, context.CancelFunc, <-chan error,
+) {
+	t.Helper()
 
 	sink := &logSink{}
 	logger := slog.New(slog.NewJSONHandler(sink, nil))
@@ -125,7 +136,7 @@ func runningService(t *testing.T) (*logSink, *voiceIntelligence, context.CancelF
 		t.Fatalf("config invalid: %v", err)
 	}
 
-	svc, vi, err := buildService(cfg, logger, platform.NewHealth(cfg))
+	svc, vi, err := buildService(cfg, logger, platform.NewHealth(cfg), opts...)
 	if err != nil {
 		t.Fatalf("buildService: %v", err)
 	}
