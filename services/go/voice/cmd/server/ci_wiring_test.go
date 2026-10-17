@@ -11,7 +11,9 @@ import (
 //
 // These tests assert how the repository's EXISTING CI discovers and gates this
 // module. They change no policy and no workflow; they make the claims in the
-// T12 report checkable, and they fail if the wiring silently drifts.
+// T12 report checkable, and they fail if the wiring silently drifts. (The one
+// policy change since — services/go/voice joining hardening's AI_MODULES — was
+// T13's, made with approval; see TestT12_ServiceModuleIsInHardeningAllowlist.)
 //
 // Nothing here triggers CI. Local evidence and CI evidence stay separate.
 
@@ -144,38 +146,35 @@ func TestT12_HardeningCoversPhase13IntelligenceModules(t *testing.T) {
 	}
 }
 
-// TestT12_ServiceModuleIsAbsentFromHardeningAllowlist PINS A KNOWN GAP.
+// TestT12_ServiceModuleIsInHardeningAllowlist pins the T13 decision.
 //
-// services/go/voice — the module holding every Phase 14 T2–T11 test — is NOT in
-// hardening.yml's hard-coded AI_MODULES. It is fully gated by pr-go.yml
-// (build, vet, single-pass -race, coverage artifact, golangci-lint,
-// govulncheck) but does NOT receive hardening's three extra gates:
+// T12 found services/go/voice — the module holding every Phase 14 T2–T11 test —
+// absent from hardening.yml's hard-coded AI_MODULES. pr-go.yml gated it (build,
+// vet, single-pass -race, coverage artifact, golangci-lint, govulncheck), but it
+// did not receive hardening's three extra gates:
 //
 //	repeated shuffled race   -race -count=5 -shuffle=on
 //	coverage floor           60% enforced
-//	benchmark execution      the T10 benchmarks never run in CI
+//	benchmark execution      the T10 benchmarks
 //
-// Adding it is a CI POLICY CHANGE to a hard-coded allowlist, which T12 requires
-// be reported for approval rather than made silently. This test asserts the gap
-// as it stands so that:
-//
-//   - the T12 report cannot go stale, and
-//   - if somebody adds the entry, this test fails and forces the report to be
-//     updated rather than the change passing unnoticed.
-//
-// It is NOT asserting that the gap is desirable.
-func TestT12_ServiceModuleIsAbsentFromHardeningAllowlist(t *testing.T) {
+// Adding it was a CI POLICY CHANGE, so T12 pinned the gap and T13 assessed it
+// and stopped for approval. It was approved as T13's option B+A: run()'s tests
+// (run_test.go, run_unix_test.go) lift the module from 41.7% to above the
+// unchanged 60% floor, and the entry was added. This test now asserts the
+// entry, so removing it fails here and forces docs/phase14/FINAL_REPORT.md to
+// be revisited rather than the module quietly losing those gates.
+func TestT12_ServiceModuleIsInHardeningAllowlist(t *testing.T) {
 	t.Parallel()
 	for _, m := range aiModules(t) {
 		if m == "services/go/voice" {
-			t.Fatal("services/go/voice is now in hardening AI_MODULES. That is the " +
-				"change T12 reported for approval. Update the T12 report and this " +
-				"test together — do not simply delete the assertion.")
+			return
 		}
 	}
-	t.Log("CONFIRMED GAP: services/go/voice is gated by pr-go.yml but is absent " +
-		"from hardening AI_MODULES (no repeated shuffled race, no coverage floor, " +
-		"no benchmark execution). Reported for approval; not changed.")
+	t.Fatal("services/go/voice is not in hardening AI_MODULES. T13 added it, with " +
+		"approval, so it receives repeated shuffled race, the 60% coverage floor " +
+		"and benchmark execution. Removing it is a CI policy change: update " +
+		"docs/phase14/FINAL_REPORT.md and this test together — do not simply " +
+		"delete the assertion.")
 }
 
 // TestT12_HardeningAllowlistIsIntact guards the parse itself, so the two tests
@@ -183,10 +182,10 @@ func TestT12_ServiceModuleIsAbsentFromHardeningAllowlist(t *testing.T) {
 func TestT12_HardeningAllowlistIsIntact(t *testing.T) {
 	t.Parallel()
 	got := aiModules(t)
-	if len(got) != 16 {
-		t.Errorf("AI_MODULES has %d entries (%v), want the 16 recorded at the end "+
-			"of Phase 13 T14 — the allowlist changed and T12's analysis needs "+
-			"re-checking", len(got), got)
+	if len(got) != 17 {
+		t.Errorf("AI_MODULES has %d entries (%v), want 17: the 16 recorded at the "+
+			"end of Phase 13 T14 plus services/go/voice from Phase 14 T13 — the "+
+			"allowlist changed and the analysis needs re-checking", len(got), got)
 	}
 	for _, m := range got {
 		if !strings.HasPrefix(m, "packages/go/") && !strings.HasPrefix(m, "services/go/") {
