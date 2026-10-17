@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -148,17 +147,14 @@ func (b *lockedBuffer) String() string {
 // logs which fields it replaced, and reports the honest default version.
 func TestStartup_MalformedMetadataDoesNotStopTheService(t *testing.T) {
 	bin := buildBinary(t, "bad version", "NOT-A-COMMIT", "never")
-	pick := func() int {
-		l, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer l.Close()
-		return l.Addr().(*net.TCPAddr).Port
-	}
-	hp := pick()
+	// Both ports come from one freePorts call, which holds every listener open
+	// until all are chosen. Picking them one at a time, closing each listener
+	// first, can hand out the same port twice, and the binary then fails to
+	// bind its second listener: the flake P1-40 §3 reproduced in this package.
+	ports := freePorts(t, 2)
+	httpPort, hp := ports[0], ports[1]
 	cmd := exec.Command(bin)
-	cmd.Env = append(startupEnv(), fmt.Sprintf("%s_HTTP_PORT=%d", envPrefix, pick()), fmt.Sprintf("%s_HEALTH_PORT=%d", envPrefix, hp),
+	cmd.Env = append(startupEnv(), fmt.Sprintf("%s_HTTP_PORT=%d", envPrefix, httpPort), fmt.Sprintf("%s_HEALTH_PORT=%d", envPrefix, hp),
 		envPrefix+"_VERSION=from-the-environment")
 	var logs lockedBuffer
 	cmd.Stdout, cmd.Stderr = &logs, &logs
