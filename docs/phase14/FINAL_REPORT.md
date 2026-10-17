@@ -3,12 +3,14 @@
 Status labels follow [DEPENDENCY_MAP.md](DEPENDENCY_MAP.md): IMPLEMENTED ·
 VERIFIED · MEASURED · CI-VERIFIED · NOT RUN · BLOCKED.
 
-**Phase status: AWAITING MERGE OF PR #14.**
-- T1–T12 are complete and verified on `main`.
-- T13 was approved as option B+A. It is IMPLEMENTED and CI-VERIFIED on PR #14
-  (head `c5db6f60b1e15e803d774595a639a5dc75edaf73`), but **not yet on `main`**.
-- Phase 14 closes when PR #14 is merged and hardening passes on `main` with
-  `services/go/voice` included (§12).
+**Phase status: COMPLETE** (2026-10-17; closure evidence in §12).
+- T1–T13 are complete and verified on `main`.
+- **T9:** its latency-budget sensitivity was fixed first, in PR #16 (merged as
+  `800861a`; §8).
+- **T13** (option B+A): PR #14 was merged as `ef2cb7e`. Hardening on that
+  `main` passed with `services/go/voice` included (run 39050923782; §7).
+- **Not claimed:** staging or production readiness (§11). The repository is
+  not lint-clean: 40 baseline golangci-lint jobs fail (§7).
 
 ## 1. Executive summary
 
@@ -61,11 +63,11 @@ Each T2–T12 task is recorded in the header of its test file under
 | T6 | Lifecycle and shutdown integrity | `lifecycle_test.go` (6) | COMPLETE |
 | T7 | Failure propagation | `failure_test.go` (8) | COMPLETE |
 | T8 | Concurrency with lifecycle events | `concurrency_test.go` (7) | COMPLETE |
-| T9 | Service-level determinism (golden) | `determinism_test.go` (11) | COMPLETE; one unreproduced failure observed (§8) |
+| T9 | Service-level determinism (golden) | `determinism_test.go` (12) | COMPLETE; latency-budget sensitivity removed by PR #16 (§8) |
 | T10 | Benchmarks | `bench_test.go` (1 test, 12 benchmarks) | COMPLETE |
 | T11 | Acceptance / evaluation fixtures | `acceptance_test.go` (8) | COMPLETE |
 | T12 | CI wiring verification | `ci_wiring_test.go` (5) | COMPLETE; tripwires updated by T13 |
-| T13 | Hardening `AI_MODULES` decision | §6 and PR #14 | **IMPLEMENTED, CI-VERIFIED on PR #14 — awaiting merge** |
+| T13 | Hardening `AI_MODULES` decision | §6 and PR #14 | **COMPLETE**: merged as `ef2cb7e`; hardening passed on `main` (§7) |
 
 T13's definition, from DEPENDENCY_MAP §15 and ADR 0017 ("Consequences"):
 adding a `services/` entry to hardening's `AI_MODULES` "would be a **new** CI
@@ -74,12 +76,15 @@ The assessment (§6) was presented, and **option B+A was approved.**
 
 ## 4. Implemented components
 
-- **`services/go/voice/cmd/server/main.go` (177 lines; T13 did not change it):**
+- **`services/go/voice/cmd/server/main.go` (197 lines; T13 did not change it):**
   - `buildService` constructs `platform.Service` and registers
     `voiceIntelligence`;
   - `newVoiceIntelligence` calls `voiceintel.New()`, which builds
     `intent.New(intent.DefaultConfig())` into `conversation.NewEngine` through
     `WithClassifier`;
+  - since PR #16, both take a trailing `opts ...voiceintel.Option` and pass it
+    to `voiceintel.New` unchanged. `run()` passes none, so the production
+    service is built exactly as before, latency degradation included (§8);
   - `voiceIntelligence` implements `platform.Runner`. `Run` blocks until the
     service's context ends, because the bridge owns no goroutine.
   - VERIFIED by inspection.
@@ -115,12 +120,43 @@ Locally, go1.26.9 linux/amd64:
 | Coverage: `cd services/go/voice && go test -count=1 -covermode=atomic -coverprofile=c.out ./...` (hardening's command) | **41.7% → 80.6%** (15/36 → 29/36 statements; the floor needs 22), MEASURED |
 | Full suite, `-race -count=1 -v` | 76/76 PASS (73 + 3 new) |
 | T13 tests, `-race -count=20` | PASS |
-| Module, `-race -count=5 -shuffle=on` | PASS in 7 runs, plus 1 unexplained T9 failure (§8) |
+| Module, `-race -count=5 -shuffle=on` | PASS in 7 runs, plus 1 T9 failure, analysed and fixed in PR #16 (§8) |
 | T12 tripwires (updated) | PASS |
 | gofmt, gofumpt, `go vet` (also `GOOS=windows`) | clean |
 | golangci-lint, `services/go/voice` | 29 findings, the same as `main`; none new |
 | Benchmarks; platform verification | 36 run; PASS |
 | Secret scan of the diff | clean |
+
+### 5.3 T9 fix, on PR #16 head `33ca2e0e5b965e770d24de8685e2bd3b1e924078`
+
+Locally, go1.26.9 linux/amd64, `-race` throughout (design in §8):
+
+| Check | Result |
+|---|---|
+| `TestT9_RealStallsCannotChangeTheSignatureOnTheInjectedClock`, `-count=10` | 10/10 PASS |
+| Mutation: the same test with the frozen clock removed | **FAIL** ("a 162.5ms real-time stall changed the signature on the frozen clock"), as required |
+| All `TestT9_*`, `-count=5` | PASS |
+| `TestT9_FreshRunningServiceSignatureIsStable`, `-count=40`, isolated | 40/40 PASS |
+| Full module, `-count=1 -v` | 74/74 PASS |
+| Module, `-count=5 -shuffle=on` | PASS in 3 runs |
+| gofmt, gofumpt, `go vet` (also `GOOS=windows`) | clean |
+| golangci-lint, `services/go/voice` | 29 findings, the same as `main`; none new |
+| Secret scan of the diff | clean |
+
+### 5.4 T9 fix and T13 together, on PR #14 head `dc80b7eb3008ae8529c73669c0b01f9c76fbf6b4`
+
+PR #14 was brought up to date with `main` (which then contained PR #16) by a
+normal merge commit, `dc80b7e`. Its net diff against `main` stayed the five
+T13 files. Locally, go1.26.9 linux/amd64:
+
+| Check | Result |
+|---|---|
+| Full module, `-race -count=1 -v` | 77/77 PASS (73 + 1 T9 regression test + 3 T13) |
+| Coverage, hardening's command | **80.6%** (29/36 statements) |
+| Module, `-race -count=5 -shuffle=on` | PASS in 2 runs |
+| T12 tripwires, T13 tests and the T9 regression test, `-race -count=5` each | PASS |
+| gofumpt, `go vet` | clean |
+| golangci-lint, `services/go/voice` | 29 findings, the same as `main`; none new |
 
 ## 6. T13 — hardening `AI_MODULES` decision
 
@@ -161,7 +197,11 @@ All 21 uncovered statements were entry-point error handling in `main.go`:
 
 - **Branch:** `phase14/t13-voice-service-hardening`.
 - **PR:** [#14](https://github.com/123Anujyadav/aegis-voice-agent/pull/14).
-- **Commit:** `c5db6f60b1e15e803d774595a639a5dc75edaf73` (5 files, +175/−27).
+- **Commits:** `c5db6f60b1e15e803d774595a639a5dc75edaf73` (5 files, +175/−27),
+  then `dc80b7eb3008ae8529c73669c0b01f9c76fbf6b4`, a normal merge of `main`
+  after PR #16 landed.
+- **Merged:** squash, as `ef2cb7e256570622748a56dd15755850d19cf8e8`
+  (2026-10-17T16:47:08Z). Its tree is identical to `dc80b7e`'s.
 
 What the commit does:
 - `run_test.go` (portable) covers configuration that cannot be loaded
@@ -195,17 +235,35 @@ What the commit does:
 | PR #14 `c5db6f6` | Backend Foundation 39040987348 | **pass** |
 | | hardening 39040987433 | **pass**: race single, race repeated, coverage, platform verification, benchmarks, release gate |
 | | pr-go 39040987412 | 97 jobs pass, including 45/45 govulncheck; 40 lint jobs fail (baseline) |
+| PR #16 `33ca2e0` | Backend Foundation 39048351182 | pass |
+| | hardening 39048351194 | pass (6/6 jobs) |
+| | pr-go 39048351213 | 97 jobs pass; 40 lint jobs fail (baseline, findings identical to `main`) |
+| `main` `800861a` (PR #16 merged) | Backend Foundation 39049073160 | pass |
+| | hardening 39049073209 | pass (6/6 jobs) |
+| | pr-go 39049073271 | 97 jobs pass; 40 lint jobs fail (baseline) |
+| PR #14 `dc80b7e` | Backend Foundation 39049877526 | pass |
+| | hardening 39049877519 | pass (6/6 jobs); `services/go/voice 80.6%` |
+| | pr-go 39049877492 | 97 jobs pass; 40 lint jobs fail (baseline, 1,022 findings, identical to `main` `800861a`) |
+| **`main` `ef2cb7e` (PR #14 merged)** | Backend Foundation 39050923785 | **pass** |
+| | **hardening 39050923782** | **pass (6/6 jobs)**: race single, race repeated, coverage, platform verification, benchmarks, release gate; `services/go/voice` included |
+| | pr-go 39050923779 | 97 jobs pass; 40 lint jobs fail (baseline, 1,022 findings) |
 
-**Hardening on PR #14 included `services/go/voice`:**
-- its coverage summary records **`services/go/voice 80.6%`**, and the floor
-  check passed;
-- its single and repeated race logs both end `ok`, with no failure and no
-  data race;
-- its benchmarks ran (36);
-- the toolchain was go1.26.9 linux/amd64.
+**Post-merge hardening on `main` (run 39050923782, head `ef2cb7e`) included
+`services/go/voice`:**
+- the run's `AI_MODULES` lists 17 modules, ending `services/go/voice`;
+- its coverage summary records **`services/go/voice 80.6%`** among 17
+  modules, and the Coverage job, which enforces the unchanged `floor=60`,
+  passed;
+- its single (46.6 s) and repeated shuffled (223.9 s) race logs for the
+  module both end `ok`, and no race log in the run contains a test failure
+  or a data race;
+- its benchmarks ran for the module (`ok …/services/go/voice/cmd/server`).
 
-**Lint:** the same 40 golangci-lint jobs fail on `main` and on PR #14, with
-1,022 findings each. That is a repository-wide baseline; this work adds none.
+Hardening on PR #14 (`c5db6f6` and `dc80b7e`) showed the same: 80.6%, both
+race logs `ok`, benchmarks run, toolchain go1.26.9 linux/amd64.
+
+**Lint:** the same 40 golangci-lint jobs fail on `main` (`c294fc6`,
+`800861a`, `ef2cb7e`) and on PRs #14 and #16, with 1,022 findings each. That is a repository-wide baseline; this work adds none.
 The only per-module difference is `persistence`, where the linter labels the
 same two identifiers (`SqlUnitOfWork`, `NewSqlUnitOfWork`) under a different
 `revive` rule from run to run, in code that is not changed.
@@ -221,23 +279,87 @@ same two identifiers (`SqlUnitOfWork`, `NewSqlUnitOfWork`) under a different
   - which session is evicted is unspecified when timestamps tie.
 - **Windows coverage:** `run()`'s serve-and-shutdown test is Unix-only, so
   Windows coverage is lower. The hardening floor is measured on Linux CI.
-- **Open: one unexplained T9 failure.**
-  `TestT9_FreshRunningServiceSignatureIsStable` failed once, in the first
-  local `-race -count=5 -shuffle=on` module run on the T13 branch. Its message
-  was not captured.
-  - **What the timing shows:** 4.03 s, against 4.23–4.30 s across 75 passing
-    runs. It stopped at roughly its 19th of 20 fresh services, consistent with
-    a late signature drift rather than a startup error.
-  - **Not reproduced in 115 further runs:**
-    - 3 replays of the same shuffle seed;
-    - 6 module runs;
-    - 30 runs interleaved with the T13 tests under shuffle;
-    - 40 isolated runs on `main`'s code under load;
-    - plus CI's repeated race job on PR #14.
-  - **No evidence ties it to T13:** both tests are sequential, and the T13
-    tests restore the environment and the logger.
-  - **Status:** open, not dismissed. With T13, CI's repeated race job now
-    covers this module, so a recurrence will be captured with its output.
+- **T9 timing sensitivity: observed once, mechanism demonstrated, fixed in
+  PR #16.**
+
+  **The observation.** `TestT9_FreshRunningServiceSignatureIsStable` failed
+  once, in the first local `-race -count=5 -shuffle=on` module run on the T13
+  branch.
+  - **The original failure output was not retained.** It is not reconstructed
+    here, and nothing below quotes it.
+  - **Timing:** the failing run took 4.03 s, against 4.23–4.30 s across 75
+    passing runs, so it stopped at roughly its 19th of 20 fresh services.
+  - **Repeated reruns passed:** 115 of them, namely 3 replays of the same
+    shuffle seed, 6 module runs, 30 runs interleaved with the T13 tests, 40
+    isolated runs under load, and CI's repeated race job on PR #14. **A finite
+    number of passing repetitions does not eliminate flakiness**, so the
+    passes were not treated as closing the issue.
+
+  **Demonstrated behaviour.** These are facts, shown by throwaway probes on
+  `main`'s code with T9's own fixtures:
+  - The conversation engine budgets each decision cycle against its clock.
+    Past `LatencyConfig.Total × DegradeThreshold` (150 ms × 0.75 = 112.5 ms),
+    `LatencyController.Enter` (`packages/go/conversation/latency.go`) skips
+    skippable stages. A skipped intent stage answers with the fallback intent
+    (`engine.go`). This is intended degradation under load.
+  - T9's running-service tests used the system clock, so **elapsed time
+    alone, crossing the degrade threshold, alters the path the engine
+    selects**. The signature excludes timestamps, but it cannot exclude a
+    different path.
+  - With a clock advancing 60 ms per read, **17 of 18** fixtures produced a
+    different signature. For example, `normal_request` went from
+    `intent=call_purpose conf=accept action=clarify` to
+    `intent=fallback conf=below_reject action=respond reason=fallback`.
+  - Delays *between* steps (300 ms and 700 ms) changed **0 of 18**, which
+    rules out that alternative mechanism.
+
+  **Inferred cause.** That *this* mechanism caused the original failure is an
+  **inference, not a demonstration**:
+  - it fits the early stop and a late signature drift;
+  - it fits stalls of over 100 ms, which are plausible under `-race` on a
+    loaded host;
+  - no other candidate was found;
+  - the log that would confirm it does not exist.
+
+  **Fix: [PR #16](https://github.com/123Anujyadav/aegis-voice-agent/pull/16).**
+  - Branch `phase14/t9-deterministic-engine-clock`, commit
+    `33ca2e0e5b965e770d24de8685e2bd3b1e924078`.
+  - Squash-merged as `800861a10dcc4a2b3a6470fe616b3d99c96ade1d`
+    (2026-10-17T16:21:44Z), before PR #14.
+  - **Production, backward-compatible:** `buildService` and
+    `newVoiceIntelligence` take `opts ...voiceintel.Option` and pass them to
+    `voiceintel.New`.
+    - `run()` passes none, so the production service keeps the system clock
+      and its degradation behaviour.
+    - Every existing caller compiles unchanged.
+  - **Tests:**
+    - `runningServiceWith(t, opts...)` backs the unchanged `runningService`.
+    - T9's eight running-service signature tests use `deterministicService`:
+      the same `buildService` path, on an `rt.FakeClock` that is **never
+      advanced**.
+    - Nothing on that path sleeps or waits on the clock, so a frozen clock
+      blocks nothing. The golden signature still matches.
+  - **Regression test:**
+    `TestT9_RealStallsCannotChangeTheSignatureOnTheInjectedClock` wraps the
+    real classifier in a real-time stall of the threshold + 50 ms (162.5 ms;
+    the threshold is read from `conversation.DefaultLatencyConfig()`).
+    - **Frozen clock:** the signature must equal the unstalled one.
+    - **System clock (the control):** it must differ, which proves the stall
+      genuinely crosses the threshold.
+    - **Mutation check:** removing the frozen clock makes the test fail.
+  - **Unchanged:** no assertion, threshold, coverage floor or degradation
+    behaviour was weakened.
+  - **Evidence:**
+    - local runs: §5.3;
+    - CI on the PR: Backend Foundation 39048351182, pr-go 39048351213 and
+      hardening 39048351194 (§7);
+    - post-merge: hardening on `main` at `800861a` and at `ef2cb7e`, the
+      latter running `services/go/voice` through the repeated shuffled race
+      job (§7).
+  - **Residual:** the fix removes the mechanism from the tests rather than
+    reducing its frequency. Finite runs still cannot prove that no other race
+    exists. CI's repeated race job now covers this module, so any recurrence
+    will be captured with its output.
 
 ## 9. Open dependency: provider provisioning (ADR 0017)
 
@@ -276,9 +398,17 @@ INFRA-AUTH (A7) unapproved; F-3, F-4 and F-7 open
 
 ## 12. Closure condition
 
-Phase 14 closes when **PR #14 is reviewed and merged**, and hardening on the
-resulting `main` passes with `services/go/voice` included. T13 is then
-COMPLETE.
+The condition: **PR #14 merged**, and hardening on the resulting `main`
+passing with `services/go/voice` included. **It is met:**
 
-Until then, T13 is IMPLEMENTED and CI-VERIFIED on PR #14 only, and Phase 14 is
-**AWAITING PR #14 MERGE**.
+| Condition | Evidence |
+|---|---|
+| T9 flake addressed before T13 lands | PR #16 squash-merged as `800861a10dcc4a2b3a6470fe616b3d99c96ade1d`; hardening 39049073209 on it passed |
+| PR #14 merged | squash `ef2cb7e256570622748a56dd15755850d19cf8e8`, 2026-10-17T16:47:08Z; tree identical to the verified head `dc80b7e` |
+| `services/go/voice` in hardening on `main` | `AI_MODULES` in run 39050923782 ends `services/go/voice` |
+| Hardening passes on that `main` | run 39050923782 on `ef2cb7e`: 6/6 jobs pass; coverage 80.6% against the unchanged 60% floor; both race jobs `ok` |
+| No other CI regression | Backend Foundation 39050923785 passes; pr-go 39050923779 has 97 jobs passing and only the 40 baseline lint failures |
+
+**Phase 14 is COMPLETE.** It does not change §9 (no provider can be
+constructed), §10 (blockers outside the phase) or §11 (staging and Exotel
+production media remain NO-GO).
