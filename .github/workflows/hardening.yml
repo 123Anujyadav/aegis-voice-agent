@@ -86,6 +86,21 @@ env:
     packages/go/intent
     packages/go/voiceintel
 
+  # Modules that get the REPEATED SHUFFLED race pass only (-count=5
+  # -shuffle=on), not the single pass: pr-go.yml already runs every module
+  # once under -race per change, so a single pass here would only repeat it.
+  # Kept out of AI_MODULES because AI_MODULES also drives the coverage floor
+  # and the benchmarks, whose claims are about the AI plane.
+  #
+  # The telephony gateway (D8, P1-49 §3.2) holds the single-active-process
+  # fence: a heartbeat goroutine, a credential refresh shared by concurrent
+  # dials and a clock-bounded ownership check. pr-go.yml runs it under -race
+  # once per change, but nothing re-examined it on a schedule or with shuffled
+  # repetition. Its real-PostgreSQL tests need a DSN this job does not provide,
+  # so here they report SKIP (not PASS); they belong to a database job.
+  RACE_EXTRA_MODULES: >-
+    services/go/telephony-gateway
+
 jobs:
   # ---------------------------------------------------------------------------
   # Race verification
@@ -134,7 +149,9 @@ jobs:
           fi
 
           failed=""
-          for m in ${AI_MODULES}; do
+          extra=""
+          if [ "${{ matrix.mode }}" = "repeated" ]; then extra="${RACE_EXTRA_MODULES}"; fi
+          for m in ${AI_MODULES} ${extra}; do
             echo "::group::race ${m} (${{ matrix.mode }})"
             log="race-logs/$(echo "${m}" | tr '/' '_').log"
             # Capture rather than stream-and-discard: a WARNING: DATA RACE block
@@ -151,6 +168,24 @@ jobs:
           fi
           if [ -n "${failed}" ]; then
             echo "::error::failing modules under -race:${failed}"
+            # Name the KIND of failure per module, so a red run says what to do
+            # before anyone opens a log: a timeout and a build break need
+            # different people than a failing assertion. The full log is in
+            # the race-logs artifact either way.
+            {
+              echo "### Race detector (${{ matrix.mode }}): failing modules"
+              echo "| module | failure | log |"
+              echo "|---|---|---|"
+            } >> "$GITHUB_STEP_SUMMARY"
+            for m in ${failed}; do
+              log="race-logs/$(echo "${m}" | tr '/' '_').log"
+              if grep -q '^panic: test timed out' "${log}"; then kind="timeout"
+              elif grep -qE '\[(build|setup) failed\]' "${log}"; then kind="build failure"
+              elif grep -q -e '^--- FAIL' -e '^    --- FAIL' "${log}"; then kind="test failure"
+              else kind="unclassified (read the log)"; fi
+              echo "::error title=race ${m}::${kind}"
+              echo "| ${m} | ${kind} | race-logs-${{ matrix.mode }}/$(basename "${log}") |" >> "$GITHUB_STEP_SUMMARY"
+            done
             exit 1
           fi
           echo "clean=true" >> "$GITHUB_OUTPUT"
