@@ -213,6 +213,11 @@ type recordingSTT struct {
 	// frames have been accepted, which is what a recogniser does when turn
 	// teardown closes it underneath the ingest goroutine. Zero disables it.
 	closeAfterWrites int64
+
+	// afterAudio holds the scripted transcript until the stream has accepted
+	// a frame. Set by the pipeline harness, which always feeds audio; a test
+	// that opens and drains a stream directly, with no audio, leaves it off.
+	afterAudio bool
 }
 
 func (r *recordingSTT) ID() speech.ProviderID { return r.id }
@@ -233,6 +238,7 @@ func (r *recordingSTT) OpenSTT(ctx context.Context, cfg speech.STTConfig) (speec
 		provider: r,
 		results:  make(chan speech.TranscriptSegment, len(r.segments)+1),
 		done:     make(chan struct{}),
+		heard:    make(chan struct{}),
 		cfg:      cfg,
 	}
 	go s.emit()
@@ -246,6 +252,15 @@ type recordingSTTStream struct {
 	cfg      speech.STTConfig
 	once     sync.Once
 	closed   atomic.Bool
+
+	// heard is closed by the first frame this stream accepts. The scripted
+	// transcript waits for it: a recogniser cannot transcribe audio it has not
+	// received. Emitting the moment the stream opened let the final — and the
+	// turn that closes recognition on it — race the very frame that opened the
+	// turn, which then never reached any recogniser (seen once on main in CI:
+	// TestBargeIn_DoesNotFlushInboundAudio, 8535 frames, none written).
+	heard     chan struct{}
+	heardOnce sync.Once
 }
 
 func (s *recordingSTTStream) emit() {
@@ -283,6 +298,14 @@ func (s *recordingSTTStream) emit() {
 		return
 	}
 
+	if s.provider.afterAudio {
+		select {
+		case <-s.heard:
+		case <-s.done:
+			return
+		}
+	}
+
 	for _, seg := range s.provider.segments {
 		if s.provider.gap > 0 {
 			select {
@@ -311,6 +334,7 @@ func (s *recordingSTTStream) Write(media.Frame) error {
 		// in a live call it is turn teardown racing frame ingest.
 		return speech.ErrSpeechSessionClosed
 	}
+	s.heardOnce.Do(func() { close(s.heard) })
 	return nil
 }
 func (s *recordingSTTStream) Results() <-chan speech.TranscriptSegment { return s.results }
@@ -791,7 +815,8 @@ func newHarness(t *testing.T, o harnessOpts) *harness {
 
 	stt := &recordingSTT{
 		id: speech.ProviderID("stt-test"), segments: o.segments, gap: o.segmentGap,
-		openErr: o.sttOpenErr, fault: o.sttFault,
+		afterAudio: true,
+		openErr:    o.sttOpenErr, fault: o.sttFault,
 		closeAfterWrites: o.sttCloseAfterWrites,
 	}
 	tts := &recordingTTS{
