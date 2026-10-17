@@ -329,6 +329,11 @@ type Pipeline struct {
 	// and is dropped if that generation is no longer current.
 	generation atomic.Uint64
 
+	// ending is set by stop before its generation bump. A turn goroutine that
+	// sees the generation move consults it to tell a call ending from a
+	// barge-in: both supersede the turn, only one is an interruption.
+	ending atomic.Bool
+
 	frames chan media.Frame
 
 	ctx    context.Context
@@ -557,11 +562,29 @@ func (p *Pipeline) Fail(reason string, cause error) error {
 func (p *Pipeline) stop(end SessionState, reason string) error {
 	var err error
 	p.stopOnce.Do(func() {
+		// Before the bump, so a turn goroutine that sees the generation move
+		// knows the call is ending and does not report it as an interruption.
+		p.ending.Store(true)
+
 		// The generation bump comes FIRST. Everything already synthesised for
 		// the current turn becomes stale at this instant, so a frame in flight
 		// cannot overtake the teardown and reach the caller after the session
 		// ended.
 		p.generation.Add(1)
+
+		// And the turn's context straight after it — the second guard, armed
+		// with the first, as abortActiveTurn does for a barge-in. A frame
+		// already inside Deliver passed the generation check before the bump;
+		// only this cancellation stops it. Left to the session cancel below,
+		// it waited out the terminal transition, whose event the FSM publishes
+		// synchronously, and a frame finishing delivery in that window reached
+		// the caller after the call had ended.
+		p.mu.Lock()
+		cancelTurn := p.activeTurnCancel
+		p.mu.Unlock()
+		if cancelTurn != nil {
+			cancelTurn()
+		}
 
 		err = p.cfg.FSM.To(context.Background(), end, reason)
 
@@ -1144,8 +1167,8 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	}
 	p.mu.Unlock()
 
-	if p.ctx.Err() != nil {
-		return // the session ended; the terminal transition already happened
+	if p.sessionEnding() {
+		return // the call is ending; stop makes the terminal transition
 	}
 
 	// A BARGE-IN ALREADY ENDED THIS TURN.
@@ -1157,7 +1180,9 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	// would record an invalid transition for an interruption that worked.
 	interrupted, err := p.yieldFloor(generation, ReasonOK)
 	if interrupted {
-		p.endInterrupted()
+		if !p.sessionEnding() {
+			p.endInterrupted()
+		}
 		return
 	}
 	if err != nil {
@@ -1191,6 +1216,13 @@ func (p *Pipeline) yieldFloor(generation uint64, reason string) (interrupted boo
 	return false, p.cfg.FSM.To(p.ctx, StateListening, reason)
 }
 
+// sessionEnding reports whether the call is ending or has ended: stop has begun,
+// or the session context is gone. A turn that finds it so leaves the terminal
+// transition to stop and reports nothing of its own.
+func (p *Pipeline) sessionEnding() bool {
+	return p.ending.Load() || p.ctx.Err() != nil
+}
+
 // endInterrupted records a turn that an interruption ended.
 func (p *Pipeline) endInterrupted() {
 	p.m.TurnsCompleted.Inc(string(OutcomeInterrupted))
@@ -1202,12 +1234,14 @@ func (p *Pipeline) endInterrupted() {
 // failSynthesis is failTurn for a turn that already holds the floor: if an
 // interruption has taken it back, the session is not this turn's to move.
 func (p *Pipeline) failSynthesis(generation uint64, reason string) {
-	if p.ctx.Err() != nil {
+	if p.sessionEnding() {
 		return
 	}
 	interrupted, err := p.yieldFloor(generation, reason)
 	if interrupted {
-		p.endInterrupted()
+		if !p.sessionEnding() {
+			p.endInterrupted()
+		}
 		return
 	}
 	if err != nil {
@@ -1221,7 +1255,7 @@ func (p *Pipeline) failSynthesis(generation uint64, reason string) {
 
 // failTurn ends a turn on a fault without ending the session.
 func (p *Pipeline) failTurn(reason string) {
-	if p.ctx.Err() != nil {
+	if p.sessionEnding() {
 		return
 	}
 	// A failed turn returns the floor rather than killing the call: one

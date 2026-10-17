@@ -579,6 +579,14 @@ func (c *countingSink) Deliver(ctx context.Context, f media.Frame) error {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// And again at the moment of playing, under the lock that counting reads
+	// take. When the delay and the cancellation are both ready the select
+	// above picks either, so without this a frame could be recorded as played
+	// AFTER the interruption had returned — and the leak a test then reported
+	// would be this double's, not the pipeline's.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if c.bound > 0 && len(c.frames) >= c.bound {
 		c.rejected++
 		return ErrBackpressure
@@ -727,6 +735,22 @@ type harnessOpts struct {
 	ttsOpenErr          error
 	ttsSynthErr         error
 	ttsFault            string
+
+	// onStateEvent, when set, sees every state-change event the session FSM
+	// publishes, synchronously, before the recording publisher does — the
+	// position of a real broker, so a test can make one slow.
+	onStateEvent func(VoiceEvent)
+}
+
+// hookedPublisher runs a test's hook ahead of the publisher it wraps.
+type hookedPublisher struct {
+	inner EventPublisher
+	hook  func(VoiceEvent)
+}
+
+func (h *hookedPublisher) Publish(ctx context.Context, e VoiceEvent) error {
+	h.hook(e)
+	return h.inner.Publish(ctx, e)
 }
 
 func defaultSegments() []speech.TranscriptSegment {
@@ -790,9 +814,14 @@ func newHarness(t *testing.T, o harnessOpts) *harness {
 	metrics := NewVoiceMetrics()
 	pub := NewRecordingEventPublisher()
 
+	var fsmPub EventPublisher = pub
+	if o.onStateEvent != nil {
+		fsmPub = &hookedPublisher{inner: pub, hook: o.onStateEvent}
+	}
+
 	fsm, err := NewSessionFSM(FSMConfig{
 		Session: SessionID("ses-pipeline"), Call: CallID("call-1"),
-		Metrics: metrics, Publisher: pub,
+		Metrics: metrics, Publisher: fsmPub,
 	})
 	if err != nil {
 		t.Fatalf("NewSessionFSM: %v", err)
@@ -1247,6 +1276,65 @@ func TestPipeline_StaleAudioCannotReachMediaAfterCancellation(t *testing.T) {
 
 	t.Logf("stale-output guard: generation=%d, frames withheld=%d",
 		h.pipeline.Generation(), h.pipeline.StaleFramesBlocked())
+}
+
+// TestPipeline_AFrameInDeliveryWhenTheCallEndsIsNotPlayed pins the teardown's
+// half of the stale-output guard.
+//
+// Pipeline.stop bumps the generation first, so no NEW frame passes the guard — but a
+// frame already inside Deliver passed it before the bump. Only cancelling the
+// delivery's context stops that frame, and stop cancelled it last: after the
+// terminal transition, whose state-change event the FSM publishes
+// synchronously. A frame finishing its delivery in that window reached the
+// caller after the call had ended — once in ~150 full-package -race runs
+// ("1 frames reached media after cancellation"). A barge-in never had the gap:
+// abortActiveTurn cancels the turn's context straight after its bump.
+//
+// A broker that is slow on the terminal event holds that window open, and a
+// sink slower than nothing puts a frame inside it.
+func TestPipeline_AFrameInDeliveryWhenTheCallEndsIsNotPlayed(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, harnessOpts{
+		tokens:         []string{"Shall I read your recent transactions?"},
+		framesPerChunk: 60,
+		ttsSynthDelay:  20 * time.Millisecond,
+		sinkDelay:      40 * time.Millisecond,
+		onStateEvent: func(e VoiceEvent) {
+			if e.Type == EventStateChanged && e.To.Terminal() {
+				time.Sleep(150 * time.Millisecond)
+			}
+		},
+	})
+
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	h.feed(t, 4)
+
+	deadline := time.After(20 * time.Second)
+	for h.out.count() == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("no audio ever reached media")
+		case <-time.After(time.Millisecond):
+		}
+	}
+
+	// The next frame is now inside its 40ms delivery.
+	before := h.out.count()
+	if err := h.pipeline.Cancel(ReasonRequested); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	<-h.pipeline.Done()
+
+	if after := h.out.count(); after != before {
+		t.Errorf("%d frames reached media after the call was ended (%d before, "+
+			"%d after)", after-before, before, after)
+	}
+	if h.pipeline.StaleFramesBlocked() == 0 {
+		t.Error("nothing was withheld: no frame was in flight, so this proved nothing")
+	}
 }
 
 // ---------------------------------------------------------------------------
