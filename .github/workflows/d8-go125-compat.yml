@@ -1,0 +1,70 @@
+# =============================================================================
+# D8 evidence only, on the branch ci/d8-go125-compat. NOT for main.
+#
+# D8's criterion includes "Go 1.25 untested" (P1-45:147): compile and test the
+# gateway under the 1.25 toolchain its `go 1.25.0` directive admits. The last
+# such run (pr-go 38774455177, go1.25.14) predates #28's packages/go/platform
+# changes, which have only run on Go 1.26. This workflow gives fresh 1.25
+# evidence for the current code without changing main's toolchain policy (CI
+# builds with 1.26.x since #12) or any declared Go minimum.
+#
+# It runs only on pushes to this branch: no workflow on main is changed. No
+# secret and no external endpoint is used; the real-PostgreSQL suite uses the
+# same throwaway-container script as the gateway-postgres job.
+# =============================================================================
+name: d8-go125-compat
+
+on:
+  push:
+    branches: ["ci/d8-go125-compat"]
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.25.14"
+  GOTOOLCHAIN: "local"
+  GOFLAGS: "-mod=readonly"
+  POSTGRES_IMAGE: "docker.io/library/postgres@sha256:7e5df973a74872482e320dcbdeb055e178d6f42de0558b083892c50cda833c96"
+
+jobs:
+  go125:
+    name: gateway and platform on Go 1.25.14 (-race; real PostgreSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/go/telephony-gateway/go.sum
+
+      - name: The toolchain is exactly go1.25.14
+        run: |
+          set -euo pipefail
+          go version
+          test "$(go env GOVERSION)" = "go1.25.14"
+
+      - name: Vet and race-test packages/go/platform and the gateway (offline)
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          set -euo pipefail
+          for m in packages/go/platform services/go/telephony-gateway; do
+            echo "::group::${m}"
+            (cd "${m}" && go vet ./... && go test -race -count=1 ./...)
+            echo "::endgroup::"
+          done
+
+      - name: Pull the pinned PostgreSQL image
+        run: docker pull --platform linux/amd64 "$POSTGRES_IMAGE"
+
+      - name: Gateway suite against throwaway PostgreSQL, under -race
+        env:
+          CGO_ENABLED: "1"
+          GO_TEST_FLAGS: "-race"
+        run: bash tools/scripts/gateway-postgres-tests.sh
