@@ -785,10 +785,10 @@ primary worktree. It was not restored.
 
 ## 8. Next actions
 
-1. **Owner:** answer the D8 decision request (§10.8.5). The scheduled run and the
-   fresh Go 1.25.14 run (§10.9.3) are both green.
-2. **Owner:** review #25, #30 and #33. Decide the outbox `FAILED`-entry policy
-   (§10.9.7) and the lint-policy items (§10.9.5).
+1. **Owner:** answer the D8 decision request (§10.10.2).
+2. **Owner:** review #25, #30 and #33 (verdicts in §10.10.3). Decide the outbox
+   `FAILED`-entry policy (§10.9.7) and the lint-policy items (§10.9.5). Decide
+   the `speech` items under the freeze (§10.10.5).
 3. **Owner:** decide H-12, the unpublished work (§9).
 4. **Admin:** branch protection and review rules; the exact configuration is in §10.8.4.
 5. **Owner:** answer H-6 (F-4), H-4 (D11) and H-5 (`prod-global`).
@@ -1499,12 +1499,13 @@ by a check of `main`'s CI.
 - **Blocked:**
   - `speech` is documented as **frozen**
     (`docs/audio-intelligence/AUDIO_INTELLIGENCE_ARCHITECTURE.md:111`);
-  - the owner's uncommitted work modifies `speech/tts.go`,
-    `integration_test.go` and `session_test.go`. That copy is older than
-    `main`: it lacks #13's `retire`.
-- **Recommended:**
-  - **the test:** hold synthesis live with the fake provider's `StallFor`
-    instead of check-then-act;
+  - *(corrected in §10.10.5)* the owner's uncommitted `speech` changes are
+    `session_test.go` and `chunker_test.go` only. The primary worktree's
+    `tts.go` and `integration_test.go` are unmodified, but they are older
+    than `main` (its branch predates #13's `retire`).
+- **Recommended** *(revised in §10.10.5)*:
+  - **the test:** hold synthesis live deterministically, instead of
+    check-then-act;
   - **the possible concurrent-`Speak` race:** an owner decision under the freeze.
 
 #### 10.9.5 Lint-policy items (decisions; not implemented)
@@ -1615,3 +1616,144 @@ That would leave 20 jobs and 888 findings.
 - `infra/k8s/base/deployment.yaml` still ` D`;
 - 39 untracked telephony documents unchanged;
 - pre-existing worktrees and `preserve/*` branches unchanged.
+
+### 10.10 Sixth round: verification, reviews and decision records (2026-10-18) [V]
+
+No merges were authorized or made. `main` is unchanged at `3e38aa5`.
+
+#### 10.10.1 Verified state
+
+| Item | State |
+|---|---|
+| `main` | `3e38aa5` (`git ls-remote` and the API agree) |
+| #25 | open, head `dfd6e57`, mergeable; 145 checks: 125 pass, 20 fail, all lint jobs from `main`'s baseline set; `golangci-lint (packages/go/outbox)` passes; `ci-gate` pass |
+| #27 | open, head `14b49d1` before this commit, mergeable; `ci-gate` and Backend Foundation pass |
+| #30 | open, head `ef34dce`, mergeable, 3 commits behind `main`, no overlap; 145 checks: 124 pass, 21 fail, exactly the baseline set; `ci-gate` pass |
+| #33 | open, head `c8c3ed8`, mergeable, 3 behind, no overlap; 124 pass, 21 fail, exactly the baseline set; `ci-gate` pass |
+| #7 | open, unchanged |
+
+**Preservation:**
+- primary worktree: 415 entries, hash `d4fb9c4206dc2168`;
+- `infra/k8s/base/deployment.yaml` still ` D`;
+- the worktree list is unchanged.
+
+#### 10.10.2 D8 decision record (owner sign-off NOT recorded)
+
+| Run | What the API and the job logs show [V] | Correction to earlier wording |
+|---|---|---|
+| **39121942603** (fresh) | `d8-go125-compat`, push, `ci/d8-go125-compat` at `1ee9fd8` (`main` `3e38aa5` plus one branch-only workflow); attempt 1, success. Log: `go version go1.25.14`, and the `GOVERSION` assertion passed. `platform` and the 4 gateway packages pass `go vet` and `go test -race`. Real PostgreSQL: `pass=127 fail=0 skip=0`. No `postgres://` in the log. | none |
+| **38774455177** (historical) | pr-go, push, `main` at `89564e5`. **The run's overall conclusion is `failure`**, from unrelated jobs: gofumpt, the `evalsubjects` tests, many lint jobs, and govulncheck for `evalstore` and `metricsexport`. The **`services/go/telephony-gateway` and `packages/go/platform` jobs pass** on `go1.25.14` (setup spec `1.25.x`) with `go test -race -count=1`, with 4 gateway packages `ok`. Gateway lint passes. | Earlier text called this "the go1.25.14 run". It is a **failed run whose gateway and platform jobs passed**. |
+| **39108532041** (nightly) | `hardening`, **schedule**, `main` at **`63a80a2`**; success, 6/6 jobs. `Race detector (repeated)`: go1.26.9, `-race -count=5 -shuffle=on`, `RACE_EXTRA_MODULES: services/go/telephony-gateway`, all 4 gateway packages `ok`. | The run is on **`63a80a2`, not current `main`**. Since then: #32 (`ci_gate.py`), #31 (`fence/audit_test.go`, test-only) and #29 (a CI script). There is no gateway production change. The 4 earlier scheduled runs (10-14 to 10-17) failed. |
+| **Current `main` `3e38aa5`** | `gateway-postgres` 39121884792 success; Backend Foundation 39121884784 success; `hardening` 39121884775 **success on attempt 2** (attempt 1: the `speech` flake, §10.9.4). pr-go did not run (no Go change); the latest pr-go on `main` (39121152951, `9184071`) has the 21 baseline lint failures. | no scheduled run on `3e38aa5` yet |
+
+**The owner decision required (pick one):**
+- **A:** accept 39121942603 as meeting "Go 1.25 untested", and 39108532041 as meeting "gateway not in nightly race". Then sign off D8.
+- **B:** as A, but sign off only after a green scheduled `hardening` run on a `main` that includes #31.
+- **C:** require a Go 1.25 job on `main` (a CI-policy change), or restate the criterion for 1.26 (a criterion change).
+
+**Also for the owner:** whether the open fence PostgreSQL flake
+(`…ATerminatedOwnerSessionHandsOverWithoutOverlap`, one CI occurrence) is an
+accepted known risk for D8.
+
+**Engineering view:** the evidence supports A. B costs one nightly. Nothing
+here changes a Go minimum, CI toolchain policy or the criterion. **D8 stays
+open.**
+
+#### 10.10.3 Independent reviews of #30 and #33 (no merge)
+
+**#30 `ef34dce`: MERGE RECOMMENDED.**
+- **The diff:** one file, `packages/go/evalstore/store_test.go`, 17+/16−:
+  - 14 `err :=` → `err =`;
+  - 2 `string(a) != string(b)` → `!bytes.Equal`.
+- **Semantics:**
+  - each reassigned `err` is either the test function's own, or declared in the same subtest closure (line 357);
+  - no reassigned `err` is captured by a goroutine or a parallel subtest;
+  - the assertions and messages are unchanged.
+- **Locally,** on Docker go1.26.9 with throwaway PostgreSQL 17.2 on a private network:
+  - formatting and lint: gofmt and gofumpt clean, `go vet` OK, golangci-lint 27 → **11** (the 16 removed are exactly these);
+  - with PostgreSQL, `-race -count=3 -shuffle=on`: 81 pass, 0 fail, 0 skip, 0 races;
+  - the password never appears in the logs.
+- **CI:** the failing set equals `main`'s baseline; `ci-gate` pass.
+- **Remaining risk:** CI never sets `AEGIS_EVALSTORE_DSN`, so 14 of the 15 tests skip in CI. These lines run only locally. That is a CI-coverage gap, not a defect in #30.
+
+**#33 `c8c3ed8`: MERGE RECOMMENDED.**
+- **The diff:** 3 files in `packages/go/runtime`, 31+/9−:
+  - doc comments on 13 methods of `systemTimer`, `systemTicker`, `fakeTimer`, `fakeTicker` and `noopSpan`, with gofmt line splits;
+  - 4 `err :=` → `err =` in `integration_test.go`.
+- **Semantics:**
+  - no code change in `clock.go` or `kernel.go`;
+  - none of the four tests uses `t.Parallel` or a goroutine;
+  - the owner's uncommitted `runtime` files (`harness.go`, `metrics.go`, `model.go`, `prompt.go`) are not touched.
+- **Locally:**
+  - gofmt and gofumpt clean, `go vet` OK;
+  - golangci-lint 42 → **25**, with 0 shadow or revive findings left;
+  - `-race -count=3` passes, plain and shuffled.
+- **CI:** the failing set equals the baseline; `ci-gate` pass.
+- **Nit, not blocking:** the `fakeTimer.Stop` and `Reset` comments say "had not already been stopped". A fired one-shot timer is also marked stopped (`clock.go:268`), so a fired timer reports false. The comment is accurate to the field, but "stopped or fired" would be clearer.
+
+Neither PR has hidden behaviour changes, weakened assertions, suppressions or unrelated files. Both heads match the reviewed SHAs.
+
+#### 10.10.4 #25 (kept open; the design is unchanged)
+
+- **The diff:** `0849606` (docs) and `dfd6e57` (fix); `outbox.go` +41/−3, `outbox_test.go` +152.
+- **The only behaviour change:** `ProcessBatch` now returns a joined error for entries whose `MarkFailed` also failed. Before, those failures were discarded.
+  - The count semantics are unchanged.
+  - A `MarkPublished` failure is still silent, and is documented.
+  - `ProcessBatch` has 0 callers on `main`.
+- **Locally:** lint 0; `-race -count=5 -shuffle=on`: 30 pass, 0 fail; coverage 93.8%.
+- **The owner's checkout:** `packages/go/outbox/outbox.go` shows as modified, but it is a gofmt alignment, and the file is byte-identical to `main`'s blob (`b07f1d1`). #25 changes that file, so after a merge the owner's copy differs again. No owner-authored content collides.
+- **Undecided (ADR-0009 packet, §10.9.7):** these are not implemented and not invented here:
+  - the retry policy;
+  - maximum attempts and backoff;
+  - the next-attempt schema;
+  - dead-letter routing;
+  - monitoring;
+  - `retry_count` semantics.
+
+#### 10.10.5 `speech` flake: corrected analysis and a validated test-only proposal
+
+**Correction to §10.9.4:**
+- `FakeTTSProvider.StallFor` delays `OpenTTS`. That call runs inside `Speak` **before** `speaking = true`, so it cannot hold the first synthesis live.
+- The owner's uncommitted `speech` files are `session_test.go` and `chunker_test.go`, not `tts.go` or `integration_test.go`.
+
+**Proposal A (the flake, test-only):** in `TestTTS_DoubleSpeakIsRefused`:
+1. use `ttsRig(t, DefaultTTSOrchestratorConfig(media.PCM16Mono8k()).FrameQueue+50)`. That is 150 frames today, more than `FrameQueue` (100) and fewer than the fake stream's 256-frame buffer.
+2. Do not drain `Frames()`. The pump blocks forwarding frame 101, so it never reaches the stream's end, `retire` never runs, and `Speaking()` stays true.
+3. Replace `if o.Speaking() { … }` with `if !o.Speaking() { t.Fatal(…) }`. Then assert the refusal unconditionally, plus `provider.Opened() == 1`.
+
+The assertion becomes stronger, not weaker.
+
+**Validated in a scratch copy of `main`** (go1.26.9, `-race`; nothing committed):
+- Proposal A: 200/200 pass;
+- the package with the proposal file, shuffled: pass;
+- the original test, 500 isolated runs: pass. The flake still has not been reproduced locally.
+
+**Probe B (the possible production race), using `StallFor`:**
+1. Stall the first `Speak` inside `OpenTTS` (`StallFor(1s)`, then `clock.BlockUntil(1)`).
+2. Call `Speak` a second time, then advance the clock.
+
+**Result: 20/20 runs, both calls accepted, `provider.Opened() == 2`.** The race detector reports no data race, because this is a logic race. The second stream's state is overwritten by the first's, so one stream and its pump are no longer referenced by the orchestrator.
+
+Whether a real caller calls `Speak` concurrently was not established.
+
+**Blocked:** `speech` is frozen. Both the test fix and any `tts.go` change (for example, reserving `speaking` under the lock before `OpenTTS`) need the owner's authorization. Nothing was changed.
+
+#### 10.10.6 Lint, recalculated from the current logs
+
+- **The source:** pr-go 39121152951, push, `9184071`. There is no Go change since (`9184071..3e38aa5` touches 0 `.go` files).
+- **21 failing lint jobs, 933 findings** (a recount of all 21 job logs).
+- **445** of them are in files the owner's uncommitted work does not modify.
+- **With the open PRs, if merged:** #25 −12 (20 jobs), #30 −16, #33 −17, which leaves 20 jobs and 888 findings.
+
+**Proposed next batches** (not implemented). Each is in owner-untouched files and needs no policy decision; none touches frozen `speech`, `packages/go/voice` or `audiointel`'s godot policy:
+
+| Batch | Files | Findings | Kind |
+|---|---|---|---|
+| L1 | `packages/go/telephony/integration_test.go` | 10 `govet:shadow` (lines 137–663) | test-only |
+| L2 | `packages/go/evalsubjects/memory_subject.go`, `tool_subject.go` | 6 `revive:exported` (`State`, `Events`, `Close`) | doc-only |
+| L3 | `governance/audit.go:307` (`unconvert`); unused `governance/risk.go` `Signal.validate` and `memory/index.go` `reservedAttributes` | 3 | small production deletions; reviewer's preference |
+
+**Not proposed:**
+- the remaining `errcheck` findings, because `check-blank: true` makes `_ =` not a fix (a policy decision);
+- `rangeValCopy` refactors in production code;
+- `gocyclo`.
