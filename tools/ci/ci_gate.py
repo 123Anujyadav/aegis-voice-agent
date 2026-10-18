@@ -432,7 +432,7 @@ class GitHub:
         """Return the jobs of the latest attempt of one run."""
         return _gh_lines(
             f"repos/{self.repo}/actions/runs/{run_id}/jobs?per_page=100",
-            "--paginate", "--jq", ".jobs[] | {id, name, conclusion}",
+            "--paginate", "--jq", ".jobs[] | {id, name, status, conclusion}",
         )
 
     def job_log(self, job_id: int) -> str:
@@ -479,6 +479,23 @@ def _judge(gh: GitHub, workflow: str, run: dict[str, Any]) -> Verdict:
     return evaluate_run(workflow, run["conclusion"], jobs, conclusions, regressions)
 
 
+def _runs_with_incomplete_jobs(gh: GitHub, runs: dict[str, dict[str, Any]]) -> list[str]:
+    """List completed, non-successful runs that still have an unfinished job.
+
+    GitHub can report a run as completed while one of its jobs is still in
+    progress. Judging such a run now would fail on a job that has not
+    finished, so it is treated as still running, and the wait (and its
+    timeout) applies to it as to any other run.
+    """
+    stale = []
+    for workflow, run in sorted(runs.items()):
+        if run["conclusion"] == "success":
+            continue
+        if any(j.get("status", "completed") != "completed" for j in gh.jobs(run["id"])):
+            stale.append(f"{workflow} (reported completed, but a job is still running)")
+    return stale
+
+
 def run_gate(  # noqa: PLR0913 - every argument is an independent knob
     gh: GitHub,
     pr: int,
@@ -508,7 +525,9 @@ def run_gate(  # noqa: PLR0913 - every argument is an independent knob
             report += [f"expected workflow never started: {w}" for w in missing]
             return False, report
         if not missing and not unfinished:
-            break
+            unfinished = _runs_with_incomplete_jobs(gh, runs)
+            if not unfinished:
+                break
         if not wait:
             report += [f"still running: {w}" for w in unfinished]
             return False, report

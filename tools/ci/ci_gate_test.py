@@ -339,6 +339,18 @@ class FakeGitHub:
         return self._main.get(workflow)
 
 
+class SequencedJobsGitHub(FakeGitHub):
+    """A FakeGitHub whose job lists change between calls (a job finishing)."""
+
+    def __init__(self, changed: list[str], runs: dict[str, dict], sequences: dict[int, list[list[dict]]]) -> None:
+        super().__init__(changed, runs, {})
+        self._sequences = sequences
+
+    def jobs(self, run_id: int) -> list[dict]:
+        seq = self._sequences[run_id]
+        return seq.pop(0) if len(seq) > 1 else seq[0]
+
+
 def _run(run_id: int, path: str, conclusion: str, status: str = "completed") -> dict:
     return {"id": run_id, "path": path, "status": status, "conclusion": conclusion, "created_at": "t", "run_attempt": 1}
 
@@ -397,6 +409,31 @@ class GateSimulationTest(unittest.TestCase):
     def test_unfinished_run_does_not_pass(self) -> None:
         gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, None, status="in_progress")}, {})
         self.assertFalse(self.gate(gh)[0])
+
+    def test_a_run_reported_completed_with_a_running_job_does_not_pass(self) -> None:
+        # Seen on GitHub: pr-go reported completed/failure while a govulncheck
+        # job was still in progress.
+        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")},
+                        {1: [{"id": 10, "name": "Build & Test Backend Foundation", "status": "in_progress", "conclusion": None}]})
+        passed, report = self.gate(gh)
+        self.assertFalse(passed)
+        self.assertIn("a job is still running", "\n".join(report))
+
+    def test_the_gate_waits_for_such_a_job_and_then_judges_it(self) -> None:
+        gh = SequencedJobsGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")}, {1: [
+            [{"id": 10, "name": "Build & Test Backend Foundation", "status": "in_progress", "conclusion": None}],
+            [{"id": 10, "name": "Build & Test Backend Foundation", "status": "completed", "conclusion": "failure"}],
+        ]})
+        passed, report = ci_gate.run_gate(gh, 1, WORKFLOWS, wait=True, interval=0, appear_timeout=5, total_timeout=5)
+        self.assertFalse(passed, "the finished job failed, so the gate must fail")
+        self.assertIn("Build & Test Backend Foundation: failure", "\n".join(report))
+
+    def test_a_job_that_never_finishes_times_out(self) -> None:
+        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")},
+                        {1: [{"id": 10, "name": "x", "status": "in_progress", "conclusion": None}]})
+        passed, report = ci_gate.run_gate(gh, 1, WORKFLOWS, wait=True, interval=0, appear_timeout=0, total_timeout=0)
+        self.assertFalse(passed)
+        self.assertIn("timed out waiting for", "\n".join(report))
 
     def test_an_unpredicted_run_is_judged_too(self) -> None:
         extra = ".github/workflows/new.yml"
