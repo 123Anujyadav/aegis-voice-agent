@@ -15,7 +15,7 @@
 - **[U] unavailable:** the evidence does not exist in the repository, or could
   not be obtained.
 
-**Status: AUDIT COMPLETE.** Eleven PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28), including the D8 CI items and the `ci-gate` aggregate check (§10). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open, not authorized for merge: #25, #27 (this record) and #29.
+**Status: AUDIT COMPLETE.** Eleven PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28), including the D8 CI items and the `ci-gate` aggregate check (§10). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open, review-ready, not authorized for merge: #25, #27 (this record), #29, #30, #31 and #32 (§10.8.6).
 
 | PR | Change | State |
 |---|---|---|
@@ -30,7 +30,10 @@
 | #25 | Outbox: doc comments, and `MarkFailed` failures reported (12 → 0) | **open** at `dfd6e57`; not authorized for merge (§10.7) |
 | #26 | `ci-gate`: an always-running aggregate check | **merged** as `806e75c`. The security-fix head was `6900db2`; the earlier heads `d8544ec` and `ec6fd57` had reproduced bypasses (§10.6, §10.7). |
 | #28 | Lint: platform (16 → 1) | **merged** as `63a80a2` (§10.7) |
-| #29 | `gateway-postgres`: print each failing test's complete output | **open** at `e98b134`; not authorized for merge (§10.7) |
+| #29 | `gateway-postgres`: print each failing test's complete output | **open** at `e98b134`; review-ready (§10.8.6) |
+| #30 | `evalstore` `store_test.go` lint (27 → 11) | **open** at `ef34dce`; review-ready (§10.8.3) |
+| #31 | Fence freshness test race (deterministically reproduced) | **open** at `547e4c8`; review-ready (§10.8.1) |
+| #32 | `ci-gate` waits for jobs still running in a "completed" run | **open** at `0fb044d`; review-ready (§10.8.2) |
 
 - **Lint:** the repository is **not lint-clean**. 22 golangci-lint jobs fail,
   with 983 findings (§4).
@@ -781,11 +784,12 @@ primary worktree. It was not restored.
 
 ## 8. Next actions
 
-1. **Owner:** answer the D8 decision request (§10.7.5).
-2. **Owner:** review #25 (outbox, option A implemented) and #29 (gateway-postgres
-   failure output). Decide the outbox `FAILED`-entry policy (§10.7.4).
+1. **Owner:** answer the D8 decision request (§10.8.5), after the first scheduled
+   hardening run on current `main`.
+2. **Owner:** review #25, #29, #30, #31 and #32 (§10.8.6). Decide the outbox
+   `FAILED`-entry policy (§10.7.4).
 3. **Owner:** decide H-12, the unpublished work (§9).
-4. **Admin:** branch protection and review rules (§3.15, §10.7.6). `ci-gate` is on `main` since `806e75c`.
+4. **Admin:** branch protection and review rules; the exact configuration is in §10.8.4.
 5. **Owner:** answer H-6 (F-4), H-4 (D11) and H-5 (`prod-global`).
 6. **Engineering:** continue the P1-3 lint batches in the 21 remaining modules,
    only in files with no overlap with the owner's uncommitted work (§10.6).
@@ -1233,3 +1237,158 @@ a PR editing `ci-gate.yml` or `pr-go.yml` is trusted only through review
 | Provider / model provisioning | owner; downloads or credentials | per-stage choices | — |
 | Exotel client-certificate mTLS | Exotel (written answer) | ask Q2 | production media **NO-GO** |
 | Branch protection and review | repository admin | §10.7.6 | — |
+
+### 10.8 Fourth round: verification, flakes and ledger (2026-10-18) [V]
+
+No merges were authorized in this round. `main` is unchanged at `63a80a2`.
+
+#### 10.8.1 Fence test flakes
+
+- **Reproduced locally** (fence package, `-race -count=10`, real PostgreSQL),
+  1 failure in 500 tests:
+
+  ```
+  --- FAIL: TestFence_ConfirmationFreshnessIsMeasuredFromWhenTheQueryWasSent (5.00s)
+      audit_test.go:37: timed out waiting for the slow confirmation to be recorded
+  ```
+
+- **Cause:** the race #8 fixed elsewhere. Ownership reads true from
+  acquisition onwards, so the test can read `before` before the fence starts
+  its second confirmation. `holdsHit` then overshoots `before+1` once the
+  test's poll is descheduled.
+- **Deterministic reproduction** (scratch copies only): delay the second
+  confirmation's start by 200 ms and the test's first poll by 50 ms.
+  - before the fix: 10/10 FAIL, with exactly that message;
+  - after: 10/10 PASS.
+- **Fix: #31** (`547e4c8`), test-only. The same receive-and-restore as #8.
+- **#31's CI:** no new failures; `ci-gate`, `gateway-postgres` and the repeated
+  race job PASS.
+- **Not fixed:** three other tests share the ordering pattern
+  (`credentials_test.go:117`, `fence_test.go:232`, `fence_test.go:257`). None
+  has an observed failure, so they are left as a recorded latent risk.
+- **The CI failure on `63a80a2`** was a different test,
+  `TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap`. It did not
+  reproduce in 150 isolated runs or 30 package runs, and its message was lost.
+  #29 makes its next occurrence diagnosable. **Open.**
+
+#### 10.8.2 `ci-gate` on #30: a GitHub inconsistency
+
+- **What happened:** pr-go run 39105541791 reported **completed/failure** while
+  `govulncheck (packages/go/evalstore)` was still **in_progress**, with no
+  completion after more than 10 minutes.
+- **The gate failed closed** (`incomplete`): correct, but premature.
+- **Recovery:** pr-go was re-run (attempt 2, every job completed), then the
+  gate was re-run: **PASS**.
+- **#32** (`0fb044d`) makes the gate keep waiting while a "completed" run still
+  has a running job; the existing timeout still ends a stuck job as FAIL.
+  - **Tests:** 56, 3 new; removing the check fails 3.
+  - **CI:** Backend Foundation and `ci-gate` PASS.
+
+#### 10.8.3 New lint PR
+
+- **#30** (`ef34dce`): the 16 findings in `evalstore`'s `store_test.go`
+  (14 shadow, 2 stringXbytes), test-only.
+  - **Module total:** 27 → 11.
+  - **Tests:** with real PostgreSQL, `-race -count=3`: 81 pass, 0 fail, 0 skip,
+    0 races.
+  - **CI:** the 21 failing jobs are the baseline set, none new; `ci-gate`
+    PASS after the pr-go re-run.
+
+**Baseline on `main` `63a80a2` (counted from logs):** 21 jobs, 933 findings,
+unchanged. Prospective, if merged:
+
+| Merged | Jobs | Findings |
+|---|---|---|
+| #25 | 20 | 921 |
+| #30 | 21 | 917 |
+| #25 and #30 | 20 | 905 |
+
+#### 10.8.4 Recommended branch protection for `main` (not applied)
+
+`PUT /repos/123Anujyadav/aegis-voice-agent/branches/main/protection`:
+
+```json
+{
+  "required_status_checks": {
+    "strict": true,
+    "checks": [
+      {"context": "ci-gate", "app_id": 15368},
+      {"context": "Build & Test Backend Foundation", "app_id": 15368}
+    ]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 0,
+    "require_code_owner_reviews": false,
+    "dismiss_stale_reviews": false
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "required_conversation_resolution": true
+}
+```
+
+- **The checks:** `app_id` 15368 is GitHub Actions, which binds each check to
+  Actions so another app cannot satisfy it. Both checks run on every PR into
+  `main`.
+- **`enforce_admins: true`:** the sole admin cannot push directly, but can
+  still merge their own PR once the checks pass. Zero approvals are required,
+  so that remains possible.
+- **No code-owner review:** with one collaborator it would block every merge,
+  because GitHub does not let authors approve their own PRs.
+- **CODEOWNERS (a separate file change, for the owner):**
+  - add `/tools/ci/ @123Anujyadav`;
+  - point `/.github/` and `/.github/workflows/` at real accounts (the
+    `@callscreen/*` teams do not exist);
+  - turn on `require_code_owner_reviews` once a second reviewer exists.
+
+#### 10.8.5 D8 decision request (consolidated; owner sign-off pending)
+
+**Criterion** (P1-45:147; P1-44:185; P1-50:151): "`-race` never run;
+real-PG suites not in CI; gateway not in nightly race; lint unknown; Go 1.25
+untested".
+
+| Item | Evidence | State |
+|---|---|---|
+| `-race` in CI | pr-go, `gateway-postgres` and the repeated race job all run the gateway under `-race` | met |
+| Real-PG suites in CI | `gateway-postgres` 127/0/0 on `main`; one flaky failure on `63a80a2`, passed on re-run | met, with one open flake |
+| Gateway lint | passes | met |
+| Nightly race | gateway in the repeated job since `7b59d25`. **No scheduled run yet on current `main`** (checked 07:22Z on 10-18; the last scheduled run was 10-17 on `1f58266`, which predates #13, and it failed) | **pending a scheduled run** |
+| Go 1.25 | run 38774455177 (go1.25.14, `-race`, 4 gateway packages `ok`) for the code at `89564e5`. Gateway code is unchanged since; `platform` changed in #28 and has only run on 1.26. | historical evidence; **owner ruling needed** |
+| Owner sign-off | — | **not recorded** |
+
+**Recommendation:**
+1. Accept the go1.25.14 run as satisfying "Go 1.25 untested", which matches the
+   criterion's meaning (P1-44 OBS-4, P1-45:154).
+2. Wait for one green scheduled hardening run on current `main`.
+3. Then approve D8 explicitly.
+
+**Alternatives:**
+- require a fresh 1.25 run (a CI change);
+- restate the criterion for 1.26 (a criterion change).
+
+**D8 remains open.**
+
+#### 10.8.6 Task ledger
+
+| Task | SHA | Status | Evidence | Next / dependency |
+|---|---|---|---|---|
+| #26 `ci-gate` | merge `806e75c` (fix `6900db2`) | complete | §10.7.2; trusted runs on #27–#32 | — |
+| #28 `platform` lint | merge `63a80a2` | complete | §10.7.3 | `writeJSON`: owner decision |
+| #29 `gateway-postgres` failure output | `e98b134` | review-ready | CI pass; local 4-case validation | owner merge decision |
+| #25 outbox `MarkFailed` | `dfd6e57` | review-ready | 6 tests, 30/30 `-race`; CI baseline only; gate PASS | owner merge decision; ADR-0009 `FAILED`/DLQ decision |
+| #27 closure record | this PR | review-ready | Backend Foundation and gate PASS | owner merge decision |
+| #30 `evalstore` test lint | `ef34dce` | review-ready | 81/0/0 with PostgreSQL; CI baseline only; gate PASS (after re-run) | owner merge decision |
+| #31 fence freshness test race | `547e4c8` | review-ready | deterministic repro 10/10 FAIL → 10/10 PASS; CI pass | owner merge decision |
+| #32 gate waits for incomplete jobs | `0fb044d` | review-ready | 56 tests; mutation; CI pass | owner merge decision |
+| Fence PostgreSQL flake | — | open | 1 CI failure; not reproduced locally | #29, then the next occurrence |
+| D8 | — | blocked | §10.8.5 | scheduled run; owner ruling and sign-off |
+| Branch protection | — | blocked | §10.8.4 | owner/admin approval |
+
+**Preservation, checked at every step:**
+- primary worktree 415 entries, hash `d4fb9c4206dc2168`;
+- `infra/k8s/base/deployment.yaml` still ` D`;
+- the 39 untracked telephony documents' hashes unchanged;
+- all pre-existing worktrees unchanged;
+- the 3 `preserve/*` branches kept.
