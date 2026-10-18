@@ -32,9 +32,10 @@ import (
 func TestT13_RunServesHealthAndStopsCleanlyOnSIGTERM(t *testing.T) {
 	keepDefaultLogger(t)
 
-	health := freePort(t)
+	ports := freePorts(t, 2)
+	health := ports[1]
 	t.Setenv("CS_VOICE_ENVIRONMENT", "development")
-	t.Setenv("CS_VOICE_HTTP_PORT", fmt.Sprint(freePort(t)))
+	t.Setenv("CS_VOICE_HTTP_PORT", fmt.Sprint(ports[0]))
 	t.Setenv("CS_VOICE_HEALTH_PORT", fmt.Sprint(health))
 	t.Setenv("CS_VOICE_LOG_LEVEL", "error")
 

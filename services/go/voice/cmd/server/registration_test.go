@@ -94,19 +94,37 @@ func waitFor(d time.Duration, cond func() bool) bool {
 	return cond()
 }
 
-// freePort reserves an ephemeral port and releases it, so the health listener
-// has somewhere to bind without colliding with a parallel test.
-func freePort(t *testing.T) int {
+// freePorts reserves n distinct ephemeral ports and then releases them, so a
+// service has somewhere to bind each of its listeners.
+//
+// Every listener stays open until all n ports are known. Reserving them one at
+// a time, releasing each before the next, let the OS hand the same port out
+// twice. Config validation then refused the pair ("HTTP_PORT and HEALTH_PORT
+// must differ"), which failed TestT9_FreshRunningServiceSignatureIsStable in
+// hardening's repeated race job on main a51504a (run 39056746543). That test
+// starts 20 services, so it drew 20 pairs per run.
+//
+// Ports are still released before the service binds them, so another process
+// could take one in between. That is inherent to choosing ports in advance;
+// what this removes is a collision within the pair itself.
+func freePorts(t *testing.T, n int) []int {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserve port: %v", err)
+	ports := make([]int, n)
+	listeners := make([]net.Listener, 0, n)
+	for i := range ports {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("reserve port: %v", err)
+		}
+		listeners = append(listeners, l)
+		ports[i] = l.Addr().(*net.TCPAddr).Port
 	}
-	port := l.Addr().(*net.TCPAddr).Port
-	if err := l.Close(); err != nil {
-		t.Fatalf("release port: %v", err)
+	for _, l := range listeners {
+		if err := l.Close(); err != nil {
+			t.Fatalf("release port: %v", err)
+		}
 	}
-	return port
+	return ports
 }
 
 // runningService builds the service exactly as run() does, starts it, and
@@ -128,8 +146,8 @@ func runningServiceWith(t *testing.T, opts ...voiceintel.Option) (
 	logger := slog.New(slog.NewJSONHandler(sink, nil))
 
 	cfg := testConfig()
-	cfg.HTTPPort = freePort(t)
-	cfg.HealthPort = freePort(t)
+	ports := freePorts(t, 2)
+	cfg.HTTPPort, cfg.HealthPort = ports[0], ports[1]
 	// Short, so the drain delay (ShutdownTimeout/5) does not dominate the test.
 	cfg.ShutdownTimeout = time.Second
 	if err := cfg.Validate(); err != nil {
