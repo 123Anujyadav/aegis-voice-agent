@@ -1,0 +1,61 @@
+# =============================================================================
+# ci-gate: one check that ALWAYS runs on a pull request, for branch protection.
+#
+# pr-go, hardening and the other workflows are path-filtered on pull_request,
+# so a docs-only or workflow-only PR never starts them. A required check that
+# never starts blocks the PR forever. This job always starts, works out from
+# each workflow's own pull_request filters which of them this PR triggers,
+# waits for those runs on the PR head, and passes only if all their jobs
+# passed.
+#
+# Lint: a golangci-lint job that ALSO fails on main's latest completed run is
+# the known baseline and is reported but not blocking. A lint job that passes
+# on main, or is new, must pass. So the baseline can only shrink, and nothing
+# is excluded from lint itself.
+#
+# Read-only. It uses only the job's own token (actions, contents and
+# pull-requests: read), the gh CLI and the Python standard library: no
+# third-party action and no secret. See tools/ci/ci_gate.py.
+#
+# Not a merge_group gate: no merge queue is configured, and pull_request-only
+# workflows (ci.yml, hardening.yml) do not run in a merge group.
+# =============================================================================
+name: ci-gate
+
+on:
+  pull_request:
+
+concurrency:
+  group: ci-gate-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  gate:
+    name: ci-gate
+    runs-on: ubuntu-24.04
+    # hardening's repeated race job is the longest (about 30 min under load);
+    # the gate's own wait is capped below this.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # The gate's own logic is tested before it is trusted.
+      - name: Test the gate
+        run: python3 -I -m unittest discover -s tools/ci -p '*_test.py' -v
+
+      - name: Wait for and judge the PR's workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -I tools/ci/ci_gate.py
+          --repo "${{ github.repository }}"
+          --pr "${{ github.event.pull_request.number }}"
+          --total-timeout 6600
