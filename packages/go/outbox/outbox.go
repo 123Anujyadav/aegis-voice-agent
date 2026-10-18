@@ -73,10 +73,19 @@ func NewOutboxProcessor(store Store, publisher Publisher) *OutboxProcessor {
 // ProcessBatch publishes up to batchSize pending entries, and returns how many
 // were published and then marked published.
 //
-// It returns an error only when the pending entries cannot be fetched. When a
-// publish fails, the entry is marked failed, any error from MarkFailed is
-// discarded, and processing continues with the next entry. An entry whose
-// MarkPublished call fails is not counted.
+// When the pending entries cannot be fetched, it returns that error and
+// publishes nothing. Otherwise every entry is attempted:
+//   - When a publish fails, the entry is marked failed and processing
+//     continues. If marking it failed ALSO fails, the entry stays pending (so
+//     a later batch publishes it again), and that failure is reported in the
+//     returned error, joined with the publish error that caused it. Several
+//     such entries are joined into one error, so errors.Is finds each cause.
+//   - An entry whose MarkPublished call fails is not counted and is not
+//     reported; it stays pending and a later batch publishes it again.
+//
+// A non-nil error can therefore accompany a non-zero count. An entry that was
+// marked failed is not retried by this processor: Store.FetchPending returns
+// pending entries only, and nothing here moves a failed entry back.
 func (p *OutboxProcessor) ProcessBatch(ctx context.Context, batchSize int) (int, error) {
 	entries, err := p.store.FetchPending(ctx, batchSize)
 	if err != nil {
@@ -84,10 +93,14 @@ func (p *OutboxProcessor) ProcessBatch(ctx context.Context, batchSize int) (int,
 	}
 
 	successCount := 0
+	var unmarked []error
 	for _, entry := range entries {
 		err := p.publisher.Publish(ctx, entry.Topic, entry.CorrelationID, entry.Payload)
 		if err != nil {
-			_ = p.store.MarkFailed(ctx, entry.ID, err.Error())
+			if markErr := p.store.MarkFailed(ctx, entry.ID, err.Error()); markErr != nil {
+				unmarked = append(unmarked, fmt.Errorf("outbox entry %s: publish failed and could not be marked failed: %w",
+					entry.ID, errors.Join(err, markErr)))
+			}
 			continue
 		}
 		if err := p.store.MarkPublished(ctx, entry.ID); err == nil {
@@ -95,7 +108,7 @@ func (p *OutboxProcessor) ProcessBatch(ctx context.Context, batchSize int) (int,
 		}
 	}
 
-	return successCount, nil
+	return successCount, errors.Join(unmarked...)
 }
 
 // MarshalCloudEvent encodes event as JSON. It adds no CloudEvents attributes;
