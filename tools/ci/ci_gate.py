@@ -25,9 +25,10 @@ for it forever. This gate always runs, and reports one explicit pass or fail.
    counterpart on ``main``, also fails the gate. So the baseline can only
    shrink.
 
-The workflow runs this file, and reads the workflow filters, from the PR's
-**base** commit, never from the PR. A PR therefore cannot change the verdict
-on itself by editing this script or another workflow's filters.
+The workflow runs this file, and reads the workflow filters, from the current
+tip of the PR's **base branch**, never from the PR, and before any of the
+PR's code runs. A PR therefore cannot change the verdict on itself by editing
+this script or another workflow's filters.
 
 It uses only the standard library and the ``gh`` CLI (preinstalled on
 GitHub-hosted runners), and only reads: no third-party action, no secret
@@ -43,6 +44,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
 import time
@@ -551,7 +553,11 @@ def main(argv: list[str] | None = None) -> int:
         passed, report = False, [f"gate error (failing closed): {type(exc).__name__}: {exc}"]
     report.append("ci-gate: " + ("PASS" if passed else "FAIL"))
     text = "\n".join(report)
-    sys.stdout.write(text + "\n")
+    # The report repeats names a pull request controls (its job names, its
+    # workflow file names). Pausing workflow-command processing while it is
+    # printed stops such a name from acting as a ::command:: on the runner.
+    token = secrets.token_hex(16)
+    sys.stdout.write(f"::stop-commands::{token}\n{text}\n::{token}::\n")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with Path(summary).open("a", encoding="utf-8") as fh:

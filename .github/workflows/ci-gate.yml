@@ -13,16 +13,21 @@
 # job that passes on main, or a new module's lint job must pass. Nothing is
 # excluded from lint itself.
 #
-# TRUST. The verdict comes from the gate script and the workflow filters at
-# the PR's BASE commit, not from the PR, so a PR cannot rewrite the gate or
-# narrow another workflow's filters to pass itself. The PR's own copy of the
-# gate is only unit-tested, and that step can fail the job but never pass it.
-# Bootstrap: until a base commit contains the gate (the PR that introduces
-# it), the PR's copy is used, with a warning.
-#
-# Residual: GitHub runs a pull_request workflow from the PR's version of the
-# workflow file, so a PR editing this file (or pr-go.yml, etc.) is trusted
-# only through code review. Require review for .github/** and tools/ci/**.
+# TRUST
+# - The verdict comes from the gate script and workflow filters at the CURRENT
+#   TIP of the base branch (github.base_ref). github.event.pull_request.base.sha
+#   is not used: GitHub does not keep it current, so for a PR opened before the
+#   gate merged it would name a commit without the gate.
+# - The verdict step runs BEFORE any code from the pull request is executed.
+#   Checking a PR out executes nothing. The PR's own gate tests run last, so
+#   they cannot alter the files the verdict used, and they can fail the job
+#   but never pass it.
+# - Bootstrap: when the base tip has no gate (only the PR that introduces it,
+#   or a PR into a branch without it), the PR's copy is used, with a warning.
+#   Once the gate is on main, that path is unreachable for PRs into main.
+# - Residual: GitHub runs a pull_request workflow from the PR's version of the
+#   workflow file, so a PR editing THIS file (or pr-go.yml, etc.) is trusted
+#   only through code review. Require review for .github/** and tools/ci/**.
 #
 # Read-only. It uses only the job's own token (actions, contents and
 # pull-requests: read), the gh CLI and the Python standard library: no
@@ -53,31 +58,25 @@ jobs:
     # the gate's own wait is capped below this.
     timeout-minutes: 120
     steps:
-      - name: Check out the base commit (trusted gate and workflow filters)
+      - name: Check out the base branch tip (trusted gate and workflow filters)
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.base_ref }}
           path: trusted
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Check out the pull request (its own gate tests only)
+      # Only when the base has no gate yet. Checkout executes no PR code.
+      - name: Check out the pull request (bootstrap only)
+        if: ${{ hashFiles('trusted/tools/ci/ci_gate.py') == '' }}
         uses: actions/checkout@v4
         with:
           path: pr
           fetch-depth: 1
           persist-credentials: false
 
-      # Tests the PR's version of the gate, so a change to the gate is tested
-      # before it merges. This step can fail the job; it cannot pass it.
-      - name: Test the pull request's gate code
-        run: |
-          if [ -d pr/tools/ci ]; then
-            python3 -I -m unittest discover -s pr/tools/ci -p '*_test.py' -v
-          else
-            echo "the pull request has no tools/ci; nothing to test"
-          fi
-
+      # The verdict. Nothing from the pull request has executed before this
+      # step.
       - name: Wait for and judge the PR's workflows (trusted gate)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -87,7 +86,7 @@ jobs:
           if [ -f trusted/tools/ci/ci_gate.py ]; then
             gate=trusted
           else
-            echo "::warning::bootstrap: the base commit has no ci-gate yet, so this run uses the pull request's copy"
+            echo "::warning::bootstrap: the base branch has no ci-gate yet, so this run uses the pull request's copy"
             gate=pr
           fi
           python3 -I "$gate/tools/ci/ci_gate.py" \
@@ -95,3 +94,21 @@ jobs:
             --pr "$PR_NUMBER" \
             --workflows-dir "$gate/.github/workflows" \
             --total-timeout 6600
+
+      - name: Check out the pull request (its own gate tests)
+        if: ${{ hashFiles('pr/tools/ci/ci_gate.py') == '' }}
+        uses: actions/checkout@v4
+        with:
+          path: pr
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Runs the PR's code, so it comes after the verdict: it can fail the
+      # job, and cannot change a verdict that has already been given.
+      - name: Test the pull request's gate code
+        run: |
+          if [ -d pr/tools/ci ]; then
+            python3 -I -m unittest discover -s pr/tools/ci -p '*_test.py' -v
+          else
+            echo "the pull request has no tools/ci; nothing to test"
+          fi

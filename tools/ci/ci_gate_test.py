@@ -245,6 +245,73 @@ class EvaluateRunTest(unittest.TestCase):
         self.assertFalse(ci_gate.evaluate_run("w", "startup_failure", [], None).ok)
 
 
+class GateWorkflowTest(unittest.TestCase):
+    """Structural guards on ci-gate.yml: the trust properties the gate relies on."""
+
+    text = (WORKFLOWS / "ci-gate.yml").read_text(encoding="utf-8")
+
+    def steps(self) -> list[str]:
+        body = self.text.split("    steps:\n", 1)[1]
+        return ["      - name:" + s for s in body.split("      - name:")[1:]]
+
+    def test_trusted_checkout_is_the_base_branch_tip(self) -> None:
+        first = self.steps()[0]
+        self.assertIn("path: trusted", first)
+        self.assertIn("ref: ${{ github.base_ref }}", first)
+        self.assertNotIn("pull_request.base.sha", self.text.split("jobs:", 1)[1])
+
+    def test_the_verdict_runs_before_any_pull_request_code(self) -> None:
+        steps = self.steps()
+        verdict = next(i for i, s in enumerate(steps) if "ci_gate.py" in s and "--pr" in s)
+        runs_pr_code = [i for i, s in enumerate(steps) if "unittest discover -s pr/" in s]
+        self.assertTrue(runs_pr_code)
+        self.assertTrue(all(i > verdict for i in runs_pr_code), "PR code must run after the verdict")
+        for step in steps[:verdict]:
+            self.assertNotIn("run:", step, "only checkouts may precede the verdict")
+
+    def test_the_pull_request_is_checked_out_early_only_for_bootstrap(self) -> None:
+        steps = self.steps()
+        verdict = next(i for i, s in enumerate(steps) if "ci_gate.py" in s and "--pr" in s)
+        for step in steps[:verdict]:
+            if "path: pr" in step:
+                self.assertIn("hashFiles('trusted/tools/ci/ci_gate.py') == ''", step)
+
+    def test_permissions_are_read_only(self) -> None:
+        block = self.text.split("permissions:\n", 1)[1].split("\n\n", 1)[0]
+        grants = dict(line.strip().split(": ") for line in block.splitlines() if line.strip())
+        self.assertEqual(grants, {"actions": "read", "contents": "read", "pull-requests": "read"})
+        self.assertNotIn("write", self.text.split("jobs:", 1)[1])
+
+    def test_no_expression_is_interpolated_into_a_script(self) -> None:
+        for step in self.steps():
+            script = step.split("run: |", 1)[1] if "run: |" in step else ""
+            self.assertNotIn("${{", script, step.splitlines()[0])
+
+    def test_checkouts_do_not_persist_credentials(self) -> None:
+        for step in self.steps():
+            if "actions/checkout" in step:
+                self.assertIn("persist-credentials: false", step)
+
+
+class OutputTest(unittest.TestCase):
+    """The printed report cannot act as workflow commands."""
+
+    def test_report_is_wrapped_in_stop_commands(self) -> None:
+        import contextlib
+        import io
+        from unittest import mock
+
+        out = io.StringIO()
+        with mock.patch.object(ci_gate, "run_gate", return_value=(True, ["::error::injected name"])), \
+                contextlib.redirect_stdout(out), mock.patch.dict("os.environ", {}, clear=False):
+            ci_gate.main(["--repo", "o/r", "--pr", "1"])
+        lines = out.getvalue().splitlines()
+        self.assertTrue(lines[0].startswith("::stop-commands::"))
+        token = lines[0].split("::")[2]
+        self.assertEqual(lines[-1], f"::{token}::")
+        self.assertIn("::error::injected name", lines[1:-1])
+
+
 class FakeGitHub:
     """An in-memory stand-in for GitHub, for end-to-end gate simulations."""
 
