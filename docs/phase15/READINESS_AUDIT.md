@@ -2244,3 +2244,80 @@ signed off.
   - GitHub's validator reports **0 errors on the branch, 93 on `main`**.
   - All 59 patterns are unchanged, and `@123Anujyadav` is an admin collaborator, so every entry now resolves to a valid owner.
   - It invents no team names and enables no enforcement: `require_code_owner_review` stays false.
+
+### 10.18 Thirteenth round: #39 update not applicable, #30 CI option, T2 as a separate decision (2026-10-18) [V]
+
+No merge was authorized or made, no setting was changed, and **no PR branch was
+pushed this round**. `main` is still `3e38aa5`. The ruleset is unchanged. No PR
+has a review or comment. All checks on all 11 open PR heads have finished. The
+only failures are the baseline golangci-lint jobs; nothing new.
+
+#### 10.18.1 D8 nightly: still pending
+
+As of 2026-10-18T16:18Z, **no scheduled `hardening` run exists on `3e38aa5`**.
+The latest is 39108532041 on `63a80a2`. Nothing was substituted. D8 is
+provisionally accepted and not signed off.
+
+#### 10.18.2 #39: "merge `main` and resolve" does not apply yet
+
+- `git merge --no-ff origin/main` in #39's worktree gives **"Already up to date"**. #39 is based on the current `main` (`3e38aa5`), and `main` does not contain #38. **There is no conflict with `main` to resolve; nothing was pushed.**
+- **The conflict exists only between #38 and #39.** I simulated the orders with throwaway commits, never pushed:
+
+| Scenario | Result |
+|---|---|
+| #38 squash-merged, then `main` merged into #39 as-is | conflict |
+| #38 squash-merged, then `main` merged into #39 **with #38's brace cleanup pre-applied** | conflict |
+| #39 (with the cleanup) squash-merged first, then #38 | conflict |
+
+- **Why:** squash merges give git no shared ancestry for #38's change, so the two edits to the function always overlap.
+- **Conclusion:** pre-applying the cleanup in #39 would only duplicate #38 and **would not avoid the conflict**. The tested resolution (§10.17.3) is applied when the second of the two is updated with a `main` that already contains the first.
+
+#### 10.18.3 #30: smallest safe way to run its real-PostgreSQL tests in CI (proposal; not implemented)
+
+**Existing convention [V]:** `gateway-postgres.yml` with `tools/scripts/gateway-postgres-tests.sh`.
+- One pinned `postgres:17.2-alpine` image, by digest.
+- A container bound to `127.0.0.1` on a random port, with a **random one-off password generated in the job** (`::add-mask::`), removed on exit.
+- **No CI secret and no external endpoint.** A **skipped test fails the job**.
+- The test DSN reaches `go test` through the environment only.
+
+**Smallest option:**
+- A new `tools/scripts/evalstore-postgres-tests.sh`, a copy of the gateway script with two differences:
+  - the module is `packages/go/evalstore`;
+  - the variable is `AEGIS_EVALSTORE_DSN`.
+- A new `.github/workflows/evalstore-postgres.yml`, path-filtered to `packages/go/evalstore/**` plus its own two files.
+- It is **not** a required check (the ruleset is unchanged).
+- The existing D8 files (`gateway-postgres.yml` and its script) are **not** edited.
+
+**Why it fits:**
+- The evalstore suite already takes its DSN from `AEGIS_EVALSTORE_DSN`, and skips without it.
+- Locally against a throwaway container it ran 81/0/0 with **0 skips** under `-race -count=3 -shuffle=on`, so the skip-fails rule would hold.
+
+**Not done:** it is a CI change, and it needs the owner's go-ahead. Alternatives considered and **not** recommended:
+- generalizing the gateway script, because that edits D8 evidence files;
+- a `services:` container in `pr-go.yml`, because it changes `pr-go`.
+
+#### 10.18.4 #37 and #40: both review-ready (unchanged heads `0bc2e4e`, `79acec6`)
+
+- **#37:**
+  - test-only;
+  - original assertions kept;
+  - catches a missing release, a missing reconnect and an overlap;
+  - CI real-PostgreSQL 127/0/0.
+- **#40:**
+  - the sampler stops in `t.Cleanup` on every exit path and still reports overlaps;
+  - the regression test needs no database and does not skip;
+  - CI real-PostgreSQL **129/0/0** (127 plus the new test and its subtest).
+- Together (local, never pushed): 215/215, 0 skips, 0 overlaps.
+- **Only #37 plus #40 together stop the sampler on every exit.** #37 alone keeps the pre-existing leak.
+- The fence flake stays **open and not accepted**.
+
+#### 10.18.5 T2: a separate coverage decision; T1 unchanged
+
+- T1 (#37) proves the **standby** takes over when the old owner cannot reconnect.
+- The path where the **old owner reconnects and wins the lock back** is safe by design (lock exclusivity plus the grace), but **no test asserts it**.
+- **T2, if wanted:** a **new, separate** test that leaves the old owner's database reachable.
+  - It asserts that after the kill **exactly one** fence owns within 10 s.
+  - It asserts that the sampler sees **no instant with two owners**.
+  - It asserts that the old owner fails closed within the bound.
+- It would **add** coverage. It would not replace or weaken T1.
+- **Owner decision:** whether to add it.
