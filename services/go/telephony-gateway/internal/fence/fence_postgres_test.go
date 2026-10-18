@@ -146,9 +146,10 @@ func TestSampler_StopsWhenItsTestEndsEarly(t *testing.T) {
 		t.Fatal(err)
 	}
 	var s *sampler
-	t.Run("ends early", func(t *testing.T) {
+	t.Run("ends without finish", func(t *testing.T) {
+		// Returning without finish is what a t.Fatal before it amounts to.
+		// Not t.SkipNow: the gateway-postgres job fails on any skip.
 		s = sample(t, f, f)
-		t.SkipNow() // leaves the subtest the way a t.Fatal would, without finish
 	})
 	select {
 	case <-s.done:
