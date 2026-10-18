@@ -82,10 +82,25 @@ type sampler struct {
 	samples  atomic.Int64
 	stop     chan struct{}
 	done     chan struct{}
+	halted   sync.Once
+	finished atomic.Bool
 }
 
-func sample(fences ...*Fence) *sampler {
+// sample starts the overlap sampler. It is also stopped when t ends, so a test
+// that fails before calling finish (a timed-out waitFor is a t.Fatal) does not
+// leave it polling for the rest of the test binary; any overlap it saw is
+// still reported then.
+func sample(t *testing.T, fences ...*Fence) *sampler {
+	t.Helper()
 	s := &sampler{stop: make(chan struct{}), done: make(chan struct{})}
+	t.Cleanup(func() {
+		s.halt()
+		if !s.finished.Load() {
+			if n := s.overlaps.Load(); n != 0 {
+				t.Errorf("OVERLAP: two fences claimed ownership at %d of %d samples", n, s.samples.Load())
+			}
+		}
+	})
 	go func() {
 		defer close(s.done)
 		for {
@@ -110,14 +125,44 @@ func sample(fences ...*Fence) *sampler {
 	return s
 }
 
+// halt stops the sampler and waits for it; it is safe to call more than once.
+func (s *sampler) halt() {
+	s.halted.Do(func() { close(s.stop) })
+	<-s.done
+}
+
 func (s *sampler) finish(t *testing.T) {
 	t.Helper()
-	close(s.stop)
-	<-s.done
+	s.finished.Store(true)
+	s.halt()
 	if n := s.overlaps.Load(); n != 0 {
 		t.Errorf("OVERLAP: two fences claimed ownership at %d of %d samples", n, s.samples.Load())
 	}
 	t.Logf("no overlap in %d samples", s.samples.Load())
+}
+
+// The sampler must not outlive a test that ends before finish. It needs no
+// database: the fence is never run, so it never owns.
+func TestSampler_StopsWhenItsTestEndsEarly(t *testing.T) {
+	c := testCfg
+	c.LockKey = uniqueKey()
+	f, err := New(c, func(context.Context) (Session, error) { return nil, errors.New("test: no database") },
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s *sampler
+	t.Run("ends without finish", func(t *testing.T) {
+		// Returning without finish is what a t.Fatal before it amounts to.
+		// Not t.SkipNow: the gateway-postgres job fails on any skip.
+		s = sample(t, f, f)
+	})
+	select {
+	case <-s.done:
+	case <-time.After(time.Second):
+		s.halt()
+		t.Fatal("the sampler was still running after its test ended")
+	}
 }
 
 func waitFor(t *testing.T, within time.Duration, what string, cond func() bool) time.Duration {
@@ -169,7 +214,7 @@ func TestPostgresFence_ExactlyOneOwner(t *testing.T) {
 	dsn := testDSN(t)
 	key := uniqueKey()
 	a, b := startFence(t, connCfg(t, dsn), key), startFence(t, connCfg(t, dsn), key)
-	s := sample(a, b)
+	s := sample(t, a, b)
 	waitFor(t, 10*time.Second, "an owner", func() bool { return a.Owned() || b.Owned() })
 	time.Sleep(time.Second)
 	s.finish(t)
@@ -252,7 +297,7 @@ func TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap(t *testing
 	}, key)
 	waitFor(t, 10*time.Second, "a to own", a.Owned)
 	b := startFence(t, connCfg(t, dsn), key)
-	s := sample(a, b)
+	s := sample(t, a, b)
 	adm := admin(t, dsn)
 	pid, ok := holderPID(t, adm, key)
 	if !ok {
@@ -371,7 +416,7 @@ func TestPostgresFence_APartitionedOwnerSelfFencesAndNobodyOwnsUntilTheServerRel
 	a := startFence(t, viaProxy(t, dsn, p), key)
 	waitFor(t, 10*time.Second, "a to own", a.Owned)
 	b := startFence(t, connCfg(t, dsn), key)
-	s := sample(a, b)
+	s := sample(t, a, b)
 
 	p.blackhole.Store(true)
 	lost := waitFor(t, 5*time.Second, "a to self-fence", func() bool { return !a.Owned() })
@@ -405,7 +450,7 @@ func TestPostgresFence_AServerReleaseDuringAPartitionStillNeverOverlaps(t *testi
 	if !ok {
 		t.Fatal("no holder")
 	}
-	s := sample(a, b)
+	s := sample(t, a, b)
 	p.blackhole.Store(true)
 	terminate(t, adm, pid) // the server releases immediately; a cannot know
 	waitFor(t, 10*time.Second, "b to own", b.Owned)
@@ -421,7 +466,7 @@ func TestPostgresFence_ShutdownHandsOver(t *testing.T) {
 	a := startFence(t, connCfg(t, dsn), key)
 	waitFor(t, 10*time.Second, "a to own", a.Owned)
 	b := startFence(t, connCfg(t, dsn), key)
-	s := sample(a, b)
+	s := sample(t, a, b)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := a.Shutdown(ctx); err != nil {
