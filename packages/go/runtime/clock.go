@@ -329,7 +329,8 @@ type fakeTimer struct {
 // advanced past its deadline.
 func (t *fakeTimer) C() <-chan time.Time { return t.waiter.ch }
 
-// Stop stops the timer, reporting whether it had not already been stopped.
+// Stop stops the timer, reporting whether it was still pending: false if it
+// had already fired or been stopped, as with time.Timer.Stop.
 func (t *fakeTimer) Stop() bool {
 	t.clock.mu.Lock()
 	defer t.clock.mu.Unlock()
@@ -339,7 +340,8 @@ func (t *fakeTimer) Stop() bool {
 }
 
 // Reset re-arms the timer to fire d after the fake clock's current time,
-// reporting whether it had not already been stopped.
+// reporting whether it was still pending: false if it had already fired or
+// been stopped, as with time.Timer.Reset.
 func (t *fakeTimer) Reset(d time.Duration) bool {
 	t.clock.mu.Lock()
 	defer t.clock.mu.Unlock()
