@@ -204,11 +204,11 @@ func (s *Service) Run(ctx context.Context) error {
 		}
 	}
 
-	return s.shutdown(runners, healthSrv, cause)
+	return s.shutdown(ctx, runners, healthSrv, cause)
 }
 
 // shutdown performs the ordered teardown described on Run.
-func (s *Service) shutdown(runners []Runner, healthSrv *http.Server, cause error) error {
+func (s *Service) shutdown(ctx context.Context, runners []Runner, healthSrv *http.Server, cause error) error {
 	// Step 2: begin failing readiness before anything else.
 	s.health.MarkShuttingDown()
 	s.log.Info("readiness disabled, draining")
@@ -222,7 +222,12 @@ func (s *Service) shutdown(runners []Runner, healthSrv *http.Server, cause error
 	}
 	time.Sleep(drainDelay)
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownTimeout)
+	// The teardown budget must not inherit Run's cancellation: by the time this
+	// runs, ctx has usually been cancelled by the very signal that started the
+	// shutdown, and a cancelled context would abort every runner's graceful stop.
+	// WithoutCancel drops the cancellation and any deadline but keeps the
+	// context's values, and the budget below is the only bound on teardown.
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cfg.ShutdownTimeout)
 	defer cancel()
 
 	// Step 5: tear down runners in reverse registration order.
