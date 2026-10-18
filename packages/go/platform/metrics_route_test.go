@@ -34,7 +34,7 @@ func TestHealthMux_ServesMetricsWhenHandlerIsSet(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	svc.newHealthServer().Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	svc.newHealthServer().Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody))
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
@@ -62,7 +62,7 @@ func TestHealthMux_MetricsSharesTheHealthListener(t *testing.T) {
 
 	for _, path := range []string{"/healthz", "/metrics"} {
 		rec := httptest.NewRecorder()
-		srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, http.NoBody))
 		if rec.Code == http.StatusNotFound {
 			t.Errorf("%s returned 404 from the health mux", path)
 		}
@@ -77,13 +77,13 @@ func TestHealthMux_WithoutMetricsHandlerProbesStillWork(t *testing.T) {
 	srv := testService(t).newHealthServer()
 
 	rec := httptest.NewRecorder()
-	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody))
 	if rec.Code != http.StatusOK {
 		t.Errorf("/healthz status = %d, want 200", rec.Code)
 	}
 
 	rec = httptest.NewRecorder()
-	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody))
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("/metrics status = %d with no handler set, want 404", rec.Code)
 	}
@@ -108,14 +108,14 @@ func TestHealthMux_MetricsHandlerPanicDoesNotAffectProbes(t *testing.T) {
 			}
 		}()
 		rec := httptest.NewRecorder()
-		srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+		srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody))
 		if rec.Code != http.StatusInternalServerError {
 			t.Errorf("panicking exporter returned %d, want 500", rec.Code)
 		}
 	}()
 
 	rec := httptest.NewRecorder()
-	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody))
 	if rec.Code != http.StatusOK {
 		t.Errorf("/healthz status = %d after a metrics panic, want 200", rec.Code)
 	}
@@ -130,7 +130,7 @@ func TestSetMetricsHandler_NilIsIgnored(t *testing.T) {
 	svc.SetMetricsHandler(nil)
 
 	rec := httptest.NewRecorder()
-	svc.newHealthServer().Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	svc.newHealthServer().Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody))
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d after SetMetricsHandler(nil), want 404", rec.Code)
 	}

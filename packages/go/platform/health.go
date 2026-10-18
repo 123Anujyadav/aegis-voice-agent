@@ -136,13 +136,14 @@ func NewHealth(cfg ServiceConfig) *Health {
 
 // Register adds a dependency check that runs as part of readiness evaluation.
 //
-// critical determines the consequence of failure: a critical dependency failing
-// makes the service unhealthy and removes it from load balancing, whereas a
-// non-critical failure reports degraded and keeps traffic flowing.
+// The critical flag determines the consequence of failure: a critical
+// dependency failing makes the service unhealthy and removes it from load
+// balancing, whereas a non-critical failure reports degraded and keeps traffic
+// flowing.
 //
-// timeout bounds the individual check. It must be comfortably shorter than the
-// orchestrator's probe timeout, or a slow check produces a probe timeout whose
-// cause is invisible in the response body.
+// The timeout bounds the individual check. It must be comfortably shorter than
+// the orchestrator's probe timeout, or a slow check produces a probe timeout
+// whose cause is invisible in the response body.
 func (h *Health) Register(c Checker, critical bool, timeout time.Duration) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
