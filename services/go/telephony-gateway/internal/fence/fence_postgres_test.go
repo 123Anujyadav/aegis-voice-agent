@@ -2,6 +2,7 @@ package fence
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -54,9 +55,15 @@ func connCfg(t *testing.T, dsn string) *pgx.ConnConfig {
 
 func startFence(t *testing.T, cc *pgx.ConnConfig, key int64) *Fence {
 	t.Helper()
+	return startFenceWith(t, PgxDialer(cc), key)
+}
+
+// startFenceWith is startFence with the test supplying the dialer.
+func startFenceWith(t *testing.T, dial Dialer, key int64) *Fence {
+	t.Helper()
 	c := testCfg
 	c.LockKey = key
-	f, err := New(c, PgxDialer(cc), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	f, err := New(c, dial, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,13 +221,35 @@ func TestPostgresFence_APooledConnectionDoesNotCarryTheLock(t *testing.T) {
 	}
 }
 
+// errOwnerCutOff is what the old owner's dialer returns once the test has cut
+// it off from the database.
+var errOwnerCutOff = errors.New("test: the old owner is cut off from the database")
+
 // The owner's database session is killed server-side: the owner fails closed
 // at its next confirmation, and the standby becomes owner only after the
 // grace. No instant with two owners.
+//
+// The old owner is cut off from the database just before its session is
+// killed: its live session is untouched, but every reconnect is refused. If it
+// could reconnect, its next attempt would race the standby's for the freed
+// lock, and either could win; both outcomes are safe, but then the handover
+// to the standby that this test asserts would depend on timing (a CI failure
+// on 63a80a2 timed out waiting for b to own). So the test removes the race,
+// not the assertion, and it waits for a refused reconnect to show that the old
+// owner did try.
 func TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap(t *testing.T) {
 	dsn := testDSN(t)
 	key := uniqueKey()
-	a := startFence(t, connCfg(t, dsn), key)
+	var cutOff atomic.Bool
+	var refused atomic.Int32
+	toDB := PgxDialer(connCfg(t, dsn))
+	a := startFenceWith(t, func(ctx context.Context) (Session, error) {
+		if cutOff.Load() {
+			refused.Add(1)
+			return nil, errOwnerCutOff
+		}
+		return toDB(ctx)
+	}, key)
 	waitFor(t, 10*time.Second, "a to own", a.Owned)
 	b := startFence(t, connCfg(t, dsn), key)
 	s := sample(a, b)
@@ -229,8 +258,10 @@ func TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap(t *testing
 	if !ok {
 		t.Fatal("no holder found")
 	}
+	cutOff.Store(true)
 	terminate(t, adm, pid)
 	lost := waitFor(t, 5*time.Second, "a to lose ownership", func() bool { return !a.Owned() })
+	waitFor(t, 5*time.Second, "a to attempt a reconnect", func() bool { return refused.Load() > 0 })
 	took := waitFor(t, 10*time.Second, "b to own", b.Owned)
 	s.finish(t)
 	t.Logf("a lost ownership %s after its session was killed; b owner %s later (validity %s)", lost, took, testCfg.Validity())
