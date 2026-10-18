@@ -15,7 +15,7 @@
 - **[U] unavailable:** the evidence does not exist in the repository, or could
   not be obtained.
 
-**Status: AUDIT COMPLETE.** Eleven PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28), including the D8 CI items and the `ci-gate` aggregate check (§10). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open, review-ready, not authorized for merge: #25, #27 (this record), #29, #30, #31 and #32 (§10.8.6).
+**Status: AUDIT COMPLETE.** Fourteen PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28, #32, #31, #29), including the D8 CI items and the `ci-gate` aggregate check (§10, §10.9). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open, review-ready, not authorized for merge: #25, #27 (this record), #30 and #33 (§10.9.8).
 
 | PR | Change | State |
 |---|---|---|
@@ -30,10 +30,11 @@
 | #25 | Outbox: doc comments, and `MarkFailed` failures reported (12 → 0) | **open** at `dfd6e57`; not authorized for merge (§10.7) |
 | #26 | `ci-gate`: an always-running aggregate check | **merged** as `806e75c`. The security-fix head was `6900db2`; the earlier heads `d8544ec` and `ec6fd57` had reproduced bypasses (§10.6, §10.7). |
 | #28 | Lint: platform (16 → 1) | **merged** as `63a80a2` (§10.7) |
-| #29 | `gateway-postgres`: print each failing test's complete output | **open** at `e98b134`; review-ready (§10.8.6) |
+| #29 | `gateway-postgres`: print each failing test's complete output | **merged** as `3e38aa5` (§10.9) |
 | #30 | `evalstore` `store_test.go` lint (27 → 11) | **open** at `ef34dce`; review-ready (§10.8.3) |
-| #31 | Fence freshness test race (deterministically reproduced) | **open** at `547e4c8`; review-ready (§10.8.1) |
-| #32 | `ci-gate` waits for jobs still running in a "completed" run | **open** at `0fb044d`; review-ready (§10.8.2) |
+| #31 | Fence freshness test race (deterministically reproduced) | **merged** as `9184071` (§10.9) |
+| #32 | `ci-gate` waits for jobs still running in a "completed" run | **merged** as `daed070` (§10.9) |
+| #33 | `runtime` docs and test shadows (42 → 25) | **open** at `c8c3ed8`; review-ready (§10.9.8) |
 
 - **Lint:** the repository is **not lint-clean**. 22 golangci-lint jobs fail,
   with 983 findings (§4).
@@ -784,10 +785,10 @@ primary worktree. It was not restored.
 
 ## 8. Next actions
 
-1. **Owner:** answer the D8 decision request (§10.8.5), after the first scheduled
-   hardening run on current `main`.
-2. **Owner:** review #25, #29, #30, #31 and #32 (§10.8.6). Decide the outbox
-   `FAILED`-entry policy (§10.7.4).
+1. **Owner:** answer the D8 decision request (§10.8.5). The scheduled run and the
+   fresh Go 1.25.14 run (§10.9.3) are both green.
+2. **Owner:** review #25, #30 and #33. Decide the outbox `FAILED`-entry policy
+   (§10.9.7) and the lint-policy items (§10.9.5).
 3. **Owner:** decide H-12, the unpublished work (§9).
 4. **Admin:** branch protection and review rules; the exact configuration is in §10.8.4.
 5. **Owner:** answer H-6 (F-4), H-4 (D11) and H-5 (`prod-global`).
@@ -1395,3 +1396,222 @@ untested".
 - the 39 untracked telephony documents' hashes unchanged;
 - all pre-existing worktrees unchanged;
 - the 3 `preserve/*` branches kept.
+
+### 10.9 Fifth round: three authorized merges, fresh Go 1.25 evidence (2026-10-18) [V]
+
+The owner authorized #29, #31 and #32 conditionally. Each was independently
+reviewed, merged at its reviewed head with `--match-head-commit`, and followed
+by a check of `main`'s CI.
+
+#### 10.9.1 Merges
+
+| PR | Head | Merge commit | CI on `main` |
+|---|---|---|---|
+| #32 | `0fb044d` | `daed070` | Backend Foundation 39120500615 pass; hardening 39120500621 6/6 pass |
+| #31 | `547e4c8` | `9184071` | `gateway-postgres` 39121153050 pass (first attempt); Backend Foundation 39121152967 pass; hardening 39121152938 6/6 pass; pr-go 39121152951: 116 pass, 21 lint fail (baseline) |
+| #29 | `e98b134` | `3e38aa5` | `gateway-postgres` 39121884792 pass (127/0/0, with the new output format); Backend Foundation 39121884784 pass; hardening 39121884775 **failed on attempt 1** (a `speech` flake, §10.9.4) and **passed on attempt 2** (6/6) |
+
+**Phase 15 merges, from the merge records (14):**
+
+| PR | Merge commit |
+|---|---|
+| #17 | `731934b` |
+| #18 | `a51504a` |
+| #19 | `d443bea` |
+| #20 | `9ec0ff6` |
+| #22 | `fce4e22` |
+| #8 | `7b59d25` |
+| #21 | `1e3b40d` |
+| #23 | `1736d7f` |
+| #24 | `5f062bb` |
+| #26 | `806e75c` |
+| #28 | `63a80a2` |
+| #32 | `daed070` |
+| #31 | `9184071` |
+| #29 | `3e38aa5` |
+
+#### 10.9.2 Review findings behind the merges
+
+- **#32:**
+  - **Behaviour:** a completed, non-successful run with any job not
+    `completed` (or with no status) is treated as still running, and the
+    existing timeout bounds the wait.
+  - **Evidence:** 56 tests; removing the check fails 3; an API error gives
+    `gate error (failing closed) … ci-gate: FAIL`, exit 1; #32's own gate run
+    read its filters from `trusted/`, and the PR's tests ran afterwards.
+  - **Residual:** a job stuck for the whole 110 minutes would re-read the job
+    list on every poll, about 660 API calls, near the per-repository token
+    limit. A limit error fails closed.
+- **#31:**
+  - **The fix:** test-only, with the assertions unchanged and an explicit 5 s
+    failure path.
+  - **The three tests that share the ordering pattern**
+    (`TestCredentialDialer_ReacquisitionAfterALossUsesANewCredential`,
+    `TestFence_AFailedConfirmationFailsClosed`,
+    `TestFence_ALockReportedMissingFailsClosed`) were probed with the same
+    injected delays (second confirmation 200 ms late, poll 50 ms late): **10/10
+    PASS each**.
+  - **Why they are not vulnerable:** they wait only for "ownership to end",
+    which a loss satisfies whichever confirmation triggers it. They are left
+    unchanged.
+- **#29:**
+  - **A new negative control:** a scratch-copy test that prints
+    `CS_TELEPHONY_GATEWAY_FENCE_TEST_DSN`. The script exits 1 with "password
+    appeared … output withheld", and no `postgres://` appears anywhere in its
+    output.
+  - **The script's step environment:** only `CGO_ENABLED` and `GO_TEST_FLAGS`;
+    no `secrets.*` and no token.
+
+#### 10.9.3 D8: fresh Go 1.25 evidence (separate from the historical run)
+
+- **The run:** **39121942603** (`event=push`, branch `ci/d8-go125-compat` at
+  `1ee9fd8` = `main` `3e38aa5` plus one branch-only workflow,
+  `d8-go125-compat.yml`). It is the only workflow that ran there.
+  - asserted `go version go1.25.14 linux/amd64`;
+  - `packages/go/platform` and all 4 gateway packages: `go vet` and
+    `go test -race -count=1` pass;
+  - the real-PostgreSQL suite (the throwaway-container script) under `-race` on
+    go1.25.14: **127 pass, 0 fail, 0 skip**.
+- **What changed:** no workflow on `main`, no `go` directive and no toolchain
+  policy. The branch is evidence only and is not for merging.
+- **Separate items:**
+  - **historical:** 38774455177 (go1.25.14, `89564e5`), before #28;
+  - **fresh:** 39121942603 (go1.25.14, `3e38aa5`), which covers #28's `platform`
+    changes;
+  - **current CI:** Go 1.26.9 (pr-go 39121152951; hardening);
+  - **scheduled nightly:** 39108532041.
+
+#### 10.9.4 New flake: `speech` `TestTTS_DoubleSpeakIsRefused` (not fixed; blocked)
+
+- **Failure:** hardening 39121884775 attempt 1, repeated race, seed
+  `1792321655586389695`: `integration_test.go:599: a second synthesis stream
+  was opened concurrently`.
+- **Reproduction:** attempt 2 passed; replaying the seed 3× passed; 500
+  isolated runs passed.
+- **Test race (established by reading the code):** the test checks
+  `o.Speaking()`, then calls `Speak` again. If the first synthesis ends in
+  between, `Speak` correctly accepts the second call, and the test reports a
+  false "concurrent" stream.
+- **Possible production race (not reproduced; recorded only):**
+  `TTSOrchestrator.Speak` checks `o.speaking` under the lock, **releases** it,
+  opens the provider stream, and only then sets `speaking = true`. So two
+  *concurrent* `Speak` calls could both pass the check.
+- **Blocked:**
+  - `speech` is documented as **frozen**
+    (`docs/audio-intelligence/AUDIO_INTELLIGENCE_ARCHITECTURE.md:111`);
+  - the owner's uncommitted work modifies `speech/tts.go`,
+    `integration_test.go` and `session_test.go`. That copy is older than
+    `main`: it lacks #13's `retire`.
+- **Recommended:**
+  - **the test:** hold synthesis live with the fake provider's `StallFor`
+    instead of check-then-act;
+  - **the possible concurrent-`Speak` race:** an owner decision under the freeze.
+
+#### 10.9.5 Lint-policy items (decisions; not implemented)
+
+- **`audiointel` (83 godot):**
+  - **The policy:** `.golangci.yml` sets `godot: scope: declarations, capital:
+    true`.
+  - **Precedent:** #19 and #28 satisfied it by rewording "x does…" to "The x
+    does…".
+  - **The tension:** in `audiointel`, most findings are Go-convention doc
+    comments on unexported identifiers (`defaultFrameInterval matches…`).
+  - **Recommendation:** keep `capital: true` and reword, following #19 and #28,
+    in one file-scoped PR at a time (`defaults.go` has 51), **or** consciously
+    relax the rule. Either is the owner's call.
+- **`platform` `writeJSON`:**
+  - **The analysis:** the payloads are fixed structs, so encoding cannot fail
+    in practice. The real failure is the write to a disconnected client, after
+    the status line is sent, so it cannot be reported to that client.
+  - **Why it needs a decision:** `Health` has no logger, and errcheck uses
+    `check-blank: true`.
+  - **Honest options:** (a) inject a logger into `Health` and log the write
+    error; (b) a per-line `//nolint:errcheck` citing the existing comment. Both
+    need the owner.
+- **`SqlUnitOfWork`; `integrations` `ApiKey`/`AuthId`:** blocked on the owner's
+  uncommitted `persistence` work and on a naming decision (§10.7.7).
+
+**Baseline [V]:** pr-go 39121152951 on `9184071` (`3e38aa5` touched no Go
+code): 21 jobs, **933** findings. The open lint PRs, if merged:
+
+| PR | Findings removed |
+|---|---|
+| #25 | 12 |
+| #30 | 16 |
+| #33 | 17 |
+
+That would leave 20 jobs and 888 findings.
+
+#### 10.9.6 Precise protection proposal (not applied)
+
+- **Branch protection:** as §10.8.4: PRs required; `ci-gate` and
+  `Build & Test Backend Foundation` required (GitHub Actions app 15368); strict;
+  `enforce_admins`; no force-push or deletion; 0 approvals; conversation
+  resolution.
+- **CODEOWNERS change, proposed:**
+
+  ```diff
+  -/.github/                           @callscreen/platform
+  -/.github/workflows/                 @callscreen/platform @callscreen/security
+  -/.github/CODEOWNERS                 @callscreen/architecture
+  +/.github/                           @123Anujyadav
+  +/.github/workflows/                 @123Anujyadav
+  +/.github/CODEOWNERS                 @123Anujyadav
+  +/tools/ci/                          @123Anujyadav
+  ```
+
+  - The `@callscreen/*` teams do not exist; the repository is user-owned with
+    one collaborator.
+  - Turn on "require review from code owners" only once a second reviewer
+    exists. A PR's author cannot approve it.
+
+#### 10.9.7 ADR-0009 decision packet: outbox entries in `FAILED`
+
+**Facts [V]:**
+- `PostgresOutboxStore.MarkFailed` sets `status='FAILED'`,
+  `retry_count = retry_count + 1` and `error_message`.
+- `FetchPending` reads `status='PENDING'` only.
+- Nothing reads `retry_count` or requeues a `FAILED` entry.
+- `ProcessBatch` has no callers on `main`.
+- ADR-0009 (`docs/adr/0009-database-and-event-backbone.md:206`) requires
+  dead-letter topics to be monitored.
+- `eventbus.Topic.DeadLetterTopic()` exists, and the outbox does not use it.
+
+**Decisions required:**
+
+| # | Question | Options |
+|---|---|---|
+| 1 | Retry? | (a) never: `FAILED` is terminal; (b) retry by moving `FAILED` back to `PENDING` |
+| 2 | Attempts and backoff | a maximum attempts N, with backoff by `retry_count` (exponential or fixed) and jitter; needs a "next attempt at" column or a computed filter |
+| 3 | Exhaustion | publish the entry to `topic.DeadLetterTopic()` with its error and attempt count, then mark it terminal |
+| 4 | Monitoring | alerts on the count and age of `FAILED` entries and on DLQ depth per topic (ADR-0009 §"Dead-letter topics must be monitored") |
+| 5 | `retry_count` | define it as attempts made, the input to (2) and (3), or drop it |
+
+**Consequences:**
+- **(1a)** needs only monitoring.
+- **(1b)** with 2–5 needs a schema change (a next-attempt timestamp), a DLQ
+  producer and tests. It changes delivery semantics (duplicates are bounded by
+  N) and is an architecture change.
+
+**Nothing is implemented. #25 only reports `MarkFailed` failures.**
+
+#### 10.9.8 Ledger changes
+
+| Task | SHA | Status |
+|---|---|---|
+| #32 | merge `daed070` | complete |
+| #31 | merge `9184071` | complete |
+| #29 | merge `3e38aa5` | complete |
+| #25 | `dfd6e57` | review-ready; not authorized; ADR packet §10.9.7 |
+| #27 | this PR | review-ready; not authorized |
+| #30 | `ef34dce` | review-ready; not authorized |
+| #33 | `c8c3ed8` | review-ready; not authorized |
+| D8 | — | blocked on the owner: Go 1.25 ruling and sign-off (§10.8.5; fresh run §10.9.3) |
+| `speech` flake | — | blocked: frozen module, owner overlap (§10.9.4) |
+| Fence PostgreSQL flake (`…ATerminatedOwner…`) | — | open; #29 now prints full output; no recurrence yet |
+
+**Preservation, checked throughout:**
+- primary worktree 415 entries, hash `d4fb9c4206dc2168`;
+- `infra/k8s/base/deployment.yaml` still ` D`;
+- 39 untracked telephony documents unchanged;
+- pre-existing worktrees and `preserve/*` branches unchanged.
