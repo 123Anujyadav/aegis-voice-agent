@@ -15,7 +15,7 @@
 - **[U] unavailable:** the evidence does not exist in the repository, or could
   not be obtained.
 
-**Status: AUDIT COMPLETE.** Seven PRs are merged in Phase 15, including the D8 CI items (§10). **D8 is not closed:** one criterion and the owner sign-off remain (§10.2). Three PRs are open for review: #24, #25 and #26.
+**Status: AUDIT COMPLETE.** Nine PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24), including the D8 CI items (§10). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open for review: #25, #26 (revised after review) and #28.
 
 | PR | Change | State |
 |---|---|---|
@@ -26,9 +26,10 @@
 | #22 | Voice tests: two ports reserved together (the flake that turned hardening red once on `a51504a`) | **merged** as `fce4e22` |
 | #8 (owner's) | Gateway in the repeated race job, with a fence-test flake fix | **merged** as `7b59d25` (refreshed head `a44a41d`) |
 | #20, #23 | This audit and its follow-up | **merged** as `9ec0ff6`, `1736d7f` |
-| #24 | Lint: media-relay (35 → 0) | **open**, needs review |
+| #24 | Lint: media-relay (35 → 0) | **merged** as `5f062bb` |
 | #25 | Lint: outbox doc comments (12 → 1) | **open**, needs review |
-| #26 | `ci-gate`: an always-running aggregate check | **open**, needs review |
+| #26 | `ci-gate`: an always-running aggregate check | **open**: revised to `ec6fd57` after review found two defects (§10.6); needs re-authorization |
+| #28 | Lint: platform comments and test requests (16 → 4) | **open**, needs review |
 
 - **Lint:** the repository is **not lint-clean**. 22 golangci-lint jobs fail,
   with 983 findings (§4).
@@ -190,7 +191,7 @@ locally.
 | Lint for the gateway | **met** | `golangci-lint (services/go/telephony-gateway)` passes |
 | Real-PG suites in CI | **met:** #21 merged | `gateway-postgres` 39094929971 on `main` `1e3b40d`: 127 pass, 0 fail, 0 skip |
 | Gateway in the repeated race job | **met:** #8 merged | hardening 39094284808 on `main` `7b59d25`: 18 repeated-race logs, including the gateway (4 packages `ok`) |
-| Go 1.25 | **superseded by policy** | CI builds with 1.26.x since #12 (stdlib vulnerabilities unfixed on 1.25); `go 1.25.0` remains the minimum directive. Whether to test that minimum is a policy question. |
+| Go 1.25 | **evidenced historically; ongoing testing is an owner decision** | pr-go 38774455177 (2026-10-15, `89564e5`) built and tested the gateway under **go1.25.14** with `-race`: 4 packages `ok`. Gateway and `platform` production code is unchanged since. CI moved to 1.26.x in #12 (§10.2). |
 
 - **PR #21** (`b6b5e7f`, branch `phase15/d8-gateway-postgres-ci`):
   - **What it adds:**
@@ -781,12 +782,13 @@ primary worktree. It was not restored.
 
 1. **Owner:** decide D8's Go 1.25 criterion, then record the D8 sign-off
    (H-1; §10.2).
-2. **Owner:** review #24, #25 and #26. #25 needs the `outbox` `MarkFailed`
-   decision to clear its last finding.
+2. **Owner:** review #25, #26 (`ec6fd57`) and #28. #25 needs the `outbox`
+   `MarkFailed` decision to clear its last finding.
 3. **Owner:** decide H-12, the unpublished work (§9).
 4. **Admin:** branch protection (§3.15). The aggregate check it needs is PR #26 (`ci-gate`).
 5. **Owner:** answer H-6 (F-4), H-4 (D11) and H-5 (`prod-global`).
-6. **Engineering:** continue the P1-3 lint batches in the 22 remaining modules.
+6. **Engineering:** continue the P1-3 lint batches in the 21 remaining modules,
+   only in files with no overlap with the owner's uncommitted work (§10.6).
 7. **External, when authorized:** INFRA-AUTH (A5 → A6 → A7), then the staging
    D10 run; the Exotel Q2 answer.
 
@@ -893,12 +895,12 @@ CI push for `-race` evidence". Its components:
 | Real-PG suites in CI | **yes** | `gateway-postgres` 39094929971 on `main`: 127 pass, 0 fail, **0 skip**. Any skip fails the job. |
 | Gateway in the nightly race | **yes by configuration; no scheduled run observed yet** | `hardening.yml` runs on `schedule: cron "0 3 * * *"` with the same race matrix. The gateway is in its repeated job (`RACE_EXTRA_MODULES`), shown on the push run 39094284808. The first scheduled run after `7b59d25` had not happened at the time of writing. |
 | Lint | **yes, for the gateway** | `golangci-lint (services/go/telephony-gateway)` passes |
-| Go 1.25 | **no** | CI builds with Go 1.26.x since #12, because go1.25 has unfixed stdlib vulnerabilities. The gateway still declares `go 1.25.0` as its minimum, and nothing compiles or tests it with a 1.25 toolchain. Whether to test the minimum, raise it, or drop the criterion is an **owner decision**. |
+| Go 1.25 | **evidenced for the current production code; not re-run since; owner decision** | **Correction:** an earlier version of this row said nothing had compiled or tested the gateway with a 1.25 toolchain. That was wrong. **What the criterion meant:** P1-44 OBS-4/:187, P1-45 §3/:154 and P1-46:116/:137 recorded that local verification used go1.26.5 while CI pinned **1.25.x**, so "Go 1.25 untested" meant *compile and test under CI's 1.25 toolchain*, with the first pr-go run as the expected evidence. **That evidence exists:** pr-go 38774455177 (push of `89564e5`, 2026-10-15) ran `go test -race -count=1` on the gateway with **go1.25.14**, and all 4 packages passed. **Since then:** `git diff 89564e5 main` shows **no gateway or `platform` production-code change**, only two test files (#18, #8); #12 moved CI to 1.26.x because go1.25 has unfixed stdlib vulnerabilities (that same run's govulncheck failed). **Not evidenced on 1.25:** those two test edits, and the real-PG suites, which have only run on 1.26. `go 1.25.0` is the module's declared minimum (the `go` directive in 21 `go.mod` files and `go.work`); no document makes it a runtime-support promise. Whether the criterion counts as met by that run, needs a fresh 1.25 run, or should be restated for 1.26 is the **owner's decision**. It is not decided here, and the minimum is not changed. |
 | Owner approval (D8 is defined as one) | **not recorded** | Authorizing #21 and #8 to merge is not a recorded D8 sign-off. H-1 remains with the owner. |
 
 **D8 is therefore NOT marked complete.** Four technical criteria are met, the
-nightly one has no scheduled run yet, and the Go 1.25 criterion and the
-sign-off remain.
+nightly one has no scheduled run yet, the Go 1.25 criterion has historical
+evidence but needs the owner's ruling, and the sign-off is not recorded.
 
 ### 10.3 Lint PRs (not merged; outside the authorization) [V]
 
@@ -906,15 +908,14 @@ sign-off remain.
 |---|---|
 | `redis` (11 revive) | **not opened.** The owner's uncommitted rewrite of `packages/go/redis/redis.go` (+252/−14) already documents every exported declaration, so a PR from `main` would duplicate it and conflict. |
 | `middleware` (10 revive, 1 errcheck) | **not opened.** The owner's uncommitted rewrite of `middleware.go` (+84/−37) would conflict, and the errcheck (`json.Encoder.Encode`) needs a handling decision. |
-| `outbox` | **#25** (`0849606`): 11 doc comments; 12 → 1 finding. The remaining `_ = p.store.MarkFailed(...)` is a deliberate discard (the entry stays pending and is retried); clearing it changes `ProcessBatch` semantics or suppresses the rule, so it is an **owner decision**. CI: 22 lint jobs fail, the baseline set, with none new. |
+| `outbox` | **#25** (`0849606`): 11 doc comments; 12 → 1 finding. The remaining `_ = p.store.MarkFailed(...)` needs an **owner decision** (analysis in §10.6). CI: 22 lint jobs fail, the baseline set at the time, with none new. |
 | `media-relay` | **#24** (`7739884`): 32 doc comments, 2 test comparisons → `errors.Is`, 1 godot rewording byte-identical to the owner's edit. **35 → 0**, and the job is green in CI (21 lint jobs fail, none new). Found and not fixed (a behaviour change): `RouteFrame`'s gap message reports the wrong "expected" number. |
 | `identity` (38) | **not opened.** The owner's uncommitted rewrite of `identity.go` (+1,527/−70) already makes the `rand.Read` failure fatal and changes the flagged code. `main`'s `generateAccessToken` emits an **unsigned** token (`"Bearer_JWT." + hex(json)`), which the owner's untracked Phase 18 D11 report records as an auth-design blocker. Not decided here. |
 
-**Lint on `main` `1736d7f`:** 22 failing jobs, **983 findings**, unchanged.
-With #24 merged: 21 jobs, 948 findings. With #25 too: 937 findings, still 21
-jobs.
+**Lint on `main` `5f062bb` (after #24) [V]:** 21 failing jobs, **948 findings**,
+counted from the 21 job logs. With #25: 937, still 21 jobs. With #28 too: 925.
 
-### 10.4 Aggregate check: PR #26 (`ci-gate`, `d8544ec`; not merged) [V]
+### 10.4 Aggregate check: PR #26 (`ci-gate`; first version `d8544ec`, see §10.6) [V]
 
 - **Trigger:** every `pull_request`, with no path filter.
 - **What it does:**
@@ -935,3 +936,72 @@ jobs.
     alongside Backend Foundation.
 - **Making it a required check** is the repository admin's decision (§3.15).
   It was not done.
+
+### 10.5 Second authorized round [V]
+
+The owner authorized merging only #24 and #26, at their reviewed heads.
+
+| PR | Head | Result | CI on `main` |
+|---|---|---|---|
+| #24 | `7739884` | **merged** as `5f062bb` | Backend Foundation 39096846419 pass; hardening 39096846456 6/6 pass; pr-go 39096846468: 116 pass, 21 lint fail. The only change from the previous baseline is `golangci-lint (services/go/media-relay)`, now passing. |
+| #26 | `d8544ec` | **not merged.** Review found two defects (§10.6). The fix is a new head, `ec6fd57`, outside the authorization. | — |
+
+### 10.6 Findings from this round [V]
+
+**#26 review, the defects in `d8544ec`:**
+1. **The PR controlled its own verdict.** The job ran `tools/ci/ci_gate.py`,
+   and read the other workflows' path filters, from the PR checkout. A PR could
+   make the gate pass by editing the script, or by narrowing another
+   workflow's `paths`.
+2. **The lint exception could mask new findings.** It was per job, so new
+   findings in a module whose lint job already failed on `main` passed.
+
+**The fix, `ec6fd57`:**
+- **Trusted verdict:** the verdict comes from the gate and filters at the PR's
+  **base** commit. The PR's own copy is only unit-tested, which can fail the
+  job but never pass it. Bootstrap: while the base has no gate, the PR's copy
+  is used, with a warning.
+- **Finding-level lint comparison:** both job logs are compared, counted per
+  (file, linter). A higher count, a new pair, or a failed job with no
+  parseable finding blocks.
+- **Hardening:**
+  - logs are fetched with `gh --allow-escape-sequences`, because gh refuses
+    ANSI output; the codes are stripped;
+  - `gh` calls are retried, then fail closed;
+  - repository and PR number reach the script through `env`.
+- **Evidence:**
+  - 46 unit tests, including end-to-end simulations;
+  - 2 mutation checks, each caught;
+  - the parser reproduces `main`'s counts exactly (948);
+  - live dry runs: #25, #27 and #21 PASS; stale #22 and #9 FAIL, for the right
+    reasons;
+  - the job's own bootstrap run on `ec6fd57`: 46 tests OK, **PASS**.
+- **Residual:** a PR editing `ci-gate.yml` itself is trusted only through
+  review. Requiring review for `.github/**` and `tools/ci/**` is recommended.
+
+**#25, the `outbox` `MarkFailed` discard:**
+- **Correction:** the discard is **not documented** anywhere; "deliberate" was
+  an inference.
+- **When `MarkFailed` succeeds**, the entry becomes `FAILED`.
+  `PostgresOutboxStore.FetchPending` selects only `PENDING`, so the entry is
+  **never retried**, and nothing on `main` requeues it.
+- **Only when `MarkFailed` fails** does the entry stay `PENDING` and get
+  re-published, with the error lost.
+- `ProcessBatch` has no callers on `main`.
+- **Options:**
+  - (A) `errors.Join` the errors into the returned value. This is the smallest
+    fix; it changes the contract.
+  - (B) inject a logger or metric;
+  - (C) a justified `nolint`, which is suppression.
+- **Separate design gap:** there is no retry or dead-letter path for `FAILED`
+  entries.
+- **All of these need an owner decision.** #25's description was corrected,
+  and its code is unchanged.
+
+**The next lint batch:** #28 (`8871a49`), `platform` 16 → 4.
+- **Changes:** 5 godot, and 7 `httpNoBody` in a test.
+- **Left for decisions:** gocyclo ×2, errcheck ×1 and contextcheck ×1.
+- **Overlap:** none; its files equal `main` in the owner's working tree.
+- **Overlap check across all 21 modules:** only `outbox`, `platform`,
+  `memory`, `evalstore`, `governance`, `runtime`, `toolruntime` and
+  `audiointel` have findings solely in files the owner has not modified.
