@@ -2025,3 +2025,65 @@ exposed.**
 
 **Status: OPEN.** It is not an accepted risk (owner, §10.12), and the
 assertions are not changed.
+
+### 10.14 Ninth round: T1 validated (#37), CODEOWNERS (#36), test lint (#38) (2026-10-18) [V]
+
+No merge was authorized or made, and no setting was changed. `main` is
+unchanged at `3e38aa5`. The ruleset was re-verified: 25344547 is active on
+`~DEFAULT_BRANCH`, with the same rules and no bypass actors (§10.13.1).
+
+#### 10.14.1 PRs (all open; none merged)
+
+| PR | Head | Checks [V] | Recommendation |
+|---|---|---|---|
+| #25 | `dfd6e57` (9 commits behind) | 125 pass / 20 fail (baseline lint only); `ci-gate` pass; a test merge with `main` is clean | mergeable after a merge-from-`main` update; ADR-0009 behaviour not implemented |
+| #27 | this branch | `ci-gate` and Backend Foundation pass | keep open |
+| #30 | `ef34dce` (3 behind) | 124 / 21 (baseline); clean test merge | merge recommended. **The real-PostgreSQL tests are local-only; CI does not run them** (§10.13.2). |
+| #33 | `41e1dee` (3 behind) | 124 / 21 (baseline); clean test merge | merge recommended |
+| #34 | `5e0eaf5` | 124 / 21 (baseline) | merge recommended |
+| #35 | `58c26ae` | `ci-gate` and Backend Foundation pass | keep open; the owner decides |
+| **#36** (new) | `23ba802` | `ci-gate` and Backend Foundation pass. GitHub's CODEOWNERS validator reports **0 errors on the branch** (93 on `main`). | an ownership decision for the owner |
+| **#37** (new) | `0bc2e4e` | 125 pass / 21 fail (baseline lint only); **`gateway-postgres` (real PostgreSQL, `-race`) pass: 127/0/0, no skip**; both race jobs pass | T1: review recommended. It fixes the fence flake test-only (§10.14.2). |
+| **#38** (new) | `c630bb9` | 124 / 21 (baseline) | merge recommended (test-only) |
+
+The commits `main` has gained since #25, #30 and #33 were opened (#32, #31,
+#29) touch none of their modules.
+
+#### 10.14.2 Fence flake: T1 (test-only) validated; flake still OPEN until reviewed
+
+**The change (#37):**
+- In `TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap`, the old owner's dialer refuses new connections from just **before** the kill. Its live session is untouched.
+- The test waits until that owner has attempted, and been refused, a reconnect.
+- Every assertion is kept: `b` becomes owner; there is no instant with two owners; `a` fails closed within the bound.
+
+**Evidence** (local Docker go1.26.9, `-race`, throwaway PostgreSQL 17.2; full table in #37):
+- **Contention:** 200/200 pass (`GOMAXPROCS=2`, 4 burners).
+- **Adversarial:** 30/30 pass with the 600 ms standby gap that failed the original 4/5.
+- **Mutation M1′:** with reconnects counted but allowed, it fails 7/10 with `timed out after 10s waiting for b to own`. The cut-off is the control.
+- **Mutation M2:** with no acquisition grace, overlap is caught 11/30 on T1 and 11/30 on the original. Sensitivity is unchanged.
+- **Package:** the whole package, ×5 shuffled, is 210/210.
+- **CI on #37:** 127/0/0.
+
+**What T1 gives up:** no test now covers "the old owner reconnects and wins
+back". That path is safe by design. Covering it needs a T2-style assertion,
+which is the owner's decision.
+
+**Status:** **open, not an accepted risk** (§10.12), until the owner reviews #37.
+
+#### 10.14.3 D8 nightly: still pending
+
+As of 2026-10-18T14:36Z, the latest scheduled `hardening` run is still
+39108532041 on `63a80a2`. There is **none on `3e38aa5`**. No other run was
+substituted. D8 remains provisionally accepted and not signed off.
+
+#### 10.14.4 CODEOWNERS (#36): proposed, not applied as a setting
+
+- It applies the file's own bootstrap note. Every one of the 59 patterns (unchanged) is owned by `@123Anujyadav`, and each keeps its intended teams in a trailing comment.
+- Code-owner review is **not** required by the ruleset, so merging behaviour does not change.
+- Turning it on remains an owner decision. With one collaborator it would block every PR.
+
+#### 10.14.5 Lint
+
+- `main` is unchanged at **21 jobs and 933 findings**.
+- With every open lint PR merged (#25, #30, #33, #34 and #38): **20 jobs, 870 findings**.
+- The `godot` "capital letter" findings outside `audiointel` (11 found in files with no overlap) are **left alone**: rewording them would pre-empt the pending comment-policy decision (§10.9.5). So is `services/go/voice/cmd/server/determinism_test.go:505`, because the owner's checkout has a different version of that file than `main`.
