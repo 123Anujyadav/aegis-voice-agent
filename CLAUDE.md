@@ -18,7 +18,7 @@ they and the repository's live state differ.
 
    Treat every uncommitted or untracked file you did not create as the owner's work.
 2. **Plan:** state the change, the files it touches, and how it will be verified.
-3. **Isolate:** work in a new branch and a separate `git worktree` created from `origin/main`. Never edit a worktree that holds someone else's uncommitted changes. One focused change per branch and PR.
+3. **Isolate:** start new work on a new branch, in a separate `git worktree` created from `origin/main`. To update an existing PR, use that PR branch's own clean worktree. Never edit a worktree that holds someone else's uncommitted changes. One focused change per branch and PR.
 4. **Implement** only what is in scope. Before editing a file, check that no uncommitted change, open PR or preservation branch modifies it.
 5. **Verify:**
    - Go: `gofmt -l`, `gofumpt -l`, `go vet`, `golangci-lint run` in each touched module;
@@ -47,6 +47,7 @@ they and the repository's live state differ.
 
   Re-run only for a demonstrated infrastructure or flake cause, and record it as a flake. Never re-run until green to hide a real failure.
 - **What passing checks mean:** that the configured checks passed, nothing more. It does not mean every test ran (some suites skip without a database), that lint is clean, or that any readiness or sign-off criterion is met.
+- **Required checks and up-to-date branches:** read the live rules for `main` (`GET /repos/{owner}/{repo}/rules/branches/main`) instead of assuming them. If the rules require a PR to be up to date and it is behind, update it by merging `main` into the PR branch with a normal push, never by rebasing. That changes the head, so re-verify the checks afterwards.
 - **Merging:** never merge unless the owner has explicitly authorized that specific PR, or a clearly defined class of PRs under stated conditions, and every condition is re-verified at merge time.
   - Use squash merges with the head SHA pinned (`gh pr merge --squash --match-head-commit <sha>`).
   - Then check CI on `main`.
@@ -57,6 +58,7 @@ they and the repository's live state differ.
 - **Never run these without explicit authorization for that action:**
   - `git reset`, `git clean`, `git stash`, `git checkout -- <path>` or `git restore` over someone else's changes;
   - amend, rebase, `push --force`, or any other history rewrite;
+  - a direct push to `main`. Changes reach `main` only through a PR;
   - deleting branches or worktrees you did not create.
 - **Do not restore deleted files you did not delete.** An unexplained deletion in the owner's worktree may be intentional.
 - **Preserve:**
