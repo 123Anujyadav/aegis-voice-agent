@@ -15,7 +15,7 @@
 - **[U] unavailable:** the evidence does not exist in the repository, or could
   not be obtained.
 
-**Status: the audit is complete; PHASE 15 IS NOT CLOSED.** The closure blockers are listed in §10.11.8. Fourteen PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28, #32, #31, #29), including the D8 CI items and the `ci-gate` aggregate check (§10, §10.9). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open, review-ready, not authorized for merge: #25, #27 (this record), #30, #33 and #34 (§10.11).
+**Status: the audit is complete; PHASE 15 IS NOT CLOSED.** The closure blockers are listed in §10.11.8. Fourteen PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28, #32, #31, #29), including the D8 CI items and the `ci-gate` aggregate check (§10, §10.9). **D8 is provisionally accepted by the owner, and is not closed** (§10.12). Final sign-off requires a green scheduled nightly on the exact current `main` commit, followed by the owner's explicit confirmation. Open, review-ready, not authorized for merge: #25, #27 (this record), #30, #33 and #34 (§10.11).
 
 | PR | Change | State |
 |---|---|---|
@@ -1801,7 +1801,7 @@ gateway not in nightly race; lint unknown; Go 1.25 untested".
 | Gateway in nightly race | Scheduled hardening **39108532041** on **`63a80a2`**: 6/6 success; the repeated job lists `RACE_EXTRA_MODULES: services/go/telephony-gateway`, and the 4 gateway packages are `ok` | **No scheduled run exists on current `main` `3e38aa5`** (the latest scheduled run is 39108532041; the next is due on 2026-10-19). Between the two: #32 (CI script), #31 (gateway **test** only) and #29 (CI script). | yes on `63a80a2`; **not yet shown on current `main`** | required |
 | Lint | `golangci-lint (services/go/telephony-gateway)` passes on `main` | none | yes | required |
 | Go 1.25 | **Fresh:** 39121942603 on `1ee9fd8` = `3e38aa5` plus a branch-only workflow: `go1.25.14` asserted; `platform` and gateway vet and `-race` pass; real PostgreSQL 127/0/0. **Historical:** 38774455177 on `89564e5`. The run **failed overall** (unrelated jobs), while its gateway and `platform` jobs passed on go1.25.14 with `-race`. | CI on `main` builds with Go 1.26.9. Go 1.25 is evidenced by a branch-only run, not by ongoing CI. | evidenced for the current code | **ruling required** (§10.10.2: A, B or C) |
-| **D8 overall** | — | — | — | **OPEN: sign-off not given** |
+| **D8 overall** | — | — | — | **OPEN: sign-off not given.** Provisionally accepted afterwards; see the owner ruling in §10.12. |
 
 #### 10.11.3 #30 and #33: re-review
 
@@ -1901,10 +1901,10 @@ repeated here, because it changes repository settings.
 
 | # | Blocker | Owner of the next step |
 |---|---|---|
-| 1 | The D8 ruling and sign-off; a current-`main` nightly, if option B | owner |
+| 1 | Final D8 sign-off. **Provisionally accepted** (§10.12); it needs a green scheduled nightly on the exact current `main` commit, then the owner's explicit confirmation. | owner |
 | 2 | Merge decisions for #25, #27, #30, #33 and #34 | owner |
 | 3 | The ADR-0009 outbox policy (eight questions) | owner (architecture) |
-| 4 | The fence PostgreSQL flake: unresolved | engineering, on the next occurrence; owner, on risk acceptance |
+| 4 | The fence PostgreSQL flake: unresolved, and **not an accepted risk** (owner, §10.12) | engineering: reproduction; owner: risk review |
 | 5 | The `speech` flake and the concurrent-`Speak` race: unresolved; frozen module | owner (freeze exception) |
 | 6 | The lint-policy items (`audiointel` godot, `writeJSON`, errcheck `check-blank`) and the owner-overlap modules | owner |
 | 7 | Branch protection or a ruleset, and CODEOWNERS | owner (admin settings) |
@@ -1912,3 +1912,20 @@ repeated here, because it changes repository settings.
 | 9 | D9, D10, D11, `prod-global`, F-3, F-4 and F-7; INFRA-AUTH A5–A9; providers and models; Exotel mTLS | owner, external |
 
 **Readiness:** staging and Exotel production media remain **NO-GO**.
+
+### 10.12 Owner ruling: D8 and the fence flake (2026-10-18)
+
+This is the repository owner's explicit ruling, recorded as given. It is not an
+engineering finding.
+
+| Item | Ruling |
+|---|---|
+| **D8** | **Provisionally accepted**, on the collected Go 1.25.14 evidence (§10.10.2, §10.11.2). |
+| **Final D8 sign-off** | Requires (1) a **green scheduled** nightly `hardening` run on the **exact current `main` commit**, then (2) the owner's **explicit confirmation**. A green nightly alone is not the sign-off. |
+| The historical nightly 39108532041 | It ran on `63a80a2`, **not** the current `main` (`3e38aa5`), so it **does not satisfy** this requirement. A manual (non-`schedule`) run would not either. |
+| **The PostgreSQL fence flake** (`TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap`) | **Unresolved, and NOT an accepted risk.** It stays open for reproduction and risk review. |
+
+**Consequences:**
+- D8 is **not closed**.
+- Phase 15 is **not complete** (§10.11.8).
+- The ruling changes no Go minimum, CI toolchain policy or D8 criterion.
