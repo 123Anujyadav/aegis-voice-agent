@@ -1302,6 +1302,7 @@ unchanged. Prospective, if merged:
 | #25 | 20 | 921 |
 | #30 | 21 | 917 |
 | #25 and #30 | 20 | 905 |
+| #25, #30 and #33 | 20 | 888 |
 
 #### 10.8.4 Recommended branch protection for `main` (not applied)
 
@@ -1354,14 +1355,14 @@ untested".
 | `-race` in CI | pr-go, `gateway-postgres` and the repeated race job all run the gateway under `-race` | met |
 | Real-PG suites in CI | `gateway-postgres` 127/0/0 on `main`; one flaky failure on `63a80a2`, passed on re-run | met, with one open flake |
 | Gateway lint | passes | met |
-| Nightly race | gateway in the repeated job since `7b59d25`. **No scheduled run yet on current `main`** (checked 07:22Z on 10-18; the last scheduled run was 10-17 on `1f58266`, which predates #13, and it failed) | **pending a scheduled run** |
+| Nightly race | **Scheduled** hardening run **39108532041** (`event=schedule`, `main` `63a80a2`, started 2026-10-18T07:40:12Z): **6/6 jobs passed**. Its repeated race job ran 18 module logs, including `services_go_telephony-gateway.log` (4 packages `ok`); the single job ran 17. No race log has a failure or a data race. | **met (scheduled evidence)** |
 | Go 1.25 | run 38774455177 (go1.25.14, `-race`, 4 gateway packages `ok`) for the code at `89564e5`. Gateway code is unchanged since; `platform` changed in #28 and has only run on 1.26. | historical evidence; **owner ruling needed** |
 | Owner sign-off | — | **not recorded** |
 
 **Recommendation:**
 1. Accept the go1.25.14 run as satisfying "Go 1.25 untested", which matches the
    criterion's meaning (P1-44 OBS-4, P1-45:154).
-2. Wait for one green scheduled hardening run on current `main`.
+2. ~~Wait for one green scheduled hardening run on current `main`.~~ Done: run 39108532041 (above).
 3. Then approve D8 explicitly.
 
 **Alternatives:**
@@ -1382,8 +1383,10 @@ untested".
 | #30 `evalstore` test lint | `ef34dce` | review-ready | 81/0/0 with PostgreSQL; CI baseline only; gate PASS (after re-run) | owner merge decision |
 | #31 fence freshness test race | `547e4c8` | review-ready | deterministic repro 10/10 FAIL → 10/10 PASS; CI pass | owner merge decision |
 | #32 gate waits for incomplete jobs | `0fb044d` | review-ready | 56 tests; mutation; CI pass | owner merge decision |
+| #33 `runtime` docs and test shadows (42 → 25) | `c8c3ed8` | review-ready | `-race` ×3, plain and shuffled; CI baseline only; gate PASS | owner merge decision |
+| `audiointel` godot (83) | — | not started (policy) | the flagged comments follow Go's doc-comment convention (`defaultX …`), which godot `capital` rejects for unexported names | owner: keep `capital: true` (and reword), or change that lint policy |
 | Fence PostgreSQL flake | — | open | 1 CI failure; not reproduced locally | #29, then the next occurrence |
-| D8 | — | blocked | §10.8.5 | scheduled run; owner ruling and sign-off |
+| D8 | — | blocked on the owner | §10.8.5; scheduled run 39108532041 green | owner ruling on Go 1.25, then sign-off |
 | Branch protection | — | blocked | §10.8.4 | owner/admin approval |
 
 **Preservation, checked at every step:**
