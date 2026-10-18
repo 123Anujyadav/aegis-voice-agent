@@ -15,7 +15,7 @@
 - **[U] unavailable:** the evidence does not exist in the repository, or could
   not be obtained.
 
-**Status: AUDIT COMPLETE.** Nine PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24), including the D8 CI items (§10). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open for review: #25, #26 (revised after review) and #28.
+**Status: AUDIT COMPLETE.** Eleven PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28), including the D8 CI items and the `ci-gate` aggregate check (§10). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open, not authorized for merge: #25, #27 (this record) and #29.
 
 | PR | Change | State |
 |---|---|---|
@@ -27,9 +27,10 @@
 | #8 (owner's) | Gateway in the repeated race job, with a fence-test flake fix | **merged** as `7b59d25` (refreshed head `a44a41d`) |
 | #20, #23 | This audit and its follow-up | **merged** as `9ec0ff6`, `1736d7f` |
 | #24 | Lint: media-relay (35 → 0) | **merged** as `5f062bb` |
-| #25 | Lint: outbox doc comments (12 → 1) | **open**, needs review |
-| #26 | `ci-gate`: an always-running aggregate check | **open**: revised to `ec6fd57` after review found two defects (§10.6); needs re-authorization |
-| #28 | Lint: platform comments and test requests (16 → 4) | **open**, needs review |
+| #25 | Outbox: doc comments, and `MarkFailed` failures reported (12 → 0) | **open** at `dfd6e57`; not authorized for merge (§10.7) |
+| #26 | `ci-gate`: an always-running aggregate check | **merged** as `806e75c`. The security-fix head was `6900db2`; the earlier heads `d8544ec` and `ec6fd57` had reproduced bypasses (§10.6, §10.7). |
+| #28 | Lint: platform (16 → 1) | **merged** as `63a80a2` (§10.7) |
+| #29 | `gateway-postgres`: print each failing test's complete output | **open** at `e98b134`; not authorized for merge (§10.7) |
 
 - **Lint:** the repository is **not lint-clean**. 22 golangci-lint jobs fail,
   with 983 findings (§4).
@@ -780,12 +781,11 @@ primary worktree. It was not restored.
 
 ## 8. Next actions
 
-1. **Owner:** decide D8's Go 1.25 criterion, then record the D8 sign-off
-   (H-1; §10.2).
-2. **Owner:** review #25, #26 (`ec6fd57`) and #28. #25 needs the `outbox`
-   `MarkFailed` decision to clear its last finding.
+1. **Owner:** answer the D8 decision request (§10.7.5).
+2. **Owner:** review #25 (outbox, option A implemented) and #29 (gateway-postgres
+   failure output). Decide the outbox `FAILED`-entry policy (§10.7.4).
 3. **Owner:** decide H-12, the unpublished work (§9).
-4. **Admin:** branch protection (§3.15). The aggregate check it needs is PR #26 (`ci-gate`).
+4. **Admin:** branch protection and review rules (§3.15, §10.7.6). `ci-gate` is on `main` since `806e75c`.
 5. **Owner:** answer H-6 (F-4), H-4 (D11) and H-5 (`prod-global`).
 6. **Engineering:** continue the P1-3 lint batches in the 21 remaining modules,
    only in files with no overlap with the owner's uncommitted work (§10.6).
@@ -913,7 +913,8 @@ evidence but needs the owner's ruling, and the sign-off is not recorded.
 | `identity` (38) | **not opened.** The owner's uncommitted rewrite of `identity.go` (+1,527/−70) already makes the `rand.Read` failure fatal and changes the flagged code. `main`'s `generateAccessToken` emits an **unsigned** token (`"Bearer_JWT." + hex(json)`), which the owner's untracked Phase 18 D11 report records as an auth-design blocker. Not decided here. |
 
 **Lint on `main` `5f062bb` (after #24) [V]:** 21 failing jobs, **948 findings**,
-counted from the 21 job logs. With #25: 937, still 21 jobs. With #28 too: 925.
+counted from the 21 job logs. **Current:** see §10.7 (`main` `63a80a2`: 21
+jobs, 933 findings).
 
 ### 10.4 Aggregate check: PR #26 (`ci-gate`; first version `d8544ec`, see §10.6) [V]
 
@@ -956,7 +957,7 @@ The owner authorized merging only #24 and #26, at their reviewed heads.
 2. **The lint exception could mask new findings.** It was per job, so new
    findings in a module whose lint job already failed on `main` passed.
 
-**The fix, `ec6fd57`:**
+**The attempted fix, `ec6fd57`. Superseded: a later review found two more bypasses in it (§10.7).**
 - **Trusted verdict:** the verdict comes from the gate and filters at the PR's
   **base** commit. The PR's own copy is only unit-tested, which can fail the
   job but never pass it. Bootstrap: while the base has no gate, the PR's copy
@@ -1005,3 +1006,230 @@ The owner authorized merging only #24 and #26, at their reviewed heads.
 - **Overlap check across all 21 modules:** only `outbox`, `platform`,
   `memory`, `evalstore`, `governance`, `runtime`, `toolruntime` and
   `audiointel` have findings solely in files the owner has not modified.
+
+### 10.7 Third authorized round (2026-10-18) [V]
+
+The owner authorized merging only #26, at exactly `6900db2`, and #28, after
+review and passing checks.
+
+#### 10.7.1 Merges and post-merge CI
+
+| PR | Reviewed head | Merge commit | CI on `main` |
+|---|---|---|---|
+| #26 | `6900db2` | `806e75c` (05:23:44Z) | Backend Foundation 39100396787 pass; hardening 39100396783 6/6 pass. `ci-gate` runs on pull requests only. |
+| #28 | `f6216bc` | `63a80a2` (05:41:22Z) | Backend Foundation 39101412503 pass; hardening 39101412427 6/6 pass; pr-go 39101412466: 116 pass, 21 lint jobs fail (baseline). `gateway-postgres` 39101412491 **failed on attempt 1** (one fence test) and **passed on attempt 2** (127/0/0); see §10.7.3. |
+
+**The 11 merged Phase 15 PRs, from the merge records:**
+
+| PR | Merge commit |
+|---|---|
+| #17 | `731934b` |
+| #18 | `a51504a` |
+| #19 | `d443bea` |
+| #20 | `9ec0ff6` |
+| #22 | `fce4e22` |
+| #8 | `7b59d25` |
+| #21 | `1e3b40d` |
+| #23 | `1736d7f` |
+| #24 | `5f062bb` |
+| #26 | `806e75c` |
+| #28 | `63a80a2` |
+
+The nine before this round were counted correctly at `d13ac33`.
+
+#### 10.7.2 #26 security review: the gate that merged
+
+**Two further bypasses in `ec6fd57`**, both reproduced or confirmed, and fixed
+in `6900db2`:
+1. **The PR's own code ran before the verdict, in the same workspace.**
+   - **How:** the PR's gate tests ran before the verdict step, so a PR test
+     could overwrite `trusted/tools/ci/ci_gate.py`.
+   - **Reproduced locally:** the trusted file's hash changed, and the verdict
+     printed `PASS (tampered)` and exited 0.
+   - **Fix:** only checkouts precede the verdict, and the PR's tests run last.
+2. **`pull_request.base.sha` is stale.** GitHub does not keep it current: #25
+   recorded `fce4e22` while `main` was `5f062bb`. Every PR opened before the
+   gate merged would have run its own copy through bootstrap.
+   - **Fix:** the trusted checkout is `github.base_ref`, the current base
+     branch tip.
+
+**Defence in depth:** the report is printed between `::stop-commands::`
+markers.
+
+**Evidence at `6900db2`:**
+- 53 unit tests, including structural guards on `ci-gate.yml`: `base_ref`;
+  only checkouts before the verdict; an early PR checkout only for bootstrap;
+  read-only permissions; no `${{ }}` in `run:`; no persisted credentials.
+- 5 mutation checks, each caught.
+- **Simulation of the fixed order:** the verdict failed for #9 before a
+  malicious PR test tampered with the file, and the job still failed.
+- **Live dry runs:** #27 and #28 PASS; #25 FAIL, correctly, because it was stale
+  against #24.
+- **The gate's first trusted (non-bootstrap) run on a PR,** #28: filters read
+  from `trusted/`, 21 baseline lint jobs compared finding by finding, PASS.
+
+**Non-blocking observations:**
+- Runs are matched by head SHA, not by PR number. That adds no power, since a
+  PR author already controls the workflow files that produce those runs.
+- The step summary renders PR-controlled names as Markdown, which is cosmetic.
+
+**Residual (unchanged):** GitHub runs a PR's own version of a workflow file, so
+a PR editing `ci-gate.yml` or `pr-go.yml` is trusted only through review
+(§10.7.6).
+
+#### 10.7.3 #28, and the `gateway-postgres` flake
+
+- **#28 (`f6216bc`):** `platform` 16 → **1**.
+  - **Comments and tests:** godot ×5; `httpNoBody` ×7. Go 1.26.9 builds
+    identical requests for `nil` and `http.NoBody`, checked empirically.
+  - **contextcheck:** `shutdown` derives its budget from `Run`'s context with
+    `context.WithTimeout(context.WithoutCancel(ctx), ShutdownTimeout)`. That is
+    the same timeout and the same independence from `Run`'s cancellation, and
+    the context's values are now kept. A new test pins it; both of its
+    mutations fail it.
+  - **gocyclo:** `populate` and `assign` split by verbatim moves into
+    `populateField` and `assignStringSlice`.
+  - **Left for a decision:** the documented `writeJSON` encode discard.
+- **The flake:** `TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap`
+  failed once on `main` `63a80a2` (10.47 s). It is **not a regression from
+  #28**:
+  - the same code passed on #28's head;
+  - it passed 30/30 locally under `-race` with real PostgreSQL on both
+    `63a80a2` and the pre-#28 `1e3b40d`;
+  - the CI rerun passed.
+- **Cause unknown:** the job printed only the last 80 lines, so the message was
+  lost. **#29** (`e98b134`) makes the script use `go test -json` and print each
+  failing test's complete output. It was validated with an injected failure,
+  hidden-DSN skips and a missing image. **Open:** root-cause the flake at its
+  next occurrence.
+
+#### 10.7.4 #25: outbox `MarkFailed` (`dfd6e57`; not merged)
+
+- **Implemented, option A:** a `MarkFailed` failure is `errors.Join`ed with the
+  publish error that caused it, processing continues, and `ProcessBatch`
+  returns the joined error alongside the count.
+  - **Unchanged:** the success path, a fetch failure, and a `MarkPublished`
+    failure (not counted, not reported).
+  - **Callers:** `ProcessBatch` has **no callers on `main`**.
+- **Tests:** the new `outbox_test.go` has 6 tests, 30/30 under `-race`, with
+  93.8% coverage. Restoring the discard fails 2 of them.
+- **Lint and CI:** lint 12 → **0**. CI: 20 lint jobs fail (`main`'s 21 minus
+  `outbox`); `ci-gate` PASS.
+- **Architecture decision required (ADR-0009): not taken.**
+  - **Current state:** entries marked `FAILED` are terminal.
+    `PostgresOutboxStore.FetchPending` reads `status = 'PENDING'` only, nothing
+    requeues a `FAILED` entry, and `retry_count` is written but never read.
+  - **ADR-0009 says** dead-letter topics "must be monitored", and `eventbus`
+    defines `DeadLetterTopic()`, but the outbox uses neither.
+  - **To decide:**
+    - (1) whether `FAILED` entries are retried, and with what bound and
+      backoff;
+    - (2) whether exhausted entries are published to the topic's `.dlq`;
+    - (3) what alerts on `FAILED` and DLQ depth.
+
+#### 10.7.5 D8: three separate questions, and the owner decision request
+
+| Question | Evidence | Status |
+|---|---|---|
+| **A. Go 1.25 (historical)** | pr-go 38774455177 (push of `89564e5`, 2026-10-15): `go version go1.25.14 linux/amd64`, `go test -race -count=1` on the gateway, 4 packages `ok`. Since then (`git diff 89564e5 63a80a2`): **gateway** production code is **unchanged**. **`platform`** production code **changed in #28**: the `config.go` refactor, the `server.go` shutdown context, and comment rewording in `health.go` and `logging.go`. Those changes have run only on Go 1.26. | **evidenced historically, for the code as of `89564e5`.** It does not prove current behaviour. |
+| **A′. Go 1.26 (current)** | pr-go 39101412466 on `63a80a2`: gateway tests, lint and govulncheck pass under go1.26.9. Hardening repeated race passes with the gateway on `7b59d25`, `1e3b40d`, `1736d7f`, `5f062bb`, `806e75c` and `63a80a2`. `gateway-postgres`: 127/0/0 on `1e3b40d` and on the `63a80a2` rerun; one flaky failure on `63a80a2` attempt 1. | **current CI evidence on 1.26** |
+| **B. Nightly scheduled race** | The last scheduled hardening runs (10-15 on `beb46df`, 10-16 on `89564e5`, 10-17 on `1f58266`) all **failed**, before #8 and #13. The 10-17 run failed on a speech barge-in flake that #13 later fixed. **No scheduled run has occurred since #8 merged** (checked 2026-10-18 ~06:00Z; the cron is `0 3 * * *`, and runs start late, about 07:30Z). | **pending a scheduled run.** No manual run was dispatched: the push-triggered hardening runs on `main` already run the same matrix, and a manual run is not a scheduled run. |
+| **C. Owner sign-off** | none recorded | **pending** |
+
+**Decision request for the owner:**
+1. **Go 1.25.** Does run 38774455177 satisfy "Go 1.25 untested" (P1-45:147)?
+   - **(a) Yes, as historical evidence.** This is the recommendation: it
+     matches the criterion's meaning, "compile and test under CI's 1.25.x"
+     (P1-44 OBS-4, P1-45:154).
+   - **(b) No: require a fresh 1.25 run**, which needs a CI change to add a
+     1.25 job.
+   - **(c) Restate the criterion for 1.26**, the CI policy since #12.
+
+   Consequence: (a) closes it now; (b) adds a CI job; (c) is a criterion
+   change only the owner can make. **Neither the declared minimum nor the
+   criterion is changed here.**
+2. **Nightly.** Wait for the first scheduled hardening run on current `main`
+   (recommended), or accept the push-triggered runs as equivalent.
+3. **Sign-off.** After 1 and 2, approve D8 explicitly. **Until then D8 stays
+   open.**
+
+#### 10.7.6 Review policy for `.github/**` and `tools/ci/**` (recommendation; not applied)
+
+- **The gap:** `main` has **no branch protection** (API 404).
+- **Why review matters:** GitHub runs a PR's own workflow files, so `ci-gate`'s
+  verdict and every other check is only as trustworthy as review of
+  `.github/workflows/**` and `tools/ci/**`.
+- **Why CODEOWNERS cannot enforce it today:**
+  - it assigns `/.github/workflows/` to `@callscreen/platform` and
+    `@callscreen/security`, but **those teams do not exist**: the repository is
+    user-owned and has **one collaborator** (`123Anujyadav`, admin);
+  - `tools/ci/` has no specific entry.
+- **Proposed rules:**
+  1. add `/tools/ci/  @123Anujyadav` and point `/.github/` and
+     `/.github/workflows/` at real accounts;
+  2. a branch-protection rule (or ruleset) on `main`: require a pull request;
+     require the `ci-gate` and `Build & Test Backend Foundation` checks; block
+     force-pushes and deletion;
+  3. "require review from code owners" **only once a second reviewer exists**.
+     GitHub does not let a PR's author approve it, so with one collaborator it
+     would block every merge, or require admin bypass on each one.
+- **Permissions:** the account has admin rights, so it *could* apply this.
+  **Not applied:** settings changes are not authorized.
+
+#### 10.7.7 Lint baseline, and `SqlUnitOfWork`
+
+- **`main` `63a80a2` [V], counted from the 21 job logs:** 21 failing jobs, **933
+  findings**. That is 948 − 15 from #28.
+
+  | Module | Findings |
+  |---|---|
+  | `voice` | 170 |
+  | `audiointel` | 114 |
+  | `evaluation` | 105 |
+  | `toolruntime` | 82 |
+  | `speech` | 47 |
+  | `integrations` | 45 |
+  | `runtime` | 42 |
+  | `telephony` | 41 |
+  | `governance` | 41 |
+  | `identity` | 38 |
+  | `media` | 36 |
+  | `services/go/voice` | 29 |
+  | `evalstore` | 27 |
+  | `evalsubjects` | 26 |
+  | `memory` | 20 |
+  | `persistence` | 20 |
+  | `conversation` | 15 |
+  | `outbox` | 12 |
+  | `redis` | 11 |
+  | `middleware` | 11 |
+  | `platform` | 1 |
+
+  With #25: 20 jobs, 921.
+- **`SqlUnitOfWork`:**
+  - **The evidence:** `.golangci.yml` enables revive `var-naming`, which is
+    repository policy. Every other SQL identifier uses the initialism in
+    capitals (`upsertSQL`, `SQLSTATE`). It has no callers outside
+    `persistence.go`.
+  - **The fix it implies:** rename to `SQLUnitOfWork`/`NewSQLUnitOfWork`, plus
+    a doc comment (the finding alternates between both labels).
+  - **Blocked:** `persistence.go` has uncommitted owner edits that still use
+    `Sql…`, so a rename on `main` would collide. Do it when that work lands.
+
+#### 10.7.8 Blocker register
+
+| Item | Owner / dependency | Next action | Readiness |
+|---|---|---|---|
+| D8 | owner (§10.7.5) | answer the decision request | open |
+| Outbox `FAILED` policy | architecture (ADR-0009) | decide retry, DLQ and alerting | — |
+| `writeJSON` encode discard | owner | approve a justified `nolint`, or add a logger | lint 1 finding |
+| Fence flake | engineering, after #29 | capture the message at its next occurrence, then root-cause it | — |
+| `SqlUnitOfWork`; `integrations` `ApiKey`/`AuthId` renames | owner work in progress; naming decision | rename after the owner's persistence work lands | — |
+| Unpublished `46d7b51`/`06e276d` (voice) | owner (H-12) | semantic reconciliation of `pipeline.go` per §9.3 | — |
+| Unpublished `2727df7` (P1-18) | owner | decide between the working copies and the commit (8 files differ) | — |
+| D9, D10, D11, `prod-global`, F-3, F-4, F-7 | owner / architecture; staging for D10 and F-3 | decisions per §3 | staging **NO-GO** |
+| D9/D11 identifier collision (Phase 18 docs) | owner | choose authoritative names | — |
+| INFRA-AUTH, A5–A9 | owner; AWS account and budget | approvals, then A6 IaC | staging **NO-GO** |
+| Provider / model provisioning | owner; downloads or credentials | per-stage choices | — |
+| Exotel client-certificate mTLS | Exotel (written answer) | ask Q2 | production media **NO-GO** |
+| Branch protection and review | repository admin | §10.7.6 | — |
