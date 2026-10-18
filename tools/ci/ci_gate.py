@@ -6,17 +6,28 @@ branch-protection rule cannot require a check that never starts: the PR waits
 for it forever. This gate always runs, and reports one explicit pass or fail.
 
 1. Work out which workflows this PR triggers. Each workflow's own
-   ``on.pull_request`` branch and path filters are read from the checked-out
+   ``on.pull_request`` branch and path filters are read from the workflow
    files, so nothing is duplicated here and nothing can drift. A trigger the
    parser does not understand fails the gate (fail closed); it is never
    silently assumed not to run.
-2. Wait until every expected workflow run for the PR head has completed.
+2. Wait until every expected workflow run for the PR head has completed, and
+   any other run that appeared for it.
 3. Pass only if every job in every run succeeded, was skipped, or is neutral.
    The exception is an *advisory* job (golangci-lint) that also fails on
-   ``main``'s latest completed run of the same workflow: that is the known
-   lint baseline, and it is reported, not hidden. A lint job that passes on
-   ``main`` but fails here, or that has no counterpart on ``main``, fails the
-   gate. So the baseline can only shrink.
+   ``main``'s latest completed run of the same workflow: the known lint
+   baseline. Even then, the job's findings are counted per (file, linter) in
+   both logs. The gate fails on any of:
+   - a count higher than on ``main``;
+   - a (file, linter) pair ``main`` does not have;
+   - a failed lint job with no parseable finding.
+
+   A lint job that passes on ``main`` but fails here, or that has no
+   counterpart on ``main``, also fails the gate. So the baseline can only
+   shrink.
+
+The workflow runs this file, and reads the workflow filters, from the PR's
+**base** commit, never from the PR. A PR therefore cannot change the verdict
+on itself by editing this script or another workflow's filters.
 
 It uses only the standard library and the ``gh`` CLI (preinstalled on
 GitHub-hosted runners), and only reads: no third-party action, no secret
@@ -26,6 +37,7 @@ beyond the job's own read-only token.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from dataclasses import dataclass
 import json
 import os
@@ -40,6 +52,13 @@ GATE_WORKFLOW = ".github/workflows/ci-gate.yml"
 ADVISORY_JOB = re.compile(r"^golangci-lint \(")
 OK_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
 SUPPORTED_FILTERS = frozenset({"branches", "paths"})
+# One golangci-lint issue line in a GitHub Actions job log, e.g.
+#   2026-10-18T03:21:10.1234567Z ##[error]internal/app/x.go:12:3: message (linter)
+LINT_FINDING = re.compile(
+    r"^(?:\S+Z )?(?:##\[error\])?(?P<file>[^\s:]+\.go):\d+:\d+: .*\((?P<linter>[a-z0-9]+)\)\s*$"
+)
+GH_ATTEMPTS = 3
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 class UnsupportedTriggerError(Exception):
@@ -252,6 +271,39 @@ def expected_workflows(
 
 
 # --------------------------------------------------------------------------
+# Lint comparison against main
+# --------------------------------------------------------------------------
+
+
+def lint_findings(log: str) -> Counter[tuple[str, str]]:
+    """Count golangci-lint findings in a job log per (file, linter)."""
+    counts: Counter[tuple[str, str]] = Counter()
+    for line in log.splitlines():
+        m = LINT_FINDING.match(ANSI.sub("", line).strip())
+        if m:
+            counts[(m["file"], m["linter"])] += 1
+    return counts
+
+
+def lint_regressions(pr_log: str, main_log: str) -> list[str]:
+    """List what a PR's lint job reports beyond main's run of the same job.
+
+    Counting per (file, linter), not per message, keeps the comparison stable
+    across line shifts, and across linter output that labels the same issue
+    differently from run to run. The limit: a PR that fixes one finding and
+    adds another of the same linter in the same file nets to zero.
+    """
+    pr_counts, main_counts = lint_findings(pr_log), lint_findings(main_log)
+    if not pr_counts:
+        return ["the lint job failed but reported no parseable finding"]
+    return [
+        f"{file} ({linter}): {n} finding(s), {main_counts.get((file, linter), 0)} on main"
+        for (file, linter), n in sorted(pr_counts.items())
+        if n > main_counts.get((file, linter), 0)
+    ]
+
+
+# --------------------------------------------------------------------------
 # Evaluation
 # --------------------------------------------------------------------------
 
@@ -270,8 +322,15 @@ def evaluate_run(
     conclusion: str | None,
     jobs: list[dict[str, Any]],
     main_jobs: dict[str, str] | None,
+    regressions: dict[str, list[str]] | None = None,
 ) -> Verdict:
-    """Judge one completed run from its jobs and main's baseline for advisory jobs."""
+    """Judge one completed run from its jobs and main's baseline for advisory jobs.
+
+    main_jobs maps job names to their conclusion on main's latest completed
+    run. regressions maps an advisory job's name to the findings it reports
+    beyond main (lint_regressions). An advisory job that also fails on main
+    is advisory only when its regressions entry exists and is empty.
+    """
     if conclusion == "success":
         return Verdict(workflow, ok=True, lines=(f"{workflow}: success",))
     bad: list[str] = []
@@ -283,7 +342,13 @@ def evaluate_run(
         if ADVISORY_JOB.match(name) and result == "failure":
             on_main = (main_jobs or {}).get(name)
             if on_main == "failure":
-                baseline.append(name)
+                extra = (regressions or {}).get(name)
+                if extra is None:
+                    bad.append(f"{name}: failure (not compared with main)")
+                elif extra:
+                    bad += [f"{name}: new lint finding(s): {e}" for e in extra]
+                else:
+                    baseline.append(name)
                 continue
             why = "passes on main" if on_main else "has no counterpart on main"
             bad.append(f"{name}: {result} (new lint failure: {why})")
@@ -294,7 +359,9 @@ def evaluate_run(
     lines = [f"{workflow}: {'FAIL' if bad else 'pass'} (run conclusion {conclusion})"]
     lines += [f"  blocking: {b}" for b in bad]
     if baseline:
-        lines.append(f"  advisory, failing on main too (baseline): {len(baseline)} job(s)")
+        lines.append(
+            f"  advisory, failing on main too with no new findings (baseline): {len(baseline)} job(s)"
+        )
     return Verdict(workflow, ok=not bad, lines=tuple(lines))
 
 
@@ -303,11 +370,22 @@ def evaluate_run(
 # --------------------------------------------------------------------------
 
 
+def _gh_text(*args: str) -> str:
+    """Run ``gh api`` with retries; a persistent failure raises (fail closed)."""
+    cmd = ["gh", "api", *args]
+    for attempt in range(1, GH_ATTEMPTS + 1):
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if proc.returncode == 0:
+            return proc.stdout
+        if attempt == GH_ATTEMPTS:
+            raise subprocess.CalledProcessError(proc.returncode, cmd, proc.stdout, proc.stderr)
+        time.sleep(5 * attempt)
+    msg = "unreachable"
+    raise AssertionError(msg)
+
+
 def _gh_lines(*args: str) -> list[dict[str, Any]]:
-    out = subprocess.run(
-        ["gh", "api", *args], check=True, capture_output=True, text=True
-    ).stdout
-    return [json.loads(line) for line in out.splitlines() if line.strip()]
+    return [json.loads(line) for line in _gh_text(*args).splitlines() if line.strip()]
 
 
 class GitHub:
@@ -352,11 +430,17 @@ class GitHub:
         """Return the jobs of the latest attempt of one run."""
         return _gh_lines(
             f"repos/{self.repo}/actions/runs/{run_id}/jobs?per_page=100",
-            "--paginate", "--jq", ".jobs[] | {name, conclusion}",
+            "--paginate", "--jq", ".jobs[] | {id, name, conclusion}",
         )
 
-    def main_jobs(self, workflow: str) -> dict[str, str] | None:
-        """Return job conclusions of main's latest completed push run of workflow."""
+    def job_log(self, job_id: int) -> str:
+        """Return one job's log text."""
+        # Job logs carry ANSI colour codes; gh refuses to print them unless asked,
+        # and lint_findings strips them before parsing.
+        return _gh_text("--allow-escape-sequences", f"repos/{self.repo}/actions/jobs/{job_id}/logs")
+
+    def main_jobs(self, workflow: str) -> list[dict[str, Any]] | None:
+        """Return the jobs of main's latest completed push run of workflow."""
         name = workflow.rsplit("/", 1)[-1]
         rows = _gh_lines(
             f"repos/{self.repo}/actions/workflows/{name}/runs"
@@ -365,12 +449,32 @@ class GitHub:
         )
         if not rows:
             return None
-        return {j["name"]: j["conclusion"] for j in self.jobs(rows[0]["id"])}
+        return self.jobs(rows[0]["id"])
 
 
 # --------------------------------------------------------------------------
 # Main loop
 # --------------------------------------------------------------------------
+
+
+def _judge(gh: GitHub, workflow: str, run: dict[str, Any]) -> Verdict:
+    """Fetch what one completed run needs and evaluate it."""
+    if run["conclusion"] == "success":
+        return evaluate_run(workflow, "success", [], None)
+    jobs = gh.jobs(run["id"])
+    advisory_failures = [
+        j for j in jobs if ADVISORY_JOB.match(j["name"]) and j.get("conclusion") == "failure"
+    ]
+    if not advisory_failures:
+        return evaluate_run(workflow, run["conclusion"], jobs, None)
+    main = {j["name"]: j for j in gh.main_jobs(workflow) or []}
+    regressions = {
+        j["name"]: lint_regressions(gh.job_log(j["id"]), gh.job_log(main[j["name"]]["id"]))
+        for j in advisory_failures
+        if main.get(j["name"], {}).get("conclusion") == "failure"
+    }
+    conclusions = {name: j["conclusion"] for name, j in main.items()}
+    return evaluate_run(workflow, run["conclusion"], jobs, conclusions, regressions)
 
 
 def run_gate(  # noqa: PLR0913 - every argument is an independent knob
@@ -389,6 +493,7 @@ def run_gate(  # noqa: PLR0913 - every argument is an independent knob
     expected = expected_workflows(workflows_dir, info["base"], changed)
     report = [
         f"head {info['sha']} into {info['base']}; {len(changed)} changed file(s)",
+        f"workflow filters read from: {workflows_dir}",
         "expected workflows: " + (", ".join(expected) or "none"),
     ]
     start = time.monotonic()
@@ -412,15 +517,9 @@ def run_gate(  # noqa: PLR0913 - every argument is an independent knob
 
     verdicts = []
     for workflow in sorted(runs):
-        run = runs[workflow]
-        jobs = [] if run["conclusion"] == "success" else gh.jobs(run["id"])
-        needs_main = any(
-            ADVISORY_JOB.match(j["name"]) and j.get("conclusion") == "failure" for j in jobs
-        )
-        main = gh.main_jobs(workflow) if needs_main else None
-        verdicts.append(evaluate_run(workflow, run["conclusion"], jobs, main))
         if workflow not in expected:
-            report.append(f"note: {workflow} ran although its filters predicted it would not")
+            report.append(f"note: {workflow} ran although its base filters predicted it would not")
+        verdicts.append(_judge(gh, workflow, runs[workflow]))
     for v in verdicts:
         report += list(v.lines)
     return all(v.ok for v in verdicts), report
@@ -438,15 +537,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--total-timeout", type=float, default=6600.0)
     args = parser.parse_args(argv)
 
-    passed, report = run_gate(
-        GitHub(args.repo),
-        args.pr,
-        args.workflows_dir,
-        wait=not args.no_wait,
-        interval=args.interval,
-        appear_timeout=args.appear_timeout,
-        total_timeout=args.total_timeout,
-    )
+    try:
+        passed, report = run_gate(
+            GitHub(args.repo),
+            args.pr,
+            args.workflows_dir,
+            wait=not args.no_wait,
+            interval=args.interval,
+            appear_timeout=args.appear_timeout,
+            total_timeout=args.total_timeout,
+        )
+    except (UnsupportedTriggerError, subprocess.CalledProcessError, OSError, ValueError) as exc:
+        passed, report = False, [f"gate error (failing closed): {type(exc).__name__}: {exc}"]
     report.append("ci-gate: " + ("PASS" if passed else "FAIL"))
     text = "\n".join(report)
     sys.stdout.write(text + "\n")

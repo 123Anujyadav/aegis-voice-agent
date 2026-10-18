@@ -4,14 +4,25 @@
 # pr-go, hardening and the other workflows are path-filtered on pull_request,
 # so a docs-only or workflow-only PR never starts them. A required check that
 # never starts blocks the PR forever. This job always starts, works out from
-# each workflow's own pull_request filters which of them this PR triggers,
-# waits for those runs on the PR head, and passes only if all their jobs
-# passed.
+# each workflow's pull_request filters which of them this PR triggers, waits
+# for those runs on the PR head, and passes only if all their jobs passed.
 #
 # Lint: a golangci-lint job that ALSO fails on main's latest completed run is
-# the known baseline and is reported but not blocking. A lint job that passes
-# on main, or is new, must pass. So the baseline can only shrink, and nothing
-# is excluded from lint itself.
+# the known baseline, but only if its findings, counted per (file, linter),
+# are no more than main's. A new finding in an already-failing module, a lint
+# job that passes on main, or a new module's lint job must pass. Nothing is
+# excluded from lint itself.
+#
+# TRUST. The verdict comes from the gate script and the workflow filters at
+# the PR's BASE commit, not from the PR, so a PR cannot rewrite the gate or
+# narrow another workflow's filters to pass itself. The PR's own copy of the
+# gate is only unit-tested, and that step can fail the job but never pass it.
+# Bootstrap: until a base commit contains the gate (the PR that introduces
+# it), the PR's copy is used, with a warning.
+#
+# Residual: GitHub runs a pull_request workflow from the PR's version of the
+# workflow file, so a PR editing this file (or pr-go.yml, etc.) is trusted
+# only through code review. Require review for .github/** and tools/ci/**.
 #
 # Read-only. It uses only the job's own token (actions, contents and
 # pull-requests: read), the gh CLI and the Python standard library: no
@@ -42,20 +53,45 @@ jobs:
     # the gate's own wait is capped below this.
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the base commit (trusted gate and workflow filters)
+        uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted
           fetch-depth: 1
           persist-credentials: false
 
-      # The gate's own logic is tested before it is trusted.
-      - name: Test the gate
-        run: python3 -I -m unittest discover -s tools/ci -p '*_test.py' -v
+      - name: Check out the pull request (its own gate tests only)
+        uses: actions/checkout@v4
+        with:
+          path: pr
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Wait for and judge the PR's workflows
+      # Tests the PR's version of the gate, so a change to the gate is tested
+      # before it merges. This step can fail the job; it cannot pass it.
+      - name: Test the pull request's gate code
+        run: |
+          if [ -d pr/tools/ci ]; then
+            python3 -I -m unittest discover -s pr/tools/ci -p '*_test.py' -v
+          else
+            echo "the pull request has no tools/ci; nothing to test"
+          fi
+
+      - name: Wait for and judge the PR's workflows (trusted gate)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          python3 -I tools/ci/ci_gate.py
-          --repo "${{ github.repository }}"
-          --pr "${{ github.event.pull_request.number }}"
-          --total-timeout 6600
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -f trusted/tools/ci/ci_gate.py ]; then
+            gate=trusted
+          else
+            echo "::warning::bootstrap: the base commit has no ci-gate yet, so this run uses the pull request's copy"
+            gate=pr
+          fi
+          python3 -I "$gate/tools/ci/ci_gate.py" \
+            --repo "$REPO" \
+            --pr "$PR_NUMBER" \
+            --workflows-dir "$gate/.github/workflows" \
+            --total-timeout 6600
