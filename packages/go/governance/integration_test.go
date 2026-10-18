@@ -94,9 +94,11 @@ func TestIntegration_ExpiredConsentIsDistinguishableFromRevoked(t *testing.T) {
 func TestIntegration_EveryOutcomeIsReachableAndCarriesAReason(t *testing.T) {
 	t.Parallel()
 
-	outcomes := []Outcome{OutcomeAllow, OutcomeDeny, OutcomeEscalate,
+	outcomes := []Outcome{
+		OutcomeAllow, OutcomeDeny, OutcomeEscalate,
 		OutcomeRequireConfirmation, OutcomeRequireHuman, OutcomeRequireSupervisor,
-		OutcomeRetryLater, OutcomeQueue, OutcomeDefer}
+		OutcomeRetryLater, OutcomeQueue, OutcomeDefer,
+	}
 
 	for _, want := range outcomes {
 		h := newHarness(t)
@@ -300,8 +302,10 @@ func TestIntegration_ReplayDetectsPolicyDrift(t *testing.T) {
 	h := newHarness(t)
 	h.Register(AllowPolicy("p", ScopeGlobal, 100, Match{}))
 
-	req := Request{Action: ReadAction("x"), Actor: "a", Subject: "s",
-		Correlation: NewCorrelationID()}
+	req := Request{
+		Action: ReadAction("x"), Actor: "a", Subject: "s",
+		Correlation: NewCorrelationID(),
+	}
 	original := h.Engine.Decide(req)
 	meta := ReplayMetadataOf(original, h.Engine.Policies().Snapshot().Digest)
 
@@ -349,8 +353,10 @@ func TestIntegration_IdenticalRequestsProduceIdenticalDecisions(t *testing.T) {
 	)
 	h.Grant("s", "call_recording", time.Hour)
 
-	req := Request{Action: WriteAction("x"), Actor: "a", Subject: "s",
-		Roles: []string{"receptionist"}}
+	req := Request{
+		Action: WriteAction("x"), Actor: "a", Subject: "s",
+		Roles: []string{"receptionist"},
+	}
 
 	first := h.Engine.Decide(req)
 	for i := 0; i < 100; i++ {

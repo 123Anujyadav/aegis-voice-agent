@@ -54,6 +54,13 @@ type bargeIntel struct {
 	// latencies records how long each controller call took, measured where
 	// Phase 11D measures it: around the call, from before to after.
 	latencies []time.Duration
+
+	// onInterrupted, when set, runs on the ingest goroutine the moment an
+	// interruption has been delivered — the instant after which nothing from
+	// the interrupted turn may reach media. A test that measures leakage takes
+	// its baseline here; one taken before the detection counts frames that
+	// were legitimately delivered while the detection was still on its way.
+	onInterrupted func()
 }
 
 func (s *bargeIntel) Analyze(
@@ -95,7 +102,12 @@ func (s *bargeIntel) Analyze(
 			s.mu.Lock()
 			s.outcomes = append(s.outcomes, err)
 			s.latencies = append(s.latencies, a.BargeIn.Latency)
+			hook := s.onInterrupted
 			s.mu.Unlock()
+
+			if err == nil && hook != nil {
+				hook()
+			}
 
 			if err != nil {
 				a.BargeIn.Outcome = audiointel.BargeInRefused
@@ -225,6 +237,7 @@ type bargeOpts struct {
 	sinkDelay      time.Duration
 	noController   bool
 	refuse         bool
+	onStateEvent   func(context.Context, VoiceEvent)
 }
 
 // newBargeHarness builds a pipeline whose Phase 11C seam is a real adapter.
@@ -259,6 +272,7 @@ func newBargeHarness(t *testing.T, o bargeOpts) *bargeHarness {
 		ttsSynthDelay:  o.ttsSynthDelay,
 		sinkDelay:      o.sinkDelay,
 		maxFrames:      256,
+		onStateEvent:   o.onStateEvent,
 	})
 
 	session := &fakeSpeechSession{}
@@ -433,6 +447,62 @@ func TestBargeIn_OldGenerationIsRejectedAndTheNewOneIsSpoken(t *testing.T) {
 		"  not a time-to-first-token figure and this is not a measurement of it.",
 		oldGeneration, newGeneration, h.pipeline.StaleFramesBlocked(),
 		playedFromOld, controllerCall)
+}
+
+// queuedTTSStream is a synthesis stream whose audio is already produced and
+// waiting: the state an interruption finds a stream in whenever synthesis runs
+// ahead of playback, which is most of the time.
+type queuedTTSStream struct{ audio chan media.Frame }
+
+func (s *queuedTTSStream) Synthesize(speech.Chunk) error { return nil }
+func (s *queuedTTSStream) Audio() <-chan media.Frame     { return s.audio }
+func (s *queuedTTSStream) CloseSend() error              { return nil }
+func (s *queuedTTSStream) Close() error                  { return nil }
+
+// TestBargeIn_AudioQueuedAtTheInterruptionIsWithheldAndCounted pins the
+// accounting TestBargeIn_OldGenerationIsRejectedAndTheNewOneIsSpoken only
+// reached by scheduling chance (once in CI: "no frames were recorded as
+// withheld").
+//
+// After an interruption the pump's select has two ready cases — the cancelled
+// turn and the queued audio — and Go picks between them at random. Whatever
+// was still queued when it picked the cancellation used to be abandoned
+// uncounted, so an interruption that stopped every queued frame could report
+// that it withheld none. Nothing reached the caller either way; the counter
+// that exists to prove it did not was what lied.
+func TestBargeIn_AudioQueuedAtTheInterruptionIsWithheldAndCounted(t *testing.T) {
+	t.Parallel()
+
+	h := newBargeHarness(t, bargeOpts{})
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = h.pipeline.Disconnect() }()
+
+	const queued = 16
+	stream := &queuedTTSStream{audio: make(chan media.Frame, queued)}
+	for i := 0; i < queued; i++ {
+		stream.audio <- testFrame(uint64(i))
+	}
+
+	turnCtx, cancel := context.WithCancel(context.Background())
+	generation := h.pipeline.Generation()
+
+	// The interruption, in interruptController.Interrupt's order: the
+	// generation first, then the turn's context via abortActiveTurn.
+	h.pipeline.generation.Add(1)
+	cancel()
+
+	before := h.pipeline.StaleFramesBlocked()
+	h.pipeline.pumpAudio(turnCtx, TurnID("t-interrupted"), stream, generation)
+
+	if got := h.out.count(); got != 0 {
+		t.Errorf("%d frames of a superseded generation reached media", got)
+	}
+	if got := h.pipeline.StaleFramesBlocked() - before; got != queued {
+		t.Errorf("%d frames recorded as withheld, want all %d that were queued "+
+			"when the caller interrupted", got, queued)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -943,7 +1013,17 @@ func TestBargeIn_MeasuresOrchestrationLatency(t *testing.T) {
 		h.intel.bargeAt = h.intel.frames + 1
 		h.intel.mu.Unlock()
 
-		h.feedUntil(t, 20*time.Second, func() bool { return h.pipeline.BargeIns() > 0 })
+		// Wait for the SAMPLE, not for the delivery count. The controller counts
+		// the interruption before it returns, and the analyser records the
+		// latency only once it has — so a poll on BargeIns could land between
+		// the two and find no sample (once in a full-package -race run).
+		h.feedUntil(t, 20*time.Second, func() bool {
+			_, ok := h.intel.lastLatency()
+			return ok
+		})
+		if got := h.pipeline.BargeIns(); got == 0 {
+			t.Fatal("a latency was sampled for an interruption that was not delivered")
+		}
 
 		// Measured around the controller call, inside the analyser — the same
 		// place Phase 11D measures it.
@@ -1102,21 +1182,12 @@ func TestBargeIn_RepeatedInterruptionsUnderLoadDoNotEndTheCall(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 
-		delivered := h.pipeline.BargeIns()
-
 		// THE PROPERTY: a caller who keeps interrupting is still on the call.
 		if h.fsm.Terminal() {
 			t.Fatalf("attempt %d: repeated barge-ins ended the call; state=%s "+
 				"delivered=%d generation=%d pipeline_err=%v",
-				attempt, h.fsm.State(), delivered, h.pipeline.Generation(),
+				attempt, h.fsm.State(), h.pipeline.BargeIns(), h.pipeline.Generation(),
 				h.pipeline.Err())
-		}
-
-		// One delivery, one generation. A third increment means stop() ran.
-		if got := h.pipeline.Generation(); got != delivered {
-			t.Fatalf("attempt %d: generation is %d after %d interruptions; the "+
-				"extra increment means the session was stopped",
-				attempt, got, delivered)
 		}
 
 		for _, c := range h.fsm.History() {
@@ -1128,5 +1199,326 @@ func TestBargeIn_RepeatedInterruptionsUnderLoadDoNotEndTheCall(t *testing.T) {
 
 		_ = h.pipeline.Disconnect()
 		<-h.pipeline.Done()
+
+		assertEveryGenerationWasAnInterruption(t, h, attempt)
+	}
+}
+
+// assertEveryGenerationWasAnInterruption checks the generation counter against
+// what moved it, once the pipeline has fully stopped.
+//
+// # Why after shutdown, and not mid-call
+//
+// This test used to compare the generation with the delivered count while
+// frames were still being analysed. An interruption bumps the generation first
+// and counts its delivery last, so a comparison taken while one was in flight
+// could disagree with nothing wrong. After Done every goroutine has finished
+// and the identity is exact: one bump per delivered interruption, plus stop's
+// one — so an excess is a bump that no interruption was delivered for.
+//
+// # What an excess meant (P1-92)
+//
+// It was always a transition the interruption had refused after bumping: the
+// turn handed the floor back on its own between the floor check and the move.
+// The refusal reached the analyser as a TransitionError, so the outcomes say
+// which edge; that is what this reports if it recurs.
+//
+// # The one refusal that is not that
+//
+// The call can end while an interruption is in flight — here, Disconnect while
+// frames are still being analysed. The interruption has bumped the generation;
+// its next move is then refused FROM the terminal state, because nothing
+// follows one. That interruption truly was not delivered — there was no call
+// left to deliver it to — so it is counted, separately, rather than excused:
+// the identity stays exact, and only a refusal from a live state fails it.
+func assertEveryGenerationWasAnInterruption(t *testing.T, h *bargeHarness, attempt int) {
+	t.Helper()
+
+	gen, delivered := h.pipeline.Generation(), h.pipeline.BargeIns()
+	refused := map[string]int{}
+	var endedDuring uint64
+	for _, err := range h.intel.results() {
+		var te *TransitionError
+		if !errors.As(err, &te) {
+			continue
+		}
+		if te.From.Terminal() {
+			endedDuring++
+			continue
+		}
+		refused[fmt.Sprintf("%s->%s", te.From, te.To)]++
+	}
+
+	if want := delivered + 1 + endedDuring; gen != want {
+		t.Errorf("attempt %d: generation %d after %d delivered interruptions, %d cut "+
+			"short by the call ending, and one stop: want %d; transitions refused "+
+			"after a bump: %v", attempt, gen, delivered, endedDuring, want, refused)
+	}
+	if len(refused) > 0 {
+		t.Errorf("attempt %d: interruptions had transitions refused: %v", attempt, refused)
+	}
+	if err := h.pipeline.Err(); err != nil {
+		t.Errorf("attempt %d: the pipeline recorded a fault: %v", attempt, err)
+	}
+}
+
+// TestBargeIn_TurnsEndingAsTheCallerInterruptsKeepOneOwnerOfTheFloor races the
+// two ways a response's floor is handed back: the turn finishing on its own,
+// and the caller interrupting it.
+//
+// Short responses and a fast synthesiser make turns end within milliseconds,
+// and the caller interrupts on every frame, so the two meet constantly. Before
+// the floor lock, against go1.26.9 -race, 54 of 150 attempts recorded a
+// pipeline fault ("cannot move listening -> thinking" — an interrupted turn's
+// late completion had moved the NEXT turn back to listening) and 6 left a
+// generation bump with no interruption behind it. The repeated-interruption
+// test above reaches the same windows only rarely, which is why it flaked.
+func TestBargeIn_TurnsEndingAsTheCallerInterruptsKeepOneOwnerOfTheFloor(t *testing.T) {
+	// Not parallel, like the repeated-interruption test above: this is constant
+	// scheduler pressure, and running it alongside the package's timing-
+	// sensitive parallel tests made them measure its load instead of their
+	// own behaviour.
+
+	for attempt := 0; attempt < 40; attempt++ {
+		h := newBargeHarness(t, bargeOpts{
+			repeat:         true,
+			tokens:         []string{"Hi."},
+			tokenGap:       time.Millisecond,
+			framesPerChunk: 2,
+			ttsSynthDelay:  time.Millisecond,
+			sinkDelay:      time.Millisecond,
+		})
+		if err := h.pipeline.Start(context.Background()); err != nil {
+			t.Fatalf("attempt %d: Start: %v", attempt, err)
+		}
+
+		h.feedUntil(t, 30*time.Second, func() bool { return h.out.count() > 0 })
+		h.intel.mu.Lock()
+		h.intel.bargeAt = h.intel.frames + 1
+		h.intel.mu.Unlock()
+
+		for i := 0; i < 300; i++ {
+			_ = h.pipeline.WriteFrame(testFrame(uint64(4000 + i)))
+			time.Sleep(200 * time.Microsecond)
+		}
+
+		if h.fsm.Terminal() {
+			t.Fatalf("attempt %d: the call ended; state=%s err=%v",
+				attempt, h.fsm.State(), h.pipeline.Err())
+		}
+		_ = h.pipeline.Disconnect()
+		<-h.pipeline.Done()
+
+		assertEveryGenerationWasAnInterruption(t, h, attempt)
+		if t.Failed() {
+			return
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// The floor lock
+// ---------------------------------------------------------------------------
+
+// TestBargeIn_OutsideTheFloorNothingCanMoveTheTurn pins the invariant that
+// lets a turn's pre-synthesis exits — emptyTurn, failTurn, the governance
+// denial — run without the floor lock.
+//
+// Until a turn moves the session to synthesizing it holds no floor, and in
+// those states the session is that turn's alone:
+//
+//   - an interruption is refused there, under the lock, before it bumps the
+//     generation or touches Phase 11C or the turn;
+//   - a superseded turn's only later moves are the generation-guarded ones,
+//     which leave a newer turn's state alone.
+func TestBargeIn_OutsideTheFloorNothingCanMoveTheTurn(t *testing.T) {
+	t.Parallel()
+
+	h := newBargeHarness(t, bargeOpts{})
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = h.pipeline.Disconnect() }()
+	ctx := context.Background()
+
+	// A turn that was superseded before this one began.
+	stale := h.pipeline.Generation()
+	h.pipeline.generation.Add(1)
+	current := h.pipeline.Generation()
+
+	states := []SessionState{
+		StateListening, StateSpeakingDetected, StateTranscribing, StateThinking,
+	}
+	for i, state := range states {
+		if i > 0 {
+			if err := h.fsm.To(ctx, state, ReasonOK); err != nil {
+				t.Fatalf("driving the session to %s: %v", state, err)
+			}
+		}
+
+		err := h.pipeline.interrupts.Interrupt(ctx, audiointel.ReasonCallerSpoke)
+		if err == nil {
+			t.Fatalf("%s: an interruption was accepted with no floor to take", state)
+		}
+		var te *TransitionError
+		if errors.As(err, &te) {
+			t.Errorf("%s: the refusal came from a transition (%v), so the "+
+				"generation had already been bumped", state, err)
+		}
+
+		if interrupted, err := h.pipeline.yieldFloor(stale, ReasonOK); !interrupted || err != nil {
+			t.Errorf("%s: a superseded turn's hand-back was not refused "+
+				"(interrupted=%t err=%v)", state, interrupted, err)
+		}
+		turnCtx, cancel := context.WithCancel(ctx)
+		if superseded, err := h.pipeline.startSpeaking(turnCtx, stale); !superseded || err != nil {
+			t.Errorf("%s: a superseded turn was allowed to start speaking "+
+				"(superseded=%t err=%v)", state, superseded, err)
+		}
+		cancel()
+		h.pipeline.failSynthesis(stale, ReasonUnavailable)
+
+		if got := h.fsm.State(); got != state {
+			t.Fatalf("the session moved from %s to %s", state, got)
+		}
+		if got := h.pipeline.Generation(); got != current {
+			t.Fatalf("%s: the generation moved to %d", state, got)
+		}
+	}
+
+	if got := h.session.interrupts.Load(); got != 0 {
+		t.Errorf("Phase 11C was interrupted %d times with no floor to take", got)
+	}
+	if got := h.pipeline.BargeIns(); got != 0 {
+		t.Errorf("%d interruptions were counted delivered", got)
+	}
+	if got := h.pipeline.interrupts.RefusedByFloor(); got != uint64(len(states)) {
+		t.Errorf("%d refusals by floor recorded, want %d", got, len(states))
+	}
+	if err := h.pipeline.Err(); err != nil {
+		t.Errorf("the pipeline recorded a fault: %v", err)
+	}
+}
+
+// TestBargeIn_ABrokerStuckDuringAnInterruptionCannotHoldTheCallOpen exercises
+// the floor lock's worst case: the interruption holds it across the session
+// FSM's synchronous publish, and the broker does not return.
+//
+// The broker here honours its context — the event port's contract — and
+// nothing else. While it blocks, the interrupted turn wants the floor back and
+// waits; the call must still end on hang-up, because stop needs neither the
+// floor nor the stuck goroutine, and cancelling the session releases the
+// broker. A broker that ignored its context would hang the goroutine
+// publishing into it, lock or no lock; that is outside what this can bound.
+func TestBargeIn_ABrokerStuckDuringAnInterruptionCannotHoldTheCallOpen(t *testing.T) {
+	t.Parallel()
+
+	stuck := make(chan struct{})
+	var once sync.Once
+	h := newBargeHarness(t, bargeOpts{
+		onStateEvent: func(ctx context.Context, e VoiceEvent) {
+			if e.Type == EventStateChanged && e.To == StateInterrupted {
+				once.Do(func() { close(stuck) })
+				<-ctx.Done()
+			}
+		},
+	})
+	if err := h.pipeline.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	h.feedUntil(t, 20*time.Second, func() bool { return h.out.count() > 0 })
+	h.intel.mu.Lock()
+	h.intel.bargeAt = h.intel.frames + 1
+	h.intel.mu.Unlock()
+
+	// One frame carries the detection; the interruption then sticks in the
+	// broker, holding the floor.
+	_ = h.pipeline.WriteFrame(testFrame(5000))
+	select {
+	case <-stuck:
+	case <-time.After(20 * time.Second):
+		t.Fatal("the interruption never reached the broker")
+	}
+
+	ended := make(chan error, 1)
+	go func() { ended <- h.pipeline.Disconnect() }()
+	select {
+	case err := <-ended:
+		if err != nil {
+			t.Fatalf("Disconnect: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("hanging up blocked behind an interruption stuck in the broker")
+	}
+	select {
+	case <-h.pipeline.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("the pipeline never stopped: a goroutine is still waiting on the floor")
+	}
+
+	if got := h.fsm.State(); got != StateCompleted {
+		t.Errorf("the call ended in %s, want completed", got)
+	}
+	// The stuck interruption bumped the generation and was then cut short by
+	// the hang-up: counted, not excused.
+	assertEveryGenerationWasAnInterruption(t, h, 0)
+}
+
+// TestBargeIn_ASlowBrokerSlowsTheFloorButNeverStopsIt puts bounded latency on
+// every state-change publish — each held under the floor lock — while the
+// caller interrupts constantly and turns end on their own.
+//
+// It bounds the cost: hand-offs wait for each other's publishes, so a slow
+// broker slows interruptions, but every interruption still lands, the call
+// still ends, and the accounting is still exact.
+func TestBargeIn_ASlowBrokerSlowsTheFloorButNeverStopsIt(t *testing.T) {
+	// Not parallel: constant scheduler pressure, as the stress tests above.
+
+	for attempt := 0; attempt < 8; attempt++ {
+		h := newBargeHarness(t, bargeOpts{
+			repeat:         true,
+			tokens:         []string{"Hi."},
+			tokenGap:       time.Millisecond,
+			framesPerChunk: 2,
+			ttsSynthDelay:  time.Millisecond,
+			sinkDelay:      time.Millisecond,
+			onStateEvent: func(context.Context, VoiceEvent) {
+				time.Sleep(2 * time.Millisecond)
+			},
+		})
+		if err := h.pipeline.Start(context.Background()); err != nil {
+			t.Fatalf("attempt %d: Start: %v", attempt, err)
+		}
+
+		h.feedUntil(t, 30*time.Second, func() bool { return h.out.count() > 0 })
+		h.intel.mu.Lock()
+		h.intel.bargeAt = h.intel.frames + 1
+		h.intel.mu.Unlock()
+
+		for i := 0; i < 200; i++ {
+			_ = h.pipeline.WriteFrame(testFrame(uint64(4000 + i)))
+			time.Sleep(500 * time.Microsecond)
+		}
+		if h.pipeline.BargeIns() == 0 {
+			t.Fatalf("attempt %d: no interruption landed behind a slow broker", attempt)
+		}
+
+		ended := make(chan struct{})
+		go func() {
+			_ = h.pipeline.Disconnect()
+			<-h.pipeline.Done()
+			close(ended)
+		}()
+		select {
+		case <-ended:
+		case <-time.After(15 * time.Second):
+			t.Fatalf("attempt %d: the call did not end behind a slow broker", attempt)
+		}
+
+		assertEveryGenerationWasAnInterruption(t, h, attempt)
+		if t.Failed() {
+			return
+		}
 	}
 }

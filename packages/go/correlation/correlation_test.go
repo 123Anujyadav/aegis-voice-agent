@@ -46,7 +46,7 @@ func TestCorrelation_PropagatesAcrossFourRealSubsystems(t *testing.T) {
 	if err != nil {
 		t.Fatalf("telephony harness: %v", err)
 	}
-	if _, err := th.Start(ctx); err != nil {
+	if _, err = th.Start(ctx); err != nil {
 		t.Fatalf("telephony start: %v", err)
 	}
 	t.Cleanup(func() { _, _ = th.Stop(ctx) })
@@ -62,7 +62,7 @@ func TestCorrelation_PropagatesAcrossFourRealSubsystems(t *testing.T) {
 	if err != nil {
 		t.Fatalf("media harness: %v", err)
 	}
-	if _, err := mh.Start(ctx); err != nil {
+	if _, err = mh.Start(ctx); err != nil {
 		t.Fatalf("media start: %v", err)
 	}
 	t.Cleanup(func() { _, _ = mh.Stop(ctx) })

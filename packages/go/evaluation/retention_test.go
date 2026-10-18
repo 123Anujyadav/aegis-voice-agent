@@ -63,10 +63,14 @@ func TestRetentionSchedule_RefusesOverlappingPolicies(t *testing.T) {
 	// Which of two rules applies to a record must not depend on map iteration
 	// order — that is not a defensible compliance answer.
 	_, err := NewRetentionSchedule(
-		RetentionPolicy{Name: "a", Kinds: []RecordKind{RecordRun},
-			Duration: Retain30Days, Action: RetentionDelete, Rationale: "x"},
-		RetentionPolicy{Name: "b", Kinds: []RecordKind{RecordRun},
-			Duration: Retain90Days, Action: RetentionDelete, Rationale: "y"},
+		RetentionPolicy{
+			Name: "a", Kinds: []RecordKind{RecordRun},
+			Duration: Retain30Days, Action: RetentionDelete, Rationale: "x",
+		},
+		RetentionPolicy{
+			Name: "b", Kinds: []RecordKind{RecordRun},
+			Duration: Retain90Days, Action: RetentionDelete, Rationale: "y",
+		},
 	)
 	if err == nil {
 		t.Fatal("two policies governing the same kind were accepted")
@@ -83,14 +87,22 @@ func TestRetentionPolicy_RefusesZeroDurationAndMissingRationale(t *testing.T) {
 		policy RetentionPolicy
 		want   string
 	}{
-		{"zero duration", RetentionPolicy{Name: "p", Kinds: []RecordKind{RecordRun},
-			Action: RetentionDelete, Rationale: "x"}, "expire every record"},
-		{"no rationale", RetentionPolicy{Name: "p", Kinds: []RecordKind{RecordRun},
-			Duration: Retain30Days, Action: RetentionDelete}, "Rationale is required"},
-		{"unknown action", RetentionPolicy{Name: "p", Kinds: []RecordKind{RecordRun},
-			Duration: Retain30Days, Action: "purge", Rationale: "x"}, "unknown action"},
-		{"no kinds", RetentionPolicy{Name: "p", Duration: Retain30Days,
-			Action: RetentionDelete, Rationale: "x"}, "governing nothing"},
+		{"zero duration", RetentionPolicy{
+			Name: "p", Kinds: []RecordKind{RecordRun},
+			Action: RetentionDelete, Rationale: "x",
+		}, "expire every record"},
+		{"no rationale", RetentionPolicy{
+			Name: "p", Kinds: []RecordKind{RecordRun},
+			Duration: Retain30Days, Action: RetentionDelete,
+		}, "Rationale is required"},
+		{"unknown action", RetentionPolicy{
+			Name: "p", Kinds: []RecordKind{RecordRun},
+			Duration: Retain30Days, Action: "purge", Rationale: "x",
+		}, "unknown action"},
+		{"no kinds", RetentionPolicy{
+			Name: "p", Duration: Retain30Days,
+			Action: RetentionDelete, Rationale: "x",
+		}, "governing nothing"},
 	}
 
 	for _, tc := range cases {
@@ -111,8 +123,10 @@ func TestRetentionPolicy_RefusesZeroDurationAndMissingRationale(t *testing.T) {
 
 func TestRetentionPolicy_IndefiniteHasNoExpiry(t *testing.T) {
 	t.Parallel()
-	p := RetentionPolicy{Name: "forever", Kinds: []RecordKind{RecordAudit},
-		Action: RetentionIndefinite, Rationale: "evidence"}
+	p := RetentionPolicy{
+		Name: "forever", Kinds: []RecordKind{RecordAudit},
+		Action: RetentionIndefinite, Rationale: "evidence",
+	}
 
 	if got := p.ExpiryFor(time.Now()); !got.IsZero() {
 		t.Errorf("ExpiryFor = %v, want the zero time", got)
@@ -191,14 +205,22 @@ func TestRetentionManager_ReapplyReportsTheBlastRadius(t *testing.T) {
 	ctx := context.Background()
 
 	long, err := NewRetentionSchedule(
-		RetentionPolicy{Name: "obs", Kinds: []RecordKind{RecordObservation, RecordRun},
-			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x"},
-		RetentionPolicy{Name: "gold", Kinds: []RecordKind{RecordGolden},
-			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x"},
-		RetentionPolicy{Name: "meas", Kinds: []RecordKind{RecordBenchmark, RecordTrend},
-			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x"},
-		RetentionPolicy{Name: "aud", Kinds: []RecordKind{RecordAudit},
-			Action: RetentionIndefinite, Rationale: "x"},
+		RetentionPolicy{
+			Name: "obs", Kinds: []RecordKind{RecordObservation, RecordRun},
+			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x",
+		},
+		RetentionPolicy{
+			Name: "gold", Kinds: []RecordKind{RecordGolden},
+			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x",
+		},
+		RetentionPolicy{
+			Name: "meas", Kinds: []RecordKind{RecordBenchmark, RecordTrend},
+			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x",
+		},
+		RetentionPolicy{
+			Name: "aud", Kinds: []RecordKind{RecordAudit},
+			Action: RetentionIndefinite, Rationale: "x",
+		},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -217,14 +239,22 @@ func TestRetentionManager_ReapplyReportsTheBlastRadius(t *testing.T) {
 	// Shorten the window. Nothing should silently re-age until Reapply is
 	// called, and Reapply must report how much it moved.
 	short, err := NewRetentionSchedule(
-		RetentionPolicy{Name: "obs", Kinds: []RecordKind{RecordObservation, RecordRun},
-			Duration: Retain30Days, Action: RetentionDelete, Rationale: "x"},
-		RetentionPolicy{Name: "gold", Kinds: []RecordKind{RecordGolden},
-			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x"},
-		RetentionPolicy{Name: "meas", Kinds: []RecordKind{RecordBenchmark, RecordTrend},
-			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x"},
-		RetentionPolicy{Name: "aud", Kinds: []RecordKind{RecordAudit},
-			Action: RetentionIndefinite, Rationale: "x"},
+		RetentionPolicy{
+			Name: "obs", Kinds: []RecordKind{RecordObservation, RecordRun},
+			Duration: Retain30Days, Action: RetentionDelete, Rationale: "x",
+		},
+		RetentionPolicy{
+			Name: "gold", Kinds: []RecordKind{RecordGolden},
+			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x",
+		},
+		RetentionPolicy{
+			Name: "meas", Kinds: []RecordKind{RecordBenchmark, RecordTrend},
+			Duration: Retain180Days, Action: RetentionDelete, Rationale: "x",
+		},
+		RetentionPolicy{
+			Name: "aud", Kinds: []RecordKind{RecordAudit},
+			Action: RetentionIndefinite, Rationale: "x",
+		},
 	)
 	if err != nil {
 		t.Fatal(err)

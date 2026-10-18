@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -354,6 +355,117 @@ func matrixSignature(t *testing.T, vi *voiceIntelligence, pass int) string {
 // Step 2 — fresh-service repeatability
 // ---------------------------------------------------------------------------
 
+// t9Epoch is the instant every T9 running service's engine clock reads.
+var t9Epoch = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// deterministicService is runningService with the conversation engine on a
+// FROZEN clock: a FakeClock that is never advanced, so every decision cycle
+// spends zero engine time.
+//
+// # Why T9 needs it
+//
+// The engine budgets each decision cycle against the clock. Once a cycle
+// passes LatencyConfig.Total x DegradeThreshold (150ms x 0.75 = 112.5ms), it
+// skips skippable stages, intent classification first, and answers with the
+// fallback intent. That is intended degradation under load. On the system
+// clock, though, a scheduler stall of about 100ms inside one call — routine
+// under -race on a loaded runner — flips a fixture from its classified intent
+// to fallback, and the semantic signature drifts. The signature excludes every
+// timestamp but cannot exclude a different PATH through the engine.
+//
+// A frozen clock removes real elapsed time from the engine's decisions, so T9
+// measures what it claims: that the same inputs take the same path. The
+// service is still built and run through buildService, the production path;
+// only the clock is controlled.
+//
+// No component on this path sleeps or waits on the clock, so a clock that
+// never advances blocks nothing.
+func deterministicService(t *testing.T) (*logSink, *voiceIntelligence, context.CancelFunc, <-chan error) {
+	t.Helper()
+	return runningServiceWith(t, voiceintel.WithClock(rt.NewFakeClock(t9Epoch)))
+}
+
+// stallingClassifier is the real classifier with a fixed REAL-TIME stall
+// before every classification: a deterministic stand-in for a scheduler
+// stall landing inside the intent stage.
+type stallingClassifier struct {
+	inner conversation.IntentClassifier
+	stall time.Duration
+}
+
+func (s stallingClassifier) Classify(
+	u conversation.Utterance, e conversation.Expectation,
+) ([]conversation.Candidate, []conversation.Slot, error) {
+	time.Sleep(s.stall)
+	return s.inner.Classify(u, e)
+}
+
+// TestT9_RealStallsCannotChangeTheSignatureOnTheInjectedClock is the
+// regression test for the real-clock flake that deterministicService fixes.
+//
+// Each classification stalls for longer than the degrade threshold, in real
+// time:
+//
+//   - on the FROZEN clock, the signature must equal the unstalled one — real
+//     elapsed time no longer reaches the engine's decisions;
+//   - on the SYSTEM clock, it must differ. This is the control: it proves the
+//     stall genuinely crosses the threshold, so the frozen-clock equality is
+//     a result rather than a stall too short to matter.
+//
+// The threshold is read from the frozen default rather than restated, so a
+// change to the budget changes the stall with it.
+func TestT9_RealStallsCannotChangeTheSignatureOnTheInjectedClock(t *testing.T) {
+	lat := conversation.DefaultLatencyConfig()
+	threshold := time.Duration(float64(lat.Total) * lat.DegradeThreshold)
+	stall := threshold + 50*time.Millisecond
+
+	classifier, err := intent.New(intent.DefaultConfig())
+	if err != nil {
+		t.Fatalf("classifier: %v", err)
+	}
+	slow := voiceintel.WithClassifier(stallingClassifier{inner: classifier, stall: stall})
+
+	// A few single-utterance fixtures: enough to show the effect, few enough
+	// that the stalls keep the test short.
+	fixtures := t9Fixtures()[:3]
+	signature := func(vi *voiceIntelligence, tag string) string {
+		var b strings.Builder
+		mustFinish(t, 60*time.Second, tag, func() error {
+			for i, f := range fixtures {
+				sig, err := runFixture(vi, conversation.ConversationID(
+					fmt.Sprintf("t9-stall-%s-%02d", tag, i)), f)
+				if err != nil {
+					return fmt.Errorf("%s: %w", f.name, err)
+				}
+				b.WriteString(sig)
+			}
+			return nil
+		})
+		return b.String()
+	}
+	run := func(tag string, opts ...voiceintel.Option) string {
+		_, vi, cancel, done := runningServiceWith(t, opts...)
+		defer func() { cancel(); <-done }()
+		return signature(vi, tag)
+	}
+
+	want := run("baseline", voiceintel.WithClock(rt.NewFakeClock(t9Epoch)))
+	frozen := run("frozen", voiceintel.WithClock(rt.NewFakeClock(t9Epoch)), slow)
+	if frozen != want {
+		t.Fatalf("a %s real-time stall changed the signature on the frozen clock:\n%s",
+			stall, firstDiff(want, frozen))
+	}
+
+	system := run("system", slow)
+	if system == want {
+		t.Fatalf("a %s stall did not change the signature on the system clock; "+
+			"the stall no longer crosses the %s degrade threshold, so this test "+
+			"proves nothing", stall, threshold)
+	}
+	t.Logf("%s stall: frozen clock identical; system clock diverges (%s)",
+		stall, strings.SplitN(firstDiff(want, system), "\n", 2)[0])
+}
+
 // TestT9_FreshRunningServiceSignatureIsStable builds 20 independent RUNNING
 // services — each with its own ports, logger, bridge, engine and classifier —
 // and requires a byte-identical signature from every one.
@@ -366,7 +478,7 @@ func TestT9_FreshRunningServiceSignatureIsStable(t *testing.T) {
 
 	first := ""
 	for pass := 0; pass < passes; pass++ {
-		_, vi, cancel, done := runningService(t)
+		_, vi, cancel, done := deterministicService(t)
 		got := matrixSignature(t, vi, pass)
 		cancel()
 		<-done
@@ -407,7 +519,7 @@ func TestT9_FreshRunningServiceSignatureIsStable(t *testing.T) {
 func TestT9_MatrixMatchesTheGoldenSignature(t *testing.T) {
 	const golden = "testdata/t9_service_signature.golden"
 
-	_, vi, cancel, done := runningService(t)
+	_, vi, cancel, done := deterministicService(t)
 	defer func() { cancel(); <-done }()
 	got := matrixSignature(t, vi, 0)
 
@@ -445,7 +557,7 @@ var updateGolden = flag.Bool("update", false, "rewrite the golden signature")
 // while silently covering nothing. This asserts each limb is actually exercised
 // by the matrix.
 func TestT9_SignatureIsNonVacuous(t *testing.T) {
-	_, vi, cancel, done := runningService(t)
+	_, vi, cancel, done := deterministicService(t)
 	defer func() { cancel(); <-done }()
 
 	sig := matrixSignature(t, vi, 0)
@@ -546,7 +658,7 @@ func TestT9_MultiTurnSignatureIsStablePerTurn(t *testing.T) {
 	perTurn := map[string][]string{} // fixture -> per-step signature lines
 
 	for pass := 0; pass < passes; pass++ {
-		_, vi, cancel, done := runningService(t)
+		_, vi, cancel, done := deterministicService(t)
 		for i, f := range multi {
 			var sig string
 			mustFinish(t, 30*time.Second, "multi-turn "+f.name, func() error {
@@ -585,11 +697,12 @@ func TestT9_MultiTurnSignatureIsStablePerTurn(t *testing.T) {
 // update, eviction and expiry through the EXISTING clock seam
 // (voiceintel.WithClock -> conversation.WithClock -> ContextEngine.clock).
 //
-// SEAM NOTE: newVoiceIntelligence(log) takes no clock, so the clock cannot be
-// injected through the service constructor. Adding one would be a production
-// change made solely to let a test control time — a declared stop condition —
-// so this test uses the Bridge seam directly and the limitation is reported
-// rather than engineered around.
+// SEAM NOTE: when T9 was written, newVoiceIntelligence(log) took no clock, and
+// adding one was a declared stop condition, so this test uses the Bridge seam
+// directly. The service constructors have since gained pass-through
+// voiceintel options, approved to fix a demonstrated real-clock flake in the
+// running-service tests (see deterministicService). This test is unchanged
+// and still drives the Bridge, the level its subject lives at.
 //
 // THE TIED-TIMESTAMP DISTINCTION (T7's finding, honoured here):
 // evictOldestLocked picks the oldest entry by a linear scan. When two entries
@@ -759,7 +872,7 @@ func TestT9_ContextDeterminismUnderControlledClock(t *testing.T) {
 // Error message strings are never compared.
 func TestT9_FailureSignatureIsTypedAndStable(t *testing.T) {
 	run := func(pass int) string {
-		_, vi, cancel, done := runningService(t)
+		_, vi, cancel, done := deterministicService(t)
 		defer func() { cancel(); <-done }()
 
 		var b strings.Builder
@@ -819,7 +932,7 @@ func TestT9_FailureSignatureIsTypedAndStable(t *testing.T) {
 // executing can be interrupted.
 func TestT9_InterruptionBoundaryIsDeterministic(t *testing.T) {
 	run := func(pass int) string {
-		_, vi, cancel, done := runningService(t)
+		_, vi, cancel, done := deterministicService(t)
 		defer func() { cancel(); <-done }()
 		var sig string
 		mustFinish(t, 30*time.Second, "interruption pass", func() error {
@@ -851,7 +964,7 @@ func TestT9_InterruptionBoundaryIsDeterministic(t *testing.T) {
 // claim that cancellation interrupts a turn in progress.
 func TestT9_CancellationDoesNotAlterSemanticState(t *testing.T) {
 	for pass := 0; pass < 20; pass++ {
-		_, vi, cancel, done := runningService(t)
+		_, vi, cancel, done := deterministicService(t)
 
 		id := conversation.ConversationID(fmt.Sprintf("t9-cancel-%d", pass))
 		var before string
@@ -897,7 +1010,7 @@ func TestT9_CancellationDoesNotAlterSemanticState(t *testing.T) {
 func TestT9_SerialAndConcurrentSignaturesMatch(t *testing.T) {
 	fixtures := t9Fixtures()
 
-	_, vi, cancel, done := runningService(t)
+	_, vi, cancel, done := deterministicService(t)
 	defer func() { cancel(); <-done }()
 
 	serial := make(map[string]string, len(fixtures))
@@ -913,7 +1026,7 @@ func TestT9_SerialAndConcurrentSignaturesMatch(t *testing.T) {
 		return nil
 	})
 
-	_, vi2, cancel2, done2 := runningService(t)
+	_, vi2, cancel2, done2 := deterministicService(t)
 	defer func() { cancel2(); <-done2 }()
 
 	concurrent := make([]string, len(fixtures))

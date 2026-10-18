@@ -152,6 +152,11 @@ type Stream struct {
 	pipeline *Pipeline
 	media    *MediaClock
 
+	// tmu serialises transitions, so [Stream.transitionFrom] can make "still
+	// in the state this decision was based on" atomic with the move itself.
+	// Taken before the FSM's own lock, never while holding mu.
+	tmu sync.Mutex
+
 	mu        sync.RWMutex
 	history   []TransitionRecord
 	seq       int
@@ -174,7 +179,8 @@ type Stream struct {
 
 // newStream builds a stream. Callers go through [MediaRegistry.Create].
 func newStream(id StreamID, sess SessionID, sc StreamContext, cfg PipelineConfig,
-	initial StreamState, clock rt.Clock) (*Stream, error) {
+	initial StreamState, clock rt.Clock,
+) (*Stream, error) {
 	if err := sc.Validate(); err != nil {
 		return nil, err
 	}
@@ -236,6 +242,34 @@ func (s *Stream) CanTransition(to StreamState) bool { return s.fsm.CanGo(to) }
 // THE ONLY WAY A STREAM CHANGES STATE. There is no setter, and the FSM refuses
 // anything the transition table does not declare.
 func (s *Stream) Transition(to StreamState, reason string) error {
+	s.tmu.Lock()
+	defer s.tmu.Unlock()
+	return s.transitionLocked(to, reason)
+}
+
+// transitionFrom moves the stream only if it is still in from.
+//
+// For a move decided by LOOKING at the state and made a moment later. The stall
+// sweeper computes a deadline from the state; in between, a pause, a close or a
+// second sweeper can move the stream, and the deadline no longer applies.
+// Moving anyway would time out a stream that was just paused — the one state
+// the table exempts from any deadline — and the losing sweeper would record a
+// refused transition for what was only a lost race.
+//
+// Returns errStateChanged, not a TransitionError, so a caller can tell the two
+// apart.
+func (s *Stream) transitionFrom(from, to StreamState, reason string) error {
+	s.tmu.Lock()
+	defer s.tmu.Unlock()
+	if got := s.fsm.State(); got != from {
+		return fmt.Errorf("%w: stream %s is %s, no longer %s",
+			errStateChanged, s.id, got, from)
+	}
+	return s.transitionLocked(to, reason)
+}
+
+// transitionLocked is Transition's body. The caller holds tmu.
+func (s *Stream) transitionLocked(to StreamState, reason string) error {
 	if err := checkReasonCode(reason); err != nil {
 		return err
 	}
@@ -250,7 +284,8 @@ func (s *Stream) Transition(to StreamState, reason string) error {
 	s.mu.Lock()
 	s.seq++
 	s.appendHistoryLocked(TransitionRecord{
-		From: from, To: to, Reason: reason, At: now, Seq: s.seq})
+		From: from, To: to, Reason: reason, At: now, Seq: s.seq,
+	})
 	s.updatedAt = now
 
 	if to == StateActive && s.startedAt.IsZero() {

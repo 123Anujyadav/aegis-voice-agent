@@ -38,10 +38,12 @@ func (t EventType) Topic() string { return "governance.decision." + string(t) + 
 
 // AllEventTypes returns every published type, in declaration order.
 func AllEventTypes() []EventType {
-	return []EventType{EventDecided, EventDeniedE, EventEscalated,
+	return []EventType{
+		EventDecided, EventDeniedE, EventEscalated,
 		EventEscalationResolved, EventConsentGranted, EventConsentRevoked,
 		EventConsentExpired, EventEmergencyActivated, EventEmergencyDeactivated,
-		EventRiskThresholdCrossed, EventPolicyChanged}
+		EventRiskThresholdCrossed, EventPolicyChanged,
+	}
 }
 
 // Event is one published governance event.

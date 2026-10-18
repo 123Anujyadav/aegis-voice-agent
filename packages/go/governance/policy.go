@@ -81,8 +81,10 @@ func (s Scope) String() string {
 
 // AllScopes returns every scope in precedence order.
 func AllScopes() []Scope {
-	return []Scope{ScopeCompliance, ScopeEmergency, ScopeGlobal, ScopeOrganization,
-		ScopeBusiness, ScopeUser, ScopeSession, ScopeTemporary, ScopeFeatureFlag}
+	return []Scope{
+		ScopeCompliance, ScopeEmergency, ScopeGlobal, ScopeOrganization,
+		ScopeBusiness, ScopeUser, ScopeSession, ScopeTemporary, ScopeFeatureFlag,
+	}
 }
 
 // Overridable reports whether an emergency override may relax this scope.

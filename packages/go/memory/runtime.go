@@ -62,8 +62,10 @@ func DefaultConfig() Config {
 		SweepInterval:     30 * time.Second,
 		SweepBudget:       2 * time.Second,
 		DefaultQueryLimit: 50,
-		Namespaces: []Namespace{NamespaceAssistant, NamespaceReceptionist,
-			NamespaceFraud, NamespaceTelephony},
+		Namespaces: []Namespace{
+			NamespaceAssistant, NamespaceReceptionist,
+			NamespaceFraud, NamespaceTelephony,
+		},
 	}
 }
 

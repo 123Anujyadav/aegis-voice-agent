@@ -79,14 +79,18 @@ func NewMetrics() *Metrics {
 	// p95 1500 ms, p99 ceiling 2500 ms (ADR-0011). Generic exponential buckets
 	// would put only two boundaries in the range we actually care about, which
 	// makes the histogram useless for the one question we ask of it.
-	lat := []float64{0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75,
-		0.9, 1.1, 1.5, 2.0, 2.5, 4.0, 8.0}
+	lat := []float64{
+		0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75,
+		0.9, 1.1, 1.5, 2.0, 2.5, 4.0, 8.0,
+	}
 
 	// Abort buckets are much finer: the whole budget is 20 ms, so a bucket at
 	// 100 ms tells us nothing. Boundaries straddle 20 ms so a breach is
 	// visible as a bucket crossing rather than inferred from a percentile.
-	abort := []float64{0.0005, 0.001, 0.002, 0.005, 0.01, 0.015, 0.02, 0.03,
-		0.05, 0.1, 0.25}
+	abort := []float64{
+		0.0005, 0.001, 0.002, 0.005, 0.01, 0.015, 0.02, 0.03,
+		0.05, 0.1, 0.25,
+	}
 
 	tokens := []float64{16, 64, 256, 1024, 4096, 16384, 65536, 262144}
 

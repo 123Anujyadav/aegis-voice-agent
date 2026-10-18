@@ -159,7 +159,8 @@ func (e *EvaluationRuntime) Replay(ctx context.Context, s Scenario, recorded Obs
 		result.Differences = []Difference{{
 			Kind: DiffScenario,
 			Was:  fmt.Sprintf("v%d", recorded.ScenarioVersion),
-			Now:  fmt.Sprintf("v%d", s.Version)}}
+			Now:  fmt.Sprintf("v%d", s.Version),
+		}}
 		e.countReplay(s, false)
 		return result
 	}
@@ -333,7 +334,8 @@ func (r RegressionReport) Summary() string {
 // quantised samples measures the clock rather than the code. Supply the
 // runtime's resolution-adjusted floor; [Coordinator.CompareRuns] does.
 func DetectRegressions(baseline, current Run, latencyRatio float64,
-	latencyFloor time.Duration) RegressionReport {
+	latencyFloor time.Duration,
+) RegressionReport {
 	report := RegressionReport{
 		Baseline: baseline.ID, Current: current.ID,
 		BaselineLabel: baseline.Label, CurrentLabel: current.Label,

@@ -250,8 +250,10 @@ func (s *Simulator) Exchange(text string) *Simulator {
 
 // Interrupt raises an interruption.
 func (s *Simulator) Interrupt(kind InterruptionKind, reason string) *Simulator {
-	return s.Do(Event{Kind: EventInterrupt, Interruption: kind,
-		Party: PartyCaller, Reason: reason})
+	return s.Do(Event{
+		Kind: EventInterrupt, Interruption: kind,
+		Party: PartyCaller, Reason: reason,
+	})
 }
 
 // Advance moves the fake clock, driving timeouts, TTLs and turn-overlap

@@ -51,49 +51,77 @@ type transition struct {
 // departures from it, then the ends.
 var sessionTransitions = []transition{
 	// --- The steady-state cycle -------------------------------------------
-	{StateCreated, StateListening,
-		"the session begins listening; the only way out of created"},
-	{StateListening, StateSpeakingDetected,
-		"Phase 11D confirmed a speech onset"},
-	{StateSpeakingDetected, StateTranscribing,
-		"a recognition stream is open and receiving audio"},
-	{StateTranscribing, StateThinking,
-		"a final transcript exists; planning, governance and generation follow"},
-	{StateThinking, StateSynthesizing,
-		"a response is being generated and its first chunk has gone to the voice"},
-	{StateSynthesizing, StateSpeaking,
-		"the first synthesised frame is on its way to the caller"},
-	{StateSpeaking, StateListening,
-		"the turn finished speaking; the floor returns to the caller"},
+	{
+		StateCreated, StateListening,
+		"the session begins listening; the only way out of created",
+	},
+	{
+		StateListening, StateSpeakingDetected,
+		"Phase 11D confirmed a speech onset",
+	},
+	{
+		StateSpeakingDetected, StateTranscribing,
+		"a recognition stream is open and receiving audio",
+	},
+	{
+		StateTranscribing, StateThinking,
+		"a final transcript exists; planning, governance and generation follow",
+	},
+	{
+		StateThinking, StateSynthesizing,
+		"a response is being generated and its first chunk has gone to the voice",
+	},
+	{
+		StateSynthesizing, StateSpeaking,
+		"the first synthesised frame is on its way to the caller",
+	},
+	{
+		StateSpeaking, StateListening,
+		"the turn finished speaking; the floor returns to the caller",
+	},
 
 	// --- Turns that end early, without a fault ----------------------------
 	//
 	// Each of these is a turn producing nothing to say. None is a failure, and
 	// routing them through failed would make an ordinary silence look like an
 	// outage.
-	{StateSpeakingDetected, StateListening,
+	{
+		StateSpeakingDetected, StateListening,
 		"the onset did not become speech worth recognising; a false onset is " +
-			"noise, not a fault"},
-	{StateTranscribing, StateListening,
-		"recognition produced nothing — silence, or audio that was not speech"},
-	{StateThinking, StateListening,
+			"noise, not a fault",
+	},
+	{
+		StateTranscribing, StateListening,
+		"recognition produced nothing — silence, or audio that was not speech",
+	},
+	{
+		StateThinking, StateListening,
 		"the turn concluded with nothing to say, including when governance " +
-			"refused the action"},
-	{StateSynthesizing, StateListening,
-		"the synthesiser produced no audio for the response"},
+			"refused the action",
+	},
+	{
+		StateSynthesizing, StateListening,
+		"the synthesiser produced no audio for the response",
+	},
 
 	// --- Barge-in ---------------------------------------------------------
 	//
 	// From both states where the agent holds the floor. Synthesizing counts
 	// because the turn is committed even if the first frame has not left, and a
 	// caller talking then is interrupting.
-	{StateSynthesizing, StateInterrupted,
-		"the caller spoke over a turn that had been committed but not yet heard"},
-	{StateSpeaking, StateInterrupted,
-		"the caller spoke over audio already playing"},
-	{StateInterrupted, StateListening,
+	{
+		StateSynthesizing, StateInterrupted,
+		"the caller spoke over a turn that had been committed but not yet heard",
+	},
+	{
+		StateSpeaking, StateInterrupted,
+		"the caller spoke over audio already playing",
+	},
+	{
+		StateInterrupted, StateListening,
 		"the interruption has been orchestrated: synthesis stopped and stale " +
-			"audio blocked; the floor is the caller's"},
+			"audio blocked; the floor is the caller's",
+	},
 }
 
 // terminalReachableFrom is every non-terminal state, each of which may end.
@@ -412,24 +440,32 @@ func (f *SessionFSM) checkLocked(to SessionState, reason string) error {
 
 	switch {
 	case !to.Valid():
-		return &TransitionError{Session: f.session, From: from, To: to,
-			Reason: "the target is not one of the declared states"}
+		return &TransitionError{
+			Session: f.session, From: from, To: to,
+			Reason: "the target is not one of the declared states",
+		}
 
 	case from.Terminal():
-		return &TransitionError{Session: f.session, From: from, To: to,
-			Reason: "the session has already ended; nothing follows a terminal state"}
+		return &TransitionError{
+			Session: f.session, From: from, To: to,
+			Reason: "the session has already ended; nothing follows a terminal state",
+		}
 
 	case !validReason(reason):
-		return &TransitionError{Session: f.session, From: from, To: to,
+		return &TransitionError{
+			Session: f.session, From: from, To: to,
 			Reason: fmt.Sprintf("reason %q is not a declared code; a reason "+
 				"reaches an event that leaves this process, so it comes from the "+
 				"vocabulary in classifications.go and never from provider output",
-				reason)}
+				reason),
+		}
 
 	case !CanTransition(from, to):
-		return &TransitionError{Session: f.session, From: from, To: to,
+		return &TransitionError{
+			Session: f.session, From: from, To: to,
 			Reason: "no such edge is declared; the permitted targets are " +
-				formatStates(TransitionsFrom(from))}
+				formatStates(TransitionsFrom(from)),
+		}
 	}
 	return nil
 }

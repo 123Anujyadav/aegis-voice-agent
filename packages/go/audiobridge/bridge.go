@@ -70,9 +70,9 @@ var _ SpeechSession = (*speech.SpeechSession)(nil)
 
 // Adapter implements [audiointel.SpeechController] over a Phase 11C session.
 //
-// Safe for concurrent use. audiointel calls it from whichever goroutine drives
-// the session's frames, and a supervising goroutine may read the counters at
-// the same time.
+// Safe for concurrent use. The audiointel package calls it from whichever
+// goroutine drives the session's frames, and a supervising goroutine may read
+// the counters at the same time.
 type Adapter struct {
 	session SpeechSession
 
@@ -97,9 +97,9 @@ var _ audiointel.SpeechController = (*Adapter)(nil)
 
 // New builds an adapter over a speech session.
 //
-// A nil session is refused rather than tolerated. audiointel already
-// distinguishes "no controller wired" as [audiointel.BargeInNoController] and
-// counts it as a configuration fault; an adapter wrapping nothing would hide
+// A nil session is refused rather than tolerated. The audiointel package
+// already distinguishes "no controller wired" as
+// [audiointel.BargeInNoController] and counts it as a configuration fault; an adapter wrapping nothing would hide
 // that behind a successful-looking object.
 func New(session SpeechSession) (*Adapter, error) {
 	if session == nil {
@@ -114,12 +114,12 @@ func New(session SpeechSession) (*Adapter, error) {
 //
 // # Phase 11C refusing is a normal outcome, not an error to paper over
 //
-// speech.SpeechSession.Interrupt refuses unless the turn is responding or
-// speaking, because a caller talking while the agent is listening is not
+// The method speech.SpeechSession.Interrupt refuses unless the turn is
+// responding or speaking, because a caller talking while the agent is listening is not
 // interrupting — their audio already belongs to the live turn, and cancelling
 // would throw away a transcript in progress.
 //
-// audiointel applies the same rule before calling here, through
+// The audiointel package applies the same rule before calling here, through
 // BargeInPolicy.RequireAgentSpeaking, so the two agree in the common case. They
 // can still disagree in the window where the turn moved on between the
 // detection and this call, and when that happens the refusal is returned

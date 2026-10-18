@@ -598,8 +598,10 @@ func TestPersona_EmergencyCanOnlyEscalateOrHandOver(t *testing.T) {
 			t.Errorf("emergency persona must allow %s", c)
 		}
 	}
-	for _, c := range []Capability{CapAnswerQuestion, CapAskClarification,
-		CapTakeMessage, CapTransfer, CapDiscloseIdentity} {
+	for _, c := range []Capability{
+		CapAnswerQuestion, CapAskClarification,
+		CapTakeMessage, CapTransfer, CapDiscloseIdentity,
+	} {
 		if p.Allows(c) {
 			t.Errorf("emergency persona must forbid %s; its job is to get out of the way", c)
 		}
@@ -609,8 +611,10 @@ func TestPersona_EmergencyCanOnlyEscalateOrHandOver(t *testing.T) {
 func TestPersona_FraudShieldDisclosesNothing(t *testing.T) {
 	t.Parallel()
 	p := BuiltinPersonas()[PersonaFraudShield]
-	for _, c := range []Capability{CapDiscloseIdentity, CapDiscloseAvailability,
-		CapTakeMessage, CapAnswerQuestion} {
+	for _, c := range []Capability{
+		CapDiscloseIdentity, CapDiscloseAvailability,
+		CapTakeMessage, CapAnswerQuestion,
+	} {
 		if p.Allows(c) {
 			t.Errorf("fraud shield must give a hostile caller no surface; %s is a surface", c)
 		}
@@ -689,8 +693,10 @@ func TestPolicy_SafetyOutranksLaterClasses(t *testing.T) {
 	// Add a business rule that would allow everything. It cannot reverse a
 	// safety denial because evaluation stops at the first deny and safety runs
 	// first — there is no mechanism for a later rule to permit.
-	p.Add(Rule{Name: "business.allow_all", Class: ClassBusiness, Priority: 0,
-		Eval: func(PolicyInput) (Decision, string) { return Allow, "" }})
+	p.Add(Rule{
+		Name: "business.allow_all", Class: ClassBusiness, Priority: 0,
+		Eval: func(PolicyInput) (Decision, string) { return Allow, "" },
+	})
 
 	v := p.Evaluate(PolicyInput{
 		Action: ActionRespond, EmergencyRaised: true,
@@ -722,8 +728,10 @@ func TestPolicy_BoundariesStillPermitExit(t *testing.T) {
 func TestPolicy_RulesArePureAndDeterministic(t *testing.T) {
 	t.Parallel()
 	p := NewPolicyEngine(NewMetrics())
-	in := PolicyInput{Action: ActionClarify,
-		Persona: BuiltinPersonas()[PersonaBusinessReceptionist], ClarificationsUsed: 99}
+	in := PolicyInput{
+		Action:  ActionClarify,
+		Persona: BuiltinPersonas()[PersonaBusinessReceptionist], ClarificationsUsed: 99,
+	}
 
 	first := p.Evaluate(in)
 	for i := 0; i < 50; i++ {
@@ -827,47 +835,83 @@ func TestPlanner_DecisionTable(t *testing.T) {
 		in   PlanInput
 		want Action
 	}{
-		{"emergency outranks everything",
+		{
+			"emergency outranks everything",
 			PlanInput{Persona: reception, EmergencyRaised: true, Verdict: IntentAccept},
-			ActionEscalate},
-		{"emergency persona escalates on any uncertainty",
+			ActionEscalate,
+		},
+		{
+			"emergency persona escalates on any uncertainty",
 			PlanInput{Persona: emergency, Verdict: IntentClarify},
-			ActionEscalate},
-		{"accepted intent responds",
-			PlanInput{Persona: reception, Verdict: IntentAccept,
-				Intent: Intent{Name: "book", Confidence: 0.9}},
-			ActionRespond},
-		{"ambiguity clarifies",
-			PlanInput{Persona: reception, Verdict: IntentClarify,
-				Clarification: Request{Kind: ClarifyAmbiguous}, ClarificationAllowed: true},
-			ActionClarify},
-		{"missing slot asks",
-			PlanInput{Persona: reception, Verdict: IntentClarify,
+			ActionEscalate,
+		},
+		{
+			"accepted intent responds",
+			PlanInput{
+				Persona: reception, Verdict: IntentAccept,
+				Intent: Intent{Name: "book", Confidence: 0.9},
+			},
+			ActionRespond,
+		},
+		{
+			"ambiguity clarifies",
+			PlanInput{
+				Persona: reception, Verdict: IntentClarify,
+				Clarification: Request{Kind: ClarifyAmbiguous}, ClarificationAllowed: true,
+			},
+			ActionClarify,
+		},
+		{
+			"missing slot asks",
+			PlanInput{
+				Persona: reception, Verdict: IntentClarify,
 				Clarification:        Request{Kind: ClarifyMissingSlot, Slot: "date"},
-				ClarificationAllowed: true},
-			ActionAsk},
-		{"low confidence confirms",
-			PlanInput{Persona: reception, Verdict: IntentClarify,
-				Clarification: Request{Kind: ClarifyLowConfidence}, ClarificationAllowed: true},
-			ActionConfirm},
-		{"exhausted clarification escalates rather than repeating",
-			PlanInput{Persona: reception, Verdict: IntentClarify,
-				Clarification: Request{Kind: ClarifyLowConfidence}, ClarificationAllowed: false},
-			ActionEscalate},
-		{"turn limit exits",
+				ClarificationAllowed: true,
+			},
+			ActionAsk,
+		},
+		{
+			"low confidence confirms",
+			PlanInput{
+				Persona: reception, Verdict: IntentClarify,
+				Clarification: Request{Kind: ClarifyLowConfidence}, ClarificationAllowed: true,
+			},
+			ActionConfirm,
+		},
+		{
+			"exhausted clarification escalates rather than repeating",
+			PlanInput{
+				Persona: reception, Verdict: IntentClarify,
+				Clarification: Request{Kind: ClarifyLowConfidence}, ClarificationAllowed: false,
+			},
+			ActionEscalate,
+		},
+		{
+			"turn limit exits",
 			PlanInput{Persona: reception, Verdict: IntentAccept, TurnCount: reception.MaxTurns},
-			ActionEscalate},
-		{"interruption storm exits",
+			ActionEscalate,
+		},
+		{
+			"interruption storm exits",
 			PlanInput{Persona: reception, Verdict: IntentAccept, InterruptionCount: 6},
-			ActionEscalate},
-		{"single noise is ignored",
-			PlanInput{Persona: reception, Verdict: IntentNoise,
-				Clarification: Request{Kind: ClarifyNone}, ClarificationAllowed: true},
-			ActionIgnore},
-		{"repeated noise past budget escalates",
-			PlanInput{Persona: reception, Verdict: IntentNoise,
-				Clarification: Request{Kind: ClarifyNoise}, ClarificationAllowed: false},
-			ActionEscalate},
+			ActionEscalate,
+		},
+		{
+			"single noise is ignored",
+			PlanInput{
+				Persona: reception, Verdict: IntentNoise,
+				Clarification: Request{Kind: ClarifyNone}, ClarificationAllowed: true,
+			},
+			ActionIgnore,
+		},
+		{
+			"repeated noise past budget escalates",
+			PlanInput{
+				Persona: reception, Verdict: IntentNoise,
+				Clarification: Request{Kind: ClarifyNoise}, ClarificationAllowed: false,
+			},
+			ActionEscalate,
+		},
 	}
 
 	for _, tc := range cases {
@@ -886,8 +930,10 @@ func TestPlanner_IsDeterministic(t *testing.T) {
 	in := PlanInput{
 		Persona: BuiltinPersonas()[PersonaBusinessReceptionist],
 		Verdict: IntentClarify,
-		Clarification: Request{Kind: ClarifyAmbiguous,
-			Candidates: []IntentName{"a", "b"}},
+		Clarification: Request{
+			Kind:       ClarifyAmbiguous,
+			Candidates: []IntentName{"a", "b"},
+		},
 		ClarificationAllowed: true,
 	}
 	first := p.Plan(in)

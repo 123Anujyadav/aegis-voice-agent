@@ -210,8 +210,10 @@ func (p *Planner) decide(in PlanInput) Plan {
 				NextState: StateEscalated, Confidence: 0.6, Escalation: "rejected",
 			}
 		}
-		return Plan{Action: ActionReject, Reason: "intent_rejected",
-			NextState: StateListening, Confidence: 0.6}
+		return Plan{
+			Action: ActionReject, Reason: "intent_rejected",
+			NextState: StateListening, Confidence: 0.6,
+		}
 	}
 
 	// 7 — A confirmed denial. The caller said no, and "no" is an instruction.

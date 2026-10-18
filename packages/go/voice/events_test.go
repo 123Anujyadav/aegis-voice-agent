@@ -164,8 +164,10 @@ func TestVoiceEvent_SummaryIsContentFree(t *testing.T) {
 	}
 
 	s := e.Summary()
-	for _, want := range []string{"voice_transcript_final", "vs-abc", "vt-def",
-		"whisper-local", "chars=42"} {
+	for _, want := range []string{
+		"voice_transcript_final", "vs-abc", "vt-def",
+		"whisper-local", "chars=42",
+	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("Summary() omits %q: %s", want, s)
 		}

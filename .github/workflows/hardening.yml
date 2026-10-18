@@ -51,7 +51,8 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: "1.25.x"
+  # Matches pr-go.yml: a supported release line (see the note there).
+  GO_VERSION: "1.26.x"
   GOTOOLCHAIN: "local"
   GOFLAGS: "-mod=readonly"
   # The AI plane. Listed explicitly rather than discovered, because these are
@@ -67,6 +68,11 @@ env:
   # does not run on a schedule, so code that stopped changing stopped being
   # re-examined. Listed in dependency order: telephony → media → audio
   # intelligence → speech → voice.
+  #
+  # Phase 14 T13 added services/go/voice, the first services/ entry: the service
+  # that wires voiceintel into a running process (ADR 0017). It meets the same
+  # 60% coverage floor as every other entry; it is last because it depends on
+  # the packages above it.
   AI_MODULES: >-
     packages/go/metrics
     packages/go/runtime
@@ -84,6 +90,7 @@ env:
     packages/go/voice
     packages/go/intent
     packages/go/voiceintel
+    services/go/voice
 
   # Modules that get the REPEATED SHUFFLED race pass only (-count=5
   # -shuffle=on), not the single pass: pr-go.yml already runs every module

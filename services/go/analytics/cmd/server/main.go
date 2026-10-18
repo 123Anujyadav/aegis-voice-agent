@@ -1,3 +1,8 @@
+// Command server is the entrypoint for the analytics service.
+//
+// It loads configuration, then runs structured logging, the health endpoints
+// and the platform service lifecycle until SIGTERM or an interrupt. No domain
+// behaviour is implemented here yet.
 package main
 
 import (
@@ -9,8 +14,10 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 )
 
-const serviceName = "analytics"
-const envPrefix = "CS_ANALYTICS"
+const (
+	serviceName = "analytics"
+	envPrefix   = "CS_ANALYTICS"
+)
 
 func main() {
 	if err := run(); err != nil {

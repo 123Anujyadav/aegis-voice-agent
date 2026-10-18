@@ -77,11 +77,13 @@ func (r *PromptRegistry) Publish(rec PromptRecord) error {
 	}
 	if rec.Body == "" {
 		return &ConfigError{Problems: []string{
-			fmt.Sprintf("prompt %s: body cannot be empty", rec.ID)}}
+			fmt.Sprintf("prompt %s: body cannot be empty", rec.ID),
+		}}
 	}
 	if !rec.Tier.Valid() || rec.Tier == TierNone {
 		return &ConfigError{Problems: []string{
-			fmt.Sprintf("prompt %s: tier must name a model-invoking rung", rec.ID)}}
+			fmt.Sprintf("prompt %s: tier must name a model-invoking rung", rec.ID),
+		}}
 	}
 
 	r.mu.Lock()

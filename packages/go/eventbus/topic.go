@@ -191,8 +191,8 @@ func (t Topic) DeadLetterTopic() string {
 // and it mixes first-attempt traffic with retry traffic so that a retry storm
 // is indistinguishable from a genuine load increase on every dashboard.
 //
-// attempt must be positive; a non-positive value returns an empty string rather
-// than a name that would silently collide with the source topic.
+// The attempt must be positive; a non-positive value returns an empty string
+// rather than a name that would silently collide with the source topic.
 func (t Topic) RetryTopic(attempt int) string {
 	if attempt < 1 {
 		return ""

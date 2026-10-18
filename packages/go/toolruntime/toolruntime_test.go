@@ -67,9 +67,11 @@ func TestValue_DistinctValuesDoNotCollide(t *testing.T) {
 		{"string vs int", Arguments{"k": String("1")}, Arguments{"k": Int(1)}},
 		{"int vs float", Arguments{"k": Int(1)}, Arguments{"k": Float(1)}},
 		{"null vs absent", Arguments{"k": Null()}, Arguments{}},
-		{"list join ambiguity",
+		{
+			"list join ambiguity",
 			Arguments{"k": List(String("a"), String("b"))},
-			Arguments{"k": List(String("a,b"))}},
+			Arguments{"k": List(String("a,b"))},
+		},
 		{"key/value swap", Arguments{"a": String("b")}, Arguments{"b": String("a")}},
 	}
 
@@ -141,8 +143,10 @@ func TestContract_ValidationCatchesContradictions(t *testing.T) {
 		{"no timeout", func(c *Contract) { c.Timeout = 0 }, "timeout is required"},
 		{"timeout over cap", func(c *Contract) { c.Timeout = time.Hour }, "exceeds the runtime maximum"},
 		{"required with default", func(c *Contract) {
-			c.Input = []FieldSpec{{Name: "q", Kind: ValueString, Required: true,
-				HasDefault: true, Default: String("x")}}
+			c.Input = []FieldSpec{{
+				Name: "q", Kind: ValueString, Required: true,
+				HasDefault: true, Default: String("x"),
+			}}
 		}, "required fields cannot have a default"},
 		{"irreversible and compensable", func(c *Contract) {
 			c.Effect = EffectIrreversible
@@ -194,8 +198,10 @@ func TestContract_DefaultsAndBounds(t *testing.T) {
 
 	c := ReadContract("t", "1.0.0", "cap")
 	c.Input = append(c.Input,
-		FieldSpec{Name: "limit", Kind: ValueInt, Bounded: true, MinNum: 1, MaxNum: 10,
-			HasDefault: true, Default: Int(5)},
+		FieldSpec{
+			Name: "limit", Kind: ValueInt, Bounded: true, MinNum: 1, MaxNum: 10,
+			HasDefault: true, Default: Int(5),
+		},
 		FieldSpec{Name: "mode", Kind: ValueString, Enum: []string{"fast", "slow"}})
 
 	out, err := c.ValidateInput(Arguments{"query": String("q")})
@@ -213,9 +219,11 @@ func TestContract_DefaultsAndBounds(t *testing.T) {
 		t.Error("value outside the enum was accepted")
 	}
 	// Int where Float is wanted widens; the reverse must not narrow silently.
-	c2 := Contract{Descriptor: Descriptor{Tool: "t", Version: "1.0.0"},
+	c2 := Contract{
+		Descriptor:   Descriptor{Tool: "t", Version: "1.0.0"},
 		Capabilities: []CapabilityID{"c"}, Owner: "o", Timeout: time.Second,
-		Input: []FieldSpec{{Name: "f", Kind: ValueFloat}}}
+		Input: []FieldSpec{{Name: "f", Kind: ValueFloat}},
+	}
 	if _, err := c2.ValidateInput(Arguments{"f": Int(3)}); err != nil {
 		t.Errorf("int should widen to float: %v", err)
 	}
@@ -229,8 +237,10 @@ func TestRegistry_LifecycleTableIsWellFormed(t *testing.T) {
 	t.Parallel()
 
 	table := lifecycleTransitions()
-	all := []Lifecycle{LifecyclePending, LifecycleActive, LifecycleDeprecated,
-		LifecycleDraining, LifecycleRetired}
+	all := []Lifecycle{
+		LifecyclePending, LifecycleActive, LifecycleDeprecated,
+		LifecycleDraining, LifecycleRetired,
+	}
 
 	// Every stage reachable from Pending.
 	seen := map[Lifecycle]bool{LifecyclePending: true}
@@ -342,7 +352,8 @@ func TestDiscovery_OrderIsTotalAndDeterministic(t *testing.T) {
 	var first []Descriptor
 	for run := 0; run < 50; run++ {
 		got, err := h.Runtime.Discovery().Resolve(Request{
-			Capability: "cap", Version: AnyVersion(), MaxCandidates: 10})
+			Capability: "cap", Version: AnyVersion(), MaxCandidates: 10,
+		})
 		if err != nil {
 			t.Fatalf("resolve: %v", err)
 		}
@@ -379,19 +390,29 @@ func TestIntent_ValidationCatchesGraphMistakes(t *testing.T) {
 		intent   ToolIntent
 		contains string
 	}{
-		{"no actor", ToolIntent{Requests: []CapabilityRequest{{Capability: "c"}}},
-			"actor is required"},
+		{
+			"no actor",
+			ToolIntent{Requests: []CapabilityRequest{{Capability: "c"}}},
+			"actor is required",
+		},
 		{"no requests", ToolIntent{Actor: "a"}, "at least one request"},
 		{"duplicate ref", ToolIntent{Actor: "a", Requests: []CapabilityRequest{
-			{Ref: "x", Capability: "c"}, {Ref: "x", Capability: "c"}}}, "duplicate ref"},
-		{"unknown dependency", ToolIntent{Actor: "a", Requests: []CapabilityRequest{
-			{Ref: "x", Capability: "c"}, {Ref: "y", Capability: "c", DependsOn: []string{"ghost"}}}},
-			"unknown ref"},
+			{Ref: "x", Capability: "c"}, {Ref: "x", Capability: "c"},
+		}}, "duplicate ref"},
+		{
+			"unknown dependency",
+			ToolIntent{Actor: "a", Requests: []CapabilityRequest{
+				{Ref: "x", Capability: "c"}, {Ref: "y", Capability: "c", DependsOn: []string{"ghost"}},
+			}},
+			"unknown ref",
+		},
 		{"anonymous in a multi-request intent", ToolIntent{Actor: "a", Requests: []CapabilityRequest{
-			{Capability: "c"}, {Capability: "c"}}}, "ref is required"},
+			{Capability: "c"}, {Capability: "c"},
+		}}, "ref is required"},
 		{"cycle", ToolIntent{Actor: "a", Requests: []CapabilityRequest{
 			{Ref: "x", Capability: "c", DependsOn: []string{"y"}},
-			{Ref: "y", Capability: "c", DependsOn: []string{"x"}}}}, "dependency cycle"},
+			{Ref: "y", Capability: "c", DependsOn: []string{"x"}},
+		}}, "dependency cycle"},
 	}
 
 	for _, tc := range cases {
@@ -467,8 +488,10 @@ func TestPlan_ShapesFollowDependencies(t *testing.T) {
 	h.Register(ReadContract("t", "1.0.0", "cap"), &FakeTool{})
 
 	req := func(ref string, deps ...string) CapabilityRequest {
-		return CapabilityRequest{Ref: ref, Capability: "cap", Version: AnyVersion(),
-			Args: Arguments{"query": String(ref)}, DependsOn: deps}
+		return CapabilityRequest{
+			Ref: ref, Capability: "cap", Version: AnyVersion(),
+			Args: Arguments{"query": String(ref)}, DependsOn: deps,
+		}
 	}
 
 	cases := []struct {
@@ -484,8 +507,10 @@ func TestPlan_ShapesFollowDependencies(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		intent := ToolIntent{ID: NewIntentID(), Actor: "a", Requests: tc.reqs,
-			Grant: Grant{Actor: "a"}}
+		intent := ToolIntent{
+			ID: NewIntentID(), Actor: "a", Requests: tc.reqs,
+			Grant: Grant{Actor: "a"},
+		}
 		plan, err := h.Runtime.Plan(intent)
 		if err != nil {
 			t.Fatalf("%s: %v", tc.name, err)
@@ -505,13 +530,17 @@ func TestPlan_IsDeterministic(t *testing.T) {
 	h.Register(ReadContract("alpha", "1.0.0", "cap"), &FakeTool{})
 	h.Register(ReadContract("bravo", "1.0.0", "cap"), &FakeTool{})
 
-	intent := ToolIntent{ID: "int-fixed", Actor: "a", Grant: Grant{Actor: "a"},
+	intent := ToolIntent{
+		ID: "int-fixed", Actor: "a", Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "z", Capability: "cap", Version: AnyVersion(), Args: Arguments{"query": String("z")}},
 			{Ref: "a", Capability: "cap", Version: AnyVersion(), Args: Arguments{"query": String("a")}},
-			{Ref: "m", Capability: "cap", Version: AnyVersion(), Args: Arguments{"query": String("m")},
-				DependsOn: []string{"a", "z"}},
-		}}
+			{
+				Ref: "m", Capability: "cap", Version: AnyVersion(), Args: Arguments{"query": String("m")},
+				DependsOn: []string{"a", "z"},
+			},
+		},
+	}
 
 	var want Fingerprint
 	for i := 0; i < 100; i++ {
@@ -583,9 +612,13 @@ func TestPlan_FallbackOverIrreversibleIsRefused(t *testing.T) {
 	h.Register(IrreversibleContract("sms-a", "1.0.0", "send"), &WriteFake{})
 	h.Register(IrreversibleContract("sms-b", "1.0.0", "send"), &WriteFake{})
 
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
-		Requests: []CapabilityRequest{{Ref: "s", Capability: "send", Version: AnyVersion(),
-			Args: Arguments{"subject": String("x")}, Fallback: true}}}
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+		Requests: []CapabilityRequest{{
+			Ref: "s", Capability: "send", Version: AnyVersion(),
+			Args: Arguments{"subject": String("x")}, Fallback: true,
+		}},
+	}
 
 	_, err := h.Runtime.Plan(intent)
 	if !errors.Is(err, ErrInvariant) {
@@ -657,8 +690,10 @@ func TestPermission_ConsentIsSeparateFromPermission(t *testing.T) {
 		t.Fatalf("a consent gap must be actionable as ErrConsentRequired, not a generic denial: %v", d.Error())
 	}
 
-	d = h.Runtime.Permissions().Evaluate(c, Grant{Actor: "a",
-		ConsentRefs: StaticConsent(map[string]string{"call_recording": "consent-123"})})
+	d = h.Runtime.Permissions().Evaluate(c, Grant{
+		Actor:       "a",
+		ConsentRefs: StaticConsent(map[string]string{"call_recording": "consent-123"}),
+	})
 	if !d.Allowed || d.ConsentRef != "consent-123" {
 		t.Fatalf("consent not honoured or not recorded: %+v", d)
 	}
@@ -673,8 +708,10 @@ func TestPermission_OverrideMustCoverEverythingMissing(t *testing.T) {
 	pe := h.Runtime.Permissions()
 
 	expiry := h.Clock.Now().Add(time.Hour)
-	if err := pe.AddOverride(Override{Name: "partial", Permissions: []Permission{"a"},
-		ExpiresAt: expiry, AuthorisedBy: "oncall", Reason: "incident-1"}); err != nil {
+	if err := pe.AddOverride(Override{
+		Name: "partial", Permissions: []Permission{"a"},
+		ExpiresAt: expiry, AuthorisedBy: "oncall", Reason: "incident-1",
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -685,8 +722,10 @@ func TestPermission_OverrideMustCoverEverythingMissing(t *testing.T) {
 		t.Fatal("a partial override allowed the call")
 	}
 
-	if err := pe.AddOverride(Override{Name: "full", Permissions: []Permission{"a", "b"},
-		ExpiresAt: expiry, AuthorisedBy: "oncall", Reason: "incident-1"}); err != nil {
+	if err := pe.AddOverride(Override{
+		Name: "full", Permissions: []Permission{"a", "b"},
+		ExpiresAt: expiry, AuthorisedBy: "oncall", Reason: "incident-1",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	d := pe.Evaluate(c, Grant{Actor: "x"})
@@ -705,14 +744,18 @@ func TestPermission_OverrideRequiresAnExpiryAndAnAuthor(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 
-	err := h.Runtime.Permissions().AddOverride(Override{Name: "forever",
-		Permissions: []Permission{"a"}, AuthorisedBy: "x", Reason: "y"})
+	err := h.Runtime.Permissions().AddOverride(Override{
+		Name:        "forever",
+		Permissions: []Permission{"a"}, AuthorisedBy: "x", Reason: "y",
+	})
 	if err == nil || !strings.Contains(err.Error(), "ExpiresAt is required") {
 		t.Fatalf("an override with no expiry must be refused, got %v", err)
 	}
 
-	err = h.Runtime.Permissions().AddOverride(Override{Name: "anon",
-		Permissions: []Permission{"a"}, ExpiresAt: h.Clock.Now().Add(time.Hour), Reason: "y"})
+	err = h.Runtime.Permissions().AddOverride(Override{
+		Name:        "anon",
+		Permissions: []Permission{"a"}, ExpiresAt: h.Clock.Now().Add(time.Hour), Reason: "y",
+	})
 	if err == nil || !strings.Contains(err.Error(), "AuthorisedBy is required") {
 		t.Fatalf("an anonymous override must be refused, got %v", err)
 	}
@@ -726,8 +769,10 @@ func TestPermission_ExpiredGrantAndOverrideStopWorking(t *testing.T) {
 	c := ReadContract("t", "1.0.0", "cap")
 	c.RequiredPermissions = []Permission{"a"}
 
-	grant := Grant{Actor: "x", Permissions: []Permission{"a"},
-		ExpiresAt: h.Clock.Now().Add(time.Minute)}
+	grant := Grant{
+		Actor: "x", Permissions: []Permission{"a"},
+		ExpiresAt: h.Clock.Now().Add(time.Minute),
+	}
 	if d := pe.Evaluate(c, grant); !d.Allowed {
 		t.Fatal("a live grant was refused")
 	}
@@ -859,10 +904,12 @@ func TestLedger_ConcurrentDuplicatesShareOneResult(t *testing.T) {
 func TestClassify_NeverRetriesWhatCannotSucceed(t *testing.T) {
 	t.Parallel()
 
-	never := []error{ErrPermissionDenied, ErrConsentRequired, ErrInvalidInput,
+	never := []error{
+		ErrPermissionDenied, ErrConsentRequired, ErrInvalidInput,
 		ErrInvalidOutput, ErrNoCapability, ErrVersionUnsatisfiable, ErrCancelled,
 		ErrDuplicate, ErrBudgetExceeded, ErrClosed, ErrCircuitOpen,
-		&InvariantError{Invariant: "X", Detail: "y"}}
+		&InvariantError{Invariant: "X", Detail: "y"},
+	}
 	for _, err := range never {
 		if Classify(err) {
 			t.Errorf("%v was classified retryable; asking again cannot change the answer", err)
@@ -945,9 +992,11 @@ func TestLease_ChargesOutputIncrementally(t *testing.T) {
 
 func TestScheduler_ShedsAtAdmissionRatherThanQueueingForever(t *testing.T) {
 	t.Parallel()
-	s, err := NewToolScheduler(SchedulerConfig{MaxConcurrent: 1,
+	s, err := NewToolScheduler(SchedulerConfig{
+		MaxConcurrent:        1,
 		MaxQueuedInteractive: 1, MaxQueuedBackground: 1, MaxQueuedBulk: 1,
-		StarvationRatio: 4}, nil, NewMetrics())
+		StarvationRatio: 4,
+	}, nil, NewMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -980,8 +1029,10 @@ func TestScheduler_ShedsAtAdmissionRatherThanQueueingForever(t *testing.T) {
 
 func TestScheduler_CancelledWaiterDoesNotLeakASlot(t *testing.T) {
 	t.Parallel()
-	s, err := NewToolScheduler(SchedulerConfig{MaxConcurrent: 1,
-		MaxQueuedInteractive: 4, MaxQueuedBackground: 4, MaxQueuedBulk: 4}, nil, NewMetrics())
+	s, err := NewToolScheduler(SchedulerConfig{
+		MaxConcurrent:        1,
+		MaxQueuedInteractive: 4, MaxQueuedBackground: 4, MaxQueuedBulk: 4,
+	}, nil, NewMetrics())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1037,7 +1088,8 @@ func TestEvents_CarryNoPayload(t *testing.T) {
 	h.Register(ReadContract("t", "1.0.0", "cap"), &FakeTool{
 		Produce: func(Invocation) (Result, error) {
 			return Result{"answer": String(secret)}, nil
-		}})
+		},
+	})
 
 	if _, err := h.Runtime.Execute(context.Background(),
 		h.Intent("cap", Arguments{"query": String(secret)})); err != nil {

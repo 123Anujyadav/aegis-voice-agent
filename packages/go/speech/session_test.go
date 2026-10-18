@@ -177,6 +177,74 @@ func TestBargeIn_CancelsTTSAndOpensANewTurn(t *testing.T) {
 	}
 }
 
+// TestBargeIn_AfterSynthesisFinishedStillWithholdsQueuedAudio pins the window
+// TestBargeIn_CancelsTTSAndOpensANewTurn only reached by scheduling chance — 3
+// failures in 2000 runs under -race, once in CI.
+//
+// The provider has finished and the pump has retired its stream, but every
+// frame it produced is still queued on the output, unheard. Synthesis runs
+// faster than real time, so this is where a barge-in usually arrives in a real
+// call. Cancel used to return early on "not speaking" here: no drain, no close,
+// and the interrupted turn's audio played over the caller.
+func TestBargeIn_AfterSynthesisFinishedStillWithholdsQueuedAudio(t *testing.T) {
+	t.Parallel()
+	r, clock, _, provider := speechRig(t, ScriptedPartials([]string{"hi"}, "hi there."))
+	s := openSession(t, r)
+
+	turn, err := s.Listen(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PushAudio(testFrame(clock, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EndOfSpeech(); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, turn, TurnFinal)
+
+	if err := s.Respond(context.Background(),
+		"This is a long reply. It has several clauses. Here is another."); err != nil {
+		t.Fatal(err)
+	}
+
+	// Enter the window deterministically: the fake synthesises synchronously,
+	// so once the pump has seen the provider's audio end, all of it is queued.
+	deadline := time.Now().Add(2 * time.Second)
+	for s.tts.Speaking() {
+		if time.Now().After(deadline) {
+			t.Fatal("synthesis never finished")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	queued := len(s.tts.frames)
+	if queued == 0 {
+		t.Fatal("precondition: no audio was queued, so there is nothing to withhold")
+	}
+
+	// A stream that ended on its own is still the orchestrator's to release.
+	if provider.Closed() == 0 {
+		t.Error("the finished synthesis stream was never closed; its provider " +
+			"resources are held until the session ends")
+	}
+
+	if _, err := s.Interrupt("caller_spoke"); err != nil {
+		t.Fatalf("interrupt refused: %v", err)
+	}
+
+	select {
+	case f, ok := <-s.Frames():
+		if ok {
+			t.Errorf("stale audio leaked after barge-in: seq=%d (%d frames were "+
+				"queued when the caller interrupted)", f.Sequence, queued)
+		}
+	default:
+	}
+	if turn.State() != TurnInterrupted {
+		t.Errorf("the previous turn is %s, want interrupted", turn.State())
+	}
+}
+
 // Mandatory case 13: session termination with an active STT stream.
 func TestSession_CloseWithActiveSTT(t *testing.T) {
 	t.Parallel()
@@ -303,8 +371,10 @@ func TestRuntime_RefusesBeyondCapacity(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = r.Stop(context.Background()) })
 
-	sc := SessionContext{Correlation: "c", Language: LangEnglishIN,
-		Format: media.PCM16Mono8k(), Prosody: DefaultProsody()}
+	sc := SessionContext{
+		Correlation: "c", Language: LangEnglishIN,
+		Format: media.PCM16Mono8k(), Prosody: DefaultProsody(),
+	}
 	for i := 0; i < 2; i++ {
 		if _, err := r.Open(context.Background(), sc); err != nil {
 			t.Fatalf("session %d: %v", i, err)
@@ -494,8 +564,10 @@ func TestRuntime_ClosingASessionFreesItsSlot(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = r.Stop(context.Background()) })
 
-	sc := SessionContext{Correlation: "c", Language: LangEnglishIN,
-		Format: media.PCM16Mono8k(), Prosody: DefaultProsody()}
+	sc := SessionContext{
+		Correlation: "c", Language: LangEnglishIN,
+		Format: media.PCM16Mono8k(), Prosody: DefaultProsody(),
+	}
 
 	// Open and close well past capacity. If Close leaked its registry entry,
 	// this would refuse with backpressure on the third iteration.

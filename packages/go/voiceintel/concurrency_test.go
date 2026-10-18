@@ -117,7 +117,8 @@ func openSessions(t *testing.T, b *voiceintel.Bridge, specs []sessionSpec) {
 // turn drives one complete caller turn and returns the plan.
 func turn(p interface {
 	Handle(conversation.Event) (conversation.Plan, error)
-}, text string) (conversation.Plan, error) {
+}, text string,
+) (conversation.Plan, error) {
 	plan, err := p.Handle(utteranceEvent(text))
 	if err != nil {
 		return plan, err
@@ -497,7 +498,8 @@ func interruptAndVerify(conv *conversation.Conversation, s sessionSpec) string {
 		return fmt.Sprintf("%s: first turn: %v", s.id, err)
 	}
 	if _, err := conv.Handle(conversation.Event{
-		Kind: conversation.EventInterrupt}); err != nil {
+		Kind: conversation.EventInterrupt,
+	}); err != nil {
 		return fmt.Sprintf("%s: interrupt: %v", s.id, err)
 	}
 
@@ -754,8 +756,10 @@ func TestT10_HealthySessionsSurviveMixedFailurePressure(t *testing.T) {
 				_, _ = conv.Handle(conversation.Event{
 					Kind: conversation.EventUtterance,
 					Utterance: conversation.Utterance{
-						Text: "\x00\xff malformed", ASRConfidence: 0.95},
-					Party: conversation.PartyCaller})
+						Text: "\x00\xff malformed", ASRConfidence: 0.95,
+					},
+					Party: conversation.PartyCaller,
+				})
 			}
 			_ = conv.End("pressure_done")
 		}(i)
@@ -897,7 +901,8 @@ func TestT10_ClarificationBudgetEscalationIsPerSession(t *testing.T) {
 					escalated = true
 				}
 				if _, err := conv.Handle(conversation.Event{
-					Kind: conversation.EventSpeechComplete}); err != nil {
+					Kind: conversation.EventSpeechComplete,
+				}); err != nil {
 					escalated = true
 				}
 			}

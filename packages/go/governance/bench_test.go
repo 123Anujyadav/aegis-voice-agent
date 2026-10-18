@@ -34,10 +34,14 @@ func benchHarness(b *testing.B, policies ...Policy) *Harness {
 // distribution across scopes, so the numbers are not measured against a
 // registry that happens to be one policy deep.
 func realisticPolicies(n int) []Policy {
-	scopes := []Scope{ScopeCompliance, ScopeGlobal, ScopeOrganization,
-		ScopeBusiness, ScopeUser, ScopeSession}
-	kinds := []ActionKind{ActionConversation, ActionMemory, ActionTool,
-		ActionNotification, ActionExternal}
+	scopes := []Scope{
+		ScopeCompliance, ScopeGlobal, ScopeOrganization,
+		ScopeBusiness, ScopeUser, ScopeSession,
+	}
+	kinds := []ActionKind{
+		ActionConversation, ActionMemory, ActionTool,
+		ActionNotification, ActionExternal,
+	}
 
 	out := make([]Policy, 0, n)
 	for i := 0; i < n; i++ {
@@ -196,8 +200,10 @@ func BenchmarkConditionMatchRoleSet(b *testing.B) {
 
 func BenchmarkRequestFingerprint(b *testing.B) {
 	req := benchRequest()
-	req.Action.Attributes = Attrs{"capability": Str("calendar.check"),
-		"channel": Str("sms"), "count": Num(3)}
+	req.Action.Attributes = Attrs{
+		"capability": Str("calendar.check"),
+		"channel":    Str("sms"), "count": Num(3),
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -296,8 +302,10 @@ func BenchmarkEscalationRaiseResolve(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		d := Decision{ID: DecisionID(fmt.Sprintf("d%08d", i)),
-			Outcome: OutcomeRequireHuman, Reason: "bench"}
+		d := Decision{
+			ID:      DecisionID(fmt.Sprintf("d%08d", i)),
+			Outcome: OutcomeRequireHuman, Reason: "bench",
+		}
 		if _, err := hr.Raise(d, EscalationApproval, time.Hour); err != nil {
 			b.Fatal(err)
 		}
@@ -310,8 +318,10 @@ func BenchmarkEscalationRaiseResolve(b *testing.B) {
 func BenchmarkEventDispatch(b *testing.B) {
 	m := NewMetrics()
 	d := NewEventDispatcher(m, NoopPublisher{}, time.Now)
-	e := Event{Type: EventDecided, Decision: "d", Outcome: OutcomeAllow,
-		Reason: "bench", ActionLabel: "memory:read"}
+	e := Event{
+		Type: EventDecided, Decision: "d", Outcome: OutcomeAllow,
+		Reason: "bench", ActionLabel: "memory:read",
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -322,8 +332,10 @@ func BenchmarkEventDispatch(b *testing.B) {
 
 func BenchmarkAuditRecord(b *testing.B) {
 	a := NewRecordingAuditor(1 << 20)
-	entry := AuditEntry{Kind: AuditDecision, Decision: "d", Outcome: OutcomeAllow,
-		Reason: "bench", ActionLabel: "memory:read"}
+	entry := AuditEntry{
+		Kind: AuditDecision, Decision: "d", Outcome: OutcomeAllow,
+		Reason: "bench", ActionLabel: "memory:read",
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()

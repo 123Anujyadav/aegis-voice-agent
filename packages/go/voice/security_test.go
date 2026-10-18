@@ -227,8 +227,10 @@ func TestSecurity_ErrorsDoNotEmbedContent(t *testing.T) {
 	// actually found (SEC-1) lived in providers/ollama, and a scan limited to
 	// the orchestration package would have missed it — which is precisely the
 	// failure mode a structural test is supposed to prevent.
-	roots := []string{".", "providers/process", "providers/whispercpp",
-		"providers/whispercli", "providers/piper", "providers/ollama"}
+	roots := []string{
+		".", "providers/process", "providers/whispercpp",
+		"providers/whispercli", "providers/piper", "providers/ollama",
+	}
 
 	fset := token.NewFileSet()
 	var pkgs []*ast.Package
@@ -445,8 +447,10 @@ func TestSecurity_NoShellAndNoPrivilegeEscalation(t *testing.T) {
 		"runas":                     "privilege elevation",
 	}
 
-	roots := []string{".", "providers/process", "providers/whispercpp",
-		"providers/whispercli", "providers/piper", "providers/ollama"}
+	roots := []string{
+		".", "providers/process", "providers/whispercpp",
+		"providers/whispercli", "providers/piper", "providers/ollama",
+	}
 
 	for _, root := range roots {
 		entries, err := os.ReadDir(root)
@@ -555,8 +559,10 @@ func TestSecurity_NoModuleWritesAudioToDisk(t *testing.T) {
 			"TestAdapter_RemovesBufferedAudioOnClose",
 	}
 
-	roots := []string{".", "providers/process", "providers/whispercpp",
-		"providers/whispercli", "providers/piper", "providers/ollama"}
+	roots := []string{
+		".", "providers/process", "providers/whispercpp",
+		"providers/whispercli", "providers/piper", "providers/ollama",
+	}
 
 	writers := []string{"os.Create", "os.WriteFile", "os.OpenFile", "ioutil.WriteFile"}
 
