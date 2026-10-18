@@ -15,16 +15,20 @@
 - **[U] unavailable:** the evidence does not exist in the repository, or could
   not be obtained.
 
-**Status: AUDIT COMPLETE; three fixes merged; three CI PRs ready for review (#21, #22, refreshed #8).**
+**Status: AUDIT COMPLETE.** Seven PRs are merged in Phase 15, including the D8 CI items (§10). **D8 is not closed:** one criterion and the owner sign-off remain (§10.2). Three PRs are open for review: #24, #25 and #26.
 
 | PR | Change | State |
 |---|---|---|
 | #17 | Lint: the 15 single-finding modules | **merged** as `731934b` |
 | #18 | Gateway startup test: two ports reserved together | **merged** as `a51504a` |
 | #19 | Lint: `repository`, `telemetry`, `audiobridge` | **merged** as `d443bea` |
-| #21 | D8: gateway real-PostgreSQL suites in CI | **open**, needs review |
-| #22 | Voice tests: two ports reserved together (the flake that turned hardening red once on `a51504a`) | **open**, needs review |
-| #8 (owner's) | Gateway in the repeated race job, with a fence-test flake fix | **refreshed** to `a44a41d` and CI-verified; needs review |
+| #21 | D8: gateway real-PostgreSQL suites in CI | **merged** as `1e3b40d` |
+| #22 | Voice tests: two ports reserved together (the flake that turned hardening red once on `a51504a`) | **merged** as `fce4e22` |
+| #8 (owner's) | Gateway in the repeated race job, with a fence-test flake fix | **merged** as `7b59d25` (refreshed head `a44a41d`) |
+| #20, #23 | This audit and its follow-up | **merged** as `9ec0ff6`, `1736d7f` |
+| #24 | Lint: media-relay (35 → 0) | **open**, needs review |
+| #25 | Lint: outbox doc comments (12 → 1) | **open**, needs review |
+| #26 | `ci-gate`: an always-running aggregate check | **open**, needs review |
 
 - **Lint:** the repository is **not lint-clean**. 22 golangci-lint jobs fail,
   with 983 findings (§4).
@@ -173,7 +177,7 @@ Each entry gives the requirement, the evidence, its dependencies, its risk, the
 smallest safe resolution, acceptance criteria, and whether it can be completed
 locally.
 
-### 3.1 D8: CI and `-race` evidence for the gateway — **both remaining items have CI-verified PRs (#21, #8); awaiting review**
+### 3.1 D8: CI and `-race` evidence for the gateway — **CI items merged and verified on `main`; not closed (§10.2)**
 
 - **Requirement:** P1-36:26 ("Isolated CI push for `-race` evidence"). Its
   current components are in P1-45:147 and P1-44:185: "`-race` never run;
@@ -184,8 +188,8 @@ locally.
 |---|---|---|
 | `-race` on the gateway in CI | **met** | pr-go runs `go test -race -count=1` for it (`pr-go.yml:129`); its job passes on every Phase 15 `main` |
 | Lint for the gateway | **met** | `golangci-lint (services/go/telephony-gateway)` passes |
-| Real-PG suites in CI | **PR #21, open, CI-verified** | a new `gateway-postgres` workflow (below) |
-| Gateway in the repeated race job | **PR #8, refreshed and CI-verified** | below (follow-up, 2026-10-18) |
+| Real-PG suites in CI | **met:** #21 merged | `gateway-postgres` 39094929971 on `main` `1e3b40d`: 127 pass, 0 fail, 0 skip |
+| Gateway in the repeated race job | **met:** #8 merged | hardening 39094284808 on `main` `7b59d25`: 18 repeated-race logs, including the gateway (4 packages `ok`) |
 | Go 1.25 | **superseded by policy** | CI builds with 1.26.x since #12 (stdlib vulnerabilities unfixed on 1.25); `go 1.25.0` remains the minimum directive. Whether to test that minimum is a policy question. |
 
 - **PR #21** (`b6b5e7f`, branch `phase15/d8-gateway-postgres-ci`):
@@ -650,7 +654,7 @@ few. "Jobs → green" counts lint jobs the group would clear completely.
 | P1-6 | `prod-global` region enforcement (§3.5) | owner decision |
 | P1-7 | Whether the gateway joins hardening's coverage floor (its `cmd/server` coverage is 6.7% in pr-go) | owner decision |
 | P1-8 | Commit the D8–D11 and Exotel source documents (§2) | owner |
-| P1-9 | An always-running aggregate CI gate job, so path-filtered workflows can be required checks | §3.15 |
+| P1-9 | An always-running aggregate CI gate job, so path-filtered workflows can be required checks | **PR #26**, open (§10.4) |
 
 **P2: needs external prerequisites (accounts, spend, carriers, models)**
 
@@ -775,12 +779,12 @@ primary worktree. It was not restored.
 
 ## 8. Next actions
 
-1. **Owner:** review and merge #22 (it fixes the flake that turned hardening
-   red), #21 (D8 PostgreSQL) and #8 (D8 repeated race; refreshed as
-   `a44a41d`). They are independent and CI-verified (§3.1, §3.16, §4.1).
-2. **Owner:** after #21 and #8, record the D8 sign-off (H-1).
+1. **Owner:** decide D8's Go 1.25 criterion, then record the D8 sign-off
+   (H-1; §10.2).
+2. **Owner:** review #24, #25 and #26. #25 needs the `outbox` `MarkFailed`
+   decision to clear its last finding.
 3. **Owner:** decide H-12, the unpublished work (§9).
-4. **Admin:** branch protection (§3.15), after the aggregate gate job (P1-9).
+4. **Admin:** branch protection (§3.15). The aggregate check it needs is PR #26 (`ci-gate`).
 5. **Owner:** answer H-6 (F-4), H-4 (D11) and H-5 (`prod-global`).
 6. **Engineering:** continue the P1-3 lint batches in the 22 remaining modules.
 7. **External, when authorized:** INFRA-AUTH (A5 → A6 → A7), then the staging
@@ -850,3 +854,84 @@ The other 50 files in `06e276d` are new to `main`: 19 under
 **Acceptance:** each PR shows only baseline lint failures, the race suites
 named above pass repeatedly, and no preserved branch is deleted until its PR
 merges.
+
+## 10. Phase 15 closure record (2026-10-18)
+
+### 10.1 Authorized merges [V]
+
+The owner authorized exactly #21, #22, #8 and #23. Each was re-verified first:
+- its head was unchanged from the reviewed SHA;
+- it was mergeable, with an unchanged file list;
+- its checks showed no non-lint failure.
+
+Each was squash-merged with `--match-head-commit`. `main`'s CI was checked after
+each merge before the next one.
+
+| Order | PR | Head | Merge commit | CI on `main` after the merge |
+|---|---|---|---|---|
+| 1 | #22 | `cd27dbe` | `fce4e22` | Backend Foundation 39093315803 pass; hardening 39093315747 6/6 pass; pr-go 39093315743: 115 pass, 22 lint fail (exactly the baseline) |
+| 2 | #8 | `a44a41d` | `7b59d25` | Backend Foundation 39094284761 pass; hardening 39094284808 6/6 pass; pr-go 39094284802: 115 pass, 22 lint fail (baseline). The repeated race job ran the gateway; the single job did not. |
+| 3 | #21 | `b6b5e7f` | `1e3b40d` | `gateway-postgres` 39094929971 pass (127/0/0); Backend Foundation 39094929991 pass; hardening 39094929986 6/6 pass. pr-go was not triggered by these paths. |
+| 4 | #23 | `3cee988` | `1736d7f` | Backend Foundation 39095491601 pass; hardening 39095491498 6/6 pass (docs only, so pr-go was not triggered) |
+
+**New failures: none.** After each merge, `main`'s tree equalled the PR head on
+the PR's files.
+
+### 10.2 D8 / H-1 acceptance [V]
+
+**Source of truth:** P1-36:26 (untracked) defines D8 as an approval: "Isolated
+CI push for `-race` evidence". Its components:
+- P1-45:147: "`-race` never run; real-PG suites not in CI; gateway not in
+  nightly race; lint unknown; **Go 1.25 untested**";
+- P1-44:185, the same without the last two;
+- P1-50:151, the latest record on `main`: "D8 (nightly race, PG-in-CI: P1-49
+  §3)".
+
+| Criterion | Satisfied? | Evidence |
+|---|---|---|
+| `-race` runs on the gateway in CI | **yes** | pr-go runs it under `go test -race` on every gateway change. `gateway-postgres` and the repeated race job also use `-race`. |
+| Real-PG suites in CI | **yes** | `gateway-postgres` 39094929971 on `main`: 127 pass, 0 fail, **0 skip**. Any skip fails the job. |
+| Gateway in the nightly race | **yes by configuration; no scheduled run observed yet** | `hardening.yml` runs on `schedule: cron "0 3 * * *"` with the same race matrix. The gateway is in its repeated job (`RACE_EXTRA_MODULES`), shown on the push run 39094284808. The first scheduled run after `7b59d25` had not happened at the time of writing. |
+| Lint | **yes, for the gateway** | `golangci-lint (services/go/telephony-gateway)` passes |
+| Go 1.25 | **no** | CI builds with Go 1.26.x since #12, because go1.25 has unfixed stdlib vulnerabilities. The gateway still declares `go 1.25.0` as its minimum, and nothing compiles or tests it with a 1.25 toolchain. Whether to test the minimum, raise it, or drop the criterion is an **owner decision**. |
+| Owner approval (D8 is defined as one) | **not recorded** | Authorizing #21 and #8 to merge is not a recorded D8 sign-off. H-1 remains with the owner. |
+
+**D8 is therefore NOT marked complete.** Four technical criteria are met, the
+nightly one has no scheduled run yet, and the Go 1.25 criterion and the
+sign-off remain.
+
+### 10.3 Lint PRs (not merged; outside the authorization) [V]
+
+| Batch | Result |
+|---|---|
+| `redis` (11 revive) | **not opened.** The owner's uncommitted rewrite of `packages/go/redis/redis.go` (+252/−14) already documents every exported declaration, so a PR from `main` would duplicate it and conflict. |
+| `middleware` (10 revive, 1 errcheck) | **not opened.** The owner's uncommitted rewrite of `middleware.go` (+84/−37) would conflict, and the errcheck (`json.Encoder.Encode`) needs a handling decision. |
+| `outbox` | **#25** (`0849606`): 11 doc comments; 12 → 1 finding. The remaining `_ = p.store.MarkFailed(...)` is a deliberate discard (the entry stays pending and is retried); clearing it changes `ProcessBatch` semantics or suppresses the rule, so it is an **owner decision**. CI: 22 lint jobs fail, the baseline set, with none new. |
+| `media-relay` | **#24** (`7739884`): 32 doc comments, 2 test comparisons → `errors.Is`, 1 godot rewording byte-identical to the owner's edit. **35 → 0**, and the job is green in CI (21 lint jobs fail, none new). Found and not fixed (a behaviour change): `RouteFrame`'s gap message reports the wrong "expected" number. |
+| `identity` (38) | **not opened.** The owner's uncommitted rewrite of `identity.go` (+1,527/−70) already makes the `rand.Read` failure fatal and changes the flagged code. `main`'s `generateAccessToken` emits an **unsigned** token (`"Bearer_JWT." + hex(json)`), which the owner's untracked Phase 18 D11 report records as an auth-design blocker. Not decided here. |
+
+**Lint on `main` `1736d7f`:** 22 failing jobs, **983 findings**, unchanged.
+With #24 merged: 21 jobs, 948 findings. With #25 too: 937 findings, still 21
+jobs.
+
+### 10.4 Aggregate check: PR #26 (`ci-gate`, `d8544ec`; not merged) [V]
+
+- **Trigger:** every `pull_request`, with no path filter.
+- **What it does:**
+  - reads each workflow's own `pull_request` branch and path filters from the
+    checkout, failing closed on syntax it cannot evaluate;
+  - waits for the expected runs on the PR head;
+  - passes only if every job passed, with one exception: a `golangci-lint` job
+    that also fails on `main`'s latest completed run is advisory. That ratchet
+    means the baseline can only shrink.
+- **Footprint:** read-only token; `gh` and the Python standard library only.
+  No existing workflow changes.
+- **Validation:**
+  - 25 offline unit tests against the real workflow files, also run inside
+    the job;
+  - read-only live dry runs: #23, #22, #24 and #21 PASS; stale #9 FAIL, on a
+    real test failure and on lint jobs that now pass on `main`;
+  - the job's own run on #26 (workflow-only: only `ci.yml` expected): **PASS**,
+    alongside Backend Foundation.
+- **Making it a required check** is the repository admin's decision (§3.15).
+  It was not done.
