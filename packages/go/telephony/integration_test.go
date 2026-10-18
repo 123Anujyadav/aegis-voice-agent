@@ -134,19 +134,19 @@ func TestLifecycle_HoldMuteAndTransfer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Mute(ctx, sess.ID()); err != nil {
+	if err = l.Mute(ctx, sess.ID()); err != nil {
 		t.Fatal(err)
 	}
 	// The table refuses a transfer from Muted; the far end would receive a
 	// silent leg indistinguishable from a broken one.
-	if _, err := l.Transfer(ctx, sess.ID(), "agent_handoff"); !errors.Is(err, ErrInvalidTransition) {
+	if _, err = l.Transfer(ctx, sess.ID(), "agent_handoff"); !errors.Is(err, ErrInvalidTransition) {
 		t.Errorf("transfer from muted: err = %v, want ErrInvalidTransition", err)
 	}
 
-	if err := l.Unmute(ctx, sess.ID()); err != nil {
+	if err = l.Unmute(ctx, sess.ID()); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.Hold(ctx, sess.ID()); err != nil {
+	if err = l.Hold(ctx, sess.ID()); err != nil {
 		t.Fatal(err)
 	}
 	leg, err := l.Transfer(ctx, sess.ID(), "agent_handoff")
@@ -301,11 +301,11 @@ func TestFailure_PublisherOutageDoesNotStopCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := r.RegisterProvider(h.Provider); err != nil {
+	if err = r.RegisterProvider(h.Provider); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	if _, err := r.Start(ctx); err != nil {
+	if _, err = r.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _, _ = r.Stop(ctx) }()
@@ -413,10 +413,10 @@ func TestFailure_ProviderTimeoutIsBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := l.Ring(ctx, sess.ID()); err != nil {
+	if err = l.Ring(ctx, sess.ID()); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.Screen(ctx, sess.ID()); err != nil {
+	if err = l.Screen(ctx, sess.ID()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -616,7 +616,7 @@ func TestRecovery_ConcludesCallsThatAreNoLongerLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := second.RegisterProvider(first.Provider); err != nil {
+	if err = second.RegisterProvider(first.Provider); err != nil {
 		t.Fatal(err)
 	}
 	report, err := second.Start(ctx)
@@ -660,7 +660,7 @@ func TestRecovery_ResumesCallsThatAreStillLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := second.RegisterProvider(first.Provider); err != nil {
+	if err = second.RegisterProvider(first.Provider); err != nil {
 		t.Fatal(err)
 	}
 	report, err := second.Start(ctx)
