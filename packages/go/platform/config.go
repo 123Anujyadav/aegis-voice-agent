@@ -123,42 +123,49 @@ func populate(structVal reflect.Value, prefix string, problems *[]string) {
 			continue
 		}
 
-		name, ok := field.Tag.Lookup("env")
-		if !ok || name == "" {
-			continue
-		}
+		populateField(field, fieldVal, prefix, problems)
+	}
+}
 
-		envName := joinEnvName(prefix, name)
-		secret := field.Tag.Get("secret") == "true"
-		required := field.Tag.Get("required") == "true"
-		defaultVal, hasDefault := field.Tag.Lookup("default")
+// populateField resolves one tagged scalar field from the environment, falling
+// back to its default, and records any problem rather than stopping. Fields
+// without an env tag are left untouched.
+func populateField(field reflect.StructField, fieldVal reflect.Value, prefix string, problems *[]string) {
+	name, ok := field.Tag.Lookup("env")
+	if !ok || name == "" {
+		return
+	}
 
-		raw, present := os.LookupEnv(envName)
-		switch {
-		case present && raw != "":
-			// Value supplied by the environment.
-		case hasDefault:
-			raw = defaultVal
-		case required:
-			*problems = append(*problems, fmt.Sprintf(
-				"%s is required but not set", envName))
-			continue
-		default:
-			*problems = append(*problems, fmt.Sprintf(
-				"%s is not set and has no default", envName))
-			continue
-		}
+	envName := joinEnvName(prefix, name)
+	secret := field.Tag.Get("secret") == "true"
+	required := field.Tag.Get("required") == "true"
+	defaultVal, hasDefault := field.Tag.Lookup("default")
 
-		if err := assign(fieldVal, raw); err != nil {
-			*problems = append(*problems, fmt.Sprintf(
-				"%s: %s (got %s)", envName, err.Error(), displayValue(raw, secret)))
-			continue
-		}
+	raw, present := os.LookupEnv(envName)
+	switch {
+	case present && raw != "":
+		// Value supplied by the environment.
+	case hasDefault:
+		raw = defaultVal
+	case required:
+		*problems = append(*problems, fmt.Sprintf(
+			"%s is required but not set", envName))
+		return
+	default:
+		*problems = append(*problems, fmt.Sprintf(
+			"%s is not set and has no default", envName))
+		return
+	}
 
-		if required && fieldVal.IsZero() {
-			*problems = append(*problems, fmt.Sprintf(
-				"%s is required but resolved to a zero value", envName))
-		}
+	if err := assign(fieldVal, raw); err != nil {
+		*problems = append(*problems, fmt.Sprintf(
+			"%s: %s (got %s)", envName, err.Error(), displayValue(raw, secret)))
+		return
+	}
+
+	if required && fieldVal.IsZero() {
+		*problems = append(*problems, fmt.Sprintf(
+			"%s is required but resolved to a zero value", envName))
 	}
 }
 
@@ -229,29 +236,37 @@ func assign(field reflect.Value, raw string) error {
 		field.SetFloat(f)
 
 	case reflect.Slice:
-		if field.Type().Elem().Kind() != reflect.String {
-			return fmt.Errorf("unsupported slice element type %s", field.Type().Elem())
-		}
-		// An empty string yields an empty slice rather than a slice holding one
-		// empty string, which is almost never what an operator intends.
-		trimmed := strings.TrimSpace(raw)
-		if trimmed == "" {
-			field.Set(reflect.MakeSlice(field.Type(), 0, 0))
-			return nil
-		}
-		parts := strings.Split(trimmed, ",")
-		out := make([]string, 0, len(parts))
-		for _, p := range parts {
-			if s := strings.TrimSpace(p); s != "" {
-				out = append(out, s)
-			}
-		}
-		field.Set(reflect.ValueOf(out))
+		return assignStringSlice(field, raw)
 
 	default:
 		return fmt.Errorf("unsupported field kind %s", field.Kind())
 	}
 
+	return nil
+}
+
+// assignStringSlice parses a comma-separated list into a []string field,
+// trimming each element and dropping empty ones. Slices of any other element
+// type are refused.
+func assignStringSlice(field reflect.Value, raw string) error {
+	if field.Type().Elem().Kind() != reflect.String {
+		return fmt.Errorf("unsupported slice element type %s", field.Type().Elem())
+	}
+	// An empty string yields an empty slice rather than a slice holding one
+	// empty string, which is almost never what an operator intends.
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		field.Set(reflect.MakeSlice(field.Type(), 0, 0))
+		return nil
+	}
+	parts := strings.Split(trimmed, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	field.Set(reflect.ValueOf(out))
 	return nil
 }
 
