@@ -2184,3 +2184,63 @@ open until then.
 - **#35:** accurate after its review fixes (`58c26ae`).
 - **#36:** the validator still reports 0 errors on the branch (93 on `main`).
 - **#38:** ignoring whitespace, the diff is the 2 `err` renames and the 4 removed braces.
+
+### 10.17 Twelfth round: #37 final review, the #38/#39 merge plan, the sampler leak (#40) (2026-10-18) [V]
+
+No merge was authorized or made, no setting was changed, and no existing PR
+branch was altered. `main` is still `3e38aa5`. The ruleset (25344547) is
+unchanged. No PR has a review or comment.
+
+#### 10.17.1 D8 nightly: still pending
+
+As of 2026-10-18T15:50Z, **no scheduled `hardening` run exists on `3e38aa5`**.
+The latest is 39108532041 on `63a80a2`. Nothing was substituted, and D8 is not
+signed off.
+
+#### 10.17.2 #37 (T1), final review
+
+- **The diff:** one test file. No production code. Every original assertion is kept.
+- **CI:** at `0bc2e4e`, all checks finished. The real-PostgreSQL job passed 127/0/0, and only baseline lint failed. The branch is up to date with `main` (base `3e38aa5`).
+- **Where the evidence lives:** the controlled-gap harness and the mutations are **scratch-only, not in the PR**; they break `fence.go` or inject delays. The PR contains only T1.
+- **What it detects [V]:**
+  - a missing ownership release: 5/5 fail at `a to lose ownership`;
+  - missing reconnect behaviour: 5/5 fail at `a to attempt a reconnect`;
+  - an overlap, with sensitivity unchanged.
+- **Exit paths [V]:** a **pre-existing** leak, not introduced by T1. The overlap sampler is stopped only by `finish`, so a test that fails first leaves it polling. In a scratch demonstration it was still running 300 ms after its test ended, with 270 more samples.
+  - The fix is **a separate test-only PR, #40**: `sample(t, …)` stops in `t.Cleanup` and still reports any overlap.
+  - Its regression test needs no database and does not skip; the `gateway-postgres` job fails on any skip.
+  - Mutation: with the cleanup removed, the regression test fails.
+  - The fence package with PostgreSQL, ×5 shuffled, passes 215/0/0 with 0 overlaps, both alone and merged with #37.
+- **Verdict:** #37 is **review-ready**; #40 is complementary. The flake stays open.
+
+#### 10.17.3 #38 and #39: conflict analysis, integration-tested and never pushed
+
+- **The conflict:** one hunk, the whole of `BenchmarkT10_ConcurrentClassification`. #38 de-indents the body; #39 changes four spots inside it.
+- **Resolution:** take #39's version of the file and re-apply #38's brace removal. The combined result is exactly #38 plus #39's four changes.
+- **Tests of the combined result:**
+  - gofumpt and vet clean;
+  - lint: `media` 35, `services/go/voice` 27;
+  - **0** races in the `-race` benchmark at 1, 4 and 8 CPUs;
+  - the sanity test, all 36 voice benchmarks, and both modules' tests pass under `-race`.
+- **Suggested sequence, if both are authorized:** #38; then merge `main` into #39 with the resolution (no rebase); then #39.
+
+#### 10.17.4 Updating #25, #30 and #33 with `main` (not done; awaiting authorization)
+
+- `main` gained #32, #31 and #29 since these branched. **None of them touches these PRs' modules**, and a test merge with `main` is clean for all three.
+- **The update, for each branch, in its own clean worktree:**
+  1. `git fetch origin`
+  2. `git merge --no-ff origin/main` (a merge commit; never a rebase)
+  3. `git push origin <branch>` (a normal push)
+  4. Wait for the required checks on the new head.
+- **#25:** the ADR-0009 outbox decision is still required (the decision document).
+- **#30:** its PostgreSQL tests stay **local-only**; CI does not set `AEGIS_EVALSTORE_DSN`.
+
+#### 10.17.5 Other low-risk PRs
+
+- **#27:** §10.12 records the rulings as given: D8 provisionally accepted, final sign-off conditions, the fence flake not accepted. A scan finds no text implying final sign-off or risk acceptance; the one "D8 complete" is a dependency-graph target gated on H-1.
+- **#34 (`5e0eaf5`):** 10 `err :=` → `err =` and 6 doc comments; no assertion or code change.
+- **#35 (`58c26ae`):** its statements match the live state, and it makes no permission or merge-policy change.
+- **#36 (`23ba802`):**
+  - GitHub's validator reports **0 errors on the branch, 93 on `main`**.
+  - All 59 patterns are unchanged, and `@123Anujyadav` is an admin collaborator, so every entry now resolves to a valid owner.
+  - It invents no team names and enables no enforcement: `require_code_owner_review` stays false.
