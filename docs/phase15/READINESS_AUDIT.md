@@ -1907,7 +1907,7 @@ repeated here, because it changes repository settings.
 | 4 | The fence PostgreSQL flake: unresolved, and **not an accepted risk** (owner, §10.12) | engineering: reproduction; owner: risk review |
 | 5 | The `speech` flake and the concurrent-`Speak` race: unresolved; frozen module | owner (freeze exception) |
 | 6 | The lint-policy items (`audiointel` godot, `writeJSON`, errcheck `check-blank`) and the owner-overlap modules | owner |
-| 7 | Branch protection or a ruleset, and CODEOWNERS | owner (admin settings) |
+| 7 | Branch protection: **done** (an active ruleset, §10.13.1). CODEOWNERS: still invalid (93 unknown owners). | owner (admin settings) |
 | 8 | H-12, the unpublished Phase 15/16 work and the `pipeline.go` conflict | owner |
 | 9 | D9, D10, D11, `prod-global`, F-3, F-4 and F-7; INFRA-AUTH A5–A9; providers and models; Exotel mTLS | owner, external |
 
@@ -1929,3 +1929,99 @@ engineering finding.
 - D8 is **not closed**.
 - Phase 15 is **not complete** (§10.11.8).
 - The ruling changes no Go minimum, CI toolchain policy or D8 criterion.
+
+### 10.13 Eighth round: ruleset, reviews, nightly status, fence-flake reproduction (2026-10-18) [V]
+
+No merge and no settings change. `main` is unchanged at `3e38aa5`.
+
+#### 10.13.1 The ruleset on `main` (created by the owner)
+
+The source is `GET …/rulesets/25344547` and `GET …/rules/branches/main`. The
+classic branch protection API still returns 404, because the ruleset replaces it.
+
+| Item | Value |
+|---|---|
+| Name and enforcement | "Aegis Voice Agent", **active**, target `~DEFAULT_BRANCH` |
+| Bypass actors | none (`current_user_can_bypass: never`) |
+| Rules | `deletion`, `non_fast_forward`, `pull_request` (0 approvals, conversation resolution, no code-owner review), `required_status_checks` |
+| Required checks | `ci-gate` and `Build & Test Backend Foundation`, both `integration_id` 15368 (GitHub Actions), **strict** (the PR must be up to date) |
+
+**What this means for the open PRs:** #25, #30 and #33 are `behind` `main`.
+Each would need `main` merged in (never a rebase) before it could merge, and
+that changes the head, so the checks must be re-verified. CODEOWNERS is still
+invalid (93 unknown owners). Blocker 7 in §10.11.8 is now **resolved for branch
+protection, open for CODEOWNERS**.
+
+#### 10.13.2 PR reviews at the exact heads (no merge; recommendations only)
+
+| PR | Head | Checks | Review |
+|---|---|---|---|
+| #25 | `dfd6e57` | 125 pass / 20 fail (baseline lint only); `ci-gate` pass | CI ran the outbox tests: `coverage: 93.8%`. The only overlap with the owner's checkout is the `outbox.go` blob identical to `main`'s. **Recommendation: mergeable on its own merits**, after updating with `main`. Retry, DLQ and schema behaviour stay unimplemented pending ADR-0009. |
+| #30 | `ef34dce` | 124 / 21 (baseline); `ci-gate` pass | **The real-PostgreSQL tests ran only locally** (81/0/0, `-race -count=3 -shuffle=on`). **CI does not run them:** `AEGIS_EVALSTORE_DSN` is not set in any workflow, and the CI job reports `coverage: 4.6%`. The diff is only `err :=` → `err =`, 2 `bytes.Equal` and the `bytes` import. **MERGE RECOMMENDED on the local evidence**, with the CI gap recorded. |
+| #33 | `41e1dee` | 124 / 21 (baseline); `ci-gate` pass | Every changed code line is a whitespace split or an `err :=` → `err =`; the rest are comments. Nothing lost. CI `runtime` `coverage: 72.7%`. **MERGE RECOMMENDED.** |
+| #34 | `5e0eaf5` | 124 / 21 (baseline); `ci-gate` pass | 10 `err :=` → `err =` plus 6 comment blocks; no assertion changed. CI `telephony` 76.8% and `evalsubjects` 71.2% coverage. **MERGE RECOMMENDED.** |
+
+None of these files is in the owner's uncommitted work. The status is still
+415 entries, hash `d4fb9c4206dc2168`.
+
+#### 10.13.3 D8 nightly: still pending
+
+- The latest **scheduled** `hardening` run is 39108532041, on `63a80a2`.
+- **No scheduled run exists on `3e38aa5`.** The next cron is `0 3 * * *` UTC; recent runs started around 07:25–07:55Z.
+- No manual run was substituted.
+- When one runs, verify:
+  - `event=schedule`;
+  - `head_sha` = the current `main`;
+  - completed with success;
+  - all 6 jobs;
+  - the gateway packages in `Race detector (repeated)`.
+
+  Even then the owner's confirmation is still required (§10.12).
+
+#### 10.13.4 Fence PostgreSQL flake: reproduced; cause identified [V]; still OPEN and not accepted
+
+**The original CI failure, re-read:** `gateway-postgres` 39101412491 attempt 1
+(job 117598271205), on `63a80a2`. The test ran for **10.47 s**. The old script
+printed no assertion message, but 10.47 s is the test's
+`waitFor(10s, "b to own")` timeout plus the time before it. It was not an
+overlap and not a slow fail-closed.
+
+**The mechanism, from `fence.go`:**
+1. After the owner's backend is killed, the lock is free once the backend exits.
+2. Both fences then compete for it. `a` notices at its next heartbeat (≤200 ms), pauses 200 ms, then re-dials. The standby `b` retries every ~200 ms.
+3. Whichever re-dials first wins. **Nothing makes the standby win.**
+4. If `a` wins, `b` stands by for good, and the test's `b to own` must time out.
+
+**Reproduction** (scratch copy of `main`, `-race`, throwaway PostgreSQL 17.2; nothing committed):
+
+| Run | Result |
+|---|---|
+| Original test, with `b`'s dials refused for 600 ms after the kill (one scratch edit) | **4/5 FAIL** `timed out after 10s waiting for b to own` (`fence_postgres_test.go:242` in the edited copy; `:234` on `main`) (10.42 s each, matching CI's 10.47 s); 1/5 pass |
+| Probe with the same 600 ms gap | `a` re-acquired 5/10; `b` won 5/10; **0 overlaps** |
+| Control, no gap | `b` won 10/10, 0 overlaps |
+| Original test, unmodified, under CPU contention (`GOMAXPROCS=2`, 4 CPU burners), ×60 | 60/60 pass; `b` owner ≤520 ms after the kill |
+
+**What makes `b` late in CI is inferred [I], not observed:**
+`pg_terminate_backend` returns before the backend exits. A standby `TryLock`
+in that gap sees the lock still held and waits a full cycle. That makes the
+next attempt a coin flip with `a`'s re-dial.
+
+**The safety property held in every run [V]:** no two simultaneous owners, and
+`a` failed closed within the bound. The flake is in the test's expectation of
+**which** fence takes over, not in exclusivity.
+
+**The other tests that wait for `b to own`** (by reading the code [V]): the
+two partition tests reach PostgreSQL only through the black-holed proxy, so `a`
+cannot re-dial, and `ShutdownHandsOver` shuts `a` down. **Only this test is
+exposed.**
+
+**Options. None is implemented; owner and risk review needed:**
+
+| Option | Change | Effect on the assertions |
+|---|---|---|
+| T1 | Test-only: after the kill, refuse `a`'s dials, as if the owner lost database access, so only `b` can take the lock | keeps "b owns", no-overlap and the fail-closed bound; changes the scenario from "session killed" to "session killed and owner cut off" |
+| T2 | Test-only: assert that **exactly one** of `a`/`b` owns within 10 s, keeping no-overlap and the fail-closed bound | drops "b specifically" (not a fence guarantee); a weaker assertion, so the **owner's decision** |
+| P1 | Production: a fence that just lost ownership waits (for example, one Validity) before re-dialling, so the standby gets priority | changes fence timing (D10 territory); an **architecture decision** |
+
+**Status: OPEN.** It is not an accepted risk (owner, §10.12), and the
+assertions are not changed.
