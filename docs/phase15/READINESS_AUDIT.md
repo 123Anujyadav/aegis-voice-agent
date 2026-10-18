@@ -15,7 +15,7 @@
 - **[U] unavailable:** the evidence does not exist in the repository, or could
   not be obtained.
 
-**Status: AUDIT COMPLETE; three fixes merged; two fix PRs open.**
+**Status: AUDIT COMPLETE; three fixes merged; three CI PRs ready for review (#21, #22, refreshed #8).**
 
 | PR | Change | State |
 |---|---|---|
@@ -24,6 +24,7 @@
 | #19 | Lint: `repository`, `telemetry`, `audiobridge` | **merged** as `d443bea` |
 | #21 | D8: gateway real-PostgreSQL suites in CI | **open**, needs review |
 | #22 | Voice tests: two ports reserved together (the flake that turned hardening red once on `a51504a`) | **open**, needs review |
+| #8 (owner's) | Gateway in the repeated race job, with a fence-test flake fix | **refreshed** to `a44a41d` and CI-verified; needs review |
 
 - **Lint:** the repository is **not lint-clean**. 22 golangci-lint jobs fail,
   with 983 findings (§4).
@@ -172,7 +173,7 @@ Each entry gives the requirement, the evidence, its dependencies, its risk, the
 smallest safe resolution, acceptance criteria, and whether it can be completed
 locally.
 
-### 3.1 D8: CI and `-race` evidence for the gateway — **largely addressed; two items remain**
+### 3.1 D8: CI and `-race` evidence for the gateway — **both remaining items have CI-verified PRs (#21, #8); awaiting review**
 
 - **Requirement:** P1-36:26 ("Isolated CI push for `-race` evidence"). Its
   current components are in P1-45:147 and P1-44:185: "`-race` never run;
@@ -183,8 +184,8 @@ locally.
 |---|---|---|
 | `-race` on the gateway in CI | **met** | pr-go runs `go test -race -count=1` for it (`pr-go.yml:129`); its job passes on every Phase 15 `main` |
 | Lint for the gateway | **met** | `golangci-lint (services/go/telephony-gateway)` passes |
-| Real-PG suites in CI | **PR #21, open** | a new `gateway-postgres` workflow (below) |
-| Gateway in the repeated race job | **blocked by a measured flake** | below; the fix is in PR #8 (owner's PR, stale) |
+| Real-PG suites in CI | **PR #21, open, CI-verified** | a new `gateway-postgres` workflow (below) |
+| Gateway in the repeated race job | **PR #8, refreshed and CI-verified** | below (follow-up, 2026-10-18) |
 | Go 1.25 | **superseded by policy** | CI builds with 1.26.x since #12 (stdlib vulnerabilities unfixed on 1.25); `go 1.25.0` remains the minimum directive. Whether to test that minimum is a policy question. |
 
 - **PR #21** (`b6b5e7f`, branch `phase15/d8-gateway-postgres-ci`):
@@ -211,6 +212,14 @@ locally.
     4 packages `ok`, **127 pass, 0 fail, 0 skip**. This is the first time the
     gateway's real-PostgreSQL suites have run in CI. Backend Foundation passes.
     pr-go and hardening are not triggered by this PR's paths.
+  - **Follow-up (2026-10-18) [V]:** #21's CI ran against `731934b`, before #18
+    changed the gateway's `buildinfo_test.go`. So #21 was also merged locally
+    with `main` `9ec0ff6`, a detached worktree that was never pushed, and run
+    again:
+    - two Linux `-race` runs against throwaway PostgreSQL 17.2: **127 pass, 0
+      fail, 0 skip, 0 data races, no password in output** each;
+    - the script itself on the host: 127 pass, 0 skip, exit 0;
+    - no container or network left behind.
 - **Repeated race, measured on `main`'s gateway code** (go1.26.9, `-race`):
   - `-count=5 -shuffle=on`, three runs: **1 failed**
     (`TestFence_AStuckConfirmationExpiresOwnershipByTheClock`, "timed out
@@ -220,6 +229,48 @@ locally.
   - **Consequence:** adding the gateway to the repeated race job **before** that
     fix would make hardening flaky. PR #8 must be refreshed with `main` and
     re-run first.
+- **PR #8 refresh (follow-up, 2026-10-18) [V]:**
+  - **Preserved:** the original head `3067dfe` as the local branch
+    `preserve/pr8-ci-d8-gateway-race-3067dfe`. The `calling-agent-pr`
+    worktree, with its 20 uncommitted paths, was not touched.
+  - **Refreshed:** `main` `9ec0ff6` merged in a new worktree with a normal
+    merge commit, `a44a41d` (parents `3067dfe`, `9ec0ff6`). It was pushed as a
+    fast-forward (`3067dfe..a44a41d`). No rebase, no force-push.
+    - `hardening.yml` merged without conflict.
+    - **The PR's net diff against `main` is still its 2 original files.**
+  - **The fix (test-only):** before making `Holds` hang, the test now waits
+    for the fence's sleep request and hands it back.
+    - **Why it is correct:** `sleeping` has a buffer of one. Receiving the
+      request proves the second confirmation has finished, and handing it back
+      cannot block.
+    - **Unchanged:** every assertion (`holdsHit == 3`, ownership before and
+      after the validity window) and all production code.
+  - **The workflow change:**
+    - `RACE_EXTRA_MODULES` adds the gateway to the **repeated** race pass
+      only, kept out of `AI_MODULES`, so no coverage floor or benchmark claim
+      changes;
+    - a per-module failure-kind summary runs **after** the existing data-race
+      check, so race detection keeps precedence;
+    - the single race pass is unchanged.
+  - **Local** (go1.26.9 linux/amd64, `-race`):
+    - the stuck-confirmation test, three runs of `-count=900`: **2,700/2,700
+      pass**, against 5 failures in 900 on `main`'s code in the same
+      environment;
+    - the gateway, five `-count=5 -shuffle=on` runs: **5/5 pass** (560 pass, 0
+      fail, 75 skip each), against 1 failing run in 3 on `main`'s code. The
+      skips are the 15 real-PG tests × 5, which this job cannot run; #21 runs
+      them.
+    - gofmt, gofumpt, vet and gateway lint are clean.
+  - **CI on `a44a41d`:**
+    - hardening 39091418247: **6/6 pass**. Its repeated race job ran **18**
+      module logs including `services_go_telephony-gateway.log` (4 packages
+      `ok`); the single job ran 17, without the gateway. No race log has a
+      failure or a data race.
+    - Backend Foundation 39091418244: pass.
+    - pr-go 39091418240: 115 pass, and the 22 failures are exactly `main`'s
+      baseline lint set.
+  - **Interaction with #21:** independent files. Together they close both
+    remaining D8 CI items.
 - **Dependencies:** review of #21; the owner's refresh of #8; the owner's D8
   sign-off on CI scope.
 - **Acceptance:**
@@ -453,6 +504,18 @@ See §4. **Local?** Yes: mechanical classes now, judgment classes per finding.
   - **CI [V]:** hardening passes (race single and repeated, coverage, release
     gate), `services/go/voice` passes, and Backend Foundation passes. The 22
     failing checks are exactly `main` `d443bea`'s baseline golangci-lint jobs.
+- **Follow-up (2026-10-18) [V]:** #22 merged locally with `main` `9ec0ff6`
+  (detached, never pushed), go1.26.9, `-race`:
+  - `TestT9_FreshRunningServiceSignatureIsStable` ×100: **100/100**;
+  - the T9 stall regression test ×10 and all `TestT9_*` ×5: pass (60/60);
+  - `TestT13_*` ×20: 60/60;
+  - three `-count=5 -shuffle=on` module runs: pass;
+  - vet clean.
+
+  #22 changes only `_test.go` files, and no assertion. There is no dedicated
+  deterministic regression test: the guarantee (distinct ports within a call)
+  is structural, and the old pattern collided about once in 20,000 pairs, too
+  rarely for a test to catch it reliably.
 - **Relation to Phase 14:** see §1.3.
 - **Acceptance:** #22 merged; hardening's repeated race job stays green on
   `main` across scheduled runs.
@@ -514,6 +577,51 @@ set on `main` equalled the PR's own failing set.
 - `middleware` 11
 - `redis` 11
 
+### 4.1 Remaining findings and a plan for small PRs [V]
+
+**Where they are:** 817 of the 983 findings are in non-test files, 166 in
+`_test.go`.
+
+**By rule:**
+
+| Rule | Findings | Behaviour risk |
+|---|---|---|
+| gocritic `rangeValCopy` | 160 | low, but changes aliasing if a loop body mutates its copy; review each |
+| revive `exported` | 182 | none (doc comments) |
+| revive `package-comments` | 7 | none |
+| revive `var-naming` | 4 | **exported API renames** (`integrations`: fields `ApiKey`, `AuthId`). Renaming can change behaviour, such as JSON names without tags, so it needs a decision. |
+| godot | 155 | none (151 "capital letter", 4 "end in a period") |
+| govet `shadow` | 95 | low; rename or reuse |
+| errcheck | 123 | **all in non-test code**: each needs handling or a justified ignore |
+| errorlint | 43 | low to medium: `==` and type assertions become `errors.Is` and `errors.As`, which also match wrapped errors |
+| gosec G115 (integer conversion) | 41 | medium: needs bounds reasoning per site |
+| gocritic `builtinShadow` | 42 | low (renames) |
+| other gocritic | 46 | low |
+| gocyclo, nestif | 44 | refactor or justified `nolint`, per function |
+| contextcheck | 16 | design (cancellation boundaries) |
+| other (gosec G404/G304, unused, staticcheck, unconvert, nilerr, ineffassign, rowserrcheck, makezero, copyloopvar) | 25 | mixed |
+
+**Recommended PR groups, smallest and safest first.** Each is one module or a
+few. "Jobs → green" counts lint jobs the group would clear completely.
+
+| Group | Modules | Findings | Jobs → green | Change |
+|---|---|---|---|---|
+| L1 | `redis` (11); `integrations` doc comments (41) | 52 | **1** (`redis`) | revive doc comments only. `integrations` stays red until its 4 `var-naming` renames are decided (L7). |
+| L2 | `middleware` (10 + 1 errcheck), `outbox` (11 + 1 errcheck) | 23 | **2** | doc comments plus 2 errcheck decisions |
+| L3 | `media-relay` | 35 | **1** | 32 doc comments, 2 errorlint, 1 godot |
+| L4 | `identity` | 38 | **1** | 27 doc comments, 9 errcheck, 1 errorlint, 1 godot |
+| L5 | `audiointel` godot only | 83 | 0 | comment-only (the job stays red: 31 others remain) |
+| L6 | godot only in `packages/go/voice` (32), `runtime` (7), `services/go/voice` (7), `platform` (5), `media` (4) | 55 | 0 | comment-only |
+| L7 | `integrations` `var-naming` (4); `persistence` (20) | 24 | 2 | **needs naming decisions first.** `integrations`: rename `ApiKey`/`AuthId`, checking serialisation. `persistence`: its `SqlUnitOfWork`/`NewSqlUnitOfWork` finding alternates between revive `exported` and `var-naming` from run to run, so both a doc comment **and** the naming decision are needed; plus 3 errcheck and 1 rowserrcheck. |
+| L8+ | govet `shadow` per module, test files first; then errorlint; then errcheck, G115, `rangeValCopy`, gocyclo and contextcheck | ~673 | — | one module per PR, with that module's tests under `-race` |
+
+**Rules for every group:**
+- no formatting outside the flagged lines;
+- no `nolint` without a one-line reason tied to the specific finding;
+- no rule disabled in `.golangci.yml`;
+- the module's tests run under `-race`;
+- the failing-job set is compared against `main` before and after.
+
 ## 5. Phase 15 plan
 
 ### 5.1 Priorities
@@ -525,10 +633,10 @@ set on `main` equalled the PR's own failing set.
 | P0-1 | Clear the single-finding lint jobs (15 modules) | **done:** #17 → `731934b` |
 | P0-2 | Gateway startup-test port collision | **done:** #18 → `a51504a` |
 | P0-3 | Clear the `repository`, `telemetry` and `audiobridge` lint jobs | **done:** #19 → `d443bea` |
-| P0-4 | Bring PRs #8 and #9 up to date with `main` and re-run CI | owner (their PRs) |
+| P0-4 | Bring PRs #8 and #9 up to date with `main` and re-run CI | #8 **done** (`a44a41d`); #9 not refreshed (out of scope) |
 | P0-5 | Branch protection (§3.15) | repository admin |
 | P0-6 | Voice service-test port collision, which made hardening red once | **PR #22**, open |
-| P0-7 | Gateway fence-test flake, 5 in 900 (§3.1) | fix exists in PR #8 (owner) |
+| P0-7 | Gateway fence-test flake, 5 in 900 (§3.1) | PR #8 refreshed (`a44a41d`), CI-verified, awaiting review |
 
 **P1: engineering blockers that need no production access**
 
@@ -668,9 +776,9 @@ primary worktree. It was not restored.
 ## 8. Next actions
 
 1. **Owner:** review and merge #22 (it fixes the flake that turned hardening
-   red) and #21 (D8 PostgreSQL).
-2. **Owner:** refresh PR #8 with `main` and re-run CI. Its fence-test fix is
-   what lets the gateway join the repeated race job.
+   red), #21 (D8 PostgreSQL) and #8 (D8 repeated race; refreshed as
+   `a44a41d`). They are independent and CI-verified (§3.1, §3.16, §4.1).
+2. **Owner:** after #21 and #8, record the D8 sign-off (H-1).
 3. **Owner:** decide H-12, the unpublished work (§9).
 4. **Admin:** branch protection (§3.15), after the aggregate gate job (P1-9).
 5. **Owner:** answer H-6 (F-4), H-4 (D11) and H-5 (`prod-global`).
