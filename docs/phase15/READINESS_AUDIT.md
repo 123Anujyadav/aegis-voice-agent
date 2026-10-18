@@ -2132,3 +2132,55 @@ until the owner reviews #37.
   - the `hardening` Benchmarks job runs without `-race`;
   - `TestT10_BenchmarksActuallyExecute` does not run this benchmark.
 - **Proposed fix (not implemented):** a test-only change in which each worker keeps its own local result and stores it once under a lock.
+
+### 10.16 Eleventh round: #37 failure-path review, the benchmark race fixed in #39 (2026-10-18) [V]
+
+No merge was authorized or made, and no setting was changed. `main` is still
+`3e38aa5`. The ruleset (25344547) is unchanged: active on `~DEFAULT_BRANCH`,
+no bypass.
+
+#### 10.16.1 D8 nightly: still pending
+
+As of 2026-10-18T15:27Z, **no scheduled `hardening` run exists on `3e38aa5`**.
+The latest is 39108532041 on `63a80a2`. Nothing was substituted, and D8 is not
+signed off (§10.12).
+
+#### 10.16.2 #37 (T1): independent failure-path review; review-ready
+
+These are scratch production mutations, applied to copies of #37's head
+`0bc2e4e`, run with `-race` against a throwaway PostgreSQL:
+
+| Mutation | T1 | Meaning |
+|---|---|---|
+| F1: the old owner never fails closed | 5/5 FAIL at `a to lose ownership` | the fail-closed assertion is intact |
+| F2: the old owner never retries after a loss | 5/5 FAIL at `a to attempt a reconnect` | T1 also asserts `Run`'s documented re-acquire-after-loss. This is coupling: a P1 re-dial delay of 5 s or more would need this wait changed. |
+| none (whole package, ×10, shuffled) | 420/420, 0 overlaps, 0 skips | no cleanup interplay |
+
+**Pre-existing pattern, not introduced by T1:** if a `waitFor` fails before
+`s.finish`, the sampler goroutine is never stopped. T1 adds one more such point.
+
+**Verdict:** T1 tests the intended takeover. It weakens no assertion and hides
+no production defect. **Review-ready**, open pending the owner. The flake stays
+open until then.
+
+#### 10.16.3 Benchmark race: fixed in #39 (benchmark-only)
+
+- **Reproduced on `main`:** `go test -race -bench '^BenchmarkT10_ConcurrentClassification$' -cpu=1,4,8 -count=3` gives **1 report** at `bench_test.go:652`. With the fix: **0**.
+- **The fix:** each `RunParallel` worker keeps its own last plan and publishes it once, under a local mutex, after its loop.
+- **Timing, without `-race`, interleaved 6 rounds:** +3.2%, −3.0% and −6.2% at 1, 4 and 8 CPUs, each within about one standard deviation (8–11%). Allocations are identical, so the benchmark is not distorted.
+- **Lint:** `services/go/voice` stays at 29, with no change.
+- **Overlap:** #39 and #38 conflict textually (#38 re-indents the same function), so whichever merges second needs `main` merged in.
+
+#### 10.16.4 Lint baseline, recounted from logs
+
+- The latest pr-go push run on `main` is still 39121152951 (`9184071`). `main` has had no Go change since.
+- A recount of its 21 failing golangci-lint job logs gives **933 findings**.
+- With #25, #30, #33, #34 and #38 merged: 20 jobs, 869 findings. #39 does not change lint.
+
+#### 10.16.5 Other PRs at their live heads
+
+- **#30:** the PostgreSQL tests are **local-only**; CI does not set `AEGIS_EVALSTORE_DSN` and reports 4.6% coverage.
+- **#33, #34:** correct (§10.13.2).
+- **#35:** accurate after its review fixes (`58c26ae`).
+- **#36:** the validator still reports 0 errors on the branch (93 on `main`).
+- **#38:** ignoring whitespace, the diff is the 2 `err` renames and the 4 removed braces.
