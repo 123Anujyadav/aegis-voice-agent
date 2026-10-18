@@ -15,7 +15,7 @@
 - **[U] unavailable:** the evidence does not exist in the repository, or could
   not be obtained.
 
-**Status: AUDIT COMPLETE.** Fourteen PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28, #32, #31, #29), including the D8 CI items and the `ci-gate` aggregate check (§10, §10.9). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open, review-ready, not authorized for merge: #25, #27 (this record), #30 and #33 (§10.9.8).
+**Status: the audit is complete; PHASE 15 IS NOT CLOSED.** The closure blockers are listed in §10.11.8. Fourteen PRs are merged in Phase 15 (#17, #18, #19, #20, #22, #8, #21, #23, #24, #26, #28, #32, #31, #29), including the D8 CI items and the `ci-gate` aggregate check (§10, §10.9). **D8 is not closed:** the owner's decision on the Go 1.25 criterion and the owner's sign-off remain (§10.2). Open, review-ready, not authorized for merge: #25, #27 (this record), #30, #33 and #34 (§10.11).
 
 | PR | Change | State |
 |---|---|---|
@@ -34,10 +34,12 @@
 | #30 | `evalstore` `store_test.go` lint (27 → 11) | **open** at `ef34dce`; review-ready (§10.8.3) |
 | #31 | Fence freshness test race (deterministically reproduced) | **merged** as `9184071` (§10.9) |
 | #32 | `ci-gate` waits for jobs still running in a "completed" run | **merged** as `daed070` (§10.9) |
-| #33 | `runtime` docs and test shadows (42 → 25) | **open** at `c8c3ed8`; review-ready (§10.9.8) |
+| #33 | `runtime` docs and test shadows (42 → 25) | **open** at `41e1dee` (the comment fix on top of `c8c3ed8`); review-ready (§10.11.3) |
+| #34 | Lint: `telephony` test shadows (41 → 31) and `evalsubjects` session docs (26 → 20) | **open** at `5e0eaf5`; review-ready (§10.11.5) |
 
-- **Lint:** the repository is **not lint-clean**. 22 golangci-lint jobs fail,
-  with 983 findings (§4).
+- **Lint:** the repository is **not lint-clean**. 21 golangci-lint jobs fail on
+  `main`, with 933 findings (recounted from the logs in §10.10.6; §4 has the
+  original count of 22 jobs and 983 findings).
 - **Readiness:** staging is **NO-GO**, and Exotel AgentStream production media
   is **NO-GO** (§3.12–§3.13).
 
@@ -1757,3 +1759,156 @@ Whether a real caller calls `Speak` concurrently was not established.
 - the remaining `errcheck` findings, because `check-blank: true` makes `_ =` not a fix (a policy decision);
 - `rangeValCopy` refactors in production code;
 - `gocyclo`.
+
+### 10.11 Seventh round: D8 table, outbox decisions, lint batch, settings (2026-10-18) [V]
+
+No merge was authorized or made, and no setting was changed. `main` is
+unchanged at `3e38aa5`.
+
+**API access:** the local DNS resolver does not answer for `api.github.com`,
+though `github.com` resolves. Every API read here used `curl --resolve` with the
+address from 1.1.1.1. TLS was still verified against `api.github.com`, and the
+token was read from `gh auth token` and never printed.
+
+#### 10.11.1 Verified state
+
+| Item | State |
+|---|---|
+| `main` | `3e38aa5` (`git ls-remote` and the API agree) |
+| #25 | open, `dfd6e57`, no reviews; checks as §10.10.1 (same head) |
+| #27 | open, this branch (previous head `c16f1df`: `ci-gate` and Backend Foundation pass), no reviews |
+| #30 | open, `ef34dce`, no reviews; 124 pass, 21 fail = the baseline set; `ci-gate` pass |
+| #33 | open, **`41e1dee`** (new: the comment fix, §10.11.3), no reviews; 145 checks: 124 pass, 21 fail = exactly `main`'s baseline lint set, none new; `ci-gate` pass. The CI lint logs agree with the local counts (`runtime` 25) |
+| #34 | **new**, open, `5e0eaf5`; 145 checks: 124 pass, 21 fail = exactly `main`'s baseline lint set, none new; `ci-gate` pass. The CI lint logs agree with the local counts (`telephony` 31, `evalsubjects` 20) |
+| #7, #9, Dependabot #2–#5 | open, not touched |
+
+**Preservation:**
+- primary worktree: 415 entries, hash `d4fb9c4206dc2168`, on `telephony/p1-fence-rds-iam` at `ad4a734`;
+- `deployment.yaml` still ` D`;
+- 39 untracked telephony documents;
+- 3 `preserve/*` branches;
+- the 34 pre-existing worktrees are unchanged, apart from the commits made here to #27 and #33's own worktrees. One new worktree was added: `calling-agent-lint-l1l2`.
+
+#### 10.11.2 D8: decision table (owner sign-off REQUIRED; not recorded)
+
+The criterion (P1-45:147) is: "`-race` never run; real-PG suites not in CI;
+gateway not in nightly race; lint unknown; Go 1.25 untested".
+
+| Criterion | Evidence [V] (all from job logs) | Limitation | Met? | Owner sign-off |
+|---|---|---|---|---|
+| `-race` run | pr-go runs the gateway with `go test -race -count=1`. Fresh 39121942603: `-race` on go1.25.14. Hardening repeated race: `-race -count=5 -shuffle=on`. | none | yes | required |
+| Real-PG suites in CI | `gateway-postgres` on `main` `3e38aa5` (39121884792): pass; 39121942603: `pass=127 fail=0 skip=0`, where any skip fails the job | **one open flake** (`…ATerminatedOwnerSessionHandsOverWithoutOverlap`, one CI failure on `63a80a2`, not reproduced since) | yes, with an open flake | required, including whether the flake is an accepted risk |
+| Gateway in nightly race | Scheduled hardening **39108532041** on **`63a80a2`**: 6/6 success; the repeated job lists `RACE_EXTRA_MODULES: services/go/telephony-gateway`, and the 4 gateway packages are `ok` | **No scheduled run exists on current `main` `3e38aa5`** (the latest scheduled run is 39108532041; the next is due on 2026-10-19). Between the two: #32 (CI script), #31 (gateway **test** only) and #29 (CI script). | yes on `63a80a2`; **not yet shown on current `main`** | required |
+| Lint | `golangci-lint (services/go/telephony-gateway)` passes on `main` | none | yes | required |
+| Go 1.25 | **Fresh:** 39121942603 on `1ee9fd8` = `3e38aa5` plus a branch-only workflow: `go1.25.14` asserted; `platform` and gateway vet and `-race` pass; real PostgreSQL 127/0/0. **Historical:** 38774455177 on `89564e5`. The run **failed overall** (unrelated jobs), while its gateway and `platform` jobs passed on go1.25.14 with `-race`. | CI on `main` builds with Go 1.26.9. Go 1.25 is evidenced by a branch-only run, not by ongoing CI. | evidenced for the current code | **ruling required** (§10.10.2: A, B or C) |
+| **D8 overall** | — | — | — | **OPEN: sign-off not given** |
+
+#### 10.11.3 #30 and #33: re-review
+
+- **#30 `ef34dce`, unchanged since §10.10.3: MERGE RECOMMENDED.**
+  - **The DSN coverage gap, verified from CI:** no workflow or script on `main` sets `AEGIS_EVALSTORE_DSN`. The test file says the tests skip when it is unset.
+  - #30's CI job `packages/go/evalstore` (job 117613614053) ran `go test -race -count=1` without `-v` and reported **`coverage: 4.6% of statements`**. So the database tests did not run.
+  - The 81/0/0 result exists **only locally** (§10.10.3).
+  - **Recommendation:** merge on the local evidence. Treat "run the evalstore database suites in CI" (as `gateway-postgres` does for the gateway) as a separate CI-coverage item.
+- **#33: the comment nit was worth fixing; MERGE RECOMMENDED at `41e1dee`.**
+  - **The old text** ("had not already been stopped") read as if a fired timer reports `true`.
+  - **The facts:** a fired one-shot fake timer is marked stopped (`clock.go:268`), so `Stop` and `Reset` report `false` for it, as `time.Timer` does.
+  - **The new comments** say "still pending: false if it had already fired or been stopped".
+  - **Verified with a scratch-only test, not committed:** `Stop` and `Reset` after firing report false; `Stop` on a pending timer reports true; a second `Stop` reports false.
+  - **Lint:** `runtime` stays at 25, with no `clock.go` finding. Race ×3, shuffled, passes.
+  - **CI on `41e1dee`:** 145 checks: 124 pass, 21 fail = exactly `main`'s baseline lint set, none new; `ci-gate` pass. The CI lint logs agree with the local counts (`runtime` 25).
+
+#### 10.11.4 #25 and ADR-0009
+
+- #25 stays open at `dfd6e57`, with no design change (§10.10.4).
+- The decision document is **`docs/phase15/ADR-0009-OUTBOX-DECISIONS.md`**. It covers:
+  - the verified facts;
+  - the alternatives and a recommended default for each of the six questions;
+  - the schema and operations consequences;
+  - eight owner questions.
+- **New fact found:** `FetchPending` takes no row lock. Two relays could publish the same entry; the consumer inbox de-duplicates.
+- Nothing is implemented.
+
+#### 10.11.5 Lint batch L1 and L2: PR #34
+
+| Batch | File | Change | Module lint |
+|---|---|---|---|
+| L1 | `packages/go/telephony/integration_test.go` | 10 `err :=` → `err =` on the flagged lines; top-level test bodies only, assertions unchanged | 41 → **31** |
+| L2 | `packages/go/evalsubjects/memory_subject.go`, `tool_subject.go` | doc comments on `State`, `Events` and `Close` | 26 → **20** |
+
+- **No overlap, re-verified first:**
+  - these files are unchanged on `main` since the counted run (`9184071`);
+  - the owner's copies are byte-identical to `main`'s;
+  - no open PR (all 10 checked) or `preserve/*` branch touches them.
+- **Validation:**
+  - gofmt and gofumpt clean, `go vet` OK;
+  - race ×3, plain and shuffled, for both modules;
+  - the removed findings are exactly these 16, with no new finding.
+- **CI:** 145 checks: 124 pass, 21 fail = exactly `main`'s baseline lint set, none new; `ci-gate` pass. The CI lint logs agree with the local counts (`telephony` 31, `evalsubjects` 20)
+- **If merged:** `main` would have 917 findings in 21 jobs. With #25, #30 and #33 as well, 872 findings in 20 jobs.
+- **Not touched:** `conversation_subject.go` and `governance_subject.go` have the same undocumented methods, but the owner's work modifies them.
+
+#### 10.11.6 `speech` (frozen; nothing changed)
+
+- **Reproduction summary:**
+  - one CI failure: hardening 39121884775 attempt 1, repeated race, seed `1792321655586389695`, `integration_test.go:599`;
+  - attempt 2 passed;
+  - the seed replayed 3× and 500 isolated runs locally: **not reproduced**.
+  - The mechanism is established by reading the code: the test checks `Speaking()` and then calls `Speak`, so it is check-then-act (§10.9.4).
+  - **Not reproducing it does not prove the test is safe.**
+- **The test-only fix:** §10.10.5 Proposal A. It holds synthesis live with **an undrained output queue** of `FrameQueue+50` frames, through `ttsRig`'s existing `framesPerChunk` parameter. **No fake-provider change is needed.**
+- **The possible production race:** §10.10.5 Probe B. `StallFor` reproduced two concurrent `Speak` calls both being accepted, 20/20. **It is not fixed.** Whether any production caller calls `Speak` concurrently is not established.
+
+**The exact files and tests that would change, if authorized:**
+
+| Change | Files | Tests |
+|---|---|---|
+| Test-only flake fix | `packages/go/speech/integration_test.go` | `TestTTS_DoubleSpeakIsRefused` only |
+| Production race fix (a separate decision) | `packages/go/speech/tts.go` `Speak`: reserve `speaking` under the lock before `OpenTTS`, and release the reservation on every early return (`PickTTS`, `NewChunker`, no chunks, chunk backpressure, the `OpenTTS` error); also `Cancel` and `Close` handling of a reserved-but-unopened state | a new `TestTTS_ConcurrentSpeakIsRefused` (Probe B as a regression test) in `integration_test.go` |
+
+Neither touches `session_test.go` or `chunker_test.go`, the owner's uncommitted files.
+
+#### 10.11.7 GitHub settings (read-only inspection; nothing changed)
+
+| Item | Verified [V] |
+|---|---|
+| Repository | **public**; the default branch is `main`; squash, merge and rebase merges allowed; auto-merge off |
+| Branch protection on `main` | **none** (`GET …/branches/main/protection` → 404 "Branch not protected") |
+| Rulesets | **none** (`GET …/rulesets` → `[]`; `GET …/rules/branches/main` → `[]`) |
+| Force-push and deletion of `main` | **not restricted**: no protection and no ruleset |
+| Required-check binding | `ci-gate` and `Build & Test Backend Foundation` are produced by app **15368 (`github-actions`)**. Both run on every PR into `main` with no path filter (`ci-gate.yml`: `pull_request`; `ci.yml`: `pull_request` to `main`/`develop`). |
+| CODEOWNERS | **93 errors**, all "Unknown owner", for 16 `@callscreen/*` teams (`GET …/codeowners/errors`) |
+| Reviewers | one collaborator, `123Anujyadav` (admin). PR authors cannot approve their own PRs. |
+| Actions | all actions allowed; default `GITHUB_TOKEN` permissions **read**; it cannot approve PRs; fork-PR approval policy: `first_time_contributors` |
+| Security | secret scanning and push protection enabled; Dependabot security updates **disabled** |
+| Token | scopes `repo`, `workflow`, `read:org`, `gist`; the account is admin. **It could change these settings; it was used only to read them.** |
+
+The owner's manual checklist is in the PR #27 report for this round. It is not
+repeated here, because it changes repository settings.
+
+#### 10.11.8 Closure status: Phase 15 is NOT closed
+
+**Completed [V]:**
+- 14 merges (§10.9.1);
+- `ci-gate`, with its security fixes and incomplete-job handling;
+- the D8 CI items, built and verified;
+- the fresh Go 1.25.14 evidence;
+- the fence freshness test race fixed;
+- lint at 933 findings, from 983 (§4);
+- the decision records: D8 (§10.10.2, §10.11.2), ADR-0009 (the separate document), `speech` (§10.10.5, §10.11.6).
+
+**Blocking closure:**
+
+| # | Blocker | Owner of the next step |
+|---|---|---|
+| 1 | The D8 ruling and sign-off; a current-`main` nightly, if option B | owner |
+| 2 | Merge decisions for #25, #27, #30, #33 and #34 | owner |
+| 3 | The ADR-0009 outbox policy (eight questions) | owner (architecture) |
+| 4 | The fence PostgreSQL flake: unresolved | engineering, on the next occurrence; owner, on risk acceptance |
+| 5 | The `speech` flake and the concurrent-`Speak` race: unresolved; frozen module | owner (freeze exception) |
+| 6 | The lint-policy items (`audiointel` godot, `writeJSON`, errcheck `check-blank`) and the owner-overlap modules | owner |
+| 7 | Branch protection or a ruleset, and CODEOWNERS | owner (admin settings) |
+| 8 | H-12, the unpublished Phase 15/16 work and the `pipeline.go` conflict | owner |
+| 9 | D9, D10, D11, `prod-global`, F-3, F-4 and F-7; INFRA-AUTH A5–A9; providers and models; Exotel mTLS | owner, external |
+
+**Readiness:** staging and Exotel production media remain **NO-GO**.
