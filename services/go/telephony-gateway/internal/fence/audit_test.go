@@ -30,6 +30,18 @@ func TestFence_ConfirmationFreshnessIsMeasuredFromWhenTheQueryWasSent(t *testing
 	r.c.step(t)
 	r.c.step(t)
 	eventually(t, "ownership", r.f.Owned)
+	// Ownership already reads true before the second confirmation has run, so
+	// wait until the fence has finished it and gone back to sleep (the same
+	// receive-and-restore TestFence_AStuckConfirmationExpiresOwnershipByTheClock
+	// uses). Otherwise that late confirmation picks up the latency below,
+	// holdsHit overshoots before+1 once the next step runs a third one, and the
+	// wait for "the slow confirmation to be recorded" never succeeds.
+	select {
+	case d := <-r.c.sleeping:
+		r.c.sleeping <- d
+	case <-time.After(5 * time.Second):
+		t.Fatal("the fence never went back to sleep after the second confirmation")
+	}
 
 	latency.Store(int64(1500 * time.Millisecond)) // within HeartbeatTimeout (2s)
 	before := s.holdsHit.Load()
