@@ -2087,3 +2087,48 @@ substituted. D8 remains provisionally accepted and not signed off.
 - `main` is unchanged at **21 jobs and 933 findings**.
 - With every open lint PR merged (#25, #30, #33, #34 and #38): **20 jobs, 870 findings**.
 - The `godot` "capital letter" findings outside `audiointel` (11 found in files with no overlap) are **left alone**: rewording them would pre-empt the pending comment-policy decision (§10.9.5). So is `services/go/voice/cmd/server/determinism_test.go:505`, because the owner's checkout has a different version of that file than `main`.
+
+### 10.15 Tenth round: T1 side-by-side, #38 extended, a latent benchmark race (2026-10-18) [V]
+
+No merge was authorized or made, and no setting was changed. `main` is still
+`3e38aa5`. The ruleset (25344547) was re-verified: unchanged, active on
+`~DEFAULT_BRANCH`, no bypass.
+
+#### 10.15.1 D8 nightly: still pending
+
+As of 2026-10-18T14:45Z, there is **no scheduled `hardening` run on
+`3e38aa5`**. The latest is 39108532041 on `63a80a2`. No other run was
+substituted. D8 is provisionally accepted and **not signed off** (§10.12).
+
+#### 10.15.2 Fence flake: T1 against the unmodified test under identical timing
+
+The runs used one throwaway PostgreSQL 17.2 and `-race`. The `main` copy and
+the T1 copy (#37, `0bc2e4e`) each got the same scratch-only harness: the
+standby's dials are refused for 600 ms after the release.
+
+| Run | Unmodified test | T1 |
+|---|---|---|
+| Controlled 600 ms standby gap, ×20 | **6 pass / 14 fail** (`timed out after 10s waiting for b to own`), 0 overlaps | **20/20 pass**, 0 overlaps |
+| Contention only (`GOMAXPROCS=2`, 4 burners), ×100 | 100/100 | 100/100 |
+
+**The three related standby tests,** unmodified, each ×20 under the same gap and
+again under contention: **20/20 pass, 0 overlaps**. This confirms by experiment
+what §10.13.4 found by reading the code: they are not exposed.
+
+The earlier T1 evidence (§10.14.2) still stands. The mutations show the cut-off
+is the control, and overlap sensitivity is unchanged. **The flake stays open**
+until the owner reviews #37.
+
+#### 10.15.3 Lint (#38 extended)
+
+- `services/go/voice/cmd/server/bench_test.go`: the two empty blocks wrapping `BenchmarkT10_ConcurrentClassification`'s body are removed. Ignoring whitespace, the diff is the four brace lines. `services/go/voice` lint: 28 → 27.
+- The baseline is unchanged: **21 jobs, 933 findings** (from pr-go 39121152951; `main` has had no Go change since).
+- With every open lint PR merged (#25, #30, #33, #34 and #38): **20 jobs, 869 findings**.
+
+#### 10.15.4 New finding: a latent data race in a benchmark (pre-existing; not fixed)
+
+- `go test -race -bench '^BenchmarkT10_ConcurrentClassification$' -cpu=1,4` on unmodified `main` reports **1 data race** at `services/go/voice/cmd/server/bench_test.go:652`. Every `RunParallel` worker writes the package-level `sinkPlan`.
+- CI never sees it:
+  - the `hardening` Benchmarks job runs without `-race`;
+  - `TestT10_BenchmarksActuallyExecute` does not run this benchmark.
+- **Proposed fix (not implemented):** a test-only change in which each worker keeps its own local result and stores it once under a lock.
