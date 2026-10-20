@@ -7,10 +7,11 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // The fence's own WARN and ERROR lines, as fence.go writes them. A test that
@@ -23,6 +24,7 @@ const (
 	msgLockFailed = "fence: lock attempt failed"
 	msgNotPrimary = "fence: the database is not a writable primary; refusing to take the lock"
 	msgConfirmed  = "fence: ownership confirmed"
+	msgElsewhere  = "fence: lock held elsewhere; standing by"
 )
 
 // fenceEvent is one record the fence logged.
@@ -41,17 +43,21 @@ func (e fenceEvent) loss() bool { return e.msg == msgLost || e.msg == msgLate }
 // a confirmation did not complete in time: the heartbeat ran into its timeout,
 // or its answer came back after the validity window. Under -race on a loaded
 // host that is correct behaviour, a liveness gap and not an overlap. A heartbeat
-// stopped by its deadline can fail as the context's error or, when the driver
-// was blocked reading the socket, as a network error after the full timeout;
-// both count. Any other loss (the lock reported missing, an error that came
-// back before the timeout) is not.
+// stopped by its deadline fails as exactly the context's error or, when the
+// driver was blocked reading the socket, as exactly the network category after
+// the full timeout (redact's categories). Nothing else is excused: not the lock
+// reported missing, not a server error (an SQLSTATE) however long it took, and
+// not a network error that came back before the timeout.
 func (e fenceEvent) failClosedTiming(timeout time.Duration) bool {
 	switch e.msg {
 	case msgLate:
 		return true
 	case msgLost:
-		return !e.lockMissing &&
-			(strings.Contains(e.err, context.DeadlineExceeded.Error()) || e.heartbeat >= timeout)
+		if e.lockMissing {
+			return false
+		}
+		return e.err == context.DeadlineExceeded.Error() ||
+			(e.err == errNetwork.Error() && e.heartbeat >= timeout)
 	}
 	return false
 }
@@ -60,9 +66,16 @@ func (e fenceEvent) failClosedTiming(timeout time.Duration) bool {
 func (e fenceEvent) confirmed() bool { return e.msg == msgConfirmed }
 
 // attemptFailed reports whether the event ended a connection attempt before
-// it could own. Each attempt dials once, so it asks a credential source once.
+// it could own: the dial or a query failed.
 func (e fenceEvent) attemptFailed() bool {
 	return e.msg == msgCannotOpen || e.msg == msgLockFailed || e.msg == msgNotPrimary
+}
+
+// attemptWithoutOwnership reports whether the event ended a connection attempt
+// that did not take the lock: a failed attempt, or one that found the lock
+// held elsewhere. Each attempt dials once, so it asks a credential source once.
+func (e fenceEvent) attemptWithoutOwnership() bool {
+	return e.attemptFailed() || e.msg == msgElsewhere
 }
 
 func (e fenceEvent) String() string {
@@ -127,14 +140,19 @@ func (e *events) count(match func(fenceEvent) bool) int {
 // under load is reported as one and never mistaken for an overlap.
 func requireFailClosedTimingOnly(t *testing.T, who string, e *events, timeout time.Duration) {
 	t.Helper()
+	excused := 0
 	for _, ev := range e.all() {
 		switch {
 		case !ev.loss():
 		case ev.failClosedTiming(timeout):
+			excused++
 			t.Logf("%s: fail-closed timing loss (liveness under load, not an overlap): %s", who, ev)
 		default:
 			t.Errorf("%s: an ownership loss that is not a fail-closed timing loss: %s", who, ev)
 		}
+	}
+	if excused > 0 {
+		t.Logf("%s: %d fail-closed timing loss(es) excused", who, excused)
 	}
 }
 
@@ -142,30 +160,65 @@ func requireFailClosedTimingOnly(t *testing.T, who string, e *events, timeout ti
 // change to its wording or attributes breaks this test rather than silently
 // excusing a loss in the real-PostgreSQL suites.
 func TestEvents_ClassifyTheFencesOwnLosses(t *testing.T) {
-	blockUntilDeadline := func(ctx context.Context) (bool, error) { <-ctx.Done(); return false, ctx.Err() }
+	// The heartbeat timeout of the cases that wait for it; the others answer at
+	// once and get a long one, so a stall under -race cannot push an instant
+	// answer past the timeout.
+	const short, long = 20 * time.Millisecond, 2 * time.Second
+	// blocked waits out the deadline and, like a driver blocked on the socket,
+	// returns no sooner than the full timeout after it was called.
+	blocked := func(timeout time.Duration, holds bool, err func(context.Context) error) func(context.Context) (bool, error) {
+		return func(ctx context.Context) (bool, error) {
+			start := time.Now()
+			<-ctx.Done()
+			if d := timeout - time.Since(start); d > 0 {
+				time.Sleep(d)
+			}
+			return holds, err(ctx)
+		}
+	}
 	// What pgx returns when the deadline interrupts a blocked socket read.
 	socketTimeout := &net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded}
+	serverEnded := &pgconn.PgError{Code: "57P01", Message: "terminating connection due to administrator command"}
 	for name, tc := range map[string]struct {
-		holds  func(context.Context) (bool, error)
-		late   bool
-		timing bool
+		holds   func(context.Context) (bool, error)
+		timeout time.Duration
+		late    bool
+		timing  bool
 	}{
-		"the heartbeat reached its timeout": {holds: blockUntilDeadline, timing: true},
-		"a socket read stopped by the timeout": {holds: func(ctx context.Context) (bool, error) {
-			<-ctx.Done()
-			return false, socketTimeout
-		}, timing: true},
-		"the answer came after the validity window": {late: true, timing: true},
-		"the lock was reported missing":             {holds: func(context.Context) (bool, error) { return false, nil }},
-		"a network error before the timeout":        {holds: func(context.Context) (bool, error) { return false, socketTimeout }},
-		"the server ended the session": {holds: func(context.Context) (bool, error) {
-			return false, errors.New("FATAL: terminating connection due to administrator command (SQLSTATE 57P01)")
-		}},
+		"the heartbeat reached its timeout": {
+			timeout: short, timing: true,
+			holds: blocked(short, false, func(ctx context.Context) error { return ctx.Err() }),
+		},
+		"a socket read stopped by the timeout": {
+			timeout: short, timing: true,
+			holds: blocked(short, false, func(context.Context) error { return socketTimeout }),
+		},
+		"the answer came after the validity window": {timeout: short, late: true, timing: true},
+		"the lock was reported missing": {
+			timeout: long,
+			holds:   func(context.Context) (bool, error) { return false, nil },
+		},
+		"the lock reported missing after the timeout": {
+			timeout: short,
+			holds:   blocked(short, false, func(context.Context) error { return nil }),
+		},
+		"a network error before the timeout": {
+			timeout: long,
+			holds:   func(context.Context) (bool, error) { return false, socketTimeout },
+		},
+		"the server ended the session": {
+			timeout: long,
+			holds:   func(context.Context) (bool, error) { return false, serverEnded },
+		},
+		"a server error after the timeout": {
+			timeout: short,
+			holds:   blocked(short, false, func(context.Context) error { return serverEnded }),
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := newClock()
 			ev := &events{}
-			cf := Config{LockKey: 4242, HeartbeatInterval: 10 * time.Second, HeartbeatTimeout: 20 * time.Millisecond}
+			cf := Config{LockKey: 4242, HeartbeatInterval: 10 * time.Second, HeartbeatTimeout: tc.timeout}
 			f, err := New(cf, func(context.Context) (Session, error) { return &fakeSession{holds: tc.holds}, nil }, slog.New(ev))
 			if err != nil {
 				t.Fatal(err)

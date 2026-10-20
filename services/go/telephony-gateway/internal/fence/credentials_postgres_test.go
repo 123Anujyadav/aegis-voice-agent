@@ -100,13 +100,25 @@ func rotateOnce(t *testing.T, dsn string) bool {
 
 	waitFor(t, 10*time.Second, "ownership with the first credential", f.Owned)
 	// One request per connection attempt. Before ownership was seen there was
-	// one per failed attempt, one per attempt whose ownership was then lost
-	// (under load), and the one that owns now.
-	if got, want := creds.calls.Load(), int64(1+ev.count(fenceEvent.attemptFailed)+ev.count(fenceEvent.loss)); got != want {
+	// one per attempt that ended without the lock, one per attempt whose
+	// ownership was then lost (under load), and the one that owns now. The
+	// two counts are read until no record lands between them.
+	got, want := creds.calls.Load(), int64(0)
+	for range 10 {
+		n := len(ev.all())
+		got = creds.calls.Load()
+		want = int64(1 + ev.count(fenceEvent.attemptWithoutOwnership) + ev.count(fenceEvent.loss))
+		if len(ev.all()) == n {
+			break
+		}
+	}
+	if got != want {
 		t.Errorf("credential requests before ownership = %d, want %d (one per connection attempt)", got, want)
 	}
-	pid := ownedHolder(t, adm, f, key)
+	// Losses from here on are judged; one before the holder lookup that ended
+	// the session would make the run inconclusive, never blame the rotation.
 	judged := len(ev.all())
+	pid := ownedHolder(t, adm, f, key)
 
 	// Rotate: the old password stops working; the live session is unaffected.
 	if _, err := adm.Exec(ctx, "ALTER ROLE "+pgx.Identifier{role}.Sanitize()+" PASSWORD '"+p2+"'"); err != nil {
@@ -117,12 +129,17 @@ func rotateOnce(t *testing.T, dsn string) bool {
 		losses, _ := lossesAfter(ev, judged)
 		return len(losses) > 0 || ev.count(fenceEvent.confirmed) >= beats+2
 	})
-	losses, timingOnly := lossesAfter(ev, judged)
+	// The holder is read before the losses: the fence logs a loss before it
+	// releases its session, so a holder missing here has its loss recorded.
 	now, held := holderPID(t, adm, key)
+	losses, timingOnly := lossesAfter(ev, judged)
 	switch {
-	case len(losses) == 0 && held && now == pid:
-		// The live session survived the rotation and kept confirming.
-	case len(losses) > 0 && timingOnly:
+	case !timingOnly:
+		t.Fatalf("a loss that is not a fail-closed timing loss during the rotation: %v", losses)
+	case held && now == pid:
+		// The live session survived the rotation and kept confirming; any loss
+		// recorded is a later, fail-closed timing one.
+	case len(losses) > 0:
 		return false
 	default:
 		t.Fatalf("rotating the password ended the live session (holder %d before; %d, held=%v after); it must not. Losses: %v",
@@ -132,26 +149,43 @@ func rotateOnce(t *testing.T, dsn string) bool {
 	// Force a re-dial: the source now hands out the new password.
 	creds.set(p2)
 	asked := creds.calls.Load()
-	terminated := len(ev.all())
-	terminate(t, adm, pid)
+	var killed bool
+	if err := adm.QueryRow(ctx, `SELECT pg_terminate_backend($1)`, pid).Scan(&killed); err != nil {
+		t.Fatalf("pg_terminate_backend(%d): %v", pid, redact(err))
+	}
+	if !killed {
+		// The judged session is already gone; only a fail-closed timing loss
+		// since the judgement explains that, and the re-dial below still has to
+		// use the rotated credential.
+		if l, ok := lossesAfter(ev, judged); len(l) == 0 || !ok {
+			t.Fatalf("the judged session ended before it was killed, without a fail-closed timing loss: %v", l)
+		}
+	}
 	waitFor(t, 5*time.Second, "loss", func() bool { return !f.Owned() })
 	waitFor(t, 10*time.Second, "re-acquisition with the rotated credential", f.Owned)
 	if creds.calls.Load() <= asked {
 		t.Errorf("credential requests = %d after the re-dial, %d before; the re-dial must ask again", creds.calls.Load(), asked)
 	}
-	// The termination costs one loss; any other must be a fail-closed timing one.
-	losses, _ = lossesAfter(ev, terminated)
+	// Since the rotation the session must have ended with a recorded loss. The
+	// kill accounts for at most one that is not a fail-closed timing loss (a
+	// timing loss just before the kill can take the session the kill then
+	// finds dying); the judgement above already allowed only timing ones.
+	losses, _ = lossesAfter(ev, judged)
 	other := 0
 	for _, l := range losses {
 		if !l.failClosedTiming(steadyCfg.HeartbeatTimeout) {
 			other++
 		}
 	}
+	caused := 0
+	if killed {
+		caused = 1
+	}
 	switch {
 	case len(losses) == 0:
-		t.Error("terminating the session recorded no loss")
-	case other > 1:
-		t.Errorf("losses after the termination beyond the one it caused: %v", losses)
+		t.Error("the session ended without a recorded loss")
+	case other > caused:
+		t.Errorf("losses since the rotation that are not fail-closed timing ones, beyond the one the kill caused: %v", losses)
 	}
 	return true
 }

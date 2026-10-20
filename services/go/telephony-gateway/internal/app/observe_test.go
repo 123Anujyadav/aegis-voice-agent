@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/callscreen/callscreen-platform/services/go/telephony-gateway/internal/fence"
 )
 
 // The fence's ownership-loss lines, as internal/fence/fence.go writes them
@@ -19,6 +21,8 @@ import (
 const (
 	msgFenceLost = "fence: ownership LOST; no longer accepting work"
 	msgFenceLate = "fence: confirmation arrived after the validity window; ownership dropped"
+	// The network category of redact, as internal/fence/fence.go defines it.
+	errFenceNetwork = "network error reaching the database (details withheld)"
 )
 
 // fenceLoss is one ownership loss a gateway's fence logged.
@@ -33,13 +37,18 @@ type fenceLoss struct {
 // failClosedTiming reports whether the fence gave ownership up because a
 // confirmation did not complete in time: correct behaviour under load, a
 // liveness gap and not an overlap. That is an answer after the validity
-// window, or a heartbeat that ran into its timeout (failing as the context's
-// error or, when the driver was blocked on the socket, as a network error after
-// the full timeout). A missing lock, or an error before the timeout, is not.
+// window, or a heartbeat that ran into its timeout: exactly the context's
+// error or, when the driver was blocked on the socket, exactly the network
+// category after the full timeout. Never a missing lock, never a server error
+// (an SQLSTATE), never a network error before the timeout.
 func (l fenceLoss) failClosedTiming(timeout time.Duration) bool {
-	return l.msg == msgFenceLate ||
-		(l.msg == msgFenceLost && !l.lockMissing &&
-			(strings.Contains(l.err, context.DeadlineExceeded.Error()) || l.heartbeat >= timeout))
+	switch {
+	case l.msg == msgFenceLate:
+		return true
+	case l.msg != msgFenceLost || l.lockMissing:
+		return false
+	}
+	return l.err == context.DeadlineExceeded.Error() || (l.err == errFenceNetwork && l.heartbeat >= timeout)
 }
 
 func (l fenceLoss) String() string {
@@ -71,7 +80,7 @@ func (s *losses) Handle(_ context.Context, r slog.Record) error {
 		case "phase":
 			if a.Value.Kind() == slog.KindGroup {
 				for _, p := range a.Value.Group() {
-					if p.Key == "heartbeat" && p.Value.Kind() == slog.KindDuration {
+					if p.Key == fence.PhaseHeartbeat && p.Value.Kind() == slog.KindDuration {
 						l.heartbeat = p.Value.Duration()
 					}
 				}
@@ -108,36 +117,33 @@ func (s *losses) records() []fenceLoss {
 	return append([]fenceLoss(nil), s.recs...)
 }
 
-// requireFailClosedTimingOnly fails the test if the gateway's fence lost
-// ownership other than by a fail-closed timing loss more than caused times
-// (the losses the test itself provoked, such as killing the session), and
-// logs each timing loss it excuses, so a liveness gap under load is reported
-// as one and never mistaken for an overlap.
-func requireFailClosedTimingOnly(t *testing.T, who string, s *losses, caused int, timeout time.Duration) {
+// requireFailClosedTimingOnly fails the test for any of the losses that is not
+// a fail-closed timing loss, and logs each one it excuses, so a liveness gap
+// under load is reported as one and never mistaken for an overlap.
+func requireFailClosedTimingOnly(t *testing.T, who string, losses []fenceLoss, timeout time.Duration) {
 	t.Helper()
-	var other []fenceLoss
-	for _, l := range s.all() {
+	for _, l := range losses {
 		if l.failClosedTiming(timeout) {
 			t.Logf("%s: fail-closed timing loss (liveness under load, not an overlap): %s", who, l)
 			continue
 		}
-		other = append(other, l)
-	}
-	if len(other) > caused {
-		t.Errorf("%s: %d ownership loss(es) that are not fail-closed timing losses, %d caused by the test: %v", who, len(other), caused, other)
+		t.Errorf("%s: an ownership loss that is not a fail-closed timing loss: %s", who, l)
 	}
 }
 
-// The constants above must be the fence's own wording; if fence.go changes it,
-// this fails instead of the losses going unrecognised.
+// The constants and attribute keys above must be the fence's own; if fence.go
+// changes one, this fails instead of the losses being misread.
 func TestFenceLossMessagesMatchTheFence(t *testing.T) {
 	src, err := os.ReadFile(filepath.Join("..", "fence", "fence.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range []string{msgFenceLost, msgFenceLate} {
-		if !strings.Contains(string(src), strconv.Quote(m)) {
-			t.Errorf("internal/fence/fence.go no longer logs %q", m)
+	for _, m := range []string{
+		strconv.Quote(msgFenceLost), strconv.Quote(msgFenceLate), strconv.Quote(errFenceNetwork),
+		`slog.Bool("lock_missing"`, `slog.String("error"`,
+	} {
+		if !strings.Contains(string(src), m) {
+			t.Errorf("internal/fence/fence.go no longer contains %s", m)
 		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -160,7 +161,9 @@ func TestStartup_InvalidFenceConfigurationStopsTheProcess(t *testing.T) {
 // The overlap check reads BOTH processes at every sample: b being ready is an
 // overlap only while a is ready too. Under load a can correctly fail closed and
 // hand over to b while it runs; that is a liveness gap, accepted only when a's
-// own log shows a fail-closed timing loss, and never reported as two ready.
+// own log shows a fail-closed timing loss after b started, and never reported
+// as two ready. The binary killed is the one in service at the time, so the
+// takeover asserted at the end is always a real one.
 func TestStartup_TwoBinariesOneReadyThenTakeover(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv(fenceTestDSNEnv))
 	if dsn == "" {
@@ -195,14 +198,18 @@ func TestStartup_TwoBinariesOneReadyThenTakeover(t *testing.T) {
 	}
 	a := startBin(t, bin, cfg...)
 	wait("a ready", func() bool { return ready(a) })
+	bStarted := time.Now()
 	b := startBin(t, bin, cfg...)
 	b.waitAnswering(t)
 
 	// a is read before b. Without an overlap b can be ready no sooner than a
 	// full validity window after a stopped being ready (b takes the lock only
 	// after a's session releases it, then waits the grace), so two "ready"
-	// answers read within one window prove an overlap. A sample whose two reads
-	// took a window or longer proves nothing either way and is not counted.
+	// answers read within one window prove an overlap. That assumes the lock is
+	// released only by its holder, as here: a release by the server (a killed
+	// session) can shorten the gap, which could only cause a false "two ready",
+	// never hide one. A sample whose two reads took a window or longer proves
+	// nothing either way and is not counted.
 	// Sampling lasts long enough for b, had it wrongly taken the lock on its
 	// next attempt, to pass its grace and report ready, and until 50 samples saw
 	// one of them ready (within a bound: under load both can be briefly not
@@ -229,25 +236,45 @@ func TestStartup_TwoBinariesOneReadyThenTakeover(t *testing.T) {
 	if aServed+bServed == 0 {
 		t.Fatalf("neither binary was ready while both ran; the overlap check was not exercised\n--- a ---\n%s\n--- b ---\n%s", a.out(), b.out())
 	}
+	// The binary in service now (the same read-order rule applies), so the kill
+	// below is always of the owner and the takeover it asserts is a real one.
+	var owner, other *proc
+	wait("exactly one binary ready", func() bool {
+		start := time.Now()
+		ra, rb := ready(a), ready(b)
+		switch {
+		case ra && rb && time.Since(start) < validity:
+			t.Fatalf("two binaries ready at once\n--- a ---\n%s\n--- b ---\n%s", a.out(), b.out())
+		case ra && !rb:
+			owner, other = a, b
+			return true
+		case rb && !ra:
+			owner, other = b, a
+			return true
+		}
+		return false
+	})
 	aLosses := fenceLosses(t, a.out())
-	if bServed > 0 && !anyFailClosedTiming(aLosses, timeout) {
-		t.Errorf("b became ready while a was running, and a logged no fail-closed timing loss: %v\n--- a ---\n%s", aLosses, a.out())
+	if (bServed > 0 || owner == b) && !anyFailClosedTimingSince(t, aLosses, bStarted, timeout) {
+		t.Errorf("b took over while a was running, and a logged no fail-closed timing loss after b started: %v\n--- a ---\n%s", aLosses, a.out())
 	}
 	requireFailClosedTimingOnly(t, "a", aLosses, timeout)
 	requireFailClosedTimingOnly(t, "b", fenceLosses(t, b.out()), timeout)
 
-	_ = a.cmd.Process.Kill() // crash: the OS closes its connection; the server releases the lock
-	_, _ = a.cmd.Process.Wait()
-	wait("b ready after a died", func() bool { return ready(b) })
+	_ = owner.cmd.Process.Kill() // crash: the OS closes its connection; the server releases the lock
+	_, _ = owner.cmd.Process.Wait()
+	wait("the other binary ready after the owner died", func() bool { return ready(other) })
 	if strings.Contains(a.out()+b.out(), dsn) {
 		t.Error("a process logged the DSN")
 	}
 }
 
-// The fence's ownership-loss lines, as internal/fence/fence.go writes them.
+// The fence's ownership-loss lines and network category, as
+// internal/fence/fence.go writes them.
 const (
-	msgFenceLost = "fence: ownership LOST; no longer accepting work"
-	msgFenceLate = "fence: confirmation arrived after the validity window; ownership dropped"
+	msgFenceLost    = "fence: ownership LOST; no longer accepting work"
+	msgFenceLate    = "fence: confirmation arrived after the validity window; ownership dropped"
+	errFenceNetwork = "network error reaching the database (details withheld)"
 )
 
 // fenceLoss is one ownership loss in a gateway process's JSON log.
@@ -262,20 +289,28 @@ type fenceLoss struct {
 // failClosedTiming reports whether the fence gave ownership up because a
 // confirmation did not complete in time: correct behaviour under load, not an
 // overlap. That is an answer after the validity window, or a heartbeat that
-// ran into its timeout (failing as the context's error or, when the driver was
-// blocked on the socket, as a network error after the full timeout).
+// ran into its timeout: exactly the context's error or, when the driver was
+// blocked on the socket, exactly the network category after the full timeout.
+// Never a missing lock, a server error (an SQLSTATE) or an early network error.
 func (l fenceLoss) failClosedTiming(timeout time.Duration) bool {
+	switch {
+	case l.Msg == msgFenceLate:
+		return true
+	case l.Msg != msgFenceLost || l.LockMissing:
+		return false
+	}
 	ns, _ := l.Phase["heartbeat"].(float64)
-	return l.Msg == msgFenceLate ||
-		(l.Msg == msgFenceLost && !l.LockMissing &&
-			(strings.Contains(l.Error, context.DeadlineExceeded.Error()) || time.Duration(ns) >= timeout))
+	return l.Error == context.DeadlineExceeded.Error() || (l.Error == errFenceNetwork && time.Duration(ns) >= timeout)
 }
 
-// fenceLosses returns the ownership losses in a process's output.
+// fenceLosses returns the ownership losses in a process's output. A final line
+// still being written (no newline yet) is left for a later read.
 func fenceLosses(t *testing.T, out string) []fenceLoss {
 	t.Helper()
 	var losses []fenceLoss
-	for _, line := range strings.Split(out, "\n") {
+	lines := strings.Split(out, "\n")
+	lines = lines[:len(lines)-1] // complete lines only
+	for _, line := range lines {
 		if !strings.Contains(line, msgFenceLost) && !strings.Contains(line, msgFenceLate) {
 			continue
 		}
@@ -289,9 +324,17 @@ func fenceLosses(t *testing.T, out string) []fenceLoss {
 	return losses
 }
 
-func anyFailClosedTiming(losses []fenceLoss, timeout time.Duration) bool {
+// anyFailClosedTimingSince reports whether a fail-closed timing loss was logged
+// at or after since: only such a loss can excuse a handover that followed it.
+func anyFailClosedTimingSince(t *testing.T, losses []fenceLoss, since time.Time, timeout time.Duration) bool {
+	t.Helper()
 	for _, l := range losses {
-		if l.failClosedTiming(timeout) {
+		at, err := time.Parse(time.RFC3339Nano, l.Time)
+		if err != nil {
+			t.Errorf("fence log line has no readable time %q: %v", l.Time, err)
+			continue
+		}
+		if !at.Before(since) && l.failClosedTiming(timeout) {
 			return true
 		}
 	}
@@ -318,9 +361,19 @@ func TestFenceLossMessagesMatchTheFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range []string{msgFenceLost, msgFenceLate} {
-		if !strings.Contains(string(src), strconv.Quote(m)) {
-			t.Errorf("internal/fence/fence.go no longer logs %q", m)
+	for _, m := range []string{
+		strconv.Quote(msgFenceLost), strconv.Quote(msgFenceLate), strconv.Quote(errFenceNetwork),
+		`slog.Bool("lock_missing"`, `slog.String("error"`,
+	} {
+		if !strings.Contains(string(src), m) {
+			t.Errorf("internal/fence/fence.go no longer contains %s", m)
 		}
+	}
+	timing, err := os.ReadFile(filepath.Join("..", "..", "internal", "fence", "timing.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`PhaseHeartbeat\s*=\s*"heartbeat"`).Match(timing) {
+		t.Error(`internal/fence/timing.go no longer names the heartbeat phase "heartbeat"`)
 	}
 }

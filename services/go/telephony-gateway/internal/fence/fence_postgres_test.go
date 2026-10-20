@@ -266,6 +266,16 @@ func ownedHolder(t *testing.T, adm *pgx.Conn, f *Fence, key int64) int {
 	return pid
 }
 
+// requireStillOwns fails the test if f no longer owns just before its session
+// is killed: a fail-closed timing loss got there first, so the scenario would
+// test a timing handover instead of the one it names.
+func requireStillOwns(t *testing.T, f *Fence) {
+	t.Helper()
+	if !f.Owned() {
+		t.Fatal("the owner lost ownership (a fail-closed timing loss) before its session could be killed; the scenario was not exercised")
+	}
+}
+
 func terminate(t *testing.T, a *pgx.Conn, pid int) {
 	t.Helper()
 	var ok bool
@@ -371,13 +381,16 @@ func TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap(t *testing
 		return toDB(ctx)
 	}, key)
 	waitFor(t, 10*time.Second, "a to own", a.Owned)
-	// a's session is found while a is the only fence, so a fail-closed timing
-	// loss under load cannot hand the lock to b first.
+	// a's session is found while a is the only fence, which narrows (it cannot
+	// close) the window in which a fail-closed timing loss under load hands the
+	// lock to b before the kill; requireStillOwns turns that case into a
+	// visible failure instead of a pass that tested a timing handover.
 	adm := admin(t, dsn)
 	pid := ownedHolder(t, adm, a, key)
 	b := startFence(t, connCfg(t, dsn), key)
 	s := sample(t, a, b)
 	cutOff.Store(true)
+	requireStillOwns(t, a)
 	terminate(t, adm, pid)
 	lost := waitFor(t, 5*time.Second, "a to lose ownership", func() bool { return !a.Owned() })
 	waitFor(t, 5*time.Second, "a to attempt a reconnect", func() bool { return refused.Load() > 0 })
@@ -523,6 +536,7 @@ func TestPostgresFence_AServerReleaseDuringAPartitionStillNeverOverlaps(t *testi
 	b := startFence(t, connCfg(t, dsn), key)
 	s := sample(t, a, b)
 	p.blackhole.Store(true)
+	requireStillOwns(t, a)
 	terminate(t, adm, pid) // the server releases immediately; a cannot know
 	waitFor(t, 10*time.Second, "b to own", b.Owned)
 	s.finish(t)

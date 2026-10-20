@@ -216,8 +216,8 @@ func TestPostgresGateway_ExactlyOneInstanceIsReady(t *testing.T) {
 	time.Sleep(steadyInterval + 2*(steadyInterval+steadyTimeout))
 	waitUntil(t, 10*time.Second, "exactly one ready instance", func() bool { return a.ready() != b.ready() })
 	requireExercised(t, done())
-	requireFailClosedTimingOnly(t, "a", la, 0, steadyTimeout)
-	requireFailClosedTimingOnly(t, "b", lb, 0, steadyTimeout)
+	requireFailClosedTimingOnly(t, "a", la.all(), steadyTimeout)
+	requireFailClosedTimingOnly(t, "b", lb.all(), steadyTimeout)
 }
 
 // Lock loss: the ready instance's session is killed; it becomes NOT ready at
@@ -260,15 +260,26 @@ func TestPostgresGateway_LockLossTakesTheInstanceOutOfService(t *testing.T) {
 		pid = p
 		return ok && owner.ready()
 	})
-	if _, err := adm.Exec(ctx, `SELECT pg_terminate_backend($1)`, pid); err != nil {
-		t.Fatal("terminate failed")
+	killedAt := len(ownerL.all())
+	var killed bool
+	if err := adm.QueryRow(ctx, `SELECT pg_terminate_backend($1)`, pid).Scan(&killed); err != nil || !killed {
+		t.Fatalf("terminate failed (killed=%v): the session found was no longer alive", killed)
 	}
 	waitUntil(t, 5*time.Second, "the killed instance out of service", func() bool { return !owner.ready() })
 	owner.stop(t)
 	waitUntil(t, 10*time.Second, "the other instance ready", standby.ready)
 	requireExercised(t, done())
-	requireFailClosedTimingOnly(t, "the killed instance", ownerL, 1, steadyTimeout)
-	requireFailClosedTimingOnly(t, "the other instance", standbyL, 0, steadyTimeout)
+	// Before the kill only fail-closed timing losses are excused. After it the
+	// killed instance must record a loss (the one the test caused, its first);
+	// any further one must again be a timing loss.
+	before, after := ownerL.all()[:killedAt], ownerL.all()[killedAt:]
+	requireFailClosedTimingOnly(t, "the killed instance before the kill", before, steadyTimeout)
+	if len(after) == 0 {
+		t.Error("killing the session recorded no loss on the instance that held it")
+	} else {
+		requireFailClosedTimingOnly(t, "the killed instance after its kill", after[1:], steadyTimeout)
+	}
+	requireFailClosedTimingOnly(t, "the other instance", standbyL.all(), steadyTimeout)
 }
 
 // Graceful shutdown of the ready instance releases the fence; the other takes
