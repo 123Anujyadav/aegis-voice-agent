@@ -126,12 +126,12 @@ type RecordingAuditor struct {
 	max     int
 }
 
-// NewRecordingAuditor builds a recording auditor holding up to max entries.
-func NewRecordingAuditor(max int) *RecordingAuditor {
-	if max <= 0 {
-		max = 8192
+// NewRecordingAuditor builds a recording auditor holding up to limit entries.
+func NewRecordingAuditor(limit int) *RecordingAuditor {
+	if limit <= 0 {
+		limit = 8192
 	}
-	return &RecordingAuditor{max: max}
+	return &RecordingAuditor{max: limit}
 }
 
 // Record captures an entry.
@@ -304,6 +304,6 @@ func (d Drift) String() string {
 	if d.Same {
 		return "same outcome under a changed policy set"
 	}
-	return string(d.WasOutcome.String()) + " → " + d.NowOutcome.String() +
+	return d.WasOutcome.String() + " → " + d.NowOutcome.String() +
 		" (" + string(d.WasPolicy) + " → " + string(d.NowPolicy) + ")"
 }

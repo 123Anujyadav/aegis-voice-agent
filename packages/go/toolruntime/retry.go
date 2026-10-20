@@ -341,11 +341,11 @@ type DeadLetter struct {
 }
 
 // NewDeadLetterQueue builds a bounded queue.
-func NewDeadLetterQueue(max int) *DeadLetterQueue {
-	if max <= 0 {
-		max = 256
+func NewDeadLetterQueue(limit int) *DeadLetterQueue {
+	if limit <= 0 {
+		limit = 256
 	}
-	return &DeadLetterQueue{max: max}
+	return &DeadLetterQueue{max: limit}
 }
 
 // Add records a permanently failed execution.

@@ -310,12 +310,12 @@ func BuiltinRules() []Rule {
 		{
 			Name: "persona.capability_required", Class: ClassPersona, Priority: 0,
 			Eval: func(in PolicyInput) (Decision, string) {
-				cap := in.Action.RequiredCapability()
-				if cap == "" {
+				required := in.Action.RequiredCapability()
+				if required == "" {
 					return Allow, ""
 				}
-				if !in.Persona.Allows(cap) {
-					return Deny, "capability_" + string(cap)
+				if !in.Persona.Allows(required) {
+					return Deny, "capability_" + string(required)
 				}
 				return Allow, ""
 			},
