@@ -32,6 +32,14 @@ const FenceTestDSNEnv = "CS_TELEPHONY_GATEWAY_FENCE_TEST_DSN"
 
 var testCfg = Config{HeartbeatInterval: 200 * time.Millisecond, HeartbeatTimeout: 100 * time.Millisecond}
 
+// steadyCfg is for the tests that assert a steady state (one owner; a session
+// that survives a password rotation) rather than a timing bound. The heartbeat
+// timeout also bounds every dial (holdOnce), and under -race a single SCRAM
+// login was measured at 65-115ms, so with testCfg a standby can fail to
+// connect at all; these tests assume the timeout comfortably exceeds one
+// login. Timing-bound tests keep testCfg. TEST values, not proposals (D10).
+var steadyCfg = Config{HeartbeatInterval: time.Second, HeartbeatTimeout: 500 * time.Millisecond}
+
 func testDSN(t *testing.T) string {
 	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv(FenceTestDSNEnv))
@@ -61,9 +69,33 @@ func startFence(t *testing.T, cc *pgx.ConnConfig, key int64) *Fence {
 // startFenceWith is startFence with the test supplying the dialer.
 func startFenceWith(t *testing.T, dial Dialer, key int64) *Fence {
 	t.Helper()
-	c := testCfg
+	return startFenceLogging(t, dial, key, testCfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+// startObserved starts a fence with steadyCfg whose records are kept, so the
+// test can classify any ownership loss it suffers. If the test fails, they are
+// logged (heartbeats as a count) to show what the fence was doing.
+func startObserved(t *testing.T, dial Dialer, key int64) (*Fence, *events) {
+	t.Helper()
+	ev := &events{}
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		t.Logf("fence records (%d heartbeats confirmed):", ev.count(fenceEvent.confirmed))
+		for _, e := range ev.all() {
+			if !e.confirmed() {
+				t.Logf("  %s", e)
+			}
+		}
+	})
+	return startFenceLogging(t, dial, key, steadyCfg, slog.New(ev)), ev
+}
+
+func startFenceLogging(t *testing.T, dial Dialer, key int64, c Config, log *slog.Logger) *Fence {
+	t.Helper()
 	c.LockKey = key
-	f, err := New(c, dial, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	f, err := New(c, dial, log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,6 +112,7 @@ func startFenceWith(t *testing.T, dial Dialer, key int64) *Fence {
 type sampler struct {
 	overlaps atomic.Int64
 	samples  atomic.Int64
+	owned    atomic.Int64 // samples at which some fence owned
 	stop     chan struct{}
 	done     chan struct{}
 	halted   sync.Once
@@ -118,6 +151,9 @@ func sample(t *testing.T, fences ...*Fence) *sampler {
 			if owners > 1 {
 				s.overlaps.Add(1)
 			}
+			if owners > 0 {
+				s.owned.Add(1)
+			}
 			s.samples.Add(1)
 			time.Sleep(time.Millisecond)
 		}
@@ -138,7 +174,16 @@ func (s *sampler) finish(t *testing.T) {
 	if n := s.overlaps.Load(); n != 0 {
 		t.Errorf("OVERLAP: two fences claimed ownership at %d of %d samples", n, s.samples.Load())
 	}
-	t.Logf("no overlap in %d samples", s.samples.Load())
+	t.Logf("no overlap in %d samples (%d with an owner)", s.samples.Load(), s.owned.Load())
+}
+
+// requireExercised fails the test if the sampler never saw an owner: the
+// overlap check would then have passed without checking anything.
+func (s *sampler) requireExercised(t *testing.T) {
+	t.Helper()
+	if s.owned.Load() == 0 {
+		t.Errorf("the overlap check saw no owner in %d samples; safety was not exercised", s.samples.Load())
+	}
 }
 
 // The sampler must not outlive a test that ends before finish. It needs no
@@ -202,6 +247,25 @@ AND classid = $1::bigint::oid AND objid = $2::bigint::oid AND objsubid = 1`,
 	return pid, true
 }
 
+// ownedHolder waits until f owns and returns the backend holding key. The
+// fence must own both before and after the lookup, so the backend found is its
+// session.
+// Under load an owner can fail closed between the two checks; that is a
+// liveness gap, so it waits (bounded) instead of failing on "no holder".
+func ownedHolder(t *testing.T, adm *pgx.Conn, f *Fence, key int64) int {
+	t.Helper()
+	var pid int
+	waitFor(t, 10*time.Second, "an owner and its server-side holder", func() bool {
+		if !f.Owned() {
+			return false
+		}
+		p, ok := holderPID(t, adm, key)
+		pid = p
+		return ok && f.Owned()
+	})
+	return pid
+}
+
 func terminate(t *testing.T, a *pgx.Conn, pid int) {
 	t.Helper()
 	var ok bool
@@ -210,17 +274,28 @@ func terminate(t *testing.T, a *pgx.Conn, pid int) {
 	}
 }
 
+// Of two fences on one key, exactly one owns.
+//
+// Safety (never two owners) is the sampler's, over the whole run. Liveness is
+// asserted with a bound rather than at one instant: under load an owner can
+// correctly fail closed and leave a moment with no owner, so the test requires
+// exactly one owner again within the bound, and fails on any loss that is not
+// such a fail-closed timing loss.
 func TestPostgresFence_ExactlyOneOwner(t *testing.T) {
 	dsn := testDSN(t)
 	key := uniqueKey()
-	a, b := startFence(t, connCfg(t, dsn), key), startFence(t, connCfg(t, dsn), key)
+	a, ea := startObserved(t, PgxDialer(connCfg(t, dsn)), key)
+	b, eb := startObserved(t, PgxDialer(connCfg(t, dsn)), key)
 	s := sample(t, a, b)
 	waitFor(t, 10*time.Second, "an owner", func() bool { return a.Owned() || b.Owned() })
-	time.Sleep(time.Second)
+	// Long enough for a standby that wrongly took the lock on its next attempt
+	// to pass its grace and be counted, so the sampler would see the overlap.
+	time.Sleep(steadyCfg.HeartbeatInterval + 2*steadyCfg.Validity())
+	waitFor(t, 10*time.Second, "exactly one owner", func() bool { return a.Owned() != b.Owned() })
 	s.finish(t)
-	if a.Owned() == b.Owned() {
-		t.Errorf("owners: a=%v b=%v; want exactly one", a.Owned(), b.Owned())
-	}
+	s.requireExercised(t)
+	requireFailClosedTimingOnly(t, "a", ea, steadyCfg.HeartbeatTimeout)
+	requireFailClosedTimingOnly(t, "b", eb, steadyCfg.HeartbeatTimeout)
 }
 
 // Why the fence uses a DEDICATED connection: a session lock taken through a
@@ -296,13 +371,12 @@ func TestPostgresFence_ATerminatedOwnerSessionHandsOverWithoutOverlap(t *testing
 		return toDB(ctx)
 	}, key)
 	waitFor(t, 10*time.Second, "a to own", a.Owned)
+	// a's session is found while a is the only fence, so a fail-closed timing
+	// loss under load cannot hand the lock to b first.
+	adm := admin(t, dsn)
+	pid := ownedHolder(t, adm, a, key)
 	b := startFence(t, connCfg(t, dsn), key)
 	s := sample(t, a, b)
-	adm := admin(t, dsn)
-	pid, ok := holderPID(t, adm, key)
-	if !ok {
-		t.Fatal("no holder found")
-	}
 	cutOff.Store(true)
 	terminate(t, adm, pid)
 	lost := waitFor(t, 5*time.Second, "a to lose ownership", func() bool { return !a.Owned() })
@@ -444,12 +518,9 @@ func TestPostgresFence_AServerReleaseDuringAPartitionStillNeverOverlaps(t *testi
 	p := newProxy(t, targetAddr(t, dsn))
 	a := startFence(t, viaProxy(t, dsn, p), key)
 	waitFor(t, 10*time.Second, "a to own", a.Owned)
-	b := startFence(t, connCfg(t, dsn), key)
 	adm := admin(t, dsn)
-	pid, ok := holderPID(t, adm, key)
-	if !ok {
-		t.Fatal("no holder")
-	}
+	pid := ownedHolder(t, adm, a, key) // found while a is the only fence
+	b := startFence(t, connCfg(t, dsn), key)
 	s := sample(t, a, b)
 	p.blackhole.Store(true)
 	terminate(t, adm, pid) // the server releases immediately; a cannot know
