@@ -84,33 +84,7 @@ func NewFSM[S comparable](spec FSMSpec[S], clock Clock) (*FSM[S], error) {
 	for _, s := range spec.Terminal {
 		terminal[s] = true
 	}
-
-	known := map[S]bool{spec.Initial: true}
-	for from, tos := range spec.Transitions {
-		known[from] = true
-		for _, to := range tos {
-			known[to] = true
-		}
-	}
-	for s := range terminal {
-		known[s] = true
-	}
-
-	var problems []string
-	for from, tos := range spec.Transitions {
-		if terminal[from] && len(tos) > 0 {
-			problems = append(problems, fmt.Sprintf(
-				"state %v is declared terminal but has %d outgoing transition(s)", from, len(tos)))
-		}
-		for _, to := range tos {
-			if from == to {
-				problems = append(problems, fmt.Sprintf(
-					"state %v declares a self-transition; use a hook instead", from))
-			}
-		}
-	}
-	if len(problems) > 0 {
-		sort.Strings(problems)
+	if problems := specProblems(spec, terminal); len(problems) > 0 {
 		return nil, &ConfigError{Problems: problems}
 	}
 
@@ -123,15 +97,9 @@ func NewFSM[S comparable](spec FSMSpec[S], clock Clock) (*FSM[S], error) {
 		allowed[from] = set
 	}
 
-	guards := make(map[transitionKey[S]]Guard[S])
-	for from, m := range spec.Guards {
-		for to, g := range m {
-			if !allowed[from][to] {
-				return nil, &ConfigError{Problems: []string{fmt.Sprintf(
-					"guard declared for undeclared transition %v -> %v", from, to)}}
-			}
-			guards[transitionKey[S]{from, to}] = g
-		}
+	guards, err := specGuards(spec, allowed)
+	if err != nil {
+		return nil, err
 	}
 
 	return &FSM[S]{
@@ -142,6 +110,58 @@ func NewFSM[S comparable](spec FSMSpec[S], clock Clock) (*FSM[S], error) {
 		clock:    clock,
 		entered:  map[S]int{spec.Initial: 1},
 	}, nil
+}
+
+// specProblems returns every way spec is malformed, sorted, so one failed boot
+// reports them all: a state that is reached (as the initial state or as a
+// transition's target) but declared neither in Transitions nor as terminal,
+// which would be a silent dead end; a terminal state with outgoing
+// transitions; and a self-transition.
+func specProblems[S comparable](spec FSMSpec[S], terminal map[S]bool) []string {
+	reached := map[S]bool{spec.Initial: true}
+	for _, tos := range spec.Transitions {
+		for _, to := range tos {
+			reached[to] = true
+		}
+	}
+
+	var problems []string
+	for s := range reached {
+		if _, declared := spec.Transitions[s]; !declared && !terminal[s] {
+			problems = append(problems, fmt.Sprintf(
+				"state %v is reached but neither declared in Transitions nor terminal", s))
+		}
+	}
+	for from, tos := range spec.Transitions {
+		if terminal[from] && len(tos) > 0 {
+			problems = append(problems, fmt.Sprintf(
+				"state %v is declared terminal but has %d outgoing transition(s)", from, len(tos)))
+		}
+		for _, to := range tos {
+			if from == to {
+				problems = append(problems, fmt.Sprintf(
+					"state %v declares a self-transition; use a hook instead", from))
+			}
+		}
+	}
+	sort.Strings(problems)
+	return problems
+}
+
+// specGuards indexes spec's guards by transition, refusing a guard on a
+// transition the spec does not allow.
+func specGuards[S comparable](spec FSMSpec[S], allowed map[S]map[S]bool) (map[transitionKey[S]]Guard[S], error) {
+	guards := make(map[transitionKey[S]]Guard[S])
+	for from, m := range spec.Guards {
+		for to, g := range m {
+			if !allowed[from][to] {
+				return nil, &ConfigError{Problems: []string{fmt.Sprintf(
+					"guard declared for undeclared transition %v -> %v", from, to)}}
+			}
+			guards[transitionKey[S]{from, to}] = g
+		}
+	}
+	return guards, nil
 }
 
 // State returns the current state.
