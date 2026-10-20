@@ -145,7 +145,8 @@ type StateRun struct {
 // breaks whenever a threshold moves by a frame.
 func StateRuns(decisions []VADDecision) []StateRun {
 	var runs []StateRun
-	for i, d := range decisions {
+	for i := range decisions {
+		d := &decisions[i]
 		if n := len(runs); n > 0 && runs[n-1].State == d.State {
 			runs[n-1].Frames++
 			continue
@@ -169,7 +170,8 @@ func StateSequence(decisions []VADDecision) []VADState {
 // CountOnsets returns how many speech runs began.
 func CountOnsets(decisions []VADDecision) int {
 	var n int
-	for _, d := range decisions {
+	for i := range decisions {
+		d := &decisions[i]
 		if d.OnsetConfirmed {
 			n++
 		}
@@ -180,7 +182,8 @@ func CountOnsets(decisions []VADDecision) int {
 // CountOffsets returns how many speech runs ended.
 func CountOffsets(decisions []VADDecision) int {
 	var n int
-	for _, d := range decisions {
+	for i := range decisions {
+		d := &decisions[i]
 		if d.OffsetConfirmed {
 			n++
 		}
@@ -190,9 +193,10 @@ func CountOffsets(decisions []VADDecision) int {
 
 // FirstOnset returns the decision that opened the first speech run.
 func FirstOnset(decisions []VADDecision) (VADDecision, int, bool) {
-	for i, d := range decisions {
+	for i := range decisions {
+		d := &decisions[i]
 		if d.OnsetConfirmed {
-			return d, i, true
+			return *d, i, true
 		}
 	}
 	return VADDecision{}, -1, false
@@ -200,9 +204,10 @@ func FirstOnset(decisions []VADDecision) (VADDecision, int, bool) {
 
 // FirstOffset returns the decision that closed the first speech run.
 func FirstOffset(decisions []VADDecision) (VADDecision, int, bool) {
-	for i, d := range decisions {
+	for i := range decisions {
+		d := &decisions[i]
 		if d.OffsetConfirmed {
-			return d, i, true
+			return *d, i, true
 		}
 	}
 	return VADDecision{}, -1, false
