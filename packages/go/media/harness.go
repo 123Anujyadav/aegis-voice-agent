@@ -22,6 +22,12 @@ import (
 func TestConfig() Config {
 	cfg := DefaultConfig()
 	cfg.DrainTimeout = 50 * time.Millisecond
+	// The drain is shortened because it waits for live streams in real time;
+	// the snapshot after it is not, because it is quick unless the process is
+	// starved, and starved (a loaded CI runner, -race) is exactly when a 50ms
+	// budget expired and recovery tests found an empty store. It keeps the
+	// budget production gives it: the default DrainTimeout.
+	cfg.SnapshotTimeout = DefaultConfig().DrainTimeout
 	// The runtime pump is off by default in tests: a background goroutine
 	// moving frames makes every assertion about buffer contents racy. Tests
 	// call Pump explicitly, which is also how a consumer with its own cadence
