@@ -6,7 +6,9 @@
 - **Deciders:** the repository owner (architecture authority; see "Approval
   required")
 - **Consulted:** _none yet_
-- **Informed:** SRE, Security (`/infra/` paths in `.github/CODEOWNERS`)
+- **Informed:** SRE (owns `/infra/` in `.github/CODEOWNERS:79`); Security
+  (owns `/infra/policy/` and the production Terraform environments,
+  `.github/CODEOWNERS:80-82`)
 
 **Numbering:** 0018–0023 are already used by unpublished Phase 16 ADRs that are
 not on `main`, so this proposal takes the next number after them. The owner may
@@ -25,12 +27,16 @@ manifests, and neither naming has been decided.
 |---|---|
 | `infra/k8s/base/{configmap,deployment,namespace}.yaml` | **The only tracked Kubernetes manifests.** `deployment.yaml` is a shared template (`aegis-service-template`). |
 | `docker/compose/docker-compose.yml:7-8` | "Production runs on Kubernetes from infra/kubernetes." |
-| `docs/telephony/P1-41_INFRA_AUTH_READINESS_AUDIT.md:18,68` | names `infra/kubernetes/overlays/staging/` as the place for the staging manifests (A5) |
-| `docs/phase15/READINESS_AUDIT.md`, P1-40…P1-50 | refer to `infra/k8s/base/...` |
-| `Taskfile.yml` | has Terraform and Helm targets, and no Kubernetes-manifest target |
+| `docs/telephony/P1-41_INFRA_AUTH_READINESS_AUDIT.md:68` | names `infra/kubernetes/overlays/staging/` as the place for the staging manifests (A5); line 18 records the `infra/kubernetes/overlays/*` directories as empty and untracked |
+| `docs/phase15/READINESS_AUDIT.md`, P1-40…P1-50 (eight documents) | refer to `infra/k8s/base/...` |
+| `Taskfile.yml:432-435` | `infra:helm:lint` runs `helm lint infra/helm/callscreen-service`, a **third** candidate home, for a Helm chart that does not exist |
+| `.gitignore:115-117`, `.pre-commit-config.yaml:34-37` | ignore rendered charts under `infra/helm/`, and exclude `infra/helm/*/templates/` from YAML checks |
+| `Taskfile.yml` `infra:lint` | described as "Validate Terraform formatting and Kubernetes policy", but runs only the Terraform tasks; there is no Kubernetes-manifest target |
 | ADR-0008 | selects EKS on Graviton; it names no manifest directory, no Kustomize or Helm, and no GitOps tool |
 
-Nothing on `main` validates manifests: there is no `pr-infra` workflow.
+Nothing on `main` validates manifests: there is no `pr-infra` workflow. The only
+tracked YAML files declaring both `apiVersion:` and `kind:` are the three under
+`infra/k8s/base/`.
 
 **In the owner's working tree, untracked (not on `main`, so not
 authoritative):**
@@ -45,18 +51,39 @@ authoritative):**
   image-digest check over `infra/k8s/base/services`.
 - **`infra/k8s/check-image-references.sh`.**
 - **The modified `Taskfile.yml`:** `infra:k8s:validate`.
-- **The design records P1-37 and P1-39:** "Staging manifests go in
-  **`infra/kubernetes/overlays/staging/`**" and "`infra/k8s/base/services/` is
-  left untouched".
+- **The design record P1-37** (lines 35 and 59-61): staging uses "a **new
+  staging-only manifest path**"; "Staging manifests go in
+  **`infra/kubernetes/overlays/staging/`**"; "**`infra/k8s/base/services/` is
+  left untouched**"; and "`infra/k8s/base/deployment.yaml` is never restored".
+- **The decisions record P1-39:**
+  - **O-1** (line 24): gateways A and B are two separately named single-replica
+    workloads with `strategy: Recreate`, on separate Graviton nodes, from one
+    recorded image digest, against the direct PostgreSQL writer endpoint, with
+    synthetic data only; staging manifests live only under
+    `infra/kubernetes/overlays/staging/`.
+  - **O-4** (line 31, conditional): the lock key's single shared source is one
+    ConfigMap in that staging overlay.
 - **Empty directories:**
   `infra/kubernetes/overlays/{dev,staging,prod-in,prod-global}`. Git does not
   track empty directories.
 
 So the tracked manifests, and all of the owner's manifest tooling, live in
-`infra/k8s`, while one tracked comment, one tracked audit and the staging design
-records point at `infra/kubernetes`. The first staging manifest (A5) cannot be
-written until one tree is chosen: writing it under `infra/kubernetes` would
-create exactly the second source of truth that `infra/README.md` warns against.
+`infra/k8s`. One tracked comment, one tracked audit and the staging design
+records point at `infra/kubernetes`, and tracked tooling points at a Helm chart
+under `infra/helm`. The first staging manifest (A5) cannot be written until one
+tree is chosen: writing it under `infra/kubernetes` would create exactly the
+second source of truth that `infra/README.md` warns against.
+
+### What is established, and what is not
+
+| Kind | Content |
+|---|---|
+| **Verified on `main`** | every row of the tracked table above |
+| **Owner documents, not on `main`** | `infra/README.md`, the 16 service manifests, `pr-infra.yml`, the image checker, the Taskfile change, P1-37, P1-38, P1-39. Their content is quoted here, but they carry no authority until committed or confirmed by the owner. |
+| **Assumption A1** | P1-37's requirement of "a new staging-only manifest path" is about the staging manifests being separate from the production base, not about their living outside `infra/k8s`. `infra/k8s/overlays/staging/` satisfies the first reading; only the owner can confirm it was the intended one. |
+| **Assumption A2** | No Helm chart is planned: `infra/helm/callscreen-service` does not exist, and no record selects Helm. |
+| **Unresolved conflict U1** | the literal staging path in P1-37/P1-39/P1-41 vs the tracked `infra/k8s` tree |
+| **Unresolved conflict U2** | the Helm references (Taskfile, `.gitignore`, pre-commit) vs a tree with no chart |
 
 ## Decision Drivers
 
@@ -90,13 +117,22 @@ recommendation only.
    directory.
 2. **Agreement with what exists:** every tracked manifest, and every piece of
    the owner's in-progress manifest tooling, is already in `infra/k8s`. Option 1
-   moves nothing, and needs two tracked text corrections (below). Option 2 would
-   move every tracked and untracked file and rewrite its tooling and documents.
+   moves nothing; it needs only the text and tooling corrections listed below.
+   Option 2 would move every tracked and untracked file and rewrite its tooling
+   and documents.
 3. **Staging isolation is unchanged:** `infra/k8s/overlays/staging/` is just as
-   staging-only as `infra/kubernetes/overlays/staging/`. The P1-37/P1-39
-   constraints carry over unchanged: base left untouched, a self-contained A/B
-   `Recreate` overlay, and `deployment.yaml` never restored. Only the path
-   changes.
+   staging-only as `infra/kubernetes/overlays/staging/` (subject to assumption
+   A1). Every existing constraint carries over unchanged, and none is added:
+   - **P1-37:** a staging-only path; `infra/k8s/base/services/` left untouched;
+     `infra/k8s/base/deployment.yaml` never restored.
+   - **P1-39 O-1:** A and B as separately named single-replica `Recreate`
+     workloads on separate Graviton nodes, from one image digest, against the
+     direct writer endpoint, with synthetic data only.
+   - **P1-39 O-4 (still conditional):** one shared lock-key ConfigMap in the
+     staging overlay.
+
+   **Only the path changes.** How the overlay is built (whether it references
+   the base, its resources and its choices) remains A5's to approve.
 4. **Enforceable:** with one root, "no manifest outside `infra/k8s`" is a
    one-line CI check.
 5. **Kustomize fit:** `infra/k8s/{base,overlays/<env>}` is the conventional
@@ -111,20 +147,34 @@ acceptance, not before):**
 - **Note in `docs/telephony/P1-41…:68`, or its successor,** that the staging
   path is `infra/k8s/overlays/staging/`. Accepted records are not rewritten; a
   successor or erratum is added.
+- **Resolve the Helm references (U2).** Under assumption A2, remove the
+  `infra:helm:lint` target and the `infra/helm` ignore and pre-commit entries.
+  If Helm is wanted, that is its own ADR, and the chart lives under `infra/k8s`
+  too.
+- **Make `infra:lint` validate the Kubernetes manifests it claims to,** through
+  the owner's `infra:k8s:validate` once it is committed.
 
 **Enforcement (proposed; to land together with the first tracked validation
 workflow):**
-- **No manifests outside `infra/k8s`:** CI fails if any YAML containing
-  `apiVersion:` and `kind:` is tracked outside `infra/k8s/`, ignoring `.github/`
-  and `docker/compose/`, or if anything is tracked under `infra/kubernetes/`.
+- **No manifests outside `infra/k8s`:** CI fails if any YAML declaring both
+  `apiVersion:` and `kind:` is tracked outside `infra/k8s/` (today, none is), or
+  if anything is tracked under `infra/kubernetes/` or `infra/helm/`.
 - **No stale path references:** CI fails on any tracked reference to
-  `infra/kubernetes` other than this ADR and its successors.
-- **Schema validation:** kubeconform runs over `infra/k8s/`. CRD kinds
-  (`ExternalSecret`, `Kustomization`) are resolved from pinned schemas, or
-  explicitly allow-listed. That policy is a separate decision, because
-  `-ignore-missing-schemas` would also hide typos.
+  `infra/kubernetes` or `infra/helm` other than this ADR and its successors.
+- **Schema validation:** kubeconform runs over `infra/k8s/`. Two cases are
+  distinct, and the policy for them is a separate decision:
+  - **`kustomization.yaml`** is build configuration, not a cluster object. It is
+    skipped by kind, or the overlays are validated as rendered
+    (`kustomize build`) output.
+  - **CRD kinds such as `ExternalSecret`** are validated against pinned schemas,
+    or explicitly allow-listed.
+  - A blanket `-ignore-missing-schemas` is not proposed: it would also pass a
+    misspelt `kind`.
 - **Image references:** the image-digest check covers `infra/k8s/overlays/**` as
   well as `infra/k8s/base/services/`.
+
+Every enforcement item lands only with, or after, the first tracked
+infra-validation workflow. None is part of accepting this ADR.
 
 ### Consequences
 
@@ -135,6 +185,8 @@ workflow):**
 **Negative**
 - The staging path in P1-37/P1-39 (and P1-41:68) must be amended, so the
   decision record differs from the design record until then.
+- The Helm references (Taskfile, `.gitignore`, pre-commit) must be removed or
+  justified by a Helm ADR.
 - The empty local `infra/kubernetes/` directories should be removed by the
   owner. They are untracked, so this is local housekeeping only.
 
@@ -144,9 +196,10 @@ workflow):**
 
 ### Confidence
 
-**Medium-high.** The facts are verified on `main`. The owner's untracked work
-strongly suggests `infra/k8s` was already the intended tree, but that work is
-not authoritative until committed.
+**Medium-high.** The tracked facts are verified on `main` (`e0b0c2e`). The
+owner's untracked work strongly suggests `infra/k8s` was already the intended
+tree, but it carries no authority until committed. The recommendation also
+rests on assumptions A1 and A2, which only the owner can confirm.
 
 ### Revisit Trigger
 
@@ -161,7 +214,8 @@ staging manifests in separate repositories.
 - **Good:** matches every tracked manifest and all in-progress tooling. No
   moves. One root to enforce.
 - **Bad:** contradicts the literal path in P1-37/P1-39 and P1-41, which need
-  amending; contradicts the docker-compose comment, which needs correcting.
+  amending; contradicts the docker-compose comment, which needs correcting;
+  leaves the Helm references to resolve (U2); rests on assumption A1.
 
 ### Option 2: `infra/kubernetes` only
 
@@ -185,8 +239,10 @@ staging manifests in separate repositories.
 | Decision | Authority | Status |
 |---|---|---|
 | Accept, amend or reject this ADR (and its number) | repository owner (architecture) | **pending** |
+| Confirm assumption A1 (what P1-37's "staging-only path" requires) | repository owner (author of P1-37) | **pending** |
+| Confirm assumption A2 (no Helm), or open a Helm ADR | repository owner | **pending** |
 | Amend the P1-37/P1-39 staging path | repository owner (author of those records) | pending; depends on this ADR |
-| kubeconform CRD-schema policy | owner / SRE | pending |
+| kubeconform policy for `kustomization.yaml` and CRD kinds | owner / SRE (`/infra/` code owner) | pending |
 | A5 (staging manifests) and every later gate | owner, per P1-38 §2 | **unapproved**; this ADR does not approve any of them |
 
 ## References
