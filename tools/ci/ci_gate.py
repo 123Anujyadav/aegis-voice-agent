@@ -390,6 +390,27 @@ def _gh_lines(*args: str) -> list[dict[str, Any]]:
     return [json.loads(line) for line in _gh_text(*args).splitlines() if line.strip()]
 
 
+def _latest_attempt(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep each job's row from its highest run attempt, in first-seen order.
+
+    After a single job of a large run is re-run, GitHub's jobs listing for
+    that run slows down with page depth; at 100 jobs per page, its "latest
+    attempt" listing returned HTTP 502 on every request, so the gate failed
+    closed on a run whose jobs had all completed (pr-go run 39363295786, 137
+    jobs). Every attempt is therefore listed (``filter=all``) in small pages
+    and reduced here to the same set of jobs, with the same fields, as the
+    latest-attempt listing. Small pages are a mitigation measured on that run,
+    not a guarantee; a persistent API failure still fails closed.
+    """
+    best: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        name = row["name"]
+        held = best.get(name)
+        if held is None or (row.get("run_attempt", 1), row["id"]) > (held.get("run_attempt", 1), held["id"]):
+            best[name] = row
+    return [{k: v for k, v in row.items() if k != "run_attempt"} for row in best.values()]
+
+
 class GitHub:
     """The read-only GitHub queries the gate needs."""
 
@@ -430,10 +451,10 @@ class GitHub:
 
     def jobs(self, run_id: int) -> list[dict[str, Any]]:
         """Return the jobs of the latest attempt of one run."""
-        return _gh_lines(
-            f"repos/{self.repo}/actions/runs/{run_id}/jobs?per_page=100",
-            "--paginate", "--jq", ".jobs[] | {id, name, status, conclusion}",
-        )
+        return _latest_attempt(_gh_lines(
+            f"repos/{self.repo}/actions/runs/{run_id}/jobs?filter=all&per_page=30",
+            "--paginate", "--jq", ".jobs[] | {id, name, status, conclusion, run_attempt}",
+        ))
 
     def job_log(self, job_id: int) -> str:
         """Return one job's log text."""

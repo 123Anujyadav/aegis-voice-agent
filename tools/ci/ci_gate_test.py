@@ -293,6 +293,59 @@ class GateWorkflowTest(unittest.TestCase):
                 self.assertIn("persist-credentials: false", step)
 
 
+class LatestAttemptTest(unittest.TestCase):
+    """Jobs are listed with filter=all and reduced to each job's latest attempt."""
+
+    def test_a_partially_rerun_job_is_taken_from_its_latest_attempt(self) -> None:
+        rows = [
+            {"id": 10, "name": "lint (a)", "status": "completed", "conclusion": "failure", "run_attempt": 1},
+            {"id": 11, "name": "test (a)", "status": "completed", "conclusion": "success", "run_attempt": 1},
+            {"id": 20, "name": "lint (a)", "status": "completed", "conclusion": "success", "run_attempt": 2},
+        ]
+        self.assertEqual(ci_gate._latest_attempt(rows), [
+            {"id": 20, "name": "lint (a)", "status": "completed", "conclusion": "success"},
+            {"id": 11, "name": "test (a)", "status": "completed", "conclusion": "success"},
+        ])
+
+    def test_a_still_running_rerun_is_reported_as_running(self) -> None:
+        # The re-run attempt has not finished: the gate must see it as running,
+        # not the earlier attempt's completed failure.
+        rows = [
+            {"id": 30, "name": "lint (b)", "status": "in_progress", "conclusion": None, "run_attempt": 2},
+            {"id": 10, "name": "lint (b)", "status": "completed", "conclusion": "failure", "run_attempt": 1},
+        ]
+        self.assertEqual(ci_gate._latest_attempt(rows), [
+            {"id": 30, "name": "lint (b)", "status": "in_progress", "conclusion": None},
+        ])
+
+    def test_a_single_attempt_listing_is_unchanged(self) -> None:
+        rows = [
+            {"id": 1, "name": "x", "status": "completed", "conclusion": "success", "run_attempt": 1},
+            {"id": 2, "name": "y", "status": "completed", "conclusion": "failure", "run_attempt": 1},
+        ]
+        self.assertEqual(ci_gate._latest_attempt(rows),
+                         [{k: v for k, v in r.items() if k != "run_attempt"} for r in rows])
+
+    def test_jobs_lists_every_attempt_and_reduces_it(self) -> None:
+        from unittest import mock
+        calls: list[tuple[str, ...]] = []
+
+        def fake_lines(*args: str) -> list[dict]:
+            calls.append(args)
+            return [
+                {"id": 10, "name": "lint", "status": "completed", "conclusion": "failure", "run_attempt": 1},
+                {"id": 20, "name": "lint", "status": "completed", "conclusion": "success", "run_attempt": 2},
+            ]
+
+        with mock.patch.object(ci_gate, "_gh_lines", side_effect=fake_lines):
+            got = ci_gate.GitHub("o/r").jobs(7)
+        self.assertEqual(got, [{"id": 20, "name": "lint", "status": "completed", "conclusion": "success"}])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("actions/runs/7/jobs?filter=all&per_page=30", calls[0][0])
+        self.assertIn("--paginate", calls[0])
+        self.assertIn("run_attempt", calls[0][-1])
+
+
 class OutputTest(unittest.TestCase):
     """The printed report cannot act as workflow commands."""
 
