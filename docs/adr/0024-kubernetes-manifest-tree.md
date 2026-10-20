@@ -19,7 +19,12 @@ renumber it when accepting.
 ## Context
 
 The repository names two different directories as the home of its Kubernetes
-manifests, and neither naming has been decided.
+manifests. No tracked record decides between them. The owner did approve the
+staging path `infra/kubernetes/overlays/staging/`, at design level only, in the
+untracked P1-37 (2026-10-15). P1-38:18 lists it as "Already approved (design
+only, P1-37)". No rationale or comparison of paths is recorded in P1-33…P1-39.
+**This ADR therefore proposes amending an approved design decision,** not
+filling a gap.
 
 **Tracked on `main` (`e0b0c2e`):**
 
@@ -81,7 +86,7 @@ second source of truth that `infra/README.md` warns against.
 | **Verified on `main`** | every row of the tracked table above |
 | **Owner documents, not on `main`** | `infra/README.md`, the 16 service manifests, `pr-infra.yml`, the image checker, the Taskfile change, P1-37, P1-38, P1-39. Their content is quoted here, but they carry no authority until committed or confirmed by the owner. |
 | **Assumption A1** | P1-37's requirement of "a new staging-only manifest path" is about the staging manifests being separate from the production base, not about their living outside `infra/k8s`. `infra/k8s/overlays/staging/` satisfies the first reading; only the owner can confirm it was the intended one. |
-| **Assumption A2** | No Helm chart is planned: `infra/helm/callscreen-service` does not exist, and no record selects Helm. |
+| **Assumption A2** | Helm is not intended now. **Evidence:** no Helm chart exists on any branch, and no ADR or decision record selects Helm (ADR-0001 and ADR-0008 name none). The owner's local Taskfile change makes `infra:helm:lint` refuse to run because "No Helm chart is present". **Counter-evidence:** Helm is named as planned structure in `ARCHITECTURE_FREEZE.md:215` (§9, item 9, owner SRE: "Terraform, Kubernetes and Helm are structural only — no real infrastructure yet") and `README.md:55,148`. Whether that intent still stands is the owner's and SRE's call. |
 | **Unresolved conflict U1** | the literal staging path in P1-37/P1-39/P1-41 vs the tracked `infra/k8s` tree |
 | **Unresolved conflict U2** | the Helm references (Taskfile, `.gitignore`, pre-commit) vs a tree with no chart |
 
@@ -241,9 +246,29 @@ staging manifests in separate repositories.
 | Accept, amend or reject this ADR (and its number) | repository owner (architecture) | **pending** |
 | Confirm assumption A1 (what P1-37's "staging-only path" requires) | repository owner (author of P1-37) | **pending** |
 | Confirm assumption A2 (no Helm), or open a Helm ADR | repository owner | **pending** |
-| Amend the P1-37/P1-39 staging path | repository owner (author of those records) | pending; depends on this ADR |
+| Amend the P1-37/P1-39 staging path (an approved design decision; P1-38:18) | repository owner (author of those records) | pending; depends on this ADR; proposed text in the appendix |
 | kubeconform policy for `kustomization.yaml` and CRD kinds | owner / SRE (`/infra/` code owner) | pending |
 | A5 (staging manifests) and every later gate | owner, per P1-38 §2 | **unapproved**; this ADR does not approve any of them |
+
+## Appendix: proposed amendment text (applies only if Option 1 is accepted)
+
+**How to amend.** The owner records the change as an amendment, for example a
+short record "P1-37 amendment 1 (ADR-0024)". The original lines are not edited,
+so that history keeps what was approved and when. Lines that describe the
+repository's state at the time are history, and stay as they are: P1-33:22,
+P1-34A:5, P1-34B:8, P1-35:7, P1-36:5, P1-37:14 and P1-41:18.
+
+| Record and line | Now | Becomes |
+|---|---|---|
+| P1-37:59 (§1.6, approved design) | Staging manifests go in `infra/kubernetes/overlays/staging/`. | Staging manifests go in `infra/k8s/overlays/staging/` (ADR-0024). |
+| P1-37:60-61 | `infra/k8s/base/services/` is left untouched; `deployment.yaml` is never restored. | unchanged |
+| P1-37:95 (gate A5) | the staging set under `infra/kubernetes/overlays/staging/` | the staging set under `infra/k8s/overlays/staging/` |
+| P1-38:18 | "…and the staging manifest path `infra/kubernetes/overlays/staging/`" | "…`infra/k8s/overlays/staging/` (amended by ADR-0024)" |
+| P1-38:118, P1-38:142 (O-4 recommendation; gate A5) | `infra/kubernetes/overlays/staging/` | `infra/k8s/overlays/staging/` |
+| P1-39:24 (O-1) | "Staging manifests only under `infra/kubernetes/overlays/staging/`" | "…only under `infra/k8s/overlays/staging/`". Every other O-1 term is unchanged. |
+| P1-39:31 (O-4, conditional) | one shared ConfigMap in `infra/kubernetes/overlays/staging/` | in `infra/k8s/overlays/staging/`. Still conditional. |
+| P1-41:68 (tracked) | names `infra/kubernetes/overlays/staging/` | no edit; a successor record or erratum notes the new path |
+| `docker/compose/docker-compose.yml:8` (tracked) | "Production runs on Kubernetes from infra/kubernetes." | "…from infra/k8s." |
 
 ## References
 
