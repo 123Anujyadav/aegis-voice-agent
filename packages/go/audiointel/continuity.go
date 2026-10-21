@@ -268,7 +268,7 @@ func (c *ContinuityDetector) ObserveDelivery(r media.PipelineResult) ContinuityF
 		return FaultNone
 	}
 
-	fault := FaultNone
+	var fault ContinuityFault
 	switch r.Reason {
 	case media.DropDuplicate:
 		fault = FaultDuplicate

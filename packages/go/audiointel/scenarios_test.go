@@ -361,8 +361,7 @@ func TestScenarios(t *testing.T) {
 				speech := g.NormalSpeech(20)
 				// Deliver 0..9, then 12, then 10 — 10 arrives after 12.
 				f = append(f, speech[:10]...)
-				f = append(f, speech[12])
-				f = append(f, speech[10])
+				f = append(f, speech[12], speech[10])
 				return append(f, speech[13:]...)
 			},
 			check: func(t *testing.T, _ Config, r scenarioResult) {

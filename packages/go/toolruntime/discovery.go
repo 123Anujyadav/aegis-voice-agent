@@ -166,12 +166,12 @@ func (d *Discovery) Resolve(req Request) ([]Candidate, error) {
 		})
 	}
 
-	max := req.MaxCandidates
-	if max <= 0 {
-		max = DefaultMaxCandidates
+	limit := req.MaxCandidates
+	if limit <= 0 {
+		limit = DefaultMaxCandidates
 	}
-	if len(kept) > max {
-		kept = kept[:max]
+	if len(kept) > limit {
+		kept = kept[:limit]
 	}
 
 	out := make([]Candidate, 0, len(kept))
