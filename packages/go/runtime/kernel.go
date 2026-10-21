@@ -129,9 +129,14 @@ func (NoopTracer) Start(ctx context.Context, _ string) (context.Context, Span) {
 
 type noopSpan struct{}
 
+// SetAttribute discards the attribute.
 func (noopSpan) SetAttribute(string, any) {}
-func (noopSpan) RecordError(error)        {}
-func (noopSpan) End()                     {}
+
+// RecordError discards the error.
+func (noopSpan) RecordError(error) {}
+
+// End does nothing.
+func (noopSpan) End() {}
 
 // ---------------------------------------------------------------------------
 // Provider registry
