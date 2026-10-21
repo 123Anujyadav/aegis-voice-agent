@@ -1901,7 +1901,7 @@ repeated here, because it changes repository settings.
 
 | # | Blocker | Owner of the next step |
 |---|---|---|
-| 1 | Final D8 sign-off. **Provisionally accepted** (§10.12); it needs a green scheduled nightly on the exact current `main` commit, then the owner's explicit confirmation. | owner |
+| 1 | ~~Final D8 sign-off. **Provisionally accepted** (§10.12); it needs a green scheduled nightly on the exact current `main` commit, then the owner's explicit confirmation.~~ **Done 2026-10-20: D8 signed off for `e0b0c2e` only (§10.19).** Whether a closure on a later `main` needs a re-confirmation on the closure commit is an owner ruling. | owner |
 | 2 | Merge decisions for #25, #27, #30, #33 and #34 | owner |
 | 3 | The ADR-0009 outbox policy (eight questions) | owner (architecture) |
 | 4 | The fence PostgreSQL flake: unresolved, and **not an accepted risk** (owner, §10.12) | engineering: reproduction; owner: risk review |
@@ -2321,3 +2321,24 @@ provisionally accepted and not signed off.
   - It asserts that the old owner fails closed within the bound.
 - It would **add** coverage. It would not replace or weaken T1.
 - **Owner decision:** whether to add it.
+
+### 10.19 Owner sign-off: D8 (2026-10-20)
+
+This is the repository owner's explicit sign-off, recorded as given. It is not
+an engineering finding. Earlier statements in this record that D8 is
+provisional or not signed off (the opening status, §10.12, §10.13.3 to
+§10.18.1) describe the state before 2026-10-20 and are kept as history.
+
+| Item | Record |
+|---|---|
+| **Decision** | **D8 is signed off** (completes the §10.12 provisional acceptance). |
+| **Bound to** | `main` **`e0b0c2e06d5b1b14bb8549293eeb8e3328b07c8d`** only. |
+| **Scheduled nightly (§10.12 condition 1)** | `hardening` **39222266409**, `event=schedule`, `head_sha` = `e0b0c2e`, success, 6/6 jobs; `Race detector (repeated)` has the 4 gateway packages `ok` (`cmd/server`, `internal/app`, `internal/fence`, `internal/rdsauth`), with no data race and no test failure. |
+| **Supplementary evidence** | `gateway-postgres` push **39150630439** on `e0b0c2e` (129/0/0); the scoped Go 1.25.14 run **39294924417** on branch commit `c059dd2`, whose code is identical to `e0b0c2e` except the branch-only workflow file `d8-go125-compat.yml`. |
+| **Go 1.25** | Verified only for `packages/go/platform` and `services/go/telephony-gateway`. Other modules have **not** been verified on Go 1.25. The gateway's `go 1.25.0` minimum directive stays in effect (`platform` declares `go 1.23.0`). `main` CI uses Go 1.26.x, per the existing security policy. |
+| **Explicit confirmation (§10.12 condition 2)** | Given by the owner on 2026-10-20. |
+| **Does not** | certify staging or production readiness; accept the production fence risk (§10.12 stays); declare lint clean; close unrelated PRs; authorize lifting the merge freeze; extend to any later `main` commit. |
+| **Later `main` commits** | `main` has since moved to `501fe9e` (#46, #45, #43). D8 is **not** extended to it. An extension needs a new green scheduled nightly on that exact commit and a new owner confirmation. |
+
+A second scheduled run on the same commit, 39390960791 (2026-10-20, 6/6), is
+also green. It is noted here but was not cited in the sign-off.
