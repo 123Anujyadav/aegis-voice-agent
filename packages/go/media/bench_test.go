@@ -230,7 +230,7 @@ func BenchmarkStream_ConcurrentWriteRead(b *testing.B) {
 		b.Fatal(err)
 	}
 	ctx := context.Background()
-	if _, err := h.Start(ctx); err != nil {
+	if _, err = h.Start(ctx); err != nil {
 		b.Fatal(err)
 	}
 	defer func() { _, _ = h.Stop(context.Background()) }()
