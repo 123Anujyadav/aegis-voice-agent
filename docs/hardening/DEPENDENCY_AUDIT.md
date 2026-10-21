@@ -162,7 +162,7 @@ Removed when the repository is published. No action.
 | Standard library CVE | present. `govulncheck` covers it, and it has never run — see [RACE_VERIFICATION_REPORT.md](RACE_VERIFICATION_REPORT.md) §2. |
 | Compromised CI action | present. `actions/checkout@v4`, `setup-go@v5`, `upload-artifact@v4` are referenced by tag, not by commit SHA. |
 
-### D3 — GitHub Actions are pinned by tag, not SHA *(medium, open)*
+### D3 — GitHub Actions are pinned by tag, not SHA *(medium; closed 2026-10-21, see §9)*
 
 A tag is mutable. `actions/checkout@v4` resolves to whatever the `v4` tag points
 at today, and an upstream compromise would execute in a workflow that has
@@ -183,8 +183,8 @@ trailing comment, and let Renovate manage the updates — it understands SHA pin
 |---|---|---|---|
 | D1 | No `go.sum`; CI cache key expects one | low | open, benign |
 | D2 | `replace` directives load-bearing until publication | info | no action |
-| D3 | GitHub Actions pinned by mutable tag | medium | open |
-| — | Third-party dependencies | — | **zero** |
+| D3 | GitHub Actions pinned by mutable tag | medium | **closed** 2026-10-21 (#51, §9) |
+| — | Third-party dependencies | — | zero at Phase 10.5; **now present**, see §9 |
 | — | License obligations | — | **none on the Go plane** |
 
 ---
@@ -193,3 +193,38 @@ trailing comment, and let Renovate manage the updates — it understands SHA pin
 
 - [SECURITY_HARDENING_REPORT.md](SECURITY_HARDENING_REPORT.md)
 - [CICD_READINESS_REPORT.md](CICD_READINESS_REPORT.md)
+
+---
+
+## 9. Status update (2026-10-21)
+
+Sections 1 to 8 are the Phase 10.5 audit and are kept as written. Two of its
+conclusions no longer hold.
+
+**D3 is closed.** Every `uses:` in `.github/workflows/` is pinned to a full
+commit SHA with its release as a trailing comment (#51). The commit for each was
+read from the action's own repository, not derived from the tag.
+`tools/ci/check_action_pins.py` rejects a tag, a branch, a short SHA or a SHA
+without a version comment. Its tests run in ci-gate's unittest step on every PR,
+including a check of this repository's own workflows.
+
+**The Go plane now has third-party dependencies.** As of `main` `64717b8`, the
+direct requirements outside this repository are:
+
+| Module | Direct third-party requirements |
+|---|---|
+| `packages/go/contracts-go` | `google.golang.org/protobuf` |
+| `packages/go/evalstore` | `github.com/jackc/pgx/v5` |
+| `services/go/telephony-gateway` | `github.com/aws/aws-sdk-go-v2` (core, `credentials`, `feature/rds/auth`, `service/sts`), `github.com/jackc/pgx/v5` |
+
+So the section 1 headline, the "none" rows for third-party and transitive
+packages in section 6, and the "no license obligation on the Go plane" in
+section 4 are out of date. `govulncheck` covers these modules on every Go PR
+(45 modules, passing on Go 1.26.10 since #48), and `go.sum` records their
+checksums. A license review of these dependencies has not been done: section
+4's advice to add license scanning with the first third-party dependency
+applies now and remains open.
+
+Related controls added on 2026-10-21: CI secret scanning (`pr-security.yml`,
+#50), Gradle wrapper verification (`pr-android-wrapper.yml`, #54) and the
+Python lock audit (`python-deps-audit.yml`, #55).
