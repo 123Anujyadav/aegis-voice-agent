@@ -84,12 +84,7 @@ class Confusion:
     @property
     def total(self) -> int:
         """Return how many frame decisions the matrix covers."""
-        return (
-            self.true_positive
-            + self.false_positive
-            + self.true_negative
-            + self.false_negative
-        )
+        return self.true_positive + self.false_positive + self.true_negative + self.false_negative
 
     @property
     def precision(self) -> float:
@@ -221,9 +216,7 @@ def load(path: Path) -> list[ScenarioResult]:
         return [ScenarioResult.from_json(o) for o in json.loads(text)]
 
     return [
-        ScenarioResult.from_json(json.loads(line))
-        for line in text.splitlines()
-        if line.strip()
+        ScenarioResult.from_json(json.loads(line)) for line in text.splitlines() if line.strip()
     ]
 
 
@@ -319,9 +312,7 @@ def report(results: Sequence[ScenarioResult]) -> str:
         )
 
     for language, group in sorted(by_language(results).items()):
-        sections.append(
-            table(f"Frame-level detection — {language}", confusion_over(group).rows())
-        )
+        sections.append(table(f"Frame-level detection — {language}", confusion_over(group).rows()))
 
     sections.append(
         "\n---\n\n"
@@ -382,9 +373,7 @@ def self_check() -> int:
     check("empty percentile", LatencySummary("e", "ms").percentile(50), 0.0)
 
     # Unknown JSON fields are ignored rather than fatal.
-    parsed = ScenarioResult.from_json(
-        {"scenario": "x", "onsets": 2, "a_field_from_the_future": 7}
-    )
+    parsed = ScenarioResult.from_json({"scenario": "x", "onsets": 2, "a_field_from_the_future": 7})
     check("parsed scenario", parsed.scenario, "x")
     check("parsed onsets", parsed.onsets, 2)
 
