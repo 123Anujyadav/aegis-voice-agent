@@ -61,7 +61,7 @@ jobs:
       # No path filter on this workflow, and full history here rather than a
       # shallow clone: a secret committed earlier and deleted later is still a
       # leaked secret, and a depth-1 checkout cannot see it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           persist-credentials: false
