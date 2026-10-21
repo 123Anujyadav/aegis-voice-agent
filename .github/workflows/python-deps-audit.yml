@@ -1,0 +1,80 @@
+# =============================================================================
+# Python dependency vulnerability audit.
+#
+# govulncheck covers the Go modules; nothing covered the Python lock. This runs
+# pip-audit against every third-party package uv.lock pins (runtime and dev),
+# exported with hashes. The audited packages are not installed: --disable-pip
+# with --require-hashes audits the exact locked artefacts as listed.
+#
+# pip-audit itself is installed from tools/ci/pip-audit-requirements.txt with
+# --require-hashes, so the auditor is pinned as strictly as what it audits.
+#
+# Triggers: a PR or a push to main that changes what is locked or how it is
+# audited; and nightly, because a new advisory can affect an unchanged lock.
+# A scheduled failure reports a new advisory without blocking unrelated PRs.
+# =============================================================================
+name: python-deps-audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
+      - "packages/python/**/pyproject.toml"
+      - "services/python/**/pyproject.toml"
+      - "tools/ci/pip-audit-requirements.txt"
+      - ".github/workflows/python-deps-audit.yml"
+  pull_request:
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
+      - "packages/python/**/pyproject.toml"
+      - "services/python/**/pyproject.toml"
+      - "tools/ci/pip-audit-requirements.txt"
+      - ".github/workflows/python-deps-audit.yml"
+  merge_group:
+  schedule:
+    - cron: "17 4 * * *"
+
+concurrency:
+  group: python-deps-audit-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Python dependency vulnerabilities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          # The same uv as pr-python.yml, so the export reads the lock the way
+          # the rest of CI does.
+          version: "0.5.14"
+
+      - name: Install pip-audit (hash-pinned)
+        run: |
+          set -euo pipefail
+          uv venv "${RUNNER_TEMP}/pip-audit" --python 3.12
+          uv pip install --python "${RUNNER_TEMP}/pip-audit/bin/python" \
+            --require-hashes -r tools/ci/pip-audit-requirements.txt
+          "${RUNNER_TEMP}/pip-audit/bin/pip-audit" --version
+
+      - name: Export the locked dependencies, with hashes
+        run: |
+          uv export --frozen --all-packages --format requirements-txt \
+            --no-emit-workspace -o "${RUNNER_TEMP}/locked-requirements.txt"
+
+      - name: Audit
+        run: |
+          "${RUNNER_TEMP}/pip-audit/bin/pip-audit" --strict --disable-pip --require-hashes \
+            -r "${RUNNER_TEMP}/locked-requirements.txt" --progress-spinner off
