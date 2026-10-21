@@ -152,7 +152,8 @@ func (p *RecordingPublisher) CountOf(t EventType) int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	n := 0
-	for _, e := range p.events {
+	for i := range p.events {
+		e := &p.events[i]
 		if e.Type == t {
 			n++
 		}
