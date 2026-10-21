@@ -379,15 +379,15 @@ func (p *Planner) failed(reason string) {
 // planRequest resolves one request into a step, with a fallback chain when the
 // request asked for one.
 func (p *Planner) planRequest(ref string, req CapabilityRequest, intent ToolIntent) (Step, error) {
-	max := 1
+	maxCandidates := 1
 	if req.Fallback {
-		max = DefaultMaxCandidates
+		maxCandidates = DefaultMaxCandidates
 	}
 	candidates, err := p.discovery.Resolve(Request{
 		Capability:    req.Capability,
 		Version:       req.Version,
 		PreferTool:    req.PreferTool,
-		MaxCandidates: max,
+		MaxCandidates: maxCandidates,
 	})
 	if err != nil {
 		return Step{}, fmt.Errorf("request %s: %w", ref, err)

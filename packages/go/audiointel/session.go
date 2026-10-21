@@ -363,12 +363,12 @@ func (s *Session) record(ctx context.Context, a Analysis, state ConversationStat
 // crossedMinSpeech reports whether this frame is the one on which the open run
 // first outlasted MinSpeech.
 func (s *Session) crossedMinSpeech(a Analysis) bool {
-	min := s.analyzer.cfg.VAD.MinSpeech
-	if min <= 0 {
+	minSpeech := s.analyzer.cfg.VAD.MinSpeech
+	if minSpeech <= 0 {
 		return a.VAD.OnsetConfirmed
 	}
 	frame := a.Signal.Frame.Duration
-	return a.VAD.SpeechDuration >= min && a.VAD.SpeechDuration-frame < min
+	return a.VAD.SpeechDuration >= minSpeech && a.VAD.SpeechDuration-frame < minSpeech
 }
 
 // publish emits one event, never blocking the caller on a broker.

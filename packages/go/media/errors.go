@@ -258,9 +258,9 @@ func checkReasonCode(reason string) error {
 }
 
 func truncate(s string) string {
-	const max = 32
-	if len(s) <= max {
+	const maxLen = 32
+	if len(s) <= maxLen {
 		return s
 	}
-	return s[:max] + "…"
+	return s[:maxLen] + "…"
 }

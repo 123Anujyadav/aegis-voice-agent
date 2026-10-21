@@ -1,6 +1,7 @@
 package evalstore_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -120,7 +121,7 @@ func TestMigrate_AppliesFromEmptyThenIsIdempotent(t *testing.T) {
 		`DROP TABLE IF EXISTS eval_records`,
 		`DROP TABLE IF EXISTS eval_schema_migrations`,
 	} {
-		if _, err := pool.Exec(ctx, stmt); err != nil {
+		if _, err = pool.Exec(ctx, stmt); err != nil {
 			t.Fatalf("dropping for empty-database test: %v", err)
 		}
 	}
@@ -214,7 +215,7 @@ func TestRepository_Conformance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("get: %v", err)
 		}
-		if string(got.Payload) != string(r.Payload) {
+		if !bytes.Equal(got.Payload, r.Payload) {
 			t.Errorf("payload = %q, want %q", got.Payload, r.Payload)
 		}
 	})
@@ -356,7 +357,7 @@ func TestRepository_Conformance(t *testing.T) {
 				heldBefore++
 			}
 		}
-		if err := s.Restore(ctx, snap); err != nil {
+		if err = s.Restore(ctx, snap); err != nil {
 			t.Fatalf("restore: %v", err)
 		}
 		after, err := s.Snapshot(ctx)
@@ -434,16 +435,16 @@ func TestSweep_DeletesExpiredHoldsHeldAndExemptsAudit(t *testing.T) {
 		t.Errorf("held runs = %d, want 1 — a held-but-expired record must be "+
 			"reported, not silently retained", report.Held[ev.RecordRun])
 	}
-	if _, err := s.Get(ctx, heldExpired.Key()); err != nil {
+	if _, err = s.Get(ctx, heldExpired.Key()); err != nil {
 		t.Errorf("held record was deleted: %v", err)
 	}
-	if _, err := s.Get(ctx, live.Key()); err != nil {
+	if _, err = s.Get(ctx, live.Key()); err != nil {
 		t.Errorf("unexpired record was deleted: %v", err)
 	}
-	if _, err := s.Get(ctx, never.Key()); err != nil {
+	if _, err = s.Get(ctx, never.Key()); err != nil {
 		t.Errorf("never-expiring record was deleted: %v", err)
 	}
-	if _, err := s.Get(ctx, expired.Key()); !errors.Is(err, ev.ErrRecordNotFound) {
+	if _, err = s.Get(ctx, expired.Key()); !errors.Is(err, ev.ErrRecordNotFound) {
 		t.Errorf("expired record survived the sweep: %v", err)
 	}
 
@@ -455,7 +456,7 @@ func TestSweep_DeletesExpiredHoldsHeldAndExemptsAudit(t *testing.T) {
 	if len(audits) == 0 {
 		t.Fatal("the sweep wrote no audit record")
 	}
-	if _, err := s.Sweep(ctx, now.Add(10*365*24*time.Hour)); err != nil {
+	if _, err = s.Sweep(ctx, now.Add(10*365*24*time.Hour)); err != nil {
 		t.Fatalf("far-future sweep: %v", err)
 	}
 	after, err := s.Count(ctx, ev.Query{Kinds: []ev.RecordKind{ev.RecordAudit}})
@@ -518,10 +519,10 @@ func TestGoldens_SurviveACompleteProcessRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open 1: %v", err)
 	}
-	if _, err := evalstore.Migrate(ctx, s1.Pool()); err != nil {
+	if _, err = evalstore.Migrate(ctx, s1.Pool()); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if _, err := s1.Pool().Exec(ctx, `DELETE FROM eval_records`); err != nil {
+	if _, err = s1.Pool().Exec(ctx, `DELETE FROM eval_records`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
@@ -531,13 +532,13 @@ func TestGoldens_SurviveACompleteProcessRestart(t *testing.T) {
 	golden.Label = "phase-10f"
 	golden.Payload = []byte(`{"digest":"a083e7385c63ebfc","approved_by":"phase-10f"}`)
 
-	if err := s1.Put(ctx, golden); err != nil {
+	if err = s1.Put(ctx, golden); err != nil {
 		t.Fatalf("put golden: %v", err)
 	}
-	if err := s1.SetLegalHold(ctx, golden.Key(), true, "compliance", "retention review"); err != nil {
+	if err = s1.SetLegalHold(ctx, golden.Key(), true, "compliance", "retention review"); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
-	if err := s1.Close(); err != nil {
+	if err = s1.Close(); err != nil {
 		t.Fatalf("close 1: %v", err)
 	}
 
@@ -552,7 +553,7 @@ func TestGoldens_SurviveACompleteProcessRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the approved golden did not survive the restart: %v", err)
 	}
-	if string(got.Payload) != string(golden.Payload) {
+	if !bytes.Equal(got.Payload, golden.Payload) {
 		t.Errorf("payload after restart = %q, want %q", got.Payload, golden.Payload)
 	}
 	if !got.LegalHold {
@@ -679,10 +680,10 @@ func TestDelete_RefusalLeavesNoPartialEffect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Delete(ctx, r.Key()); !errors.Is(err, ev.ErrLegalHold) {
+	if err = s.Delete(ctx, r.Key()); !errors.Is(err, ev.ErrLegalHold) {
 		t.Fatalf("err = %v, want ErrLegalHold", err)
 	}
-	if _, err := s.Get(ctx, r.Key()); err != nil {
+	if _, err = s.Get(ctx, r.Key()); err != nil {
 		t.Errorf("the record was removed despite the refusal: %v", err)
 	}
 	auditsAfter, err := s.Count(ctx, ev.Query{Kinds: []ev.RecordKind{ev.RecordAudit}})

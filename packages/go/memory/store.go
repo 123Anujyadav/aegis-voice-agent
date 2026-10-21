@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -156,7 +157,7 @@ func (s *Store) Store(r *Record) (*Record, error) {
 	defer func() { s.metrics.StoreLatency.Observe(s.clock.Since(start).Seconds()) }()
 
 	if err := s.policy.admit(r); err != nil {
-		if err == ErrConsentRequired {
+		if errors.Is(err, ErrConsentRequired) {
 			s.metrics.ConsentRefusals.Inc(r.Key.Kind.String())
 		}
 		return nil, err
@@ -307,12 +308,12 @@ func (s *Store) readable(r *Record, now time.Time) error {
 
 // errReason maps an error to a metric label.
 func errReason(err error) string {
-	switch err {
-	case ErrExpired:
+	switch {
+	case errors.Is(err, ErrExpired):
 		return "expired"
-	case ErrArchived:
+	case errors.Is(err, ErrArchived):
 		return "archived"
-	case ErrRedacted:
+	case errors.Is(err, ErrRedacted):
 		return "redacted"
 	default:
 		return "not_found"
