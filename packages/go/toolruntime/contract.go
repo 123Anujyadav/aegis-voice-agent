@@ -389,9 +389,9 @@ func prefix(d Descriptor, where string, problems []string) []string {
 }
 
 // Provides reports whether the contract offers a capability.
-func (c Contract) Provides(cap CapabilityID) bool {
+func (c Contract) Provides(want CapabilityID) bool {
 	for _, have := range c.Capabilities {
-		if have == cap {
+		if have == want {
 			return true
 		}
 	}

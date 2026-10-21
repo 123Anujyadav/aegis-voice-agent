@@ -276,9 +276,11 @@ func (s *GoldenStore) Candidates(key GoldenKey) []Golden {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var out []Golden
-	for _, g := range s.history[key] {
+	list := s.history[key]
+	for i := range list {
+		g := &list[i]
 		if g.State == GoldenCandidate {
-			out = append(out, g)
+			out = append(out, *g)
 		}
 	}
 	return out
@@ -360,9 +362,10 @@ func (s *GoldenStore) PendingApprovals() []Golden {
 	s.mu.RLock()
 	var out []Golden
 	for _, list := range s.history {
-		for _, g := range list {
+		for i := range list {
+			g := &list[i]
 			if g.State == GoldenCandidate {
-				out = append(out, g)
+				out = append(out, *g)
 			}
 		}
 	}

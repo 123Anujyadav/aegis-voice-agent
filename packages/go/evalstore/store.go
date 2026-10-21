@@ -354,14 +354,14 @@ func (s *Store) Sweep(ctx context.Context, now time.Time) (ev.SweepReport, error
 		for heldRows.Next() {
 			var kind string
 			var n int
-			if err := heldRows.Scan(&kind, &n); err != nil {
+			if err = heldRows.Scan(&kind, &n); err != nil {
 				heldRows.Close()
 				return wrap("scanning held count", err)
 			}
 			report.Held[ev.RecordKind(kind)] = n
 		}
 		heldRows.Close()
-		if err := heldRows.Err(); err != nil {
+		if err = heldRows.Err(); err != nil {
 			return wrap("counting held records", err)
 		}
 
