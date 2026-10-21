@@ -66,13 +66,15 @@ jobs:
           version: "1.72.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Compared against the merge base rather than the tip of main, so a PR is
-      # judged on what it changes and is not blamed for a breaking change that
-      # landed on main after it was branched.
+      # Compared against the base branch as fetched above. The step runs in
+      # contracts/, so the repository is ../.git. actions/checkout leaves the
+      # base branch only as a remote-tracking ref (refs/remotes/origin/<base>)
+      # with HEAD detached and no local branch, so `branch=<base>` cannot
+      # resolve ("couldn't find remote ref") and the full ref is named instead.
       - name: Detect breaking changes
         run: |
           buf breaking --against \
-            ".git#branch=${{ github.event.pull_request.base.ref || 'main' }},subdir=contracts"
+            "../.git#ref=refs/remotes/origin/${{ github.event.pull_request.base.ref || 'main' }},subdir=contracts"
         working-directory: contracts
 
   drift:

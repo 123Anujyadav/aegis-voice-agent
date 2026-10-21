@@ -252,9 +252,7 @@ def _parse_filters(workflow: str, body: list[str]) -> Trigger:
     return Trigger(workflow, filters.get("branches"), filters.get("paths"))
 
 
-def expected_workflows(
-    workflows_dir: Path, base_ref: str, changed: list[str]
-) -> list[str]:
+def expected_workflows(workflows_dir: Path, base_ref: str, changed: list[str]) -> list[str]:
     """List the workflow files a PR into base_ref changing changed would start."""
     expected = []
     for path in sorted([*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")]):
@@ -423,14 +421,17 @@ class GitHub:
         """Return the pull request's head SHA and base ref."""
         return _gh_lines(
             f"repos/{self.repo}/pulls/{number}",
-            "--jq", "{sha: .head.sha, base: .base.ref}",
+            "--jq",
+            "{sha: .head.sha, base: .base.ref}",
         )[0]
 
     def changed_files(self, number: int) -> list[str]:
         """List the files the pull request changes (renames: both names)."""
         rows = _gh_lines(
             f"repos/{self.repo}/pulls/{number}/files?per_page=100",
-            "--paginate", "--jq", ".[] | {f: .filename, p: (.previous_filename // \"\")}",
+            "--paginate",
+            "--jq",
+            '.[] | {f: .filename, p: (.previous_filename // "")}',
         )
         names = [r["f"] for r in rows] + [r["p"] for r in rows if r["p"]]
         return sorted(set(names))
@@ -440,22 +441,30 @@ class GitHub:
         rows = _gh_lines(
             f"repos/{self.repo}/actions/runs?head_sha={sha}&event=pull_request&per_page=100",
             "--paginate",
-            "--jq", ".workflow_runs[] | {id, path, status, conclusion, created_at, run_attempt}",
+            "--jq",
+            ".workflow_runs[] | {id, path, status, conclusion, created_at, run_attempt}",
         )
         latest: dict[str, dict[str, Any]] = {}
         for row in rows:
             path = row["path"].split("@", 1)[0]
             key = (row["created_at"], row["run_attempt"])
-            if path not in latest or key > (latest[path]["created_at"], latest[path]["run_attempt"]):
+            if path not in latest or key > (
+                latest[path]["created_at"],
+                latest[path]["run_attempt"],
+            ):
                 latest[path] = row
         return latest
 
     def jobs(self, run_id: int) -> list[dict[str, Any]]:
         """Return the jobs of the latest attempt of one run."""
-        return _latest_attempt(_gh_lines(
-            f"repos/{self.repo}/actions/runs/{run_id}/jobs?filter=all&per_page=30",
-            "--paginate", "--jq", ".jobs[] | {id, name, status, conclusion, run_attempt}",
-        ))
+        return _latest_attempt(
+            _gh_lines(
+                f"repos/{self.repo}/actions/runs/{run_id}/jobs?filter=all&per_page=30",
+                "--paginate",
+                "--jq",
+                ".jobs[] | {id, name, status, conclusion, run_attempt}",
+            )
+        )
 
     def job_log(self, job_id: int) -> str:
         """Return one job's log text."""
@@ -469,7 +478,8 @@ class GitHub:
         rows = _gh_lines(
             f"repos/{self.repo}/actions/workflows/{name}/runs"
             "?branch=main&event=push&status=completed&per_page=1",
-            "--jq", ".workflow_runs[] | {id}",
+            "--jq",
+            ".workflow_runs[] | {id}",
         )
         if not rows:
             return None
