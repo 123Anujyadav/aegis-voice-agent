@@ -97,14 +97,23 @@ func (SystemClock) Sleep(ctx context.Context, d time.Duration) error {
 
 type systemTimer struct{ t *time.Timer }
 
-func (s *systemTimer) C() <-chan time.Time        { return s.t.C }
-func (s *systemTimer) Stop() bool                 { return s.t.Stop() }
+// C returns the channel on which the underlying time.Timer delivers its fire time.
+func (s *systemTimer) C() <-chan time.Time { return s.t.C }
+
+// Stop stops the timer, reporting whether it was still pending (time.Timer.Stop).
+func (s *systemTimer) Stop() bool { return s.t.Stop() }
+
+// Reset re-arms the timer to fire after d, reporting whether it was still
+// pending (time.Timer.Reset).
 func (s *systemTimer) Reset(d time.Duration) bool { return s.t.Reset(d) }
 
 type systemTicker struct{ t *time.Ticker }
 
+// C returns the channel on which the underlying time.Ticker delivers ticks.
 func (s *systemTicker) C() <-chan time.Time { return s.t.C }
-func (s *systemTicker) Stop()               { s.t.Stop() }
+
+// Stop stops the ticker; no further ticks are delivered.
+func (s *systemTicker) Stop() { s.t.Stop() }
 
 // ---------------------------------------------------------------------------
 // Fake clock
@@ -316,8 +325,12 @@ type fakeTimer struct {
 	waiter *fakeWaiter
 }
 
+// C returns the channel on which the timer fires when the fake clock is
+// advanced past its deadline.
 func (t *fakeTimer) C() <-chan time.Time { return t.waiter.ch }
 
+// Stop stops the timer, reporting whether it was still pending: false if it
+// had already fired or been stopped, as with time.Timer.Stop.
 func (t *fakeTimer) Stop() bool {
 	t.clock.mu.Lock()
 	defer t.clock.mu.Unlock()
@@ -326,6 +339,9 @@ func (t *fakeTimer) Stop() bool {
 	return was
 }
 
+// Reset re-arms the timer to fire d after the fake clock's current time,
+// reporting whether it was still pending: false if it had already fired or
+// been stopped, as with time.Timer.Reset.
 func (t *fakeTimer) Reset(d time.Duration) bool {
 	t.clock.mu.Lock()
 	defer t.clock.mu.Unlock()
@@ -340,8 +356,11 @@ type fakeTicker struct {
 	waiter *fakeWaiter
 }
 
+// C returns the channel on which the ticker delivers ticks as the fake clock
+// is advanced.
 func (t *fakeTicker) C() <-chan time.Time { return t.waiter.ch }
 
+// Stop stops the ticker; no further ticks are delivered.
 func (t *fakeTicker) Stop() {
 	t.clock.mu.Lock()
 	defer t.clock.mu.Unlock()
