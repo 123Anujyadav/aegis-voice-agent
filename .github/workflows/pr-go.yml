@@ -51,7 +51,14 @@ env:
   # have no 1.25 fix and are fixed in go1.26.9, which govulncheck reports for
   # every module that reaches net/http or crypto/tls. The `go` directives stay
   # at their minimums.
-  GO_VERSION: "1.26.x"
+  #
+  # An exact patch, not "1.26.x". setup-go satisfies a range from the runner's
+  # tool cache before it looks for anything newer, so "1.26.x" kept resolving
+  # to a cached go1.26.9 after GO-2026-6809 (crypto/x509 Certificate.Verify,
+  # fixed in go1.26.10) was published, and govulncheck failed every module
+  # that reaches it. An exact version is what the build actually uses; moving
+  # it is a deliberate change. Keep the four workflows and docker/ in step.
+  GO_VERSION: "1.26.10"
   # No implicit toolchain downloads. The version this file declares is the
   # version the build uses, or the build fails and says so.
   GOTOOLCHAIN: "local"

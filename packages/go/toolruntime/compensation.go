@@ -265,44 +265,38 @@ func (c *Compensator) emit(w CompletedWork, t EventType, reason string, d time.D
 // determine this platform's metric cardinality, which is a denial of service
 // with extra steps.
 func shortReason(err error) string {
-	switch {
-	case err == nil:
+	if err == nil {
 		return ""
-	case errors.Is(err, ErrTimeout):
-		return "timeout"
-	case errors.Is(err, ErrCancelled):
-		return "cancelled"
-	case errors.Is(err, ErrCircuitOpen):
-		return "circuit_open"
-	case errors.Is(err, ErrPermissionDenied):
-		return "permission_denied"
-	case errors.Is(err, ErrConsentRequired):
-		return "consent_required"
-	case errors.Is(err, ErrInvalidInput):
-		return "invalid_input"
-	case errors.Is(err, ErrInvalidOutput):
-		return "invalid_output"
-	case errors.Is(err, ErrBudgetExceeded):
-		return "budget_exceeded"
-	case errors.Is(err, ErrQueueFull):
-		return "queue_full"
-	case errors.Is(err, ErrDuplicate):
-		return "duplicate"
-	case errors.Is(err, ErrNoHealthyProvider):
-		return "no_healthy_tool"
-	case errors.Is(err, ErrNoCapability):
-		return "no_capability"
-	case errors.Is(err, ErrCompensationFailed):
-		return "compensation_failed"
-	case errors.Is(err, ErrClosed):
-		return "closed"
-	case errors.Is(err, ErrInvariant):
-		return "invariant"
-	case errors.Is(err, context.DeadlineExceeded):
-		return "timeout"
-	case errors.Is(err, context.Canceled):
-		return "cancelled"
-	default:
-		return "tool_error"
 	}
+	for _, rc := range reasonCodes {
+		if errors.Is(err, rc.err) {
+			return rc.code
+		}
+	}
+	return "tool_error"
+}
+
+// reasonCodes are shortReason's codes, in the order they are tested: an error
+// that matches several (joined, or wrapped more than once) gets the first.
+var reasonCodes = []struct {
+	err  error
+	code string
+}{
+	{ErrTimeout, "timeout"},
+	{ErrCancelled, "cancelled"},
+	{ErrCircuitOpen, "circuit_open"},
+	{ErrPermissionDenied, "permission_denied"},
+	{ErrConsentRequired, "consent_required"},
+	{ErrInvalidInput, "invalid_input"},
+	{ErrInvalidOutput, "invalid_output"},
+	{ErrBudgetExceeded, "budget_exceeded"},
+	{ErrQueueFull, "queue_full"},
+	{ErrDuplicate, "duplicate"},
+	{ErrNoHealthyProvider, "no_healthy_tool"},
+	{ErrNoCapability, "no_capability"},
+	{ErrCompensationFailed, "compensation_failed"},
+	{ErrClosed, "closed"},
+	{ErrInvariant, "invariant"},
+	{context.DeadlineExceeded, "timeout"},
+	{context.Canceled, "cancelled"},
 }

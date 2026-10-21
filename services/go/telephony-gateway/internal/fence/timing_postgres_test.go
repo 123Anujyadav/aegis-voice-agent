@@ -2,6 +2,7 @@ package fence
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"strconv"
 	"testing"
@@ -31,8 +32,23 @@ func TestPostgresFence_PhaseTimingOnARealAcquisition(t *testing.T) {
 	waitFor(t, 10*time.Second, "ownership", f.Owned)
 	waitFor(t, 5*time.Second, "heartbeat records", func() bool { return len(l.records(t, "ownership confirmed")) >= 2 })
 	acq := l.records(t, "lock acquired")
-	if len(acq) != 1 {
-		t.Fatalf("acquisition records = %d", len(acq))
+	// Under load the fence can fail closed and acquire again; each further
+	// acquisition needs a loss before it, and every loss must be a fail-closed
+	// timing one. Losses are read after acquisitions, so none can be missed.
+	lost := append(l.records(t, msgLost), l.records(t, msgLate)...)
+	if len(acq) == 0 || len(acq)-1 > len(lost) {
+		t.Fatalf("acquisition records = %d after %d losses", len(acq), len(lost))
+	}
+	for _, r := range lost {
+		ev := fenceEvent{msg: fmt.Sprint(r["msg"]), err: fmt.Sprint(r["error"]), lockMissing: r["lock_missing"] == true}
+		if p, ok := r["phase"].(map[string]any); ok {
+			if ns, ok := p[PhaseHeartbeat].(float64); ok {
+				ev.heartbeat = time.Duration(ns)
+			}
+		}
+		if !ev.failClosedTiming(c.HeartbeatTimeout) {
+			t.Errorf("an ownership loss that is not a fail-closed timing loss: %v", r)
+		}
 	}
 	// Password mode over sslmode=disable: no credentials phase, no TLS.
 	wantPhases(t, "real acquisition", phases(t, acq[0]),

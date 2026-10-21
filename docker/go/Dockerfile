@@ -18,7 +18,7 @@
 # rebuilding an old commit would not reproduce the artefact that was tested.
 #
 # DIGEST PINNING IS NOT YET APPLIED. The intended end state is
-# `golang:1.23.5-alpine3.21@sha256:<digest>`, which is what actually makes a
+# `golang:1.26.10-alpine3.23@sha256:<digest>`, which is what actually makes a
 # build forensically reconstructable — a patch tag is still mutable in principle.
 # The digests are deliberately absent rather than guessed: a wrong digest either
 # fails the pull or, worse, pins an image nobody verified.
@@ -26,7 +26,13 @@
 # Renovate populates them on its first run (`pinDigests: true` in
 # renovate.json5), which is the correct mechanism because it resolves the digest
 # against the registry and keeps it updated with the tag.
-FROM golang:1.23.5-alpine3.21 AS build
+#
+# The Go patch matches GO_VERSION in .github/workflows/pr-go.yml: the shipped
+# binary is built by the toolchain CI tested and scanned. go1.26.10 fixes
+# GO-2026-6809 (crypto/x509), and is at least every `go` directive in the
+# workspace (1.25.0); go1.23.5 was below them. Alpine 3.23 because that is the
+# variant published for this patch.
+FROM golang:1.26.10-alpine3.23 AS build
 
 # git is needed for module resolution; ca-certificates for fetching over TLS.
 # --no-cache avoids leaving an apk index in the layer.

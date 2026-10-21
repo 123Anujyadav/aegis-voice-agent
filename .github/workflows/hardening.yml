@@ -52,7 +52,7 @@ permissions:
 
 env:
   # Matches pr-go.yml: a supported release line (see the note there).
-  GO_VERSION: "1.26.x"
+  GO_VERSION: "1.26.10"
   GOTOOLCHAIN: "local"
   GOFLAGS: "-mod=readonly"
   # The AI plane. Listed explicitly rather than discovered, because these are
