@@ -116,8 +116,16 @@ class ExpectedWorkflowsTest(unittest.TestCase):
     def expected(self, *changed: str, base: str = "main") -> list[str]:
         return ci_gate.expected_workflows(WORKFLOWS, base, list(changed))
 
-    def test_docs_only_pr_expects_only_backend_foundation(self) -> None:
-        self.assertEqual(self.expected("docs/phase15/READINESS_AUDIT.md"), [".github/workflows/ci.yml"])
+    def test_docs_only_pr_expects_backend_foundation_and_the_secret_scan(self) -> None:
+        self.assertEqual(self.expected("docs/phase15/READINESS_AUDIT.md"),
+                         [".github/workflows/ci.yml", ".github/workflows/pr-security.yml"])
+
+    def test_every_pr_expects_the_secret_scan(self) -> None:
+        # pr-security.yml has no path filter: a secret can be added in any file.
+        for changed in ("docs/a.md", "services/go/media-relay/internal/app/media_relay.go",
+                        ".github/workflows/hardening.yml", "go.work.sum"):
+            with self.subTest(changed=changed):
+                self.assertIn(".github/workflows/pr-security.yml", self.expected(changed))
 
     def test_go_change_expects_go_workflows(self) -> None:
         got = self.expected("services/go/media-relay/internal/app/media_relay.go")
@@ -425,6 +433,11 @@ class GateSimulationTest(unittest.TestCase):
     ci, pr_go = ".github/workflows/ci.yml", ".github/workflows/pr-go.yml"
     hardening = ".github/workflows/hardening.yml"
     lint = "golangci-lint (packages/go/outbox)"
+    security = ".github/workflows/pr-security.yml"
+
+    def scanned(self, runs: dict[str, dict]) -> dict[str, dict]:
+        """Add the secret-scan run every PR starts (pr-security.yml, no path filter)."""
+        return {**runs, self.security: _run(9, self.security, "success")}
 
     def gate(self, gh: FakeGitHub) -> tuple[bool, list[str]]:
         return ci_gate.run_gate(gh, 1, WORKFLOWS, wait=False, interval=0, appear_timeout=0, total_timeout=0)
@@ -432,8 +445,8 @@ class GateSimulationTest(unittest.TestCase):
     def go_pr(self, pr_log: str, ran_hardening: str = "success") -> FakeGitHub:
         return FakeGitHub(
             ["packages/go/outbox/outbox.go"],
-            {self.ci: _run(1, self.ci, "success"), self.pr_go: _run(2, self.pr_go, "failure"),
-             self.hardening: _run(3, self.hardening, ran_hardening)},
+            self.scanned({self.ci: _run(1, self.ci, "success"), self.pr_go: _run(2, self.pr_go, "failure"),
+                          self.hardening: _run(3, self.hardening, ran_hardening)}),
             {2: [{"id": 20, "name": self.lint, "conclusion": "failure"},
                  {"id": 21, "name": "packages/go/outbox", "conclusion": "success"}],
              3: [{"id": 30, "name": "Race detector (repeated)", "conclusion": "failure"}]},
@@ -441,10 +454,16 @@ class GateSimulationTest(unittest.TestCase):
             main={self.pr_go: [{"id": 90, "name": self.lint, "conclusion": "failure"}]},
         )
 
-    def test_docs_only_pr_passes_on_backend_foundation_alone(self) -> None:
-        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "success")}, {})
+    def test_docs_only_pr_passes_on_backend_foundation_and_the_secret_scan(self) -> None:
+        gh = FakeGitHub(["docs/a.md"], self.scanned({self.ci: _run(1, self.ci, "success")}), {})
         passed, report = self.gate(gh)
         self.assertTrue(passed, report)
+
+    def test_a_pr_without_the_secret_scan_fails(self) -> None:
+        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "success")}, {})
+        passed, report = self.gate(gh)
+        self.assertFalse(passed)
+        self.assertIn("never started", "\n".join(report))
 
     def test_docs_only_pr_fails_when_backend_foundation_fails(self) -> None:
         gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")},
@@ -477,14 +496,14 @@ class GateSimulationTest(unittest.TestCase):
     def test_a_run_reported_completed_with_a_running_job_does_not_pass(self) -> None:
         # Seen on GitHub: pr-go reported completed/failure while a govulncheck
         # job was still in progress.
-        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")},
+        gh = FakeGitHub(["docs/a.md"], self.scanned({self.ci: _run(1, self.ci, "failure")}),
                         {1: [{"id": 10, "name": "Build & Test Backend Foundation", "status": "in_progress", "conclusion": None}]})
         passed, report = self.gate(gh)
         self.assertFalse(passed)
         self.assertIn("a job is still running", "\n".join(report))
 
     def test_the_gate_waits_for_such_a_job_and_then_judges_it(self) -> None:
-        gh = SequencedJobsGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")}, {1: [
+        gh = SequencedJobsGitHub(["docs/a.md"], self.scanned({self.ci: _run(1, self.ci, "failure")}), {1: [
             [{"id": 10, "name": "Build & Test Backend Foundation", "status": "in_progress", "conclusion": None}],
             [{"id": 10, "name": "Build & Test Backend Foundation", "status": "completed", "conclusion": "failure"}],
         ]})
@@ -493,7 +512,7 @@ class GateSimulationTest(unittest.TestCase):
         self.assertIn("Build & Test Backend Foundation: failure", "\n".join(report))
 
     def test_a_job_that_never_finishes_times_out(self) -> None:
-        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")},
+        gh = FakeGitHub(["docs/a.md"], self.scanned({self.ci: _run(1, self.ci, "failure")}),
                         {1: [{"id": 10, "name": "x", "status": "in_progress", "conclusion": None}]})
         passed, report = ci_gate.run_gate(gh, 1, WORKFLOWS, wait=True, interval=0, appear_timeout=0, total_timeout=0)
         self.assertFalse(passed)
