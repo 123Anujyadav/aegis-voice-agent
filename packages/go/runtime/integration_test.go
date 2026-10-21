@@ -392,7 +392,7 @@ func TestKernel_RetriesThenSucceeds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHarness: %v", err)
 	}
-	if err := h.Start(context.Background()); err != nil {
+	if err = h.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	defer func() {
@@ -491,7 +491,7 @@ func TestKernel_ShedIsNotAnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHarness: %v", err)
 	}
-	if err := h.Start(context.Background()); err != nil {
+	if err = h.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	defer func() {
@@ -568,7 +568,7 @@ func TestKernel_StopDrains(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHarness: %v", err)
 	}
-	if err := h.Start(context.Background()); err != nil {
+	if err = h.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
@@ -586,7 +586,7 @@ func TestKernel_StopDrains(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if err := h.Stop(ctx); err != nil {
+	if err = h.Stop(ctx); err != nil {
 		t.Fatalf("Stop should drain cleanly: %v", err)
 	}
 	if h.Kernel.Ready() {

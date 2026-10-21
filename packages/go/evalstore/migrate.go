@@ -122,7 +122,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) (MigrationResult, error) {
 		return res, err
 	}
 
-	if _, err := pool.Exec(ctx, ledgerDDL); err != nil {
+	if _, err = pool.Exec(ctx, ledgerDDL); err != nil {
 		return res, fmt.Errorf("evalstore: creating migration ledger: %w", err)
 	}
 
@@ -140,10 +140,10 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) (MigrationResult, error) {
 			res.AlreadyApplied = append(res.AlreadyApplied, m.Name)
 			continue
 		}
-		if err := applyOne(ctx, pool, m); err != nil {
+		if applyErr := applyOne(ctx, pool, m); applyErr != nil {
 			// res carries what succeeded before the failure, so a caller can
 			// see how far the chain got rather than only that it stopped.
-			return res, err
+			return res, applyErr
 		}
 		res.Applied = append(res.Applied, m.Name)
 	}

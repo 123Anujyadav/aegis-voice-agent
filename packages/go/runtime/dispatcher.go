@@ -435,11 +435,12 @@ pump:
 
 	d.metrics.StreamChunks.Add(float64(res.Chunks))
 	d.metrics.StreamDuration.Observe(res.Duration.Seconds())
-	if res.Aborted {
+	switch {
+	case res.Aborted:
 		d.metrics.StreamAborted.Inc()
-	} else if res.Err != nil {
+	case res.Err != nil:
 		d.metrics.StreamFailed.Inc()
-	} else {
+	default:
 		d.metrics.StreamCompleted.Inc()
 	}
 

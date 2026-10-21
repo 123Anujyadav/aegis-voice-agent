@@ -113,12 +113,12 @@ type RecordingAuditor struct {
 	max     int
 }
 
-// NewRecordingAuditor builds a recording auditor holding up to max entries.
-func NewRecordingAuditor(max int) *RecordingAuditor {
-	if max <= 0 {
-		max = 4096
+// NewRecordingAuditor builds a recording auditor holding up to limit entries.
+func NewRecordingAuditor(limit int) *RecordingAuditor {
+	if limit <= 0 {
+		limit = 4096
 	}
-	return &RecordingAuditor{max: max}
+	return &RecordingAuditor{max: limit}
 }
 
 // Record captures an entry.
