@@ -50,7 +50,7 @@ permissions:
 
 env:
   # Same toolchain policy as pr-go.yml.
-  GO_VERSION: "1.26.x"
+  GO_VERSION: "1.26.10"
   GOTOOLCHAIN: "local"
   GOFLAGS: "-mod=readonly"
   # postgres:17.2-alpine, pinned by OCI index digest: the same image the
