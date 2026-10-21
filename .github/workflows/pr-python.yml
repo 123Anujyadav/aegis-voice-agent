@@ -54,7 +54,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: "0.5.14"
           # Cache keyed on the lockfile: the environment is restored verbatim
@@ -112,7 +112,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "0.5.14"
           enable-cache: true
