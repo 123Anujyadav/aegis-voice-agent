@@ -17,11 +17,12 @@ import (
 type contextKey int
 
 const (
-	// loggerKey stores a *slog.Logger carrying request-scoped attributes.
+	// The loggerKey stores a *slog.Logger carrying request-scoped attributes.
 	loggerKey contextKey = iota
-	// traceIDKey stores the distributed trace identifier for the current request.
+	// The traceIDKey stores the distributed trace identifier for the current
+	// request.
 	traceIDKey
-	// callSessionIDKey stores the call session identifier, when one applies.
+	// The callSessionIDKey stores the call session identifier, when one applies.
 	callSessionIDKey
 )
 
@@ -138,7 +139,7 @@ type RedactingHandler struct {
 // NewRedactingHandler wraps inner so that sensitive attributes are suppressed
 // and personal identifiers are pseudonymised.
 //
-// hashKey must be at least 16 bytes. Supplying a stable key allows correlation
+// The hashKey must be at least 16 bytes. Supplying a stable key allows correlation
 // across service instances within one environment; supplying a random key
 // confines correlation to a single process. Production deployments supply a
 // stable per-environment key sourced from the secret manager.

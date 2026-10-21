@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -38,7 +39,7 @@ func TestRingBuffer_Overflow(t *testing.T) {
 	_ = buf.Push(AudioFrame{SequenceNo: 2})
 
 	err := buf.Push(AudioFrame{SequenceNo: 3})
-	if err != ErrBufferOverflow {
+	if !errors.Is(err, ErrBufferOverflow) {
 		t.Fatalf("expected ErrBufferOverflow, got %v", err)
 	}
 }
@@ -73,7 +74,7 @@ func TestSessionRegistry_LeaseExpiration(t *testing.T) {
 
 	time.Sleep(60 * time.Millisecond)
 	_, err = reg.Get("sess_test_1")
-	if err != ErrSessionExpired {
+	if !errors.Is(err, ErrSessionExpired) {
 		t.Fatalf("expected ErrSessionExpired for expired lease, got %v", err)
 	}
 }

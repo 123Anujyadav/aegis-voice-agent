@@ -27,8 +27,9 @@ const serviceName = "media-relay"
 const envPrefix = "CS_MEDIA_RELAY"
 
 // main is a thin wrapper around run so that deferred cleanup executes before
-// the process exits. os.Exit skips deferred functions, so calling it directly
-// from a function that owns resources is a resource leak on every shutdown.
+// the process exits. Because os.Exit skips deferred functions, calling it
+// directly from a function that owns resources is a resource leak on every
+// shutdown.
 func main() {
 	if err := run(); err != nil {
 		// Reported to stderr rather than through the logger because a failure

@@ -69,7 +69,8 @@ func (o Observation) Failed() bool {
 	if o.Error != "" {
 		return true
 	}
-	for _, s := range o.Steps {
+	for i := range o.Steps {
+		s := &o.Steps[i]
 		if s.Failed {
 			return true
 		}
@@ -81,7 +82,8 @@ func (o Observation) Failed() bool {
 // reports and heatmaps.
 func (o Observation) Outcomes() []string {
 	out := make([]string, 0, len(o.Steps))
-	for _, s := range o.Steps {
+	for i := range o.Steps {
+		s := &o.Steps[i]
 		out = append(out, s.Outcome)
 	}
 	return out
@@ -90,7 +92,8 @@ func (o Observation) Outcomes() []string {
 // EventTypes returns every event type emitted, in order.
 func (o Observation) EventTypes() []string {
 	var out []string
-	for _, s := range o.Steps {
+	for i := range o.Steps {
+		s := &o.Steps[i]
 		for _, e := range s.Events {
 			out = append(out, e.Type)
 		}
@@ -126,7 +129,8 @@ func (o Observation) behaviourCanonical() []byte {
 	b.WriteString(o.Error)
 	b.WriteByte('\n')
 
-	for _, s := range o.Steps {
+	for i := range o.Steps {
+		s := &o.Steps[i]
 		b.WriteString(s.Name)
 		b.WriteByte('|')
 		b.WriteString(s.Op)
@@ -170,7 +174,8 @@ func (o Observation) BehaviourPrint() Fingerprint {
 // The other half of the split. Latency drift is measured here and nowhere else.
 func (o Observation) Timings() map[string]time.Duration {
 	out := make(map[string]time.Duration, len(o.Steps))
-	for _, s := range o.Steps {
+	for i := range o.Steps {
+		s := &o.Steps[i]
 		out[s.Name] = s.Duration
 	}
 	return out
@@ -184,7 +189,8 @@ func (o Observation) Timings() map[string]time.Duration {
 // subject.
 func (o Observation) TotalStepTime() time.Duration {
 	var total time.Duration
-	for _, s := range o.Steps {
+	for i := range o.Steps {
+		s := &o.Steps[i]
 		total += s.Duration
 	}
 	return total
@@ -208,9 +214,10 @@ func (o Observation) MetricNames() []string {
 
 // Step returns a step observation by name.
 func (o Observation) Step(name string) (StepObservation, bool) {
-	for _, s := range o.Steps {
+	for i := range o.Steps {
+		s := &o.Steps[i]
 		if s.Name == name {
-			return s, true
+			return *s, true
 		}
 	}
 	return StepObservation{}, false
@@ -225,7 +232,8 @@ func (o Observation) Summary() string {
 	if o.Error != "" {
 		fmt.Fprintf(&b, "  ERROR: %s\n", o.Error)
 	}
-	for _, s := range o.Steps {
+	for i := range o.Steps {
+		s := &o.Steps[i]
 		marker := " "
 		if s.Failed {
 			marker = "!"
@@ -251,8 +259,9 @@ func (o Observation) Summary() string {
 func (o Observation) Clone() Observation {
 	c := o
 	c.Steps = make([]StepObservation, len(o.Steps))
-	for i, s := range o.Steps {
-		cs := s
+	for i := range o.Steps {
+		s := &o.Steps[i]
+		cs := *s
 		cs.Output = s.Output.Clone()
 		cs.State = s.State.Clone()
 		cs.Events = make([]EventRecord, len(s.Events))
