@@ -122,5 +122,10 @@ jobs:
       # easily-missed mistake. It surfaces later as a container build failure
       # (the image builds with --frozen), where the cause is far less obvious
       # than it is here.
+      #
+      # UV_FROZEN is set for the whole workflow so every install uses the lock
+      # as-is. On `uv lock` it becomes --check-exists, which uv 0.5.14 refuses
+      # alongside --check (and an empty or 0 value is refused too). It is
+      # removed for this step only; `uv lock --check` still fails on a stale lock.
       - name: Verify uv.lock matches the manifests
-        run: uv lock --check
+        run: env -u UV_FROZEN uv lock --check
