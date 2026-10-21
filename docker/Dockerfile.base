@@ -1,5 +1,7 @@
 # Multi-stage Go base build container for Aegis AI backend services
-FROM golang:1.23-alpine AS builder
+# Same exact Go patch as docker/go/Dockerfile and CI (GO-2026-6809 is fixed in
+# go1.26.10). The floating `golang:1.23-alpine` was below go.work's `go 1.25.0`.
+FROM golang:1.26.10-alpine3.23 AS builder
 
 RUN apk add --no-cache git ca-certificates tzdata
 

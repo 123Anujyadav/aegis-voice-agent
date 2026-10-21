@@ -161,13 +161,19 @@ func TestVerifyFullRefusesABadServerCertificateWithoutFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	dial, _ := PgxCredentialDialer(cfg, &fakeCreds{})
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond) // TEST bound, not D10
+	// The fake server never answers the startup message, so the dial ends only
+	// with its context. It is cancelled once the server records the handshake;
+	// a fixed 300ms dial could end first under -race on a loaded host.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // TEST bound, not D10
 	defer cancel()
-	_, _ = dial(ctx) // the fake server never answers the startup message
-	deadline := time.Now().Add(5 * time.Second)
+	dialled := make(chan struct{})
+	go func() { defer close(dialled); _, _ = dial(ctx) }()
+	deadline := time.Now().Add(10 * time.Second)
 	for handshakes.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
+	cancel()
+	<-dialled
 	if handshakes.Load() != 1 {
 		t.Error("positive control: the trusted certificate did not complete a handshake")
 	}
