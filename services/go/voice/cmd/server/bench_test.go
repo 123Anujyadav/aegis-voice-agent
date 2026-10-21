@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -615,6 +616,7 @@ func BenchmarkT10_FailurePath(b *testing.B) {
 func BenchmarkT10_ConcurrentClassification(b *testing.B) {
 	_, vi := benchBuild(b)
 	var seq atomic.Int64
+	var publish sync.Mutex
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -624,6 +626,7 @@ func BenchmarkT10_ConcurrentClassification(b *testing.B) {
 		ev := utter("please call me back on 9876543210")
 		turns, gen := 0, 0
 		var local int64
+		var last conversation.Plan
 		for pb.Next() {
 			if turns >= turnsPerSession {
 				gen++
@@ -647,11 +650,19 @@ func BenchmarkT10_ConcurrentClassification(b *testing.B) {
 				b.Errorf("speech-complete: %v", err)
 				return
 			}
-			sinkPlan = plan
+			last = plan
 			turns++
 			local++
 		}
 		benchOps.Add(local)
+		// Every worker writing the package-level sink on every
+		// iteration was a data race. Each worker keeps its own last
+		// plan and publishes it once, after its loop, under a lock:
+		// the sink still keeps the work observable, and the lock is
+		// taken once per worker, not once per operation.
+		publish.Lock()
+		sinkPlan = last
+		publish.Unlock()
 	})
 }
 
