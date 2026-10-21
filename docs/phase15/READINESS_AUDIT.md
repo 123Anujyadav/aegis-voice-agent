@@ -1902,12 +1902,12 @@ repeated here, because it changes repository settings.
 | # | Blocker | Owner of the next step |
 |---|---|---|
 | 1 | ~~Final D8 sign-off. **Provisionally accepted** (§10.12); it needs a green scheduled nightly on the exact current `main` commit, then the owner's explicit confirmation.~~ **Done 2026-10-20: D8 signed off for `e0b0c2e` only (§10.19).** Whether a closure on a later `main` needs a re-confirmation on the closure commit is an owner ruling. | owner |
-| 2 | Merge decisions for #25, #27, #30, #33 and #34 | owner |
+| 2 | ~~Merge decisions for #25, #27, #30, #33 and #34~~ **Done 2026-10-21 (§10.20):** #25, #30, #33 and #34 merged, with #9, #36, #38, #39, #41, #42, #43, #45, #46, #47, #48 and #49. Still open: #35 and #44 (owner decisions), and #27 itself. | owner |
 | 3 | The ADR-0009 outbox policy (eight questions) | owner (architecture) |
 | 4 | The fence PostgreSQL flake: unresolved, and **not an accepted risk** (owner, §10.12) | engineering: reproduction; owner: risk review |
 | 5 | The `speech` flake and the concurrent-`Speak` race: unresolved; frozen module | owner (freeze exception) |
 | 6 | The lint-policy items (`audiointel` godot, `writeJSON`, errcheck `check-blank`) and the owner-overlap modules | owner |
-| 7 | Branch protection: **done** (an active ruleset, §10.13.1). CODEOWNERS: still invalid (93 unknown owners). | owner (admin settings) |
+| 7 | Branch protection: **done** (an active ruleset, §10.13.1). ~~CODEOWNERS: still invalid (93 unknown owners).~~ **CODEOWNERS valid since #36 (2026-10-21, 0 errors), owned by the sole maintainer until teams exist (§10.20).** Creating teams remains an admin choice. | owner (admin settings) |
 | 8 | H-12, the unpublished Phase 15/16 work and the `pipeline.go` conflict | owner |
 | 9 | D9, D10, D11, `prod-global`, F-3, F-4 and F-7; INFRA-AUTH A5–A9; providers and models; Exotel mTLS | owner, external |
 
@@ -2342,3 +2342,117 @@ provisional or not signed off (the opening status, §10.12, §10.13.3 to
 
 A second scheduled run on the same commit, 39390960791 (2026-10-20, 6/6), is
 also green. It is noted here but was not cited in the sign-off.
+
+### 10.20 Closure round: merges, security fix, Docker build, D8 evidence (2026-10-20 to 2026-10-21) [V]
+
+**Authority.** The owner authorized the batch #46 → #45 → #43, then #48, #47 and
+the D8 record (§10.19) one by one. On 2026-10-21 the owner gave a Phase 15
+closure mandate: merge in-scope, reviewed PRs whose required checks pass, with
+exact-head protection, and verify `main` after every merge; no deployment,
+credentials, external providers, frozen `speech`/`telephony` edits or owner
+decisions. This section records what was done under those authorizations. It
+is an engineering record, not an owner sign-off.
+
+#### 10.20.1 Merges (squash, `--match-head-commit`; `main`'s change equals each reviewed diff)
+
+| PR | Change | Merge commit |
+|---|---|---|
+| #46 | `toolruntime` `shortReason` table (gocyclo) | `3ab4c3f` |
+| #45 | 26 read-only `rangeValCopy` fixes, 5 modules | `14724ab` |
+| #43 | fence liveness and overlap test restructure (test-only) | `501fe9e` |
+| #48 | **security:** Go 1.26.10 for GO-2026-6809 (`crypto/x509`), 4 workflows and both Go Dockerfiles | `75c161e` |
+| #47 | `runtime.NewFSM` refuses a reached state that is neither declared nor terminal, plus tests | `e810bc1` |
+| #36 | CODEOWNERS: every path owned by the sole maintainer; 0 errors (93 before) | `f5eeade` |
+| #25 | outbox: report `MarkFailed` failures instead of discarding them; package docs | `2ef49e3` |
+| #30 | `evalstore` test shadows (its real-PostgreSQL tests are skipped in CI, §10.18.3) | `4b2539b` |
+| #33 | `runtime` timer/ticker/span docs and test shadows | `10a6630` |
+| #34 | `evalsubjects` session doc comments | `58e1749` |
+| #41 | 29 mechanical lint findings in 8 modules | `de5d886` |
+| #38 | `media` and `voice` test `err` shadows | `f84a81a` |
+| #39 | benchmark data race on `sinkPlan` (benchmark-only) | `c8595fa` |
+| #42 | `ci-gate`: all-attempt job listing in small pages, every row of a name's latest attempt kept | `a240319` |
+| #49 | Docker: copy every workspace module's manifests so the Go image builds | `42088b0` |
+| #9 | `telephony-gateway` `rdsauth` STS test stabilization (F-11, F-12, F-13; test-only) | `b6bbf0e` |
+
+**Corrections to the record:**
+- **#34's squash title** still reads "telephony test shadows". Its edit to
+  `packages/go/telephony/integration_test.go` was reverted in the PR (`5365581`)
+  before the merge, because `telephony` is frozen. `58e1749` changes only the
+  two `evalsubjects` files.
+- **#41** reverted its one `packages/go/telephony/events.go` edit (`40fbb77`) for
+  the same reason and was retitled before merging. That finding stays in the
+  baseline.
+- **#39** was refreshed with the resolution of §10.17.3 (merge commit `aa59146`):
+  #38's de-indented function plus #39's four changes. The `-race` benchmark at
+  1, 4 and 8 CPUs reported 0 data races (go1.26.10 linux/amd64).
+
+#### 10.20.2 CI on `main`
+
+After every merge, `main`'s push CI was verified before the next merge:
+Aegis AI CI Pipeline and `hardening` succeeded, and `pr-go` (when its path
+filters triggered it) failed **only golangci-lint jobs**, all of them already
+failing on the previous `main`.
+- **Lint baseline:** 21 failing golangci-lint jobs until #25, then **20** (#25
+  clears `packages/go/outbox`). Total findings went 933 → 906 after #45/#46;
+  #41 and the other lint PRs reduce counts within modules that still fail.
+  **The repository is not lint-clean.**
+- **govulncheck:** 45/45 modules pass on Go 1.26.10 since #48. Before #48, 19
+  modules failed on GO-2026-6809 with the runner's cached go1.26.9.
+- **`main` after #9 (`b6bbf0e`):** `gateway-postgres` 39620036878 success (real PostgreSQL, `-race`: 141 pass, 0 fail, 0 skip); Aegis AI CI Pipeline 39620036917 and `hardening` 39620037061 success. `pr-go` 39620036711 concluded failure: 115 jobs success, 17 failure, and **5 jobs still reported `in_progress` by the API** about 16 minutes after the run was marked completed (`govulncheck` for `outbox` and `telemetry`; golangci-lint for `telephony`, `packages/go/voice` and `services/go/voice`). Those 5 are **unverified on this run**. The tree is identical to #9's tested head `03890d4` (`2f9cea5`), where both govulncheck jobs passed (45/45) and the 3 lint jobs are baseline failures; the 17 completed failures are all baseline golangci-lint jobs. A re-run of the whole workflow (never a single job, because of the 502 fragility) would settle it.
+
+#### 10.20.3 Docker image build (#49)
+
+- **Before:** every service image failed at `go mod download all`: on `e0b0c2e`
+  because the image was go1.23.5 (below `go.work`'s `go 1.25.0`); after #48
+  because only three workspace `go.mod` files were copied.
+- **Verified locally:** all 16 services built on the #49 tree based on
+  `e810bc1`; each image runs as `65534:65534` and its binary reports
+  `go1.26.10`. Re-validated on #49's final head `27123ac`: `telephony-gateway`
+  and `voice` build, same user and Go version.
+- **Limits:** an `edge-api` container ran for 6 s under `--network none` and
+  stayed up. That is a startup smoke test only, not functional evidence. No
+  image was pushed, scanned or signed; no CI workflow builds images. A CI image
+  build, image scanning and digest pinning remain follow-ups.
+
+#### 10.20.4 D8
+
+- **Signed off for `e0b0c2e` only** (§10.19). Not extended.
+- **New evidence, not a sign-off:** scheduled `hardening` run **39567372834**
+  (2026-10-21, `event=schedule`) on **`e810bc1`**: success, 6/6 jobs, the 4
+  gateway packages `ok` in `Race detector (repeated)`, no data race. It meets
+  §10.12 condition 1 **for `e810bc1` only**; `main` has moved since. Any
+  extension needs a scheduled nightly on the exact commit and the owner's
+  explicit confirmation.
+
+#### 10.20.5 PRs not merged
+
+| PR | Reason |
+|---|---|
+| #27 | this record; merged last if its checks pass |
+| #35 (CLAUDE.md) | an approval-policy document; its wording is the owner's decision. Two statements are also out of date: D8 "needs sign-off" and "do not change the CI Go version" |
+| #44 (ADR-0024, draft) | the manifest-tree architecture decision is unresolved (§B of the decision register: A1, A2, schema policy) |
+| #7 | adds a production `media` setting (`Config.SnapshotTimeout`); outside Phase 15 by owner instruction |
+| #2–#5 | Dependabot major action bumps; a CI-policy change outside Phase 15 |
+
+#### 10.20.6 Closure status: Phase 15 is NOT closed
+
+Done in this round: blocker 2 (merge decisions, except #35 and #44) and the
+CODEOWNERS part of blocker 7 (§10.11.8). Also done, though not listed as
+blockers: GO-2026-6809 fixed, the Docker image build fixed, the `ci-gate`
+job-listing defect fixed.
+
+Still blocking, unchanged and needing the owner or an external party:
+- **1:** whether D8's `e0b0c2e` sign-off suffices for closure, or a
+  re-confirmation on the closure commit is required;
+- **3:** ADR-0009 outbox policy (eight questions; #25 was question 8);
+- **4:** the fence PostgreSQL flake risk review (not an accepted risk);
+- **5:** the `speech` flake and the concurrent-`Speak` race (freeze exception);
+- **6:** lint policy C-1 to C-6 (20 failing jobs remain);
+- **8:** H-12 (D-1 to D-5) and the unpublished Phase 16 work; the conflict with
+  `main` is unchanged (4 files, 11 hunks);
+- **9:** D9, D10, D11, `prod-global`, F-3, F-4, F-7, INFRA-AUTH A5–A9, providers
+  and models (H-8), Exotel mTLS;
+- the open decisions on #35 and #44.
+
+**Readiness:** staging and Exotel production media remain **NO-GO**. Nothing
+was deployed and no credential, provider or cloud resource was used.
