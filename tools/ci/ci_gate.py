@@ -142,7 +142,7 @@ def _strip_comment(line: str) -> str:
 
 def _unquote(value: str) -> str:
     value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":  # noqa: PLR2004 - an opening and a closing quote
         return value[1:-1]
     return value
 
@@ -156,7 +156,7 @@ def _indent(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
-def parse_pull_request_trigger(workflow: str, text: str) -> Trigger | None:
+def parse_pull_request_trigger(workflow: str, text: str) -> Trigger | None:  # noqa: PLR0912 - one fail-closed parser; each branch is a YAML form
     """Return a workflow's ``pull_request`` trigger, or None if it has none.
 
     Raises UnsupportedTriggerError for any form this parser does not handle,
@@ -374,7 +374,7 @@ def _gh_text(*args: str) -> str:
     """Run ``gh api`` with retries; a persistent failure raises (fail closed)."""
     cmd = ["gh", "api", *args]
     for attempt in range(1, GH_ATTEMPTS + 1):
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)  # noqa: S603 - fixed `gh api` argv, no shell
         if proc.returncode == 0:
             return proc.stdout
         if attempt == GH_ATTEMPTS:

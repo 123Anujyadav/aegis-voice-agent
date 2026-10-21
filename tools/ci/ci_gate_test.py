@@ -15,7 +15,7 @@ import ci_gate
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 # Lines in the exact shape GitHub Actions serves a golangci-lint job log:
-# timestamp, the ##[error] annotation, then the issue (ANSI colour included).
+# timestamp, the ##[error] annotation, then the issue (ANSI colour included).  # noqa: ERA001 - prose, not code
 MAIN_LOG = "\n".join(
     [
         "2026-10-18T03:44:29.6426658Z ##[error]outbox.go:1:1: package-comments: should have a package comment (revive)",

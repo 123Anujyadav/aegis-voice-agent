@@ -136,6 +136,19 @@ ignore = [
     "ANN401",  # fixtures are legitimately typed Any
     "D103",    # test names are the documentation
 ]
+# The CI gate's own tests (tools/ci/*_test.py, exactly what ci-gate.yml runs
+# with `python3 -I -m unittest discover -p '*_test.py'`). They are standard
+# library unittest on purpose: the gate job installs nothing, so pytest's assert
+# style is not available to them. The same allowances as the tests above, plus
+# the unittest equivalents; ci_gate.py itself is not covered.
+"tools/ci/*_test.py" = [
+    "S101",    # assert is the point of a test
+    "SLF001",  # tests may inspect private state to verify invariants
+    "ARG002",  # in-memory fakes implement the real method signatures
+    "D102",    # test names are the documentation (as D103 above)
+    "PT009",   # unittest's self.assert*: pytest is not installed in the gate job
+    "PT027",   # unittest's assertRaises, for the same reason
+]
 # Entrypoints re-export for the console script; that is their purpose.
 "**/__main__.py" = ["D100"]
 # tools/audio-fixtures is a command-line analysis script for Phase 11D. Printing
