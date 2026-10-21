@@ -226,5 +226,6 @@ checksums. A license review of these dependencies has not been done: section
 applies now and remains open.
 
 Related controls added on 2026-10-21: CI secret scanning (`pr-security.yml`,
-#50), Gradle wrapper verification (`pr-android-wrapper.yml`, #54) and the
-Python lock audit (`python-deps-audit.yml`, #55).
+#50), Gradle wrapper verification (`pr-android-wrapper.yml`, #54), the Python
+lock audit (`python-deps-audit.yml`, #55) and workflow linting
+(`workflow-lint.yml`, #57).
