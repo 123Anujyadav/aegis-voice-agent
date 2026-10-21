@@ -100,6 +100,8 @@ jobs:
         run: |
           left="$(docker ps -aq --filter name=cs-gwpg-)"
           if [ -n "$left" ]; then
+            # One container ID per word: the split is intended.
+            # shellcheck disable=SC2086
             docker rm -f $left >/dev/null
             echo "::error::the throwaway PostgreSQL container was left behind and has been removed"
             exit 1

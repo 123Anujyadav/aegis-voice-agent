@@ -163,6 +163,8 @@ jobs:
             # Capture rather than stream-and-discard: a WARNING: DATA RACE block
             # is the artifact somebody needs to read, and scrolling a CI console
             # is not reading it.
+            # ${flags} holds several go test flags; it is split on purpose.
+            # shellcheck disable=SC2086
             (cd "${m}" && go test ${flags} ./... 2>&1) | tee "${log}" || failed="${failed} ${m}"
             echo "::endgroup::"
           done
@@ -251,10 +253,12 @@ jobs:
             echo "::endgroup::"
           done
 
-          echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          cat "${summary}" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Coverage"
+            echo '```'
+            cat "${summary}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
           if [ -n "${failed}" ]; then
             echo "::error::modules failing under coverage:${failed}"
@@ -361,8 +365,6 @@ jobs:
         run: |
           set -euo pipefail
           deps=$(go list -deps ./... | grep callscreen | grep -v '/evaluation$' || true)
-          expected="github.com/callscreen/callscreen-platform/packages/go/metrics
-          github.com/callscreen/callscreen-platform/packages/go/runtime"
           for d in ${deps}; do
             case "${d}" in
               */packages/go/runtime|*/packages/go/metrics) ;;
