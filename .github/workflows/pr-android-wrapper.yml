@@ -1,0 +1,55 @@
+# =============================================================================
+# Gradle wrapper verification.
+#
+# android/gradle/wrapper/gradle-wrapper.jar is a binary that every Android
+# build executes first, and a pull request can replace it in a diff nobody can
+# read. tools/ci/check_gradle_wrapper.py proves the committed jar, and the
+# distribution it downloads, match the checksums Gradle publishes for the
+# declared version. Standard library only; it fails closed if Gradle's
+# checksums cannot be read.
+#
+# Runs on every change to the wrapper, the scripts that launch it, the check
+# itself and this workflow, and on main after such a change lands.
+# =============================================================================
+name: pr-android-wrapper
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/gradle/wrapper/**"
+      - "android/gradlew"
+      - "android/gradlew.bat"
+      - "tools/ci/check_gradle_wrapper.py"
+      - "tools/ci/check_gradle_wrapper_test.py"
+      - ".github/workflows/pr-android-wrapper.yml"
+  pull_request:
+    paths:
+      - "android/gradle/wrapper/**"
+      - "android/gradlew"
+      - "android/gradlew.bat"
+      - "tools/ci/check_gradle_wrapper.py"
+      - "tools/ci/check_gradle_wrapper_test.py"
+      - ".github/workflows/pr-android-wrapper.yml"
+  merge_group:
+
+concurrency:
+  group: pr-android-wrapper-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  wrapper:
+    name: Gradle wrapper matches Gradle's checksums
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify the wrapper jar and distribution checksum
+        run: python3 -I tools/ci/check_gradle_wrapper.py android
