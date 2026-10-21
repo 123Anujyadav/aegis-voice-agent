@@ -225,7 +225,8 @@ func (r *ModelRegistry) SetFallback(from, to ModelID) error {
 	}
 	if from == to {
 		return &ConfigError{Problems: []string{
-			fmt.Sprintf("model %s: fallback cannot be itself", from)}}
+			fmt.Sprintf("model %s: fallback cannot be itself", from),
+		}}
 	}
 	// Reject a cycle at configuration time. A fallback loop is a hang, and a
 	// hang on the screening path is a dropped call.
@@ -233,7 +234,8 @@ func (r *ModelRegistry) SetFallback(from, to ModelID) error {
 	for cur := to; ; {
 		if seen[cur] {
 			return &ConfigError{Problems: []string{
-				fmt.Sprintf("model %s: fallback chain forms a cycle at %s", from, cur)}}
+				fmt.Sprintf("model %s: fallback chain forms a cycle at %s", from, cur),
+			}}
 		}
 		seen[cur] = true
 		next, ok := r.fallback[cur]

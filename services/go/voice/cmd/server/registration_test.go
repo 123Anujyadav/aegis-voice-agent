@@ -13,6 +13,7 @@ import (
 
 	"github.com/callscreen/callscreen-platform/packages/go/conversation"
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
+	"github.com/callscreen/callscreen-platform/packages/go/voiceintel"
 )
 
 // Phase 14 T3 — real service construction and registration.
@@ -93,39 +94,67 @@ func waitFor(d time.Duration, cond func() bool) bool {
 	return cond()
 }
 
-// freePort reserves an ephemeral port and releases it, so the health listener
-// has somewhere to bind without colliding with a parallel test.
-func freePort(t *testing.T) int {
+// freePorts reserves n distinct ephemeral ports and then releases them, so a
+// service has somewhere to bind each of its listeners.
+//
+// Every listener stays open until all n ports are known. Reserving them one at
+// a time, releasing each before the next, let the OS hand the same port out
+// twice. Config validation then refused the pair ("HTTP_PORT and HEALTH_PORT
+// must differ"), which failed TestT9_FreshRunningServiceSignatureIsStable in
+// hardening's repeated race job on main a51504a (run 39056746543). That test
+// starts 20 services, so it drew 20 pairs per run.
+//
+// Ports are still released before the service binds them, so another process
+// could take one in between. That is inherent to choosing ports in advance;
+// what this removes is a collision within the pair itself.
+func freePorts(t *testing.T, n int) []int {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserve port: %v", err)
+	ports := make([]int, n)
+	listeners := make([]net.Listener, 0, n)
+	for i := range ports {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("reserve port: %v", err)
+		}
+		listeners = append(listeners, l)
+		ports[i] = l.Addr().(*net.TCPAddr).Port
 	}
-	port := l.Addr().(*net.TCPAddr).Port
-	if err := l.Close(); err != nil {
-		t.Fatalf("release port: %v", err)
+	for _, l := range listeners {
+		if err := l.Close(); err != nil {
+			t.Fatalf("release port: %v", err)
+		}
 	}
-	return port
+	return ports
 }
 
 // runningService builds the service exactly as run() does, starts it, and
 // returns once platform reports it ready. The caller cancels to stop it.
 func runningService(t *testing.T) (*logSink, *voiceIntelligence, context.CancelFunc, <-chan error) {
 	t.Helper()
+	return runningServiceWith(t)
+}
+
+// runningServiceWith is runningService with options passed through buildService
+// to voiceintel.New. With none it is runningService exactly; T9 passes a
+// controlled clock (see deterministicService in determinism_test.go).
+func runningServiceWith(t *testing.T, opts ...voiceintel.Option) (
+	*logSink, *voiceIntelligence, context.CancelFunc, <-chan error,
+) {
+	t.Helper()
 
 	sink := &logSink{}
 	logger := slog.New(slog.NewJSONHandler(sink, nil))
 
 	cfg := testConfig()
-	cfg.HTTPPort = freePort(t)
-	cfg.HealthPort = freePort(t)
+	ports := freePorts(t, 2)
+	cfg.HTTPPort, cfg.HealthPort = ports[0], ports[1]
 	// Short, so the drain delay (ShutdownTimeout/5) does not dominate the test.
 	cfg.ShutdownTimeout = time.Second
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("config invalid: %v", err)
 	}
 
-	svc, vi, err := buildService(cfg, logger, platform.NewHealth(cfg))
+	svc, vi, err := buildService(cfg, logger, platform.NewHealth(cfg), opts...)
 	if err != nil {
 		t.Fatalf("buildService: %v", err)
 	}
@@ -212,7 +241,8 @@ func TestT3_LiveServiceResolvesANonFallbackIntent(t *testing.T) {
 	plan, err := p.Handle(conversation.Event{
 		Kind: conversation.EventUtterance,
 		Utterance: conversation.Utterance{
-			Text: "transfer me to rajesh", ASRConfidence: 0.95},
+			Text: "transfer me to rajesh", ASRConfidence: 0.95,
+		},
 		Party: conversation.PartyCaller,
 	})
 	if err != nil {

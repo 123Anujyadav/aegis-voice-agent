@@ -80,8 +80,10 @@ func NewMetrics() *Metrics {
 	// millisecond has already failed its purpose — the conversation engine
 	// budgets 15 ms for its entire context stage (Phase 10B), and memory is
 	// one part of that.
-	fast := []float64{1e-6, 5e-6, 1e-5, 2.5e-5, 5e-5, 1e-4, 2.5e-4, 5e-4,
-		1e-3, 5e-3, 0.025, 0.1}
+	fast := []float64{
+		1e-6, 5e-6, 1e-5, 2.5e-5, 5e-5, 1e-4, 2.5e-4, 5e-4,
+		1e-3, 5e-3, 0.025, 0.1,
+	}
 
 	// Sweeps run on a timer and may take milliseconds without harm.
 	slow := []float64{1e-4, 5e-4, 1e-3, 5e-3, 0.01, 0.05, 0.1, 0.5, 1, 5}

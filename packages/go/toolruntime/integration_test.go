@@ -74,13 +74,17 @@ func TestIntegration_SequentialStepsBindOutputsForward(t *testing.T) {
 		return Result{"answer": String("done")}, nil
 	}})
 
-	intent := ToolIntent{ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
+	intent := ToolIntent{
+		ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
 		Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "a", Capability: "lookup", Version: AnyVersion(), Args: Arguments{"query": String("x")}},
-			{Ref: "b", Capability: "enrich", Version: AnyVersion(),
-				Bindings: []Binding{{FromRef: "a", FromField: "answer", ToArg: "query", Required: true}}},
-		}}
+			{
+				Ref: "b", Capability: "enrich", Version: AnyVersion(),
+				Bindings: []Binding{{FromRef: "a", FromField: "answer", ToArg: "query", Required: true}},
+			},
+		},
+	}
 
 	res := mustExecute(t, h, intent)
 	if !res.OK() {
@@ -117,11 +121,13 @@ func TestIntegration_ParallelStepsRunConcurrently(t *testing.T) {
 
 	h.Register(ReadContract("t", "1.0.0", "cap"), &FakeTool{Produce: probe})
 
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "a", Capability: "cap", Version: AnyVersion(), Args: Arguments{"query": String("a")}},
 			{Ref: "b", Capability: "cap", Version: AnyVersion(), Args: Arguments{"query": String("b")}},
-		}}
+		},
+	}
 
 	res := mustExecute(t, h, intent)
 	if !res.OK() {
@@ -148,11 +154,13 @@ func TestIntegration_ParallelWaitsForEveryBranchEvenAfterAFailure(t *testing.T) 
 	h.Register(ReadContract("slow", "1.0.0", "slow"), slow)
 	h.Register(ReadContract("fail", "1.0.0", "fail"), failing)
 
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "s", Capability: "slow", Version: AnyVersion(), Args: Arguments{"query": String("s")}},
 			{Ref: "f", Capability: "fail", Version: AnyVersion(), Args: Arguments{"query": String("f")}},
-		}}
+		},
+	}
 
 	res, _ := h.Runtime.Execute(context.Background(), intent)
 	if res.OK() {
@@ -184,13 +192,17 @@ func TestIntegration_ConditionalSkipsWithoutFailing(t *testing.T) {
 	h.Register(ReadContract("gate", "1.0.0", "gate"), gate)
 	h.Register(ReadContract("guarded", "1.0.0", "guarded"), guarded)
 
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "g", Capability: "gate", Version: AnyVersion(), Args: Arguments{"query": String("q")}},
-			{Ref: "x", Capability: "guarded", Version: AnyVersion(), Args: Arguments{"query": String("q")},
+			{
+				Ref: "x", Capability: "guarded", Version: AnyVersion(), Args: Arguments{"query": String("q")},
 				DependsOn: []string{"g"},
-				Condition: &Condition{FromRef: "g", Field: "answer", Op: CondEquals, Value: String("yes")}},
-		}}
+				Condition: &Condition{FromRef: "g", Field: "answer", Op: CondEquals, Value: String("yes")},
+			},
+		},
+	}
 
 	res := mustExecute(t, h, intent)
 	if !res.OK() {
@@ -220,9 +232,13 @@ func TestIntegration_FallbackUsesTheNextCandidate(t *testing.T) {
 	h.RegisterAt(ReadContract("primary", "1.0.0", "cap"), broken, LifecycleActive, HealthHealthy, 10)
 	h.RegisterAt(ReadContract("secondary", "1.0.0", "cap"), working, LifecycleActive, HealthHealthy, 1)
 
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
-		Requests: []CapabilityRequest{{Ref: "f", Capability: "cap", Version: AnyVersion(),
-			Args: Arguments{"query": String("q")}, Fallback: true}}}
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+		Requests: []CapabilityRequest{{
+			Ref: "f", Capability: "cap", Version: AnyVersion(),
+			Args: Arguments{"query": String("q")}, Fallback: true,
+		}},
+	}
 
 	res := mustExecute(t, h, intent)
 	if !res.OK() {
@@ -243,12 +259,16 @@ func TestIntegration_OptionalStepFailureDoesNotFailThePlan(t *testing.T) {
 	h.Register(ReadContract("core", "1.0.0", "core"), &FakeTool{})
 	h.Register(ReadContract("enrich", "1.0.0", "enrich"), &FakeTool{FailAlways: true})
 
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "c", Capability: "core", Version: AnyVersion(), Args: Arguments{"query": String("q")}},
-			{Ref: "e", Capability: "enrich", Version: AnyVersion(), Args: Arguments{"query": String("q")},
-				Optional: true},
-		}}
+			{
+				Ref: "e", Capability: "enrich", Version: AnyVersion(), Args: Arguments{"query": String("q")},
+				Optional: true,
+			},
+		},
+	}
 
 	res := mustExecute(t, h, intent)
 	if !res.OK() {
@@ -409,10 +429,14 @@ func TestIntegration_MutatingCallIsNotRepeatedForOneCorrelation(t *testing.T) {
 
 	corr := NewCorrelationID()
 	intent := func() ToolIntent {
-		return ToolIntent{ID: NewIntentID(), Correlation: corr, Actor: "a",
+		return ToolIntent{
+			ID: NewIntentID(), Correlation: corr, Actor: "a",
 			Grant: Grant{Actor: "a"},
-			Requests: []CapabilityRequest{{Ref: "b", Capability: "book", Version: AnyVersion(),
-				Args: Arguments{"subject": String("table-for-two")}}}}
+			Requests: []CapabilityRequest{{
+				Ref: "b", Capability: "book", Version: AnyVersion(),
+				Args: Arguments{"subject": String("table-for-two")},
+			}},
+		}
 	}
 
 	first := mustExecute(t, h, intent())
@@ -439,10 +463,14 @@ func TestIntegration_ADifferentTurnIsNotDeduplicated(t *testing.T) {
 	h.Register(WriteContract("booker", "1.0.0", "book"), tool)
 
 	for i := 0; i < 2; i++ {
-		mustExecute(t, h, ToolIntent{ID: NewIntentID(), Correlation: NewCorrelationID(),
+		mustExecute(t, h, ToolIntent{
+			ID: NewIntentID(), Correlation: NewCorrelationID(),
 			Actor: "a", Grant: Grant{Actor: "a"},
-			Requests: []CapabilityRequest{{Ref: "b", Capability: "book", Version: AnyVersion(),
-				Args: Arguments{"subject": String("same")}}}})
+			Requests: []CapabilityRequest{{
+				Ref: "b", Capability: "book", Version: AnyVersion(),
+				Args: Arguments{"subject": String("same")},
+			}},
+		})
 	}
 
 	if tool.Calls() != 2 {
@@ -460,10 +488,14 @@ func TestIntegration_ReadsAreNotDeduplicatedByDefault(t *testing.T) {
 
 	corr := NewCorrelationID()
 	for i := 0; i < 3; i++ {
-		mustExecute(t, h, ToolIntent{ID: NewIntentID(), Correlation: corr, Actor: "a",
+		mustExecute(t, h, ToolIntent{
+			ID: NewIntentID(), Correlation: corr, Actor: "a",
 			Grant: Grant{Actor: "a"},
-			Requests: []CapabilityRequest{{Ref: "r", Capability: "cap", Version: AnyVersion(),
-				Args: Arguments{"query": String("is the slot free")}}}})
+			Requests: []CapabilityRequest{{
+				Ref: "r", Capability: "cap", Version: AnyVersion(),
+				Args: Arguments{"query": String("is the slot free")},
+			}},
+		})
 	}
 
 	if tool.Calls() != 3 {
@@ -483,10 +515,14 @@ func TestIntegration_PermissionDenialDoesNotPoisonTheKey(t *testing.T) {
 
 	corr := NewCorrelationID()
 	build := func(perms ...Permission) ToolIntent {
-		return ToolIntent{ID: NewIntentID(), Correlation: corr, Actor: "a",
+		return ToolIntent{
+			ID: NewIntentID(), Correlation: corr, Actor: "a",
 			Grant: Grant{Actor: "a", Permissions: perms},
-			Requests: []CapabilityRequest{{Ref: "b", Capability: "book", Version: AnyVersion(),
-				Args: Arguments{"subject": String("s")}}}}
+			Requests: []CapabilityRequest{{
+				Ref: "b", Capability: "book", Version: AnyVersion(),
+				Args: Arguments{"subject": String("s")},
+			}},
+		}
 	}
 
 	denied, _ := h.Runtime.Execute(context.Background(), build())
@@ -534,15 +570,21 @@ func TestIntegration_FailedPlanRollsBackInReverseOrder(t *testing.T) {
 	second.Produce = func(Invocation) (Result, error) { return Result{"reference": String("r2")}, nil }
 	first.CompensateErr, second.CompensateErr = nil, nil
 
-	intent := ToolIntent{ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
+	intent := ToolIntent{
+		ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
 		Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "a", Capability: "one", Version: AnyVersion(), Args: Arguments{"subject": String("a")}},
-			{Ref: "b", Capability: "two", Version: AnyVersion(), Args: Arguments{"subject": String("b")},
-				DependsOn: []string{"a"}},
-			{Ref: "c", Capability: "three", Version: AnyVersion(), Args: Arguments{"subject": String("c")},
-				DependsOn: []string{"b"}},
-		}}
+			{
+				Ref: "b", Capability: "two", Version: AnyVersion(), Args: Arguments{"subject": String("b")},
+				DependsOn: []string{"a"},
+			},
+			{
+				Ref: "c", Capability: "three", Version: AnyVersion(), Args: Arguments{"subject": String("c")},
+				DependsOn: []string{"b"},
+			},
+		},
+	}
 
 	res, _ := h.Runtime.Execute(context.Background(), intent)
 	if res.OK() {
@@ -579,13 +621,17 @@ func TestIntegration_CompensationFailureReplacesTheOriginalError(t *testing.T) {
 	failing.Retry = RetrySpec{MaxAttempts: 1}
 	h.Register(failing, &WriteFake{FakeTool: FakeTool{FailAlways: true}})
 
-	intent := ToolIntent{ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
+	intent := ToolIntent{
+		ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
 		Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "a", Capability: "one", Version: AnyVersion(), Args: Arguments{"subject": String("a")}},
-			{Ref: "b", Capability: "two", Version: AnyVersion(), Args: Arguments{"subject": String("b")},
-				DependsOn: []string{"a"}},
-		}}
+			{
+				Ref: "b", Capability: "two", Version: AnyVersion(), Args: Arguments{"subject": String("b")},
+				DependsOn: []string{"a"},
+			},
+		},
+	}
 
 	res, _ := h.Runtime.Execute(context.Background(), intent)
 	if !errors.Is(res.Err, ErrCompensationFailed) {
@@ -611,13 +657,17 @@ func TestIntegration_NonCompensableWorkIsReportedAsSkipped(t *testing.T) {
 	failing.Retry = RetrySpec{MaxAttempts: 1}
 	h.Register(failing, &WriteFake{FakeTool: FakeTool{FailAlways: true}})
 
-	intent := ToolIntent{ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
+	intent := ToolIntent{
+		ID: NewIntentID(), Correlation: NewCorrelationID(), Actor: "a",
 		Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "a", Capability: "one", Version: AnyVersion(), Args: Arguments{"subject": String("a")}},
-			{Ref: "b", Capability: "two", Version: AnyVersion(), Args: Arguments{"subject": String("b")},
-				DependsOn: []string{"a"}},
-		}}
+			{
+				Ref: "b", Capability: "two", Version: AnyVersion(), Args: Arguments{"subject": String("b")},
+				DependsOn: []string{"a"},
+			},
+		},
+	}
 
 	res, _ := h.Runtime.Execute(context.Background(), intent)
 	if res.Compensation == nil {
@@ -640,12 +690,16 @@ func TestIntegration_ReadOnlyStepsAreNotJournalled(t *testing.T) {
 	failing.Retry = RetrySpec{MaxAttempts: 1}
 	h.Register(failing, &FakeTool{FailAlways: true})
 
-	intent := ToolIntent{ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
+	intent := ToolIntent{
+		ID: NewIntentID(), Actor: "a", Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{
 			{Ref: "r", Capability: "read", Version: AnyVersion(), Args: Arguments{"query": String("q")}},
-			{Ref: "f", Capability: "fail", Version: AnyVersion(), Args: Arguments{"query": String("q")},
-				DependsOn: []string{"r"}},
-		}}
+			{
+				Ref: "f", Capability: "fail", Version: AnyVersion(), Args: Arguments{"query": String("q")},
+				DependsOn: []string{"r"},
+			},
+		},
+	}
 
 	res, _ := h.Runtime.Execute(context.Background(), intent)
 	if res.Compensation != nil {
@@ -793,8 +847,10 @@ func TestFailure_QueueFullShedsRatherThanQueueing(t *testing.T) {
 	t.Parallel()
 
 	cfg := DefaultConfig()
-	cfg.Scheduler = SchedulerConfig{MaxConcurrent: 1, MaxQueuedInteractive: 0,
-		MaxQueuedBackground: 0, MaxQueuedBulk: 0, StarvationRatio: 4}
+	cfg.Scheduler = SchedulerConfig{
+		MaxConcurrent: 1, MaxQueuedInteractive: 0,
+		MaxQueuedBackground: 0, MaxQueuedBulk: 0, StarvationRatio: 4,
+	}
 	h, err := NewHarness(WithHarnessConfig(cfg))
 	if err != nil {
 		t.Fatal(err)
@@ -827,9 +883,13 @@ func TestIntegration_CoordinatorCancelsAWholeCorrelation(t *testing.T) {
 	h.Register(ReadContract("blocking", "1.0.0", "cap"), blocker)
 
 	corr := NewCorrelationID()
-	intent := ToolIntent{ID: NewIntentID(), Correlation: corr, Actor: "a", Grant: Grant{Actor: "a"},
-		Requests: []CapabilityRequest{{Ref: "b", Capability: "cap", Version: AnyVersion(),
-			Args: Arguments{"query": String("q")}}}}
+	intent := ToolIntent{
+		ID: NewIntentID(), Correlation: corr, Actor: "a", Grant: Grant{Actor: "a"},
+		Requests: []CapabilityRequest{{
+			Ref: "b", Capability: "cap", Version: AnyVersion(),
+			Args: Arguments{"query": String("q")},
+		}},
+	}
 
 	done := make(chan PlanResult, 1)
 	go func() {
@@ -927,8 +987,11 @@ func TestStress_ConcurrentDuplicatesInvokeTheToolOnce(t *testing.T) {
 			<-start
 			res, _ := h.Runtime.Execute(context.Background(), ToolIntent{
 				ID: NewIntentID(), Correlation: corr, Actor: "a", Grant: Grant{Actor: "a"},
-				Requests: []CapabilityRequest{{Ref: "b", Capability: "book", Version: AnyVersion(),
-					Args: Arguments{"subject": String("one-booking")}}}})
+				Requests: []CapabilityRequest{{
+					Ref: "b", Capability: "book", Version: AnyVersion(),
+					Args: Arguments{"subject": String("one-booking")},
+				}},
+			})
 			refs[i], _ = res.Results["b"]["reference"].Str()
 		}(i)
 	}
@@ -963,8 +1026,10 @@ func TestStress_RegistryChurnDuringExecution(t *testing.T) {
 			default:
 			}
 			c := ReadContract("t", Version(fmt.Sprintf("1.0.%d", i%50)), "cap")
-			_ = h.Runtime.Registry().Register(Registration{Contract: c, Tool: &FakeTool{},
-				Lifecycle: LifecycleActive, Health: HealthHealthy})
+			_ = h.Runtime.Registry().Register(Registration{
+				Contract: c, Tool: &FakeTool{},
+				Lifecycle: LifecycleActive, Health: HealthHealthy,
+			})
 		}
 	}()
 
@@ -1034,9 +1099,11 @@ func TestIntegration_HealthReportAnswersTheIncidentQuestions(t *testing.T) {
 	h.RegisterAt(ReadContract("good", "1.0.0", "cap"), &FakeTool{}, LifecycleActive, HealthHealthy, 5)
 	h.RegisterAt(ReadContract("bad", "1.0.0", "cap"), &FakeTool{}, LifecycleActive, HealthUnhealthy, 1)
 
-	if err := h.Runtime.Permissions().AddOverride(Override{Name: "incident-42",
+	if err := h.Runtime.Permissions().AddOverride(Override{
+		Name:        "incident-42",
 		Permissions: []Permission{"tool.anything"}, ExpiresAt: h.Clock.Now().Add(time.Hour),
-		AuthorisedBy: "oncall", Reason: "outage"}); err != nil {
+		AuthorisedBy: "oncall", Reason: "outage",
+	}); err != nil {
 		t.Fatal(err)
 	}
 

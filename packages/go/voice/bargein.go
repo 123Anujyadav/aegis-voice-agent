@@ -99,6 +99,43 @@ var _ audiointel.SpeechController = (*audiobridge.Adapter)(nil)
 func (c *interruptController) Interrupt(ctx context.Context, reason string) error {
 	p := c.p
 
+	if err := c.take(ctx, reason); err != nil {
+		return err
+	}
+
+	c.delivered.Add(1)
+	p.m.StaleChunksBlocked.Add(0) // registers the series even at zero
+	p.publish(VoiceEvent{
+		Type:    EventBargeIn,
+		Session: p.cfg.Session,
+		Turn:    p.cfg.FSM.Turn(),
+		Call:    p.cfg.Call,
+		Reason:  ReasonBargeIn,
+		At:      p.clock.Now(),
+	})
+	return nil
+}
+
+// take is the interruption itself, from the floor check to the floor being the
+// caller's.
+//
+// # Under the floor lock, end to end
+//
+// The turn goroutine hands the floor back on its own when a response ends, and
+// it decides to by checking the generation. Without the lock, this check and
+// that one interleaved: the turn could return the session to listening after
+// the check below passed, and the transition here was then refused — with the
+// generation already bumped and no interruption delivered. Holding [Pipeline.floor]
+// makes the floor check, the bump and both transitions one step as far as the
+// turn goroutine can see.
+//
+// Nothing here waits on the turn goroutine, so it cannot be waiting for us.
+func (c *interruptController) take(ctx context.Context, reason string) error {
+	p := c.p
+
+	p.floor.Lock()
+	defer p.floor.Unlock()
+
 	// The same precondition Phase 11C applies, asked of this pipeline's own
 	// state. A caller talking while we are listening is not interrupting —
 	// their audio already belongs to the live turn, and cancelling would throw
@@ -107,14 +144,14 @@ func (c *interruptController) Interrupt(ctx context.Context, reason string) erro
 	// audiointel applies its own agent-speaking gate before calling here, so
 	// the two normally agree; this catches the window where the turn moved on
 	// in between.
-	if !p.cfg.FSM.State().AgentHoldsFloor() {
+	if state := p.cfg.FSM.State(); !state.AgentHoldsFloor() {
 		c.refusedByFloor.Add(1)
 		return fmt.Errorf("%w: the agent does not hold the floor (%s); there is "+
-			"no speech to interrupt", ErrInvalidTransition, p.cfg.FSM.State())
+			"no speech to interrupt", ErrInvalidTransition, state)
 	}
 
 	// FIRST, before anything that can block. See the file comment.
-	generation := p.generation.Add(1)
+	p.generation.Add(1)
 
 	// Phase 11C's cancellation, through the existing adapter. THE existing
 	// mechanism, not a parallel one.
@@ -134,23 +171,7 @@ func (c *interruptController) Interrupt(ctx context.Context, reason string) erro
 	if err := p.cfg.FSM.To(ctx, StateInterrupted, ReasonBargeIn); err != nil {
 		return err
 	}
-	if err := p.cfg.FSM.To(ctx, StateListening, ReasonBargeIn); err != nil {
-		return err
-	}
-
-	c.delivered.Add(1)
-	p.m.StaleChunksBlocked.Add(0) // registers the series even at zero
-	p.publish(VoiceEvent{
-		Type:    EventBargeIn,
-		Session: p.cfg.Session,
-		Turn:    p.cfg.FSM.Turn(),
-		Call:    p.cfg.Call,
-		Reason:  ReasonBargeIn,
-		At:      p.clock.Now(),
-	})
-
-	_ = generation
-	return nil
+	return p.cfg.FSM.To(ctx, StateListening, ReasonBargeIn)
 }
 
 // EndOfSpeech forwards the endpoint to Phase 11C.

@@ -74,8 +74,10 @@ func (s State) Terminal() bool { return s == StateDeleted }
 
 // AllStates returns every state, in declaration order.
 func AllStates() []State {
-	return []State{StateActive, StateExpired, StateArchived, StateRedacted,
-		StateDeleted, StatePendingErasure, StateCorrupt}
+	return []State{
+		StateActive, StateExpired, StateArchived, StateRedacted,
+		StateDeleted, StatePendingErasure, StateCorrupt,
+	}
 }
 
 // lifecycleTable declares every legal state transition.

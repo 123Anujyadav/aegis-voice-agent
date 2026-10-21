@@ -218,6 +218,8 @@ func (s *memorySession) record(kind string) {
 	s.events = append(s.events, ev.EventRecord{Type: kind})
 }
 
+// State reports the assistant store's record count and how many records
+// this session stored.
 func (s *memorySession) State() ev.Values {
 	return ev.Values{
 		"records": ev.N(float64(s.h.Assistant().Store.Count())),
@@ -225,10 +227,12 @@ func (s *memorySession) State() ev.Values {
 	}
 }
 
+// Events returns the events recorded since the last call, then clears them.
 func (s *memorySession) Events() []ev.EventRecord {
 	out := s.events
 	s.events = nil
 	return out
 }
 
+// Close stops the memory runtime.
 func (s *memorySession) Close() error { return s.h.Runtime.Stop() }

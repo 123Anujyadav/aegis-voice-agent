@@ -56,8 +56,10 @@ func (k SuiteKind) String() string {
 
 // AllSuiteKinds returns every kind, in declaration order.
 func AllSuiteKinds() []SuiteKind {
-	return []SuiteKind{KindEvaluation, KindGolden, KindBenchmark, KindRegression,
-		KindAcceptance, KindCompliance}
+	return []SuiteKind{
+		KindEvaluation, KindGolden, KindBenchmark, KindRegression,
+		KindAcceptance, KindCompliance,
+	}
 }
 
 // Gating reports whether a failure in this suite should stop a release.

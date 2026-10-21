@@ -1,3 +1,8 @@
+// Command server is the entrypoint for the family service.
+//
+// It loads configuration, then runs structured logging, the health endpoints
+// and the platform service lifecycle until SIGTERM or an interrupt. No domain
+// behaviour is implemented here yet.
 package main
 
 import (
@@ -9,8 +14,10 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 )
 
-const serviceName = "family"
-const envPrefix = "CS_FAMILY"
+const (
+	serviceName = "family"
+	envPrefix   = "CS_FAMILY"
+)
 
 func main() {
 	if err := run(); err != nil {

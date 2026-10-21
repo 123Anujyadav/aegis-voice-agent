@@ -179,16 +179,20 @@ func transitionSpec() map[CallState][]CallState {
 		// Rejection still requires teardown.
 		StateRejected: {StateEnded, StateFailed},
 
-		StateConnected: {StateMuted, StateHold, StateTransferred, StateEscalated,
-			StateEnded, StateFailed, StateTimeout},
+		StateConnected: {
+			StateMuted, StateHold, StateTransferred, StateEscalated,
+			StateEnded, StateFailed, StateTimeout,
+		},
 
 		// A muted call cannot be transferred without first unmuting. Transfer
 		// with suppressed audio hands the far end a silent leg, and the
 		// operator cannot tell that from a broken one.
 		StateMuted: {StateConnected, StateHold, StateEnded, StateFailed, StateTimeout},
 
-		StateHold: {StateConnected, StateMuted, StateTransferred, StateEnded,
-			StateFailed, StateTimeout},
+		StateHold: {
+			StateConnected, StateMuted, StateTransferred, StateEnded,
+			StateFailed, StateTimeout,
+		},
 
 		// Once handed off, this runtime's involvement ends one way or another.
 		StateTransferred: {StateEnded, StateFailed},

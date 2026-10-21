@@ -586,7 +586,7 @@ func TestT8_FreshSessionsDuringConcurrentLoad(t *testing.T) {
 				{Kind: conversation.EventStart},
 				{Kind: conversation.EventGreetingComplete},
 			} {
-				if _, err := p.Handle(e); err != nil {
+				if _, err = p.Handle(e); err != nil {
 					fail("%s: %v: %v", id, e.Kind, err)
 					return
 				}

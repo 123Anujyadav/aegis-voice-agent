@@ -11,94 +11,99 @@
 # NOTE FOR BOOTSTRAP: teams below must exist in the GitHub org before branch
 # protection can enforce this file. Until the org is provisioned, replace team
 # handles with individual @usernames. The structure does not change.
+#
+# BOOTSTRAP APPLIED: the @callscreen teams do not exist yet (GitHub reported
+# every one as an unknown owner), so each pattern is owned by @123Anujyadav.
+# The trailing "# teams:" comment keeps each pattern's intended teams; restore
+# them as "@callscreen/<team>" handles once the organisation provides them.
 # =============================================================================
 
 # --- Default owner for anything not matched below ---------------------------
-*                                   @callscreen/platform
+*                                   @123Anujyadav  # teams: platform
 
 # --- Repository-wide engineering policy -------------------------------------
 # Changing conventions, gates, or the build contract requires architecture review.
-/.editorconfig                      @callscreen/platform @callscreen/architecture
-/.gitattributes                     @callscreen/platform
-/Taskfile.yml                       @callscreen/platform
-/.pre-commit-config.yaml            @callscreen/platform
-/commitlint.config.mjs              @callscreen/platform
-/renovate.json5                     @callscreen/platform
-/package.json                       @callscreen/platform
+/.editorconfig                      @123Anujyadav  # teams: platform, architecture
+/.gitattributes                     @123Anujyadav  # teams: platform
+/Taskfile.yml                       @123Anujyadav  # teams: platform
+/.pre-commit-config.yaml            @123Anujyadav  # teams: platform
+/commitlint.config.mjs              @123Anujyadav  # teams: platform
+/renovate.json5                     @123Anujyadav  # teams: platform
+/package.json                       @123Anujyadav  # teams: platform
 
 # --- CI/CD: changes here can bypass quality gates ---------------------------
-/.github/                           @callscreen/platform
-/.github/workflows/                 @callscreen/platform @callscreen/security
-/.github/CODEOWNERS                 @callscreen/architecture
+/.github/                           @123Anujyadav  # teams: platform
+/.github/workflows/                 @123Anujyadav  # teams: platform, security
+/.github/CODEOWNERS                 @123Anujyadav  # teams: architecture
 
 # --- Contracts: THE integration boundary ------------------------------------
 # Owned by architecture, not by any single consuming service. A breaking change
 # here breaks Android clients that will not update for months (Phase 1 §14).
-/contracts/                         @callscreen/architecture @callscreen/platform
-/contracts/proto/callscreen/common/ @callscreen/architecture @callscreen/security
+/contracts/                         @123Anujyadav  # teams: architecture, platform
+/contracts/proto/callscreen/common/ @123Anujyadav  # teams: architecture, security
 
 # --- Shared packages: a bug here is an incident in every service ------------
-/packages/                          @callscreen/platform
-/packages/go/platform/              @callscreen/platform @callscreen/observability
-/packages/python/platform/          @callscreen/platform @callscreen/observability
-/packages/go/eventbus/              @callscreen/platform @callscreen/data
-/packages/python/ai-primitives/     @callscreen/ai
+/packages/                          @123Anujyadav  # teams: platform
+/packages/go/platform/              @123Anujyadav  # teams: platform, observability
+/packages/python/platform/          @123Anujyadav  # teams: platform, observability
+/packages/go/eventbus/              @123Anujyadav  # teams: platform, data
+/packages/python/ai-primitives/     @123Anujyadav  # teams: ai
 
 # --- Generated bindings: never hand-edited; regeneration is CI-verified -----
-/packages/go/contracts-go/          @callscreen/platform
-/packages/python/contracts-py/      @callscreen/platform
-/packages/kotlin/contracts-kt/      @callscreen/platform
-/packages/ts/contracts-ts/          @callscreen/platform
+/packages/go/contracts-go/          @123Anujyadav  # teams: platform
+/packages/python/contracts-py/      @123Anujyadav  # teams: platform
+/packages/kotlin/contracts-kt/      @123Anujyadav  # teams: platform
+/packages/ts/contracts-ts/          @123Anujyadav  # teams: platform
 
 # --- Android ------------------------------------------------------------------
-/android/                           @callscreen/android
-/android/build-logic/               @callscreen/android @callscreen/platform
-/android/gradle/libs.versions.toml  @callscreen/android @callscreen/platform
-/android/core/telephony/            @callscreen/android @callscreen/telephony
-/android/core/security/             @callscreen/android @callscreen/security
-/android/core/network/              @callscreen/android @callscreen/platform
-/android/core/analytics/            @callscreen/android @callscreen/privacy
+/android/                           @123Anujyadav  # teams: android
+/android/build-logic/               @123Anujyadav  # teams: android, platform
+/android/gradle/libs.versions.toml  @123Anujyadav  # teams: android, platform
+/android/core/telephony/            @123Anujyadav  # teams: android, telephony
+/android/core/security/             @123Anujyadav  # teams: android, security
+/android/core/network/              @123Anujyadav  # teams: android, platform
+/android/core/analytics/            @123Anujyadav  # teams: android, privacy
 
 # --- Go services ---------------------------------------------------------------
-/services/go/                       @callscreen/backend
-/services/go/telephony-gateway/     @callscreen/telephony
-/services/go/media-relay/           @callscreen/telephony
-/services/go/session-orchestrator/  @callscreen/telephony @callscreen/architecture
-/services/go/identity/              @callscreen/backend @callscreen/security
-/services/go/billing/               @callscreen/backend @callscreen/finance
-/services/go/edge-api/              @callscreen/backend @callscreen/security
-/services/go/contacts-sync/         @callscreen/backend @callscreen/privacy
+/services/go/                       @123Anujyadav  # teams: backend
+/services/go/telephony-gateway/     @123Anujyadav  # teams: telephony
+/services/go/media-relay/           @123Anujyadav  # teams: telephony
+/services/go/session-orchestrator/  @123Anujyadav  # teams: telephony, architecture
+/services/go/identity/              @123Anujyadav  # teams: backend, security
+/services/go/billing/               @123Anujyadav  # teams: backend, finance
+/services/go/edge-api/              @123Anujyadav  # teams: backend, security
+/services/go/contacts-sync/         @123Anujyadav  # teams: backend, privacy
 
 # --- Python / AI services -------------------------------------------------------
-/services/python/                   @callscreen/ai
-/services/python/fraud-engine/      @callscreen/ai @callscreen/security
-/services/python/prompt-registry/   @callscreen/ai @callscreen/safety
-/services/python/transcript-service/ @callscreen/ai @callscreen/privacy
+/services/python/                   @123Anujyadav  # teams: ai
+/services/python/fraud-engine/      @123Anujyadav  # teams: ai, security
+/services/python/prompt-registry/   @123Anujyadav  # teams: ai, safety
+/services/python/transcript-service/ @123Anujyadav  # teams: ai, privacy
 
 # --- Infrastructure --------------------------------------------------------------
-/infra/                             @callscreen/sre
-/infra/terraform/envs/prod-in/      @callscreen/sre @callscreen/security @callscreen/compliance
-/infra/terraform/envs/prod-global/  @callscreen/sre @callscreen/security
-/infra/policy/                      @callscreen/sre @callscreen/security
-/infra/observability/               @callscreen/sre @callscreen/observability
-/docker/                            @callscreen/platform @callscreen/security
+/infra/                             @123Anujyadav  # teams: sre
+/infra/terraform/envs/prod-in/      @123Anujyadav  # teams: sre, security, compliance
+/infra/terraform/envs/prod-global/  @123Anujyadav  # teams: sre, security
+/infra/policy/                      @123Anujyadav  # teams: sre, security
+/infra/observability/               @123Anujyadav  # teams: sre, observability
+/docker/                            @123Anujyadav  # teams: platform, security
 
 # --- Tests -----------------------------------------------------------------------
-/tests/                             @callscreen/qa
-/tests/eval/                        @callscreen/ai @callscreen/qa
-/tests/load/                        @callscreen/sre @callscreen/qa
-/tools/sipp-harness/                @callscreen/telephony @callscreen/qa
-/tools/audio-fixtures/              @callscreen/ai @callscreen/qa
+/tests/                             @123Anujyadav  # teams: qa
+/tests/eval/                        @123Anujyadav  # teams: ai, qa
+/tests/load/                        @123Anujyadav  # teams: sre, qa
+/tools/sipp-harness/                @123Anujyadav  # teams: telephony, qa
+/tools/audio-fixtures/              @123Anujyadav  # teams: ai, qa
 
 # --- Documentation ------------------------------------------------------------------
-/docs/                              @callscreen/platform
+/docs/                              @123Anujyadav  # teams: platform
 # ADRs are immutable once accepted; edits require architecture sign-off.
-/docs/adr/                          @callscreen/architecture
-/docs/architecture/                 @callscreen/architecture
+/docs/adr/                          @123Anujyadav  # teams: architecture
+/docs/architecture/                 @123Anujyadav  # teams: architecture
 # Compliance documents carry legal weight under India's DPDP Act 2023.
-/docs/compliance/                   @callscreen/compliance @callscreen/security @callscreen/legal
-/docs/runbooks/                     @callscreen/sre
+/docs/compliance/                   @123Anujyadav  # teams: compliance, security, legal
+/docs/runbooks/                     @123Anujyadav  # teams: sre
 
 # --- Security-sensitive files ----------------------------------------------------
-/SECURITY.md                        @callscreen/security
-/.github/dependabot.yml             @callscreen/security @callscreen/platform
+/SECURITY.md                        @123Anujyadav  # teams: security
+/.github/dependabot.yml             @123Anujyadav  # teams: security, platform

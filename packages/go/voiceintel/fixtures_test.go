@@ -271,7 +271,8 @@ func evaluate(t *testing.T, f fixture, idSuffix string) evalResult {
 	// The plan is produced while StateSpeaking; the terminal decision shows up
 	// once the agent's turn completes.
 	if _, err := conv.Handle(conversation.Event{
-		Kind: conversation.EventSpeechComplete}); err != nil {
+		Kind: conversation.EventSpeechComplete,
+	}); err != nil {
 		// A terminal conversation refuses the completion; that IS the signal.
 		res.terminal = true
 	}
@@ -463,7 +464,8 @@ func TestT13_TurnFixtures(t *testing.T) {
 				Utterance: conversation.Utterance{Text: "never mind", ASRConfidence: 0.95},
 				Verdict:   conversation.IntentAccept,
 				Resolved: conversation.Intent{
-					Name: intent.IntentRequestCallback, Confidence: 1.0},
+					Name: intent.IntentRequestCallback, Confidence: 1.0,
+				},
 				Active: intent.IntentRequestCallback, Lifecycle: conversation.IntentActive,
 				Config: cfg,
 			},
@@ -530,14 +532,22 @@ func TestT13_MultiTurnProgression(t *testing.T) {
 		wantIntent conversation.IntentName
 		wantReason string
 	}{
-		{"please call me back on 9876543210", conversation.ActionRespond,
-			intent.IntentRequestCallback, "intent_accepted"},
-		{"transfer me to rajesh", conversation.ActionRespond,
-			intent.IntentRequestTransfer, "intent_accepted"},
-		{"say that again", conversation.ActionRespond,
-			intent.IntentRepeat, "intent_accepted"},
-		{"can you hold on a moment", conversation.ActionRespond,
-			intent.IntentHold, "intent_accepted"},
+		{
+			"please call me back on 9876543210", conversation.ActionRespond,
+			intent.IntentRequestCallback, "intent_accepted",
+		},
+		{
+			"transfer me to rajesh", conversation.ActionRespond,
+			intent.IntentRequestTransfer, "intent_accepted",
+		},
+		{
+			"say that again", conversation.ActionRespond,
+			intent.IntentRepeat, "intent_accepted",
+		},
+		{
+			"can you hold on a moment", conversation.ActionRespond,
+			intent.IntentHold, "intent_accepted",
+		},
 	}
 
 	b, err := voiceintel.New(voiceintel.WithClock(fixedClock()))
@@ -574,7 +584,8 @@ func TestT13_MultiTurnProgression(t *testing.T) {
 			t.Errorf("turn %d: reason = %q, want %q", i, plan.Reason, s.wantReason)
 		}
 		if _, err := p.Handle(conversation.Event{
-			Kind: conversation.EventSpeechComplete}); err != nil {
+			Kind: conversation.EventSpeechComplete,
+		}); err != nil {
 			t.Fatalf("turn %d speech complete: %v", i, err)
 		}
 
@@ -758,12 +769,14 @@ func TestT13_ConcurrentSessionFixture(t *testing.T) {
 				return
 			}
 			if _, err := p.Handle(conversation.Event{
-				Kind: conversation.EventStart}); err != nil {
+				Kind: conversation.EventStart,
+			}); err != nil {
 				results[i] = "err:" + err.Error()
 				return
 			}
 			if _, err := p.Handle(conversation.Event{
-				Kind: conversation.EventGreetingComplete}); err != nil {
+				Kind: conversation.EventGreetingComplete,
+			}); err != nil {
 				results[i] = "err:" + err.Error()
 				return
 			}

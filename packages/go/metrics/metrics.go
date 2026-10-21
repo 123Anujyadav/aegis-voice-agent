@@ -353,10 +353,10 @@ func (c *Counter) Inc(labelValues ...string) { c.Add(1, labelValues...) }
 
 // Add adds v to the series identified by the label values.
 //
-// v is a float64 for interface symmetry with other metric systems but is stored
-// as an integer: every counter in this platform counts events, and floating
-// point accumulation over millions of increments loses precision in a way that
-// silently corrupts a rate.
+// The value v is a float64 for interface symmetry with other metric systems
+// but is stored as an integer: every counter in this platform counts events,
+// and floating point accumulation over millions of increments loses precision
+// in a way that silently corrupts a rate.
 //
 // A negative v is ignored. A counter cannot decrease, and silently ignoring
 // beats corrupting a monotonic series that a rate calculation depends on.

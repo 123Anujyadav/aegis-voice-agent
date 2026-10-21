@@ -222,8 +222,10 @@ func BenchmarkSearchByKind(b *testing.B) {
 		_, _ = bundle.Store.Store(InternalRecord("s", KindConversation,
 			fmt.Sprintf("k%03d", i), "payload"))
 	}
-	q := Query{Subject: "s", Kinds: []Kind{KindConversation},
-		MaxSensitivity: Internal, Limit: 20}
+	q := Query{
+		Subject: "s", Kinds: []Kind{KindConversation},
+		MaxSensitivity: Internal, Limit: 20,
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -237,8 +239,10 @@ func BenchmarkSearchByKind(b *testing.B) {
 func BenchmarkPromotionEvaluate(b *testing.B) {
 	p := DefaultPromotionPolicy()
 	now := time.Now()
-	r := &Record{Tier: TierWorking, State: StateActive, AccessCount: 3,
-		CreatedAt: now.Add(-time.Minute), AccessedAt: now}
+	r := &Record{
+		Tier: TierWorking, State: StateActive, AccessCount: 3,
+		CreatedAt: now.Add(-time.Minute), AccessedAt: now,
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -294,8 +298,10 @@ func BenchmarkContextBuild(b *testing.B) {
 			fmt.Sprintf("c%03d", i), "a conversational message of some length"))
 	}
 
-	req := ContextRequest{Subject: "s", Budget: TokenBudget{MaxTokens: 2048},
-		MaxSensitivity: Internal}
+	req := ContextRequest{
+		Subject: "s", Budget: TokenBudget{MaxTokens: 2048},
+		MaxSensitivity: Internal,
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -357,8 +363,10 @@ func BenchmarkRecordClone(b *testing.B) {
 func BenchmarkEventDispatch(b *testing.B) {
 	m := NewMetrics()
 	d := NewDispatcher(m, NoopPublisher{})
-	e := Event{Type: EventCreated, Key: Key{Subject: "s", Kind: KindUser, Name: "k"},
-		Tier: TierShortTerm, Version: 1}
+	e := Event{
+		Type: EventCreated, Key: Key{Subject: "s", Kind: KindUser, Name: "k"},
+		Tier: TierShortTerm, Version: 1,
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()

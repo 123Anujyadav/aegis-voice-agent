@@ -281,6 +281,19 @@ func TestFence_AStuckConfirmationExpiresOwnershipByTheClock(t *testing.T) {
 	r.c.step(t)
 	r.c.step(t)
 	eventually(t, "ownership", r.f.Owned)
+	// Ownership already reads true before the second confirmation has run
+	// (the first is still within the validity window), so wait until the fence
+	// has finished it and gone back to sleep. Otherwise the SECOND Holds would
+	// be the one that hangs, and the third this test waits for never comes.
+	// Receiving the sleep request orders everything the fence did before it;
+	// the fence then waits for wake, so handing the request back cannot block
+	// and the next step consumes it as usual.
+	select {
+	case d := <-r.c.sleeping:
+		r.c.sleeping <- d
+	case <-time.After(5 * time.Second):
+		t.Fatal("the fence never went back to sleep after the second confirmation")
+	}
 
 	stuck.Store(true)
 	r.c.step(t) // last confirmation stays at the previous one; Holds now hangs

@@ -728,7 +728,10 @@ func TestFailure_StoreOutageDoesNotStopStreams(t *testing.T) {
 
 func TestFailure_StallDetection(t *testing.T) {
 	t.Parallel()
-	h := started(t)
+	// This asserts what Sweep RETURNS, so it must be the only sweeper: the
+	// Advance below also fires the runtime's own sweeper, which claimed the
+	// stall first in 19 of 2000 -race runs and left this call reporting 0.
+	h := started(t, WithManualSweep())
 	ctx := context.Background()
 
 	s, err := h.Open(ctx)
@@ -754,6 +757,110 @@ func TestFailure_StallDetection(t *testing.T) {
 	// terminal.
 	if !s.State().HoldsResources() {
 		t.Error("a timed-out stream reports holding no resources")
+	}
+}
+
+// TestFailure_ConcurrentSweepsTimeOutEachStallOnce races two sweepers over the
+// same stalled streams — the background loop and an explicit Sweep meet
+// exactly like this.
+//
+// Each stall must be detected once, by exactly one of them, and the loser must
+// not record a refused transition: media_invalid_transitions_total exists to
+// expose a state table and code that disagree, and before the stall move was
+// made conditional on the state its deadline came from, this race incremented
+// it (19 of 3000 single-stream cycles under -race).
+func TestFailure_ConcurrentSweepsTimeOutEachStallOnce(t *testing.T) {
+	t.Parallel()
+	const streams = 32
+	cfg := TestConfig()
+	cfg.MaxStreams = streams
+	cfg.MaxStreamsPerSource = 0
+
+	for round := 0; round < 25; round++ {
+		h := started(t, WithHarnessConfig(cfg), WithManualSweep())
+		ctx := context.Background()
+
+		for i := 0; i < streams; i++ {
+			s, err := h.Open(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.Dispatcher.Dispatch(s.ID(), h.Gen.Next(h.Clock.Now())); err != nil {
+				t.Fatal(err)
+			}
+		}
+		h.Clock.Advance(h.Runtime.Config().StallTimeout + time.Second)
+
+		var (
+			wg      sync.WaitGroup
+			start   = make(chan struct{})
+			results [2]int
+		)
+		for i := range results {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				results[i] = h.Runtime.Sweep(ctx)
+			}()
+		}
+		close(start)
+		wg.Wait()
+
+		if got := results[0] + results[1]; got != streams {
+			t.Fatalf("round %d: sweeps detected %d+%d stalls for %d stalled streams",
+				round, results[0], results[1], streams)
+		}
+		if got := h.Metrics.InvalidTransitions.Total(); got != 0 {
+			t.Fatalf("round %d: %d invalid transitions recorded for sweepers racing "+
+				"the same stalls", round, got)
+		}
+		if got := h.Metrics.Transitions.Value(string(StateActive), string(StateTimeout)); got != streams {
+			t.Fatalf("round %d: active->timeout recorded %d times, want %d",
+				round, got, streams)
+		}
+		_, _ = h.Stop(ctx)
+	}
+}
+
+// TestFailure_AStreamPausedAfterItsDeadlineWasReadIsNotTimedOut pins the
+// conditional move deterministically. The sweeper read the stream as active and
+// computed the stall deadline from that; before it acted, the caller paused it.
+// Paused is exempt from every deadline, so the stale decision must be dropped —
+// and dropped quietly, because nothing was refused that should not have been.
+func TestFailure_AStreamPausedAfterItsDeadlineWasReadIsNotTimedOut(t *testing.T) {
+	t.Parallel()
+	h := started(t, WithManualSweep())
+	ctx := context.Background()
+
+	s, err := h.Open(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.Dispatcher.Dispatch(s.ID(), h.Gen.Next(h.Clock.Now())); err != nil {
+		t.Fatal(err)
+	}
+	if s.State() != StateActive {
+		t.Fatalf("precondition: stream is %s, want active", s.State())
+	}
+	if err = h.Coordinator.Pause(s.ID()); err != nil {
+		t.Fatal(err)
+	}
+
+	// The sweeper's move, with the state it observed before the pause.
+	err = h.Runtime.transitionFrom(s, StateActive, StateTimeout, "stall_deadline")
+	if !errors.Is(err, errStateChanged) {
+		t.Fatalf("a stall decision taken on a superseded state returned %v, want "+
+			"errStateChanged", err)
+	}
+	if errors.Is(err, ErrInvalidTransition) {
+		t.Error("a lost race was reported as an invalid transition")
+	}
+	if s.State() != StatePaused {
+		t.Errorf("state = %s, want paused: a deliberate pause was expired", s.State())
+	}
+	if got := h.Metrics.InvalidTransitions.Total(); got != 0 {
+		t.Errorf("%d invalid transitions recorded for a lost race", got)
 	}
 }
 
@@ -1459,8 +1566,10 @@ func TestStress_LongRunningStreamDoesNotGrow(t *testing.T) {
 	t.Logf("clock: %s", stats.Clock)
 }
 
-var _ = fmt.Sprintf
-var _ = strings.Contains
+var (
+	_ = fmt.Sprintf
+	_ = strings.Contains
+)
 
 // ---------------------------------------------------------------------------
 // Jitter window

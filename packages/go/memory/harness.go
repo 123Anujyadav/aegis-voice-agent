@@ -81,8 +81,10 @@ func NewHarness(opts ...HarnessOption) (*Harness, error) {
 		return nil, err
 	}
 
-	return &Harness{Clock: clock, Metrics: metrics, Runtime: r,
-		Events: events, Audit: audit, Consent: consent}, nil
+	return &Harness{
+		Clock: clock, Metrics: metrics, Runtime: r,
+		Events: events, Audit: audit, Consent: consent,
+	}, nil
 }
 
 // Bundle returns a namespace's stack, failing loudly on a typo rather than

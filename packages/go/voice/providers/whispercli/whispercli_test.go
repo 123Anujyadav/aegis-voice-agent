@@ -125,8 +125,10 @@ func TestAdapter_RefusesInvalidConfiguration(t *testing.T) {
 		"no audio bound":    func(c *Config) { c.MaxAudio = 0 },
 		"unbounded results": func(c *Config) { c.MaxPendingResults = 0 },
 		"stereo": func(c *Config) {
-			c.Format = media.AudioFormat{Format: media.FormatPCM16,
-				Layout: media.LayoutStereo, Rate: testFormatRate, Codec: media.CodecPCM}
+			c.Format = media.AudioFormat{
+				Format: media.FormatPCM16,
+				Layout: media.LayoutStereo, Rate: testFormatRate, Codec: media.CodecPCM,
+			}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

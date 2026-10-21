@@ -310,9 +310,11 @@ func TestEvaluation_IdenticalRequestsProduceIdenticalDecisions(t *testing.T) {
 		h := evalHarness(t)
 		h.Grant("caller-1", "call_recording", time.Hour)
 
-		req := Request{Action: WriteAction("transcript"), Actor: "assistant",
+		req := Request{
+			Action: WriteAction("transcript"), Actor: "assistant",
 			Subject: "caller-1", Org: "org-1", Business: "biz-1",
-			Roles: []string{"assistant", "receptionist"}}
+			Roles: []string{"assistant", "receptionist"},
+		}
 
 		d := h.Engine.Decide(req)
 
@@ -366,7 +368,8 @@ func TestEvaluation_RiskIsMonotonicAndOnlyRaises(t *testing.T) {
 	drops := 0
 	for i := 0; i < 50; i++ {
 		signals = append(signals, Signal{
-			Source: fmt.Sprintf("calm-%d", i), Kind: "nothing", Level: RiskLow, Weight: 1})
+			Source: fmt.Sprintf("calm-%d", i), Kind: "nothing", Level: RiskLow, Weight: 1,
+		})
 		next := agg.Aggregate(signals...).Level
 		if next < level {
 			drops++
@@ -473,8 +476,10 @@ func TestEvaluation_GovernanceOverheadAgainstTheTurnBudget(t *testing.T) {
 	const iterations = 500
 	const decisionsPerTurn = 10
 
-	req := Request{Action: ReadAction("preferences"), Actor: "assistant",
-		Subject: "caller-1", Org: "org-1", Business: "biz-1"}
+	req := Request{
+		Action: ReadAction("preferences"), Actor: "assistant",
+		Subject: "caller-1", Org: "org-1", Business: "biz-1",
+	}
 
 	start := time.Now()
 	for i := 0; i < iterations; i++ {

@@ -103,8 +103,10 @@ func TestIntegration_SuiteRunsAndReports(t *testing.T) {
 		StepsScenario("a", "fake", KindMemory, "op"),
 		StepsScenario("b", "fake", KindGovernance, "op", "op"),
 	)
-	h.RegisterSuite(Suite{ID: "acceptance", Kind: KindAcceptance, Owner: "team",
-		Scenarios: []ScenarioID{"a", "b"}})
+	h.RegisterSuite(Suite{
+		ID: "acceptance", Kind: KindAcceptance, Owner: "team",
+		Scenarios: []ScenarioID{"a", "b"},
+	})
 
 	run, err := h.Runtime.RunSuite(context.Background(), "acceptance", "v1")
 	if err != nil {

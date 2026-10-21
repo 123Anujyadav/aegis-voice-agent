@@ -89,7 +89,8 @@ func (l *CallLifecycle) Outgoing(ctx context.Context, cc CallContext) (*CallSess
 }
 
 func (l *CallLifecycle) begin(ctx context.Context, cc CallContext,
-	first CallState, reason string) (*CallSession, error) {
+	first CallState, reason string,
+) (*CallSession, error) {
 	if _, err := l.providers.get(cc.Provider); err != nil {
 		return nil, err
 	}
@@ -220,7 +221,8 @@ func (l *CallLifecycle) Unhold(ctx context.Context, id CallID) error {
 }
 
 func (l *CallLifecycle) controlled(ctx context.Context, id CallID, to CallState,
-	need Capability, reason string) error {
+	need Capability, reason string,
+) error {
 	sess, err := l.registry.Get(id)
 	if err != nil {
 		return err
@@ -344,7 +346,8 @@ func (l *CallLifecycle) move(ctx context.Context, id CallID, to CallState, reaso
 
 // end concludes a call and removes it from the registry.
 func (l *CallLifecycle) end(ctx context.Context, sess *CallSession,
-	to CallState, reason string) error {
+	to CallState, reason string,
+) error {
 	if err := l.transition(ctx, sess, to, reason); err != nil {
 		return err
 	}
@@ -373,7 +376,8 @@ func (l *CallLifecycle) end(ctx context.Context, sess *CallSession,
 // Order: FSM, then metric, then event. The FSM is authoritative and moves
 // first; nothing after it can fail the transition. See the type comment.
 func (l *CallLifecycle) transition(ctx context.Context, sess *CallSession,
-	to CallState, reason string) error {
+	to CallState, reason string,
+) error {
 	from := sess.State()
 	started := l.clock.Now()
 
@@ -392,7 +396,8 @@ func (l *CallLifecycle) transition(ctx context.Context, sess *CallSession,
 
 // emit publishes the event for a transition, if the state has one.
 func (l *CallLifecycle) emit(ctx context.Context, sess *CallSession,
-	from, to CallState, reason string) {
+	from, to CallState, reason string,
+) {
 	typ, ok := stateEvent(to)
 	if !ok {
 		return

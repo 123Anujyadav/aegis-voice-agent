@@ -260,7 +260,8 @@ func TestT4_FrozenTurnSemanticsAreReached(t *testing.T) {
 	// Only when the agent finishes speaking does the turn close and the floor
 	// pass to the caller. Asserting the whole handoff, not a single snapshot.
 	if _, err := p.Handle(conversation.Event{
-		Kind: conversation.EventSpeechComplete}); err != nil {
+		Kind: conversation.EventSpeechComplete,
+	}); err != nil {
 		t.Fatalf("speech complete: %v", err)
 	}
 	if got := conv.Turns().Holder(); got != conversation.PartyCaller {
@@ -420,7 +421,8 @@ func TestT4_MultiTurnThroughTheServiceUsesSessionContext(t *testing.T) {
 			t.Errorf("turn %d: intent = %q, want %q", i, plan.Intent, turn.want)
 		}
 		if _, err := p.Handle(conversation.Event{
-			Kind: conversation.EventSpeechComplete}); err != nil {
+			Kind: conversation.EventSpeechComplete,
+		}); err != nil {
 			t.Fatalf("turn %d speech complete: %v", i, err)
 		}
 
@@ -589,7 +591,8 @@ func TestT4_IntelligenceFailureStaysSessionScoped(t *testing.T) {
 		t.Fatalf("neighbour setup: intent = %q", before.Intent)
 	}
 	if _, err := healthy.Handle(conversation.Event{
-		Kind: conversation.EventSpeechComplete}); err != nil {
+		Kind: conversation.EventSpeechComplete,
+	}); err != nil {
 		t.Fatal(err)
 	}
 

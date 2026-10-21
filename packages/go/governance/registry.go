@@ -199,7 +199,8 @@ func (r *PolicyRegistry) Unregister(id PolicyID) error {
 
 	if r.audit != nil {
 		_ = r.audit.Record(AuditEntry{
-			At: r.clock.Now(), Kind: AuditPolicyUnregistered, Policy: id})
+			At: r.clock.Now(), Kind: AuditPolicyUnregistered, Policy: id,
+		})
 	}
 	return nil
 }
@@ -230,7 +231,8 @@ func (r *PolicyRegistry) SetEnabled(id PolicyID, enabled bool) error {
 			reason = "enabled"
 		}
 		_ = r.audit.Record(AuditEntry{
-			At: r.clock.Now(), Kind: AuditPolicyToggled, Policy: id, Reason: reason})
+			At: r.clock.Now(), Kind: AuditPolicyToggled, Policy: id, Reason: reason,
+		})
 	}
 	return nil
 }
@@ -317,8 +319,10 @@ func (r *PolicyRegistry) Expired() []Policy {
 // usually means somebody has not finished writing the rules.
 func (r *PolicyRegistry) Coverage() map[ActionKind]int {
 	out := make(map[ActionKind]int, 5)
-	for _, k := range []ActionKind{ActionConversation, ActionMemory, ActionTool,
-		ActionNotification, ActionExternal} {
+	for _, k := range []ActionKind{
+		ActionConversation, ActionMemory, ActionTool,
+		ActionNotification, ActionExternal,
+	} {
 		out[k] = 0
 	}
 	for _, p := range r.All() {

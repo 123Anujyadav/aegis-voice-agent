@@ -233,7 +233,8 @@ func TestT5_ConcurrentSessionsStayIsolatedThroughTheService(t *testing.T) {
 					return
 				}
 				if _, err := planners[i].Handle(conversation.Event{
-					Kind: conversation.EventSpeechComplete}); err != nil {
+					Kind: conversation.EventSpeechComplete,
+				}); err != nil {
 					gate.abort()
 					errs <- fmt.Sprintf("%s round %d: speech complete: %v",
 						s.id, round, err)
@@ -356,7 +357,8 @@ func TestT5_ContextPersistsAcrossTurnsUnderConcurrency(t *testing.T) {
 					return
 				}
 				if _, err := planners[i].Handle(conversation.Event{
-					Kind: conversation.EventSpeechComplete}); err != nil {
+					Kind: conversation.EventSpeechComplete,
+				}); err != nil {
 					gate.abort()
 					errs <- fmt.Sprintf("%s round %d: complete: %v", s.id, round, err)
 					return

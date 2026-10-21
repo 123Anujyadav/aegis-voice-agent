@@ -187,8 +187,10 @@ func AllowPolicy(id PolicyID, scope Scope, priority int, m Match) Policy {
 	return Policy{
 		ID: id, Version: 1, Scope: scope, Priority: priority,
 		Title: "test allow", Owner: "test", Enabled: true, Match: m,
-		Rules: []Rule{{Name: "allow", Then: OutcomeAllow, Reason: "test_allow",
-			Explanation: "test fixture allows this"}},
+		Rules: []Rule{{
+			Name: "allow", Then: OutcomeAllow, Reason: "test_allow",
+			Explanation: "test fixture allows this",
+		}},
 		Default: OutcomeAllow, DefaultReason: "test_allow_default",
 	}
 }
@@ -198,16 +200,20 @@ func DenyPolicy(id PolicyID, scope Scope, priority int, m Match) Policy {
 	return Policy{
 		ID: id, Version: 1, Scope: scope, Priority: priority,
 		Title: "test deny", Owner: "test", Enabled: true, Match: m,
-		Rules: []Rule{{Name: "deny", Then: OutcomeDeny, Reason: "test_deny",
-			Explanation: "test fixture denies this"}},
+		Rules: []Rule{{
+			Name: "deny", Then: OutcomeDeny, Reason: "test_deny",
+			Explanation: "test fixture denies this",
+		}},
 		Default: OutcomeDeny, DefaultReason: "test_deny_default",
 	}
 }
 
 // OutcomePolicy builds a policy producing one outcome, for the middle eight.
 func OutcomePolicy(id PolicyID, scope Scope, priority int, m Match, o Outcome, reason string) Policy {
-	rule := Rule{Name: "rule", Then: o, Reason: reason,
-		Explanation: "test fixture produces " + o.String()}
+	rule := Rule{
+		Name: "rule", Then: o, Reason: reason,
+		Explanation: "test fixture produces " + o.String(),
+	}
 	if o == OutcomeRetryLater {
 		rule.RetryAfter = time.Minute
 	}
@@ -226,8 +232,10 @@ func ConsentPolicy(id PolicyID, scope Scope, priority int, m Match, basis string
 		Rules: []Rule{{
 			Name: "needs-consent", Then: OutcomeRequireConsent, Reason: "needs_consent",
 			Explanation: "test fixture requires consent to " + basis,
-			Obligations: []Obligation{{Kind: ObligationConsent, Target: basis,
-				Reason: "test", Policy: id}},
+			Obligations: []Obligation{{
+				Kind: ObligationConsent, Target: basis,
+				Reason: "test", Policy: id,
+			}},
 		}},
 		Default: OutcomeAllow, DefaultReason: "test_consent_default",
 	}
@@ -249,8 +257,10 @@ func EmergencyAllowPolicy(id PolicyID, m Match) Policy {
 		ID: id, Version: 1, Scope: ScopeEmergency, Priority: 500,
 		Title: "emergency override", Owner: "test-oncall", Enabled: true,
 		Match: m, Override: true,
-		Rules: []Rule{{Name: "override-allow", Then: OutcomeAllow,
-			Reason: "emergency_override", Explanation: "emergency override in effect"}},
+		Rules: []Rule{{
+			Name: "override-allow", Then: OutcomeAllow,
+			Reason: "emergency_override", Explanation: "emergency override in effect",
+		}},
 		Default: OutcomeAllow, DefaultReason: "emergency_default",
 	}
 }

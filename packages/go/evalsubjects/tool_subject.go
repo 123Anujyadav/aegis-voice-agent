@@ -232,6 +232,8 @@ func (s *toolSession) record(kind string) {
 	s.events = append(s.events, ev.EventRecord{Type: kind})
 }
 
+// State reports how many executions this session made and how many tools
+// are registered.
 func (s *toolSession) State() ev.Values {
 	return ev.Values{
 		"executions":    ev.N(float64(s.execs)),
@@ -239,10 +241,12 @@ func (s *toolSession) State() ev.Values {
 	}
 }
 
+// Events returns the events recorded since the last call, then clears them.
 func (s *toolSession) Events() []ev.EventRecord {
 	out := s.events
 	s.events = nil
 	return out
 }
 
+// Close stops the tool runtime.
 func (s *toolSession) Close() error { return s.h.Runtime.Stop() }

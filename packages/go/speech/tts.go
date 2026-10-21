@@ -285,12 +285,7 @@ func (o *TTSOrchestrator) pump(
 			return
 		case f, ok := <-audio:
 			if !ok {
-				if o.generation.Load() == gen {
-					o.router.Report(provider, OutcomeSuccess)
-					o.mu.Lock()
-					o.speaking = false
-					o.mu.Unlock()
-				}
+				o.retire(stream, provider, gen)
 				return
 			}
 
@@ -318,6 +313,49 @@ func (o *TTSOrchestrator) pump(
 	}
 }
 
+// retire ends the orchestrator's hold on a stream whose synthesis finished.
+//
+// Its frames may still be queued on o.frames, unheard — this ends the
+// provider's part in the turn, not the turn's audio, and Cancel drains that
+// queue whether or not synthesis is still live.
+//
+// The generation is compared under the lock so a concurrent Cancel either finds
+// this stream live or finds it already retired here, never both.
+func (o *TTSOrchestrator) retire(stream TTSStream, provider ProviderID, gen uint64) {
+	// Nothing else closes a stream that ended on its own, and Close is what
+	// releases the provider's resources. Idempotent, so a racing Cancel closing
+	// it as well is harmless.
+	//
+	// Closed FIRST: before the stream is retired, so "not speaking" never
+	// describes a stream that still holds its provider; and before the outcome
+	// is reported, because Close is where a stream reports an engine that died
+	// mid-utterance — the TTSStream port has no other call to fail with. Audio
+	// that simply stopped is not a success.
+	closeErr := stream.Close()
+
+	o.mu.Lock()
+	current := o.generation.Load() == gen
+	var release context.CancelFunc
+	if current {
+		o.speaking = false
+		o.stream = nil
+		release, o.cancel = o.cancel, nil
+	}
+	o.mu.Unlock()
+
+	if release != nil {
+		release()
+	}
+	if !current {
+		return
+	}
+	outcome := OutcomeSuccess
+	if closeErr != nil {
+		outcome = OutcomeFailure
+	}
+	o.router.Report(provider, outcome)
+}
+
 // Cancel abandons synthesis and reports how many chunks never reached the
 // provider.
 //
@@ -326,14 +364,20 @@ func (o *TTSOrchestrator) pump(
 // The generation is bumped FIRST, so that frames already inside the provider
 // stream are stale the instant this returns. Closing first would leave a window
 // in which in-flight audio is still considered current.
+//
+// # Finished synthesis is not finished speech
+//
+// The provider can complete — and the pump retire its stream — while every
+// frame it produced is still queued on the output, unheard. Synthesis is
+// routinely faster than real time, so a barge-in often lands exactly there.
+// The drain below therefore runs whether or not synthesis is still live:
+// returning early on "not speaking" left the interrupted turn's queued audio
+// to play over the caller who had just interrupted it.
 func (o *TTSOrchestrator) Cancel(reason string) (int, error) {
 	o.generation.Add(1)
 
 	o.mu.Lock()
-	if !o.speaking {
-		o.mu.Unlock()
-		return 0, nil
-	}
+	live := o.speaking
 	stream, cancel, dropped := o.stream, o.cancel, o.pending
 	o.stream, o.speaking, o.cancel, o.pending = nil, false, nil, 0
 	o.mu.Unlock()
@@ -348,13 +392,21 @@ func (o *TTSOrchestrator) Cancel(reason string) (int, error) {
 
 	// Drain whatever reached the output before the generation moved. Leaving it
 	// there would have the next turn's consumer read the previous turn's audio.
+	drained := 0
 	for {
 		select {
-		case <-o.frames:
+		case _, ok := <-o.frames:
+			if ok {
+				drained++
+				continue
+			}
+			// Closed by Close; there is nothing left to drain.
 		default:
-			o.metrics.Cancellations.Add(1, "tts")
-			return dropped, nil
 		}
+		if live || drained > 0 {
+			o.metrics.Cancellations.Add(1, "tts")
+		}
+		return dropped, nil
 	}
 }
 

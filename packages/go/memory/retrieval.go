@@ -154,8 +154,10 @@ func (r *storeRetriever) Get(k Key, actor string) (*Record, error) {
 
 // Recent returns the most recent records for a subject.
 func (r *storeRetriever) Recent(subject SubjectID, limit int) (Result, error) {
-	return r.Search(Query{Subject: subject, Order: OrderRecent, Limit: limit,
-		MaxSensitivity: Sensitive}, "")
+	return r.Search(Query{
+		Subject: subject, Order: OrderRecent, Limit: limit,
+		MaxSensitivity: Sensitive,
+	}, "")
 }
 
 // ByConversation returns records bound to a conversation.
@@ -172,8 +174,10 @@ func (r *storeRetriever) BySession(id string, q Query) (Result, error) {
 
 // Preferences returns a subject's stated choices.
 func (r *storeRetriever) Preferences(subject SubjectID) (Result, error) {
-	return r.Search(Query{Subject: subject, Kinds: []Kind{KindPreference},
-		Order: OrderKey, MaxSensitivity: Sensitive}, "")
+	return r.Search(Query{
+		Subject: subject, Kinds: []Kind{KindPreference},
+		Order: OrderKey, MaxSensitivity: Sensitive,
+	}, "")
 }
 
 // ByContact returns records about a third party.
@@ -321,8 +325,10 @@ func (r *storeRetriever) Search(q Query, actor string) (Result, error) {
 	}
 	r.metrics.RetrieveLatency.Observe(r.store.clock.Since(start).Seconds(), lookup)
 
-	return Result{Records: matched, Total: total, Index: indexUsed,
-		Scanned: scanned, Truncated: truncated}, nil
+	return Result{
+		Records: matched, Total: total, Index: indexUsed,
+		Scanned: scanned, Truncated: truncated,
+	}, nil
 }
 
 // matchesMeta applies every filter a query carries, against a scalar

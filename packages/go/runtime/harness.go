@@ -266,8 +266,10 @@ func (f *FakeProvider) Generate(ctx context.Context, req GenerateRequest) (Token
 		err := f.failWith
 		f.mu.Unlock()
 		if err == nil {
-			err = &ProviderError{Provider: f.id, Model: req.Model, Kind: KindTransport,
-				Err: errors.New("scripted failure")}
+			err = &ProviderError{
+				Provider: f.id, Model: req.Model, Kind: KindTransport,
+				Err: errors.New("scripted failure"),
+			}
 		}
 		return nil, err
 	}

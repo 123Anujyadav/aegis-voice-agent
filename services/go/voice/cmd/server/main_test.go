@@ -107,14 +107,16 @@ func TestWiring_EngineHasTheRealClassifierNotTheFallback(t *testing.T) {
 		t.Fatalf("EventStart: %v", err)
 	}
 	if _, err := p.Handle(conversation.Event{
-		Kind: conversation.EventGreetingComplete}); err != nil {
+		Kind: conversation.EventGreetingComplete,
+	}); err != nil {
 		t.Fatalf("EventGreetingComplete: %v", err)
 	}
 
 	plan, err := p.Handle(conversation.Event{
 		Kind: conversation.EventUtterance,
 		Utterance: conversation.Utterance{
-			Text: "please call me back on 9876543210", ASRConfidence: 0.95},
+			Text: "please call me back on 9876543210", ASRConfidence: 0.95,
+		},
 		Party: conversation.PartyCaller,
 	})
 	if err != nil {

@@ -505,8 +505,8 @@ func (e *IntentEngine) Supersede(in Intent) {
 func (e *IntentEngine) History() []Intent {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	out := make([]Intent, len(e.history))
-	copy(out, e.history)
+	out := make([]Intent, 0, len(e.history)+1)
+	out = append(out, e.history...)
 	if e.active != nil {
 		out = append(out, *e.active)
 	}

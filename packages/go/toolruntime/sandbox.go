@@ -256,9 +256,9 @@ func (s *BudgetSandbox) Enter(d Descriptor, b Budget) (*Lease, error) {
 	}
 
 	s.mu.Lock()
-	cap := s.defaultTool
+	toolCap := s.defaultTool
 	if c, ok := s.toolCaps[d.Tool]; ok {
-		cap = c
+		toolCap = c
 	}
 	// The refusal messages report counts, and those counts MUST be captured
 	// while the mutex is still held.
@@ -275,7 +275,7 @@ func (s *BudgetSandbox) Enter(d Descriptor, b Budget) (*Lease, error) {
 	// Found by the nightly repeated shuffled race gate, seed
 	// 1786881587963648469, in TestStress_OverloadShedsCleanlyAndIsAccountedFor.
 	//
-	// s.maxSlots and cap are not captured because they are written only by
+	// s.maxSlots and toolCap are not captured because they are written only by
 	// NewBudgetSandbox and never mutated afterwards.
 	switch {
 	case s.inUse+slots > s.maxSlots:
@@ -284,12 +284,12 @@ func (s *BudgetSandbox) Enter(d Descriptor, b Budget) (*Lease, error) {
 		s.refused.Add(1)
 		return nil, fmt.Errorf("%w: sandbox has %d of %d slots in use, %s wants %d",
 			ErrBudgetExceeded, inUse, s.maxSlots, d, slots)
-	case s.perTool[d.Tool]+1 > cap:
+	case s.perTool[d.Tool] >= toolCap:
 		running := s.perTool[d.Tool]
 		s.mu.Unlock()
 		s.refused.Add(1)
 		return nil, fmt.Errorf("%w: %s already has %d concurrent executions, cap is %d",
-			ErrBudgetExceeded, d.Tool, running, cap)
+			ErrBudgetExceeded, d.Tool, running, toolCap)
 	}
 	s.inUse += slots
 	s.perTool[d.Tool]++

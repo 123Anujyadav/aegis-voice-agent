@@ -217,7 +217,8 @@ func TestT6_CancellationReachesInFlightSessionDrivers(t *testing.T) {
 					// one. That is the actual contract, not a limitation of the
 					// test.
 					if _, err := p.Handle(conversation.Event{
-						Kind: conversation.EventSpeechComplete}); err != nil {
+						Kind: conversation.EventSpeechComplete,
+					}); err != nil {
 						// The session reached a terminal state (turn budget);
 						// wait for cancellation rather than spinning.
 						<-ctx.Done()

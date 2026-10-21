@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -171,6 +172,7 @@ type options struct {
 	metrics     *MediaMetrics
 	store       StreamStore
 	sourceCheck SourceCheck
+	manualSweep bool
 }
 
 // WithClock injects a clock. A FakeClock makes every deadline testable without
@@ -185,6 +187,11 @@ func WithMetrics(m *MediaMetrics) Option { return func(o *options) { o.metrics =
 
 // WithStreamStore injects the durable snapshot store.
 func WithStreamStore(s StreamStore) Option { return func(o *options) { o.store = s } }
+
+// withManualSweep leaves stall detection entirely to explicit
+// [MediaRuntime.Sweep] calls. Unexported: production always runs its sweeper,
+// and only the test harness opts out — see [WithManualSweep].
+func withManualSweep() Option { return func(o *options) { o.manualSweep = true } }
 
 // MediaRuntime owns every stream in one process.
 //
@@ -204,6 +211,7 @@ type MediaRuntime struct {
 	registry    *MediaRegistry
 	scheduler   *MediaScheduler
 	sourceCheck SourceCheck
+	manualSweep bool
 
 	mu    sync.RWMutex
 	state RuntimeState
@@ -251,6 +259,7 @@ func New(cfg Config, opts ...Option) (*MediaRuntime, error) {
 	return &MediaRuntime{
 		cfg: cfg, clock: clock, logger: logger, metrics: m, store: o.store,
 		sourceCheck: check,
+		manualSweep: o.manualSweep,
 		registry:    registry,
 		scheduler:   NewMediaScheduler(cfg, registry, m),
 		state:       RuntimeNew,
@@ -280,8 +289,10 @@ func (r *MediaRuntime) Start(ctx context.Context) (RecoveryReport, error) {
 	r.state = RuntimeRunning
 	r.mu.Unlock()
 
-	r.wg.Add(1)
-	go r.sweepLoop()
+	if !r.manualSweep {
+		r.wg.Add(1)
+		go r.sweepLoop()
+	}
 
 	if r.cfg.PumpInterval > 0 {
 		r.wg.Add(1)
@@ -446,14 +457,18 @@ func (r *MediaRuntime) Sweep(ctx context.Context) int {
 	var stalled int
 
 	r.registry.Each(func(s *Stream) bool {
-		deadline := r.deadlineFor(s.State())
+		state := s.State()
+		deadline := r.deadlineFor(state)
 		if deadline <= 0 {
 			return true
 		}
 		if now.Sub(s.LastActivity()) < deadline {
 			return true
 		}
-		if err := r.transition(s, StateTimeout, "stall_deadline"); err == nil {
+		// Conditional on the state the deadline came from. A pause, a close or
+		// a concurrent sweep may have moved the stream since it was read, and
+		// then this deadline no longer applies to it.
+		if err := r.transitionFrom(s, state, StateTimeout, "stall_deadline"); err == nil {
 			stalled++
 		}
 		return true
@@ -490,6 +505,22 @@ func (r *MediaRuntime) transition(s *Stream, to StreamState, reason string) erro
 	from := s.State()
 	if err := s.Transition(to, reason); err != nil {
 		r.metrics.InvalidTransitions.Inc(string(from), string(to))
+		return err
+	}
+	r.metrics.Transitions.Inc(string(from), string(to))
+	return nil
+}
+
+// transitionFrom is transition, made only if the stream is still in from.
+//
+// A stream that has already moved on is a lost race and is not counted as an
+// invalid transition: that metric exists to expose a state table and code that
+// disagree, and two sweepers meeting the same stall is neither.
+func (r *MediaRuntime) transitionFrom(s *Stream, from, to StreamState, reason string) error {
+	if err := s.transitionFrom(from, to, reason); err != nil {
+		if !errors.Is(err, errStateChanged) {
+			r.metrics.InvalidTransitions.Inc(string(from), string(to))
+		}
 		return err
 	}
 	r.metrics.Transitions.Inc(string(from), string(to))
@@ -577,8 +608,10 @@ type MediaScheduler struct {
 
 // NewMediaScheduler builds a scheduler.
 func NewMediaScheduler(cfg Config, reg *MediaRegistry, m *MediaMetrics) *MediaScheduler {
-	return &MediaScheduler{cfg: cfg, registry: reg, metrics: m,
-		perSource: make(map[SourceID]int)}
+	return &MediaScheduler{
+		cfg: cfg, registry: reg, metrics: m,
+		perSource: make(map[SourceID]int),
+	}
 }
 
 // Admit decides whether a stream may open, and reserves a slot if so.
@@ -750,7 +783,8 @@ func (c *MediaCoordinator) Fail(ctx context.Context, id StreamID, reason string)
 }
 
 func (c *MediaCoordinator) conclude(ctx context.Context, id StreamID,
-	to StreamState, reason string) error {
+	to StreamState, reason string,
+) error {
 	s, err := c.rt.registry.Get(id)
 	if err != nil {
 		return err
