@@ -722,7 +722,9 @@ func (c *Coordinator) Health() Health {
 	snap := e.registry.Snapshot()
 
 	var emergencies []string
-	for _, em := range e.emergency.Active() {
+	items := e.emergency.Active()
+	for i := range items {
+		em := &items[i]
 		emergencies = append(emergencies, em.Name)
 	}
 
