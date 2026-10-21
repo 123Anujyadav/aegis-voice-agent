@@ -54,9 +54,11 @@ type FSMSpec[S comparable] struct {
 	// Initial is the starting state.
 	Initial S
 
-	// Transitions maps each state to the states reachable from it. A state
-	// absent from the map has no outgoing transitions and is therefore
-	// terminal, but declaring it in Terminal as well is clearer and is checked.
+	// Transitions maps each state to the states reachable from it. Every
+	// state that is reached (Initial, or any transition's target) must have an
+	// entry here or be listed in Terminal; NewFSM refuses one that has
+	// neither. An entry with no targets declares a state with no exits that
+	// is still not terminal.
 	Transitions map[S][]S
 
 	// Terminal lists states from which nothing may follow. Declared explicitly
