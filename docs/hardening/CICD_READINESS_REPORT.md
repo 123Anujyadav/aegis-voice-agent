@@ -99,12 +99,16 @@ No AI-plane module has a `go.sum`, because none has a third-party dependency.
 failing. Left as-is: special-casing dependency-free modules costs more machinery
 than the warning does. See [DEPENDENCY_AUDIT.md](DEPENDENCY_AUDIT.md) D1.
 
-### C5 — Actions pinned by mutable tag *(open, medium)*
+### C5 — Actions pinned by mutable tag *(medium; closed 2026-10-21)*
 
 `actions/checkout@v4`, `setup-go@v5`, `upload-artifact@v4`. A tag is mutable, so
 an upstream compromise executes inside the build. This is the platform's largest
 remaining supply-chain exposure, which is mildly ironic given the Go code has
 none. See [DEPENDENCY_AUDIT.md](DEPENDENCY_AUDIT.md) D3.
+
+**Closed 2026-10-21** (#51): every action is pinned to a full commit SHA with its
+release as a comment, and `tools/ci/check_action_pins.py` holds every PR to it.
+See [DEPENDENCY_AUDIT.md](DEPENDENCY_AUDIT.md) section 9.
 
 ---
 
