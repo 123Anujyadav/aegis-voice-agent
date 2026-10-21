@@ -266,11 +266,11 @@ func NewRecordingEventPublisher() *RecordingEventPublisher {
 }
 
 // NewBoundedRecordingEventPublisher builds a recorder with an explicit bound.
-func NewBoundedRecordingEventPublisher(max int) *RecordingEventPublisher {
-	if max <= 0 {
-		max = 4096
+func NewBoundedRecordingEventPublisher(limit int) *RecordingEventPublisher {
+	if limit <= 0 {
+		limit = 4096
 	}
-	return &RecordingEventPublisher{max: max}
+	return &RecordingEventPublisher{max: limit}
 }
 
 // Publish records the event.

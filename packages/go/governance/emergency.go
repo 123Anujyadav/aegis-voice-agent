@@ -91,7 +91,8 @@ func (e Emergency) validate() []string {
 					"incident", e.Name, s))
 		}
 	}
-	for _, p := range e.Policies {
+	for i := range e.Policies {
+		p := &e.Policies[i]
 		if p.Scope != ScopeEmergency {
 			problems = append(problems, fmt.Sprintf(
 				"emergency %s: policy %s is in the %s scope; an emergency installs "+
@@ -222,7 +223,8 @@ func (e *EmergencyEngine) Deactivate(name, reason string) error {
 	count := len(e.active)
 	e.mu.Unlock()
 
-	for _, p := range em.Policies {
+	for i := range em.Policies {
+		p := &em.Policies[i]
 		_ = e.registry.SetEnabled(p.ID, false)
 	}
 
@@ -314,7 +316,8 @@ func (e *EmergencyEngine) ActiveNameFor(p PolicyID) string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	for name, em := range e.active {
-		for _, policy := range em.Policies {
+		for i := range em.Policies {
+			policy := &em.Policies[i]
 			if policy.ID == p {
 				return name
 			}
