@@ -296,6 +296,17 @@ class GateWorkflowTest(unittest.TestCase):
 class LatestAttemptTest(unittest.TestCase):
     """Jobs are listed with filter=all and reduced to each job's latest attempt."""
 
+    def test_same_attempt_duplicate_names_are_all_kept(self) -> None:
+        # Only earlier attempts are dropped: two jobs sharing a name in one
+        # attempt are both judged, so a failing one cannot be hidden.
+        rows = [
+            {"id": 1, "name": "build", "status": "completed", "conclusion": "failure", "run_attempt": 1},
+            {"id": 2, "name": "build", "status": "completed", "conclusion": "success", "run_attempt": 1},
+        ]
+        jobs = ci_gate._latest_attempt(rows)
+        self.assertEqual([j["id"] for j in jobs], [1, 2])
+        self.assertFalse(ci_gate.evaluate_run("pr-go.yml", "failure", jobs, None).ok)
+
     def test_a_partially_rerun_job_is_taken_from_its_latest_attempt(self) -> None:
         rows = [
             {"id": 10, "name": "lint (a)", "status": "completed", "conclusion": "failure", "run_attempt": 1},

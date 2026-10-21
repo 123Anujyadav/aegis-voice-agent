@@ -391,7 +391,7 @@ def _gh_lines(*args: str) -> list[dict[str, Any]]:
 
 
 def _latest_attempt(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Keep each job's row from its highest run attempt, in first-seen order.
+    """Keep every row of each job name's highest run attempt, names in first-seen order.
 
     After a single job of a large run is re-run, GitHub's jobs listing for
     that run slows down with page depth; at 100 jobs per page, its "latest
@@ -402,13 +402,14 @@ def _latest_attempt(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     latest-attempt listing. Small pages are a mitigation measured on that run,
     not a guarantee; a persistent API failure still fails closed.
     """
-    best: dict[str, dict[str, Any]] = {}
+    by_name: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
-        name = row["name"]
-        held = best.get(name)
-        if held is None or (row.get("run_attempt", 1), row["id"]) > (held.get("run_attempt", 1), held["id"]):
-            best[name] = row
-    return [{k: v for k, v in row.items() if k != "run_attempt"} for row in best.values()]
+        by_name.setdefault(row["name"], []).append(row)
+    kept = []
+    for group in by_name.values():
+        top = max(row.get("run_attempt", 1) for row in group)
+        kept += [row for row in group if row.get("run_attempt", 1) == top]
+    return [{k: v for k, v in row.items() if k != "run_attempt"} for row in kept]
 
 
 class GitHub:
