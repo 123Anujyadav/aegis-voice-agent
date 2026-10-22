@@ -298,7 +298,7 @@ func (e *EmergencyEngine) NoteUse(name string, d Decision) {
 	if e.audit == nil {
 		return
 	}
-	_ = e.audit.Record(AuditEntry{
+	recordAudit(e.audit, e.metrics, AuditEntry{
 		At: e.clock.Now(), Kind: AuditEmergencyUsed, Decision: d.ID,
 		Correlation: d.Correlation, Actor: d.Actor, Subject: d.Subject,
 		Policy: d.DecidedBy, Scope: d.Scope, Outcome: d.Outcome,
@@ -331,7 +331,7 @@ func (e *EmergencyEngine) record(kind AuditKind, em Emergency, reason string) {
 	if e.audit == nil {
 		return
 	}
-	_ = e.audit.Record(AuditEntry{
+	recordAudit(e.audit, e.metrics, AuditEntry{
 		At: e.clock.Now(), Kind: kind, Actor: ActorID(em.AuthorisedBy),
 		Reason: reason,
 		Details: map[string]string{

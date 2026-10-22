@@ -125,7 +125,7 @@ func (r *PolicyRegistry) Register(p Policy) error {
 	r.commit(old, func(next map[PolicyID]Policy) { next[p.ID] = p })
 
 	if r.audit != nil {
-		_ = r.audit.Record(AuditEntry{
+		recordAudit(r.audit, r.metrics, AuditEntry{
 			At: r.clock.Now(), Kind: AuditPolicyRegistered, Policy: p.ID,
 			Reason: p.Scope.String(),
 			Details: map[string]string{
@@ -181,7 +181,7 @@ func (r *PolicyRegistry) RegisterAll(policies ...Policy) error {
 	if r.audit != nil {
 		for i := range policies {
 			p := &policies[i]
-			_ = r.audit.Record(AuditEntry{
+			recordAudit(r.audit, r.metrics, AuditEntry{
 				At: r.clock.Now(), Kind: AuditPolicyRegistered, Policy: p.ID,
 				Reason:  p.Scope.String(),
 				Details: map[string]string{"version": fmt.Sprint(p.Version), "owner": p.Owner},
@@ -203,7 +203,7 @@ func (r *PolicyRegistry) Unregister(id PolicyID) error {
 	r.commit(old, func(next map[PolicyID]Policy) { delete(next, id) })
 
 	if r.audit != nil {
-		_ = r.audit.Record(AuditEntry{
+		recordAudit(r.audit, r.metrics, AuditEntry{
 			At: r.clock.Now(), Kind: AuditPolicyUnregistered, Policy: id,
 		})
 	}
@@ -235,7 +235,7 @@ func (r *PolicyRegistry) SetEnabled(id PolicyID, enabled bool) error {
 		if enabled {
 			reason = "enabled"
 		}
-		_ = r.audit.Record(AuditEntry{
+		recordAudit(r.audit, r.metrics, AuditEntry{
 			At: r.clock.Now(), Kind: AuditPolicyToggled, Policy: id, Reason: reason,
 		})
 	}

@@ -56,7 +56,50 @@ is reported on its own rather than presented as lint cleanup.
 **Error semantics.** A `%v` is not mechanically changed to `%w` where wrapping
 would change what `errors.Is` or `errors.As` match.
 
-**Pull requests.** Recorded here as they merge.
+**Pull requests.** Each was squash-merged at a verified head after
+`ci-gate` and Build & Test passed. The merge commits were checked on GitHub.
+
+| PR | Scope | Findings resolved | Merge commit |
+|---|---|---|---|
+| #67 | this exception record | — | `f7ff711` |
+| #68 | conversation, memory, evalsubjects, runtime | 73 of 73 | `e1f0aec` |
+| #69 | governance, media | 59 of 68 | `b5d919a` |
+| #70 | telephony, speech | 86 of 88 | `fed0d45` |
+| #71 | toolruntime | 59 of 64 | `527f993` |
+| #72 | evaluation | 94 of 94 | `093c974` |
+| #73 | audiointel | 104 of 105 | `c4f19e8` |
+
+**Result, verified on `main` `c4f19e8`.**
+- pr-security, the Aegis AI CI Pipeline and hardening passed.
+- pr-go run 39784281675 passed 132 jobs and failed 5. All 5 are
+  `golangci-lint` jobs, holding exactly the 17 findings that FE-1 left
+  visible on purpose.
+- FE-1 resolved 475 of the 492 findings. The other 17 are real defects, not
+  lint. Fixing them changes behaviour, which FE-1 excludes, so they were left
+  for the owner rather than suppressed.
+
+| Lint job | Findings | Defect |
+|---|---|---|
+| governance | 7 errcheck: `emergency.go:301`, `:334`; `human.go:469`; `registry.go:128`, `:184`, `:206`, `:238` | `audit.Record` failures discarded uncounted, against the Auditor contract "An error is counted" |
+| toolruntime | 5 errcheck: `compensation.go:239`; `permission.go:224`, `:389`; `registry.go:289`, `:316` | the same, in the tool runtime |
+| media | 2 G115: `pipeline.go:344`, `:349` | `fillGaps` converts a `uint64` gap to `int`; a gap above 2^63 skips the `MaxGapFill` clamp |
+| speech | 2 errcheck: `stt.go:268`, `tts.go:249` | refused turn transitions ignored on the live path; recorded with the concurrent-`Speak` race |
+| audiointel | 1 G115: `continuity.go:107` | `MissingBefore` wraps negative for a gap above 2^63 |
+
+Also reported, and suppressed with a `nolint` that names it:
+`evalsubjects`' tool subject records a closed `ToolRuntime` (`ErrClosed` with
+an empty `PlanResult`) as a successful step.
+
+**Follow-up defect fixes (owner-authorised, outside FE-1).** These are
+separate behaviour fixes with regression tests. Each test fails without its
+fix.
+
+| PR | Defect | Status when recorded |
+|---|---|---|
+| #74 | audit counting, governance and toolruntime: failures are counted, and operations still do not fail | merged as `ef4fd69` |
+| #75 | media gap-fill overflow | open |
+| #76 | speech: synthesis reserved before the stream opens; ended turns are refused (the concurrent-`Speak` race fix) | open |
+| #77 | audiointel `MissingBefore` overflow | open |
 
 ## M1 — CI security and supply chain
 

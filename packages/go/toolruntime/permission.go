@@ -221,7 +221,7 @@ func (e *PermissionEngine) AddOverride(o Override) error {
 	e.mu.Unlock()
 
 	if e.audit != nil {
-		e.audit.Record(AuditEntry{
+		recordAudit(e.audit, e.metrics, AuditEntry{
 			At:      e.clock.Now(),
 			Kind:    AuditOverrideInstalled,
 			Actor:   ActorID(o.AuthorisedBy),
@@ -386,7 +386,7 @@ func (e *PermissionEngine) record(c Contract, g Grant, d Decision) Decision {
 			}
 			details["missing"] = joinSorted(names)
 		}
-		e.audit.Record(AuditEntry{
+		recordAudit(e.audit, e.metrics, AuditEntry{
 			At: d.EvaluatedAt, Kind: kind, Actor: g.Actor,
 			Descriptor: c.Descriptor, Reason: d.Reason, Details: details,
 		})
