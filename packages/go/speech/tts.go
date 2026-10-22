@@ -123,6 +123,10 @@ type TTSOrchestrator struct {
 	provider ProviderID
 	turn     TurnID
 	speaking bool
+	// reserved is held by a Speak from its admission check until its stream
+	// is live or abandoned, so a concurrent Speak is refused while the first is
+	// still opening its provider stream.
+	reserved bool
 	closed   bool
 	cancel   context.CancelFunc
 	pending  int
@@ -184,16 +188,18 @@ func (o *TTSOrchestrator) Speaking() bool {
 // Returns once every chunk has been submitted; audio continues to arrive on
 // [TTSOrchestrator.Frames] until synthesis completes or is cancelled.
 func (o *TTSOrchestrator) Speak(ctx context.Context, turn TurnID, text string, lang Language) error {
-	o.mu.Lock()
-	if o.closed {
-		o.mu.Unlock()
-		return ErrSpeechSessionClosed
+	gen, err := o.reserve()
+	if err != nil {
+		return err
 	}
-	if o.speaking {
-		o.mu.Unlock()
-		return fmt.Errorf("%w: synthesis is already live for turn %s", ErrInternalFailure, o.turn)
-	}
-	o.mu.Unlock()
+	committed := false
+	defer func() {
+		if !committed {
+			o.mu.Lock()
+			o.reserved = false
+			o.mu.Unlock()
+		}
+	}()
 
 	provider, err := o.router.PickTTS(lang)
 	if err != nil {
@@ -234,22 +240,14 @@ func (o *TTSOrchestrator) Speak(ctx context.Context, turn TurnID, text string, l
 		return fmt.Errorf("open tts on %s: %w", provider.ID(), err)
 	}
 
-	gen := o.generation.Load()
-
-	o.mu.Lock()
-	o.stream = stream
-	o.provider = provider.ID()
-	o.turn = turn
-	o.speaking = true
-	o.cancel = cancel
-	o.pending = len(chunks)
-	o.mu.Unlock()
+	if err := o.goLive(turn, gen, provider.ID(), stream, cancel, len(chunks)); err != nil {
+		return err
+	}
+	committed = true
 
 	o.metrics.TTSStreams.Add(1)
-	_ = o.turns.Transition(turn, TurnSpeaking, "synthesis_started")
 
 	startedAt := o.clock.Now()
-	o.wg.Add(1)
 	go o.pump(streamCtx, stream, provider.ID(), gen, startedAt)
 
 	// Submit every chunk. Synthesis of chunk one is already producing audio
@@ -267,6 +265,78 @@ func (o *TTSOrchestrator) Speak(ctx context.Context, turn TurnID, text string, l
 		o.mu.Unlock()
 	}
 	return stream.CloseSend()
+}
+
+// reserve admits one Speak: it refuses when the orchestrator is closed or
+// synthesis is live or reserved, and otherwise reserves synthesis and returns
+// the generation the new stream will belong to.
+//
+// RESERVED UNDER THE SAME LOCK AS THE CHECK. Checking, releasing the lock and
+// only marking synthesis live after the provider stream opened let two
+// concurrent calls both pass the check. The generation is read here too: a
+// Cancel while the stream is opening must abandon it, not have it play.
+func (o *TTSOrchestrator) reserve() (uint64, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.closed {
+		return 0, ErrSpeechSessionClosed
+	}
+	if o.speaking || o.reserved {
+		return 0, fmt.Errorf("%w: synthesis is already live for turn %s", ErrInternalFailure, o.turn)
+	}
+	o.reserved = true
+	return o.generation.Load(), nil
+}
+
+// goLive makes an opened stream the live synthesis, or abandons it.
+//
+// It is abandoned when the turn ended while the stream was opening —
+// interrupted, cancelled or failed, so it must produce no audio — or when the
+// orchestrator was closed or cancelled meanwhile. Any other refusal of the move
+// to Speaking leaves synthesis to proceed, as it always has.
+func (o *TTSOrchestrator) goLive(
+	turn TurnID, gen uint64, provider ProviderID, stream TTSStream, cancel context.CancelFunc, pending int,
+) error {
+	if err := o.turns.Transition(turn, TurnSpeaking, "synthesis_started"); err != nil && o.turnEnded(turn) {
+		abandon(cancel, stream)
+		return fmt.Errorf("%w: turn %s ended before synthesis started", ErrTTSCancelled, turn)
+	}
+
+	o.mu.Lock()
+	switch {
+	case o.closed:
+		o.mu.Unlock()
+		abandon(cancel, stream)
+		return ErrSpeechSessionClosed
+	case o.generation.Load() != gen:
+		o.mu.Unlock()
+		abandon(cancel, stream)
+		return fmt.Errorf("%w: cancelled while the stream was opening", ErrTTSCancelled)
+	}
+	o.stream = stream
+	o.provider = provider
+	o.turn = turn
+	o.speaking = true
+	o.reserved = false
+	o.cancel = cancel
+	o.pending = pending
+	// Added under the lock that made synthesis live, so a Cancel or Close that
+	// follows always waits for this pump.
+	o.wg.Add(1)
+	o.mu.Unlock()
+	return nil
+}
+
+// turnEnded reports whether the turn has reached a terminal state.
+func (o *TTSOrchestrator) turnEnded(id TurnID) bool {
+	t, ok := o.turns.Turn(id)
+	return ok && t.State().Terminal()
+}
+
+// abandon releases a stream that never became live.
+func abandon(cancel context.CancelFunc, stream TTSStream) {
+	cancel()
+	_ = stream.Close() //nolint:errcheck // the stream carried no audio; the reason it is abandoned is the error reported
 }
 
 // pump moves provider audio to the output, discarding stale generations.
