@@ -42,16 +42,16 @@ func evalIntent(reqs ...CapabilityRequest) ToolIntent {
 	}
 }
 
-func read(ref string, cap CapabilityID, deps ...string) CapabilityRequest {
+func read(ref string, capability CapabilityID, deps ...string) CapabilityRequest {
 	return CapabilityRequest{
-		Ref: ref, Capability: cap, Version: AnyVersion(),
+		Ref: ref, Capability: capability, Version: AnyVersion(),
 		Args: Arguments{"query": String(ref)}, DependsOn: deps,
 	}
 }
 
-func write(ref string, cap CapabilityID, deps ...string) CapabilityRequest {
+func write(ref string, capability CapabilityID, deps ...string) CapabilityRequest {
 	return CapabilityRequest{
-		Ref: ref, Capability: cap, Version: AnyVersion(),
+		Ref: ref, Capability: capability, Version: AnyVersion(),
 		Args: Arguments{"subject": String(ref)}, DependsOn: deps,
 	}
 }
@@ -200,13 +200,13 @@ func TestEvaluation_CompensationUndoesEverythingItCan(t *testing.T) {
 		var reqs []CapabilityRequest
 		for i := 0; i < depth; i++ {
 			tools[i] = &CompensatingFake{}
-			cap := CapabilityID(fmt.Sprintf("step%d", i))
-			h.Register(WriteContract(ToolID(fmt.Sprintf("t%d", i)), "1.0.0", cap), tools[i])
+			capability := CapabilityID(fmt.Sprintf("step%d", i))
+			h.Register(WriteContract(ToolID(fmt.Sprintf("t%d", i)), "1.0.0", capability), tools[i])
 			var deps []string
 			if i > 0 {
 				deps = []string{fmt.Sprintf("s%d", i-1)}
 			}
-			reqs = append(reqs, write(fmt.Sprintf("s%d", i), cap, deps...))
+			reqs = append(reqs, write(fmt.Sprintf("s%d", i), capability, deps...))
 		}
 
 		boom := WriteContract("boom", "1.0.0", "boom")
