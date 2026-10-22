@@ -211,11 +211,11 @@ func NewRecordingPublisher() *RecordingPublisher {
 }
 
 // NewBoundedRecordingPublisher builds a recorder with an explicit bound.
-func NewBoundedRecordingPublisher(max int) *RecordingPublisher {
-	if max <= 0 {
-		max = 4096
+func NewBoundedRecordingPublisher(limit int) *RecordingPublisher {
+	if limit <= 0 {
+		limit = 4096
 	}
-	return &RecordingPublisher{max: max}
+	return &RecordingPublisher{max: limit}
 }
 
 // Publish records the event.
@@ -242,9 +242,10 @@ func (p *RecordingPublisher) OfType(t EventType) []Event {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	var out []Event
-	for _, e := range p.events {
+	for i := range p.events {
+		e := &p.events[i]
 		if e.Type == t {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	return out
@@ -255,9 +256,10 @@ func (p *RecordingPublisher) ForCall(id CallID) []Event {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	var out []Event
-	for _, e := range p.events {
+	for i := range p.events {
+		e := &p.events[i]
 		if e.Call == id {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	return out

@@ -215,7 +215,7 @@ func transitionSpec() map[CallState][]CallState {
 
 // newCallFSM builds the state machine for one call.
 //
-// initial is StateIdle for a new call and StateRecovery for one restored from a
+// The initial state is StateIdle for a new call and StateRecovery for one restored from a
 // snapshot. Any other initial state is refused: those are the only two ways a
 // call legitimately begins, and allowing an arbitrary start would let a caller
 // fabricate a connected call that never rang.

@@ -153,10 +153,10 @@ func (s *SpeechSession) Listen(ctx context.Context) (*SpeechTurn, error) {
 		return nil, err
 	}
 	if err := s.stt.Start(ctx, turn.ID, s.ctx.Language); err != nil {
-		_ = s.turns.Transition(turn.ID, TurnFailed, "stt_open_failed")
+		_ = s.turns.Transition(turn.ID, TurnFailed, "stt_open_failed") //nolint:errcheck // the open failure, returned below, is the error reported
 		return nil, err
 	}
-	s.publish(EventSpeechStarted, turn.ID, "", nil)
+	s.publish(EventSpeechStarted, turn.ID, "", nil) //nolint:contextcheck // events publish on their own context: a caller's cancellation must not suppress the record
 	return turn, nil
 }
 
@@ -191,13 +191,13 @@ func (s *SpeechSession) Respond(ctx context.Context, text string) error {
 			return err
 		}
 	}
-	s.publish(EventTTSStarted, turn.ID, "", nil)
+	s.publish(EventTTSStarted, turn.ID, "", nil) //nolint:contextcheck // as above
 	err := s.tts.Speak(ctx, turn.ID, text, s.ctx.Language)
 	if err != nil {
-		s.publish(EventTTSCancelled, turn.ID, "speak_failed", nil)
+		s.publish(EventTTSCancelled, turn.ID, "speak_failed", nil) //nolint:contextcheck // as above
 		return err
 	}
-	s.publish(EventTTSCompleted, turn.ID, "", nil)
+	s.publish(EventTTSCompleted, turn.ID, "", nil) //nolint:contextcheck // as above
 	return nil
 }
 
@@ -251,8 +251,8 @@ func (s *SpeechSession) Interrupt(reason string) (InterruptResult, error) {
 		return InterruptResult{}, err
 	}
 
-	if err := s.turns.Transition(previous.ID, TurnInterrupted, reason); err != nil {
-		return InterruptResult{}, err
+	if speakErr := s.turns.Transition(previous.ID, TurnInterrupted, reason); speakErr != nil {
+		return InterruptResult{}, speakErr
 	}
 
 	next, err := s.turns.Begin(RoleCaller)
@@ -293,19 +293,19 @@ func (s *SpeechSession) Close(ctx context.Context, reason string) error {
 	s.mu.Unlock()
 
 	if turn, ok := s.turns.Active(); ok {
-		_ = s.turns.Transition(turn.ID, TurnCancelled, reason)
+		_ = s.turns.Transition(turn.ID, TurnCancelled, reason) //nolint:errcheck // closing: a turn that already ended refuses the move, which is fine
 	}
 
 	if s.cancel != nil {
 		s.cancel()
 	}
-	_ = s.stt.Close()
-	_ = s.tts.Close()
+	_ = s.stt.Close() //nolint:errcheck // teardown: the stream is being discarded, and a close failure has no remedy
+	_ = s.tts.Close() //nolint:errcheck // teardown: the stream is being discarded, and a close failure has no remedy
 
 	s.assembler.Reset()
 	s.metrics.SessionsActive.Add(-1)
 	s.metrics.SessionsClosed.Add(1, boundedReason(reason))
-	s.publish(EventSpeechSessionClosed, "", reason, nil)
+	s.publish(EventSpeechSessionClosed, "", reason, nil) //nolint:contextcheck // events publish on their own context: a caller's cancellation must not suppress the record
 
 	if s.onClose != nil {
 		s.onClose(s.id)
@@ -343,5 +343,5 @@ func (s *SpeechSession) publish(t SpeechEventType, turn TurnID, reason string, s
 
 	// A publisher error MUST NOT fail the operation that produced it: a broker
 	// outage cannot be allowed to stop calls from being answered.
-	_ = s.events.Publish(context.Background(), e)
+	_ = s.events.Publish(context.Background(), e) //nolint:errcheck // deliberate, as explained above: see EventPublisher
 }
