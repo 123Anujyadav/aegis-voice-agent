@@ -135,14 +135,16 @@ func (s *MemoryStorage) PutRun(r Run) error {
 	s.runs[r.ID] = r
 	s.runOrder = append(s.runOrder, r.ID)
 
-	for _, res := range r.Results {
+	for i := range r.Results {
+		res := &r.Results[i]
 		point := TrendPoint{
 			Run: r.ID, Scenario: res.Scenario, Subject: res.Subject,
 			Verdict: res.Verdict, Behaviour: res.Observation.BehaviourPrint(),
 			StepSeconds: res.Observation.TotalStepTime().Seconds(),
 			At:          r.FinishedAt, Label: r.Label,
 		}
-		list := append(s.trends[res.Scenario], point)
+		list := s.trends[res.Scenario]
+		list = append(list, point)
 		if len(list) > s.maxTrend {
 			list = list[len(list)-s.maxTrend:]
 		}
@@ -196,7 +198,8 @@ func (s *MemoryStorage) PutObservation(o Observation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	list := append(s.observations[o.Scenario], o.Clone())
+	list := s.observations[o.Scenario]
+	list = append(list, o.Clone())
 	if len(list) > s.maxObs {
 		list = list[len(list)-s.maxObs:]
 	}
@@ -209,7 +212,8 @@ func (s *MemoryStorage) Observations(id ScenarioID) []Observation {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]Observation, 0, len(s.observations[id]))
-	for _, o := range s.observations[id] {
+	for i := range s.observations[id] {
+		o := &s.observations[id][i]
 		out = append(out, o.Clone())
 	}
 	return out
@@ -219,7 +223,8 @@ func (s *MemoryStorage) Observations(id ScenarioID) []Observation {
 func (s *MemoryStorage) PutBenchmark(b BenchmarkResult) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list := append(s.benchmarks[b.Scenario], b)
+	list := s.benchmarks[b.Scenario]
+	list = append(list, b)
 	if len(list) > s.maxBench {
 		list = list[len(list)-s.maxBench:]
 	}
@@ -238,7 +243,8 @@ func (s *MemoryStorage) Benchmarks(id ScenarioID) []BenchmarkResult {
 func (s *MemoryStorage) PutTrend(p TrendPoint) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list := append(s.trends[p.Scenario], p)
+	list := s.trends[p.Scenario]
+	list = append(list, p)
 	if len(list) > s.maxTrend {
 		list = list[len(list)-s.maxTrend:]
 	}
@@ -273,7 +279,7 @@ func (s *MemoryStorage) Scenarios() []ScenarioID {
 	return out
 }
 
-// Stats reports what the store holds, for operators.
+// StorageStats reports what the store holds, for operators.
 type StorageStats struct {
 	Runs         int
 	Observations int

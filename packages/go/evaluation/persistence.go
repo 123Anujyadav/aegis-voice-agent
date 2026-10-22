@@ -167,7 +167,7 @@ type Query struct {
 	Limit int
 }
 
-func (q Query) matches(r Record) bool {
+func (q Query) matches(r Record) bool { //nolint:gocyclo // one check per query filter
 	if len(q.Kinds) > 0 {
 		var ok bool
 		for _, k := range q.Kinds {
@@ -613,13 +613,15 @@ func (r *MemoryRepository) PutBatch(ctx context.Context, recs []Record) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	for _, rec := range recs {
+	for i := range recs {
+		rec := &recs[i]
 		if rec.Schema > CurrentSchema {
 			return fmt.Errorf("%w: record %s is v%d", ErrSchemaTooNew, rec.Key(), rec.Schema)
 		}
 	}
-	for _, rec := range recs {
-		if err := r.Put(ctx, rec); err != nil {
+	for i := range recs {
+		rec := &recs[i]
+		if err := r.Put(ctx, *rec); err != nil {
 			return err
 		}
 	}
@@ -655,7 +657,8 @@ func (r *MemoryRepository) List(ctx context.Context, q Query) ([]Record, error) 
 	}
 
 	var out []Record
-	for _, rec := range r.records {
+	for k := range r.records {
+		rec := r.records[k]
 		if q.matches(rec) {
 			out = append(out, rec)
 		}
@@ -678,7 +681,8 @@ func (r *MemoryRepository) Count(ctx context.Context, q Query) (int, error) {
 		return 0, err
 	}
 	var n int
-	for _, rec := range r.records {
+	for k := range r.records {
+		rec := r.records[k]
 		if q.matches(rec) {
 			n++
 		}
@@ -768,7 +772,8 @@ func (r *MemoryRepository) Sweep(ctx context.Context, now time.Time) (SweepRepor
 		Held:    make(map[RecordKind]int),
 	}
 
-	for key, rec := range r.records {
+	for key := range r.records {
+		rec := r.records[key]
 		// Audit records are exempt from the sweep. Retention exists to bound
 		// what the platform remembers about behaviour; the record of WHAT WAS
 		// DELETED is the evidence that the bound was honoured, and deleting it
@@ -811,7 +816,8 @@ func (r *MemoryRepository) Schema(ctx context.Context) (SchemaVersion, SchemaVer
 		return CurrentSchema, CurrentSchema, nil
 	}
 	low, high := SchemaVersion(1<<31-1), SchemaVersion(0)
-	for _, rec := range r.records {
+	for k := range r.records {
+		rec := r.records[k]
 		if rec.Schema < low {
 			low = rec.Schema
 		}
@@ -842,7 +848,8 @@ func (r *MemoryRepository) Migrate(ctx context.Context, m Migrator) (MigrationRe
 	}
 
 	steps := map[string]bool{}
-	for key, rec := range r.records {
+	for key := range r.records {
+		rec := r.records[key]
 		if rec.Schema >= CurrentSchema {
 			report.Skipped++
 			continue
@@ -906,7 +913,8 @@ func (r *MemoryRepository) Snapshot(ctx context.Context) (StoreSnapshot, error) 
 		Records: make([]Record, 0, len(r.records)),
 		Counts:  make(map[RecordKind]int),
 	}
-	for _, rec := range r.records {
+	for k := range r.records {
+		rec := r.records[k]
 		clone := rec
 		clone.Payload = append([]byte(nil), rec.Payload...)
 		snap.Records = append(snap.Records, clone)
@@ -932,19 +940,22 @@ func (r *MemoryRepository) Restore(ctx context.Context, snap StoreSnapshot) erro
 	}
 
 	held := make(map[RecordKey]Record)
-	for key, rec := range r.records {
+	for key := range r.records {
+		rec := r.records[key]
 		if rec.LegalHold {
 			held[key] = rec
 		}
 	}
 
 	r.records = make(map[RecordKey]Record, len(snap.Records))
-	for _, rec := range snap.Records {
+	for i := range snap.Records {
+		rec := &snap.Records[i]
 		clone := rec
 		clone.Payload = append([]byte(nil), rec.Payload...)
-		r.records[rec.Key()] = clone
+		r.records[rec.Key()] = *clone
 	}
-	for key, rec := range held {
+	for key := range held {
+		rec := held[key]
 		if restored, ok := r.records[key]; ok {
 			restored.LegalHold = true
 			r.records[key] = restored

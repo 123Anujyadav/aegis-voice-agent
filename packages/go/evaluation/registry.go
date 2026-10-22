@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -176,7 +177,8 @@ func NewRegistry(clock rt.Clock, m *Metrics) *Registry {
 func (r *Registry) RegisterScenarios(scenarios ...Scenario) error {
 	var problems []string
 	seen := make(map[ScenarioID]bool, len(scenarios))
-	for _, s := range scenarios {
+	for i := range scenarios {
+		s := &scenarios[i]
 		problems = append(problems, s.validate()...)
 		if seen[s.ID] {
 			problems = append(problems, fmt.Sprintf("%s: registered twice in one batch", s.ID))
@@ -192,7 +194,8 @@ func (r *Registry) RegisterScenarios(scenarios ...Scenario) error {
 	defer r.writeMu.Unlock()
 
 	old := r.snapshot.Load()
-	for _, s := range scenarios {
+	for i := range scenarios {
+		s := &scenarios[i]
 		if prev, exists := old.scenarios[s.ID]; exists && s.Version < prev.Version {
 			return &ConfigError{Problems: []string{fmt.Sprintf(
 				"%s: version %d is below the registered version %d; a scenario does not "+
@@ -202,8 +205,9 @@ func (r *Registry) RegisterScenarios(scenarios ...Scenario) error {
 	}
 
 	r.commit(old, func(sc map[ScenarioID]Scenario, su map[SuiteID]Suite) {
-		for _, s := range scenarios {
-			sc[s.ID] = s
+		for i := range scenarios {
+			s := &scenarios[i]
+			sc[s.ID] = *s
 		}
 	})
 	return nil
@@ -247,13 +251,9 @@ func (r *Registry) RegisterSuites(suites ...Suite) error {
 
 func (r *Registry) commit(old *registrySnapshot, mutate func(map[ScenarioID]Scenario, map[SuiteID]Suite)) {
 	scenarios := make(map[ScenarioID]Scenario, len(old.scenarios)+1)
-	for k, v := range old.scenarios {
-		scenarios[k] = v
-	}
+	maps.Copy(scenarios, old.scenarios)
 	suites := make(map[SuiteID]Suite, len(old.suites)+1)
-	for k, v := range old.suites {
-		suites[k] = v
-	}
+	maps.Copy(suites, old.suites)
 	mutate(scenarios, suites)
 
 	snap := &registrySnapshot{
@@ -390,7 +390,8 @@ func (r *Registry) Coverage() Coverage {
 	for _, k := range AllSuiteKinds() {
 		c.BySuiteKind[k] = 0
 	}
-	for _, s := range scenarios {
+	for i := range scenarios {
+		s := &scenarios[i]
 		c.BySubject[s.SubjectName]++
 	}
 	for _, s := range r.Suites() {

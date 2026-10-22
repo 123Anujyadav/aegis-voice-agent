@@ -180,7 +180,8 @@ func (r Run) Counts() map[Verdict]int {
 		VerdictPass: 0, VerdictDrift: 0, VerdictFail: 0,
 		VerdictNoBaseline: 0, VerdictSkipped: 0,
 	}
-	for _, res := range r.Results {
+	for i := range r.Results {
+		res := &r.Results[i]
 		out[res.Verdict]++
 	}
 	return out
@@ -189,9 +190,10 @@ func (r Run) Counts() map[Verdict]int {
 // Blocking returns the results that should stop a release.
 func (r Run) Blocking() []ScenarioResult {
 	var out []ScenarioResult
-	for _, res := range r.Results {
+	for i := range r.Results {
+		res := &r.Results[i]
 		if res.Verdict.Blocking() {
-			out = append(out, res)
+			out = append(out, *res)
 		}
 	}
 	return out
@@ -200,9 +202,10 @@ func (r Run) Blocking() []ScenarioResult {
 // Drifted returns the results that changed behaviour against a baseline.
 func (r Run) Drifted() []ScenarioResult {
 	var out []ScenarioResult
-	for _, res := range r.Results {
+	for i := range r.Results {
+		res := &r.Results[i]
 		if res.Verdict == VerdictDrift {
-			out = append(out, res)
+			out = append(out, *res)
 		}
 	}
 	return out
@@ -338,7 +341,7 @@ func (e *EvaluationRuntime) Stop() error {
 // The single scenario path, and the one every other engine is built from:
 // determinism repeats it, replay compares against a stored observation,
 // regression compares two runs of it, and a benchmark samples it.
-func (e *EvaluationRuntime) Execute(ctx context.Context, s Scenario) ScenarioResult {
+func (e *EvaluationRuntime) Execute(ctx context.Context, s Scenario) ScenarioResult { //nolint:gocyclo // the frozen scenario lifecycle; FE-1 permits lint fixes, not restructuring the frozen evaluator
 	start := e.clock.Now()
 	res := ScenarioResult{Scenario: s.ID, Subject: s.SubjectName, Kind: s.Kind}
 
@@ -628,19 +631,19 @@ func (e *EvaluationRuntime) runScenarios(ctx context.Context, scenarios Scenario
 	if parallel {
 		sem := make(chan struct{}, e.cfg.MaxParallel)
 		var wg sync.WaitGroup
-		for i, s := range scenarios {
+		for i := range scenarios {
 			wg.Add(1)
 			go func(i int, s Scenario) {
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
 				results[i] = e.Execute(ctx, s)
-			}(i, s)
+			}(i, scenarios[i])
 		}
 		wg.Wait()
 	} else {
-		for i, s := range scenarios {
-			results[i] = e.Execute(ctx, s)
+		for i := range scenarios {
+			results[i] = e.Execute(ctx, scenarios[i])
 		}
 	}
 

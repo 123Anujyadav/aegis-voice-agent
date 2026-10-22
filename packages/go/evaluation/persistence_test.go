@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -66,7 +67,7 @@ func TestRepository_Conformance(t *testing.T) {
 				if err != nil {
 					t.Fatalf("get: %v", err)
 				}
-				if string(got.Payload) != string(r.Payload) {
+				if !bytes.Equal(got.Payload, r.Payload) {
 					t.Errorf("payload = %q, want %q", got.Payload, r.Payload)
 				}
 			})
@@ -140,8 +141,8 @@ func TestRepository_Conformance(t *testing.T) {
 				if len(snap.Records) == 0 {
 					t.Fatal("snapshot is empty")
 				}
-				if err := repo.Restore(ctx, snap); err != nil {
-					t.Fatalf("restore: %v", err)
+				if opErr := repo.Restore(ctx, snap); opErr != nil {
+					t.Fatalf("restore: %v", opErr)
 				}
 				after, err := repo.Count(ctx, Query{IncludeUnreadable: true})
 				if err != nil {
@@ -333,13 +334,13 @@ func TestSweep_NeverDeletesAuditRecords(t *testing.T) {
 	}
 	for _, a := range audits {
 		a.ExpiresAt = start.Add(time.Hour)
-		if err := repo.Put(ctx, a); err != nil {
-			t.Fatal(err)
+		if opErr := repo.Put(ctx, a); opErr != nil {
+			t.Fatal(opErr)
 		}
 	}
 
-	if _, err := repo.Sweep(ctx, start.Add(10*365*24*time.Hour)); err != nil {
-		t.Fatal(err)
+	if _, opErr := repo.Sweep(ctx, start.Add(10*365*24*time.Hour)); opErr != nil {
+		t.Fatal(opErr)
 	}
 	after, err := repo.Count(ctx, Query{Kinds: []RecordKind{RecordAudit}})
 	if err != nil {
@@ -525,8 +526,8 @@ func TestSchema_ReportsRangePresent(t *testing.T) {
 		t.Errorf("empty store reports v%d..v%d, want v%d", low, high, CurrentSchema)
 	}
 
-	if err := repo.Put(ctx, rec(RecordRun, "r", clock.Now())); err != nil {
-		t.Fatal(err)
+	if opErr := repo.Put(ctx, rec(RecordRun, "r", clock.Now())); opErr != nil {
+		t.Fatal(opErr)
 	}
 	low, high, err = repo.Schema(ctx)
 	if err != nil {
@@ -583,12 +584,12 @@ func TestRestore_PreservesLegalHolds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.SetLegalHold(ctx, r.Key(), true, "legal", "matter"); err != nil {
-		t.Fatal(err)
+	if opErr := repo.SetLegalHold(ctx, r.Key(), true, "legal", "matter"); opErr != nil {
+		t.Fatal(opErr)
 	}
 
-	if err := repo.Restore(ctx, snap); err != nil {
-		t.Fatal(err)
+	if opErr := repo.Restore(ctx, snap); opErr != nil {
+		t.Fatal(opErr)
 	}
 	got, err := repo.Get(ctx, r.Key())
 	if err != nil {

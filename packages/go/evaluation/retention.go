@@ -392,7 +392,8 @@ func (m *RetentionManager) Unstamped(ctx context.Context) ([]RecordKey, error) {
 		return nil, err
 	}
 	var out []RecordKey
-	for _, rec := range recs {
+	for i := range recs {
+		rec := &recs[i]
 		p, ok := m.schedule.For(rec.Kind)
 		if !ok || p.Action == RetentionIndefinite {
 			continue
@@ -417,8 +418,9 @@ func (m *RetentionManager) Reapply(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	var changed int
-	for _, rec := range recs {
-		updated := m.schedule.Apply(rec)
+	for i := range recs {
+		rec := &recs[i]
+		updated := m.schedule.Apply(*rec)
 		if updated.ExpiresAt.Equal(rec.ExpiresAt) {
 			continue
 		}
@@ -454,7 +456,8 @@ func (m *RetentionManager) Enforce(ctx context.Context) (RetentionReport, error)
 			return report, fmt.Errorf("retention: policy %q archive failed, "+
 				"nothing deleted: %w", p.Name, err)
 		}
-		for _, rec := range due {
+		for i := range due {
+			rec := &due[i]
 			if err := m.repo.Delete(ctx, rec.Key()); err != nil {
 				// A hold placed between the query and the delete is not an
 				// error: the hold won, which is the correct outcome.
@@ -486,9 +489,10 @@ func (m *RetentionManager) dueFor(ctx context.Context, p RetentionPolicy,
 		return nil, err
 	}
 	var due []Record
-	for _, rec := range recs {
+	for i := range recs {
+		rec := &recs[i]
 		if rec.Expired(now) {
-			due = append(due, rec)
+			due = append(due, *rec)
 		}
 	}
 	return due, nil
@@ -586,7 +590,7 @@ func decodeAudit(rec Record) (AuditEntry, bool) {
 		case "action":
 			e.Action = AuditAction(value)
 		case "count":
-			e.Count, _ = strconv.Atoi(value)
+			e.Count, _ = strconv.Atoi(value) //nolint:errcheck // a lenient reader: a malformed count reads as zero rather than dropping the entry
 		case "policy":
 			e.Policy = value
 		case "by":
