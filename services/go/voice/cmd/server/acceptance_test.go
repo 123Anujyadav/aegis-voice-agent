@@ -652,11 +652,11 @@ func TestT11_EvictionUnderControlledClock(t *testing.T) {
 
 	for i := 0; i < bound; i++ {
 		clock.Advance(time.Millisecond)
-		if err := ctx.Set(conversation.Entry{
+		if setErr := ctx.Set(conversation.Entry{
 			Key: fmt.Sprintf("k%05d", i), Value: i,
 			Scope: conversation.ScopeConversation, Source: "t11",
-		}); err != nil {
-			t.Fatalf("fill %d: %v", i, err)
+		}); setErr != nil {
+			t.Fatalf("fill %d: %v", i, setErr)
 		}
 	}
 	if got := ctx.Size(conversation.ScopeConversation); got != bound {
@@ -665,11 +665,11 @@ func TestT11_EvictionUnderControlledClock(t *testing.T) {
 	// One more write with a strictly newer timestamp: the OLDEST entry, k00000,
 	// is the determined victim.
 	clock.Advance(time.Millisecond)
-	if err := ctx.Set(conversation.Entry{
+	if setErr := ctx.Set(conversation.Entry{
 		Key: "overflow", Value: "new",
 		Scope: conversation.ScopeConversation, Source: "t11",
-	}); err != nil {
-		t.Fatalf("overflow: %v", err)
+	}); setErr != nil {
+		t.Fatalf("overflow: %v", setErr)
 	}
 	if got := ctx.Size(conversation.ScopeConversation); got != bound {
 		t.Errorf("size %d after overflow, want the bound %d", got, bound)

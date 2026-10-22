@@ -290,7 +290,7 @@ func BenchmarkT10_RebuildFrequencyControl(b *testing.B) {
 // ---------------------------------------------------------------------------
 
 // BenchmarkT10_MultiTurn measures one full callback -> transfer -> repeat cycle
-// per iteration on an ALREADY ESTABLISHED session. ns/op is therefore the cost
+// per iteration on an ALREADY ESTABLISHED session. The ns/op figure is therefore the cost
 // of three caller turns plus their three speech-complete events, not one turn.
 func BenchmarkT10_MultiTurn(b *testing.B) {
 	sequence := []string{
