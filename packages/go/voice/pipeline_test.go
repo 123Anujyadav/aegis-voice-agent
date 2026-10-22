@@ -70,12 +70,6 @@ func (s *scriptedIntel) Analyze(
 	return a, nil
 }
 
-func (s *scriptedIntel) count() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.analyzed
-}
-
 // scriptedPlanner returns a fixed plan.
 type scriptedPlanner struct {
 	action conversation.Action
@@ -306,7 +300,8 @@ func (s *recordingSTTStream) emit() {
 		}
 	}
 
-	for _, seg := range s.provider.segments {
+	for i := range s.provider.segments {
+		seg := s.provider.segments[i]
 		if s.provider.gap > 0 {
 			select {
 			case <-time.After(s.provider.gap):
@@ -329,7 +324,7 @@ func (s *recordingSTTStream) Write(media.Frame) error {
 		return speech.ErrSpeechSessionClosed
 	}
 	n := s.provider.written.Add(1)
-	if max := s.provider.closeAfterWrites; max > 0 && n > max {
+	if limit := s.provider.closeAfterWrites; limit > 0 && n > limit {
 		// The stream was closed underneath the writer. Deterministic here;
 		// in a live call it is turn teardown racing frame ingest.
 		return speech.ErrSpeechSessionClosed
@@ -1674,8 +1669,8 @@ func TestPipeline_ConcurrentSessionsAreIsolated(t *testing.T) {
 			}
 			defer func() { _ = h.pipeline.Disconnect() }()
 
-			for i := 0; i < 4; i++ {
-				if err := h.pipeline.WriteFrame(testFrame(uint64(i))); err != nil {
+			for frame := 0; frame < 4; frame++ {
+				if err := h.pipeline.WriteFrame(testFrame(uint64(frame))); err != nil {
 					errs <- fmt.Errorf("session %d: WriteFrame: %w", n, err)
 					return
 				}

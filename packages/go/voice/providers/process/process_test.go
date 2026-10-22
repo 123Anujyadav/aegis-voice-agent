@@ -190,7 +190,7 @@ func buildHelper() {
 
 	build := exec.Command("go", "build", "-o", bin, src)
 	if out, err := build.CombinedOutput(); err != nil {
-		helperErr = fmt.Errorf("building helper: %v: %s", err, out)
+		helperErr = fmt.Errorf("building helper: %w: %s", err, out)
 		return
 	}
 	helperPath = bin
@@ -562,8 +562,8 @@ func TestProcess_UnresponsiveChildIsKilled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Start(context.Background()); err != nil {
-		t.Fatal(err)
+	if startErr := p.Start(context.Background()); startErr != nil {
+		t.Fatal(startErr)
 	}
 
 	start := time.Now()
@@ -975,8 +975,8 @@ func TestProcess_RawStdoutSurvivesTheChildBeingReaped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if err := p.Start(context.Background()); err != nil {
-		t.Fatalf("Start: %v", err)
+	if startErr := p.Start(context.Background()); startErr != nil {
+		t.Fatalf("Start: %v", startErr)
 	}
 	defer func() { _ = p.Stop(context.Background()) }()
 

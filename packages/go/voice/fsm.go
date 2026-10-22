@@ -479,7 +479,7 @@ func (f *SessionFSM) publish(ctx context.Context, e VoiceEvent) {
 	if f.pub == nil {
 		return
 	}
-	_ = f.pub.Publish(ctx, e)
+	_ = f.pub.Publish(ctx, e) //nolint:errcheck // deliberate, as explained above: see EventPublisher
 }
 
 // validReason reports whether the code is in the declared vocabulary.

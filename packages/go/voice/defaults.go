@@ -20,62 +20,62 @@ import (
 
 // Frame cadence, capacity and turn bounds.
 const (
-	// defaultFrameInterval matches Phase 11B's DefaultPipelineConfig.
+	// The default frame interval matches Phase 11B's DefaultPipelineConfig.
 	defaultFrameInterval = 20 * time.Millisecond
 
-	// defaultMaxSessions is deliberately far below Phase 11D's 1024. A voice
+	// The default session limit is deliberately far below Phase 11D's 1024. A voice
 	// session holds a recognition process and a synthesis process; the binding
 	// constraint is local CPU and memory, not bookkeeping.
 	defaultMaxSessions = 32
 
-	// defaultTurnTimeout bounds one whole turn. Generous, because a local model
+	// The default turn timeout bounds one whole turn. Generous, because a local model
 	// on a CPU is slow and cutting a turn off mid-sentence is worse than
 	// waiting — but finite, because a stuck provider must not hold a call open
 	// forever.
 	defaultTurnTimeout = 60 * time.Second
 
-	// defaultMaxTranscriptChars bounds one transcript. Long enough for any
+	// The default transcript limit bounds one transcript. Long enough for any
 	// plausible utterance, short enough that a malfunctioning recogniser
 	// emitting a wall of text is caught here rather than in a token bill.
 	defaultMaxTranscriptChars = 4096
 
-	// defaultMaxResponseChars bounds one generated response.
+	// The default response limit bounds one generated response.
 	defaultMaxResponseChars = 8192
 )
 
 // Process supervision.
 const (
-	// defaultStartTimeout is how long a provider may take to become ready.
+	// The default start timeout is how long a provider may take to become ready.
 	// A model load from cold disk is slow; ten seconds covers it.
 	defaultStartTimeout = 10 * time.Second
 
-	// defaultStopTimeout is the grace period before a child is killed.
+	// The default stop timeout is the grace period before a child is killed.
 	// Two seconds is long enough to flush and exit, short enough that shutdown
 	// does not feel hung.
 	defaultStopTimeout = 2 * time.Second
 
-	// defaultMaxStderrBytes retains the most recent 64 KiB of a provider's
+	// The default stderr limit retains the most recent 64 KiB of a provider's
 	// stderr — enough to hold a stack trace or a model-load error, bounded so a
 	// chatty provider cannot grow it for the length of a call.
 	defaultMaxStderrBytes = 64 << 10
 
-	// defaultMaxRestarts allows two automatic restarts. A provider that has
+	// The default restart limit allows two automatic restarts. A provider that has
 	// died three times is not going to work on the fourth attempt, and
 	// restarting forever turns a broken install into a busy loop.
 	defaultMaxRestarts = 2
 
-	// defaultRestartBackoff is the delay before the first restart, doubling
+	// The default restart backoff is the delay before the first restart, doubling
 	// after that.
 	defaultRestartBackoff = 500 * time.Millisecond
 )
 
 // Recognition.
 const (
-	// defaultSTTResultTimeout bounds the wait for a result after audio ends.
+	// The default recognition result timeout bounds the wait for a result after audio ends.
 	// A batch recogniser on a CPU can take seconds on a short utterance.
 	defaultSTTResultTimeout = 30 * time.Second
 
-	// defaultSTTMaxPendingFrames is ten seconds of audio at the default
+	// The default recognition queue is ten seconds of audio at the default
 	// cadence. A recogniser slower than real time will hit this, which is the
 	// point: backpressure is reported rather than absorbed silently.
 	defaultSTTMaxPendingFrames = 500
@@ -83,38 +83,38 @@ const (
 
 // Synthesis.
 const (
-	// defaultTTSChunkTimeout bounds synthesis of one text chunk.
+	// The default synthesis chunk timeout bounds synthesis of one text chunk.
 	defaultTTSChunkTimeout = 20 * time.Second
 
-	// defaultTTSMaxPendingChunks bounds queued text. A response is chunked into
+	// The default synthesis text queue bounds queued text. A response is chunked into
 	// clauses; sixteen is several sentences ahead of the speaker.
 	defaultTTSMaxPendingChunks = 16
 
-	// defaultTTSMaxPendingFrames is ten seconds of synthesised audio waiting to
+	// The default synthesis audio queue is ten seconds of synthesised audio waiting to
 	// go out.
 	defaultTTSMaxPendingFrames = 500
 
-	// defaultTTSSpeed is the model's natural rate.
+	// The default speed is the model's natural rate.
 	defaultTTSSpeed = 1.0
 
-	// defaultTTSSpeakerID means the model's own default voice.
+	// The default speaker ID (-1) means the model's own default voice.
 	defaultTTSSpeakerID = -1
 )
 
 // Local language model.
 const (
-	// defaultModelEndpoint is the conventional local daemon address.
+	// The default model endpoint is the conventional local daemon address.
 	//
 	// A LOOPBACK ADDRESS, NOT A SERVICE. Naming it here is not an endorsement
 	// of any particular daemon; it is the port the local-first convention uses,
 	// and it is overridable.
 	defaultModelEndpoint = "http://127.0.0.1:11434"
 
-	// defaultModelRequestTimeout bounds a whole generation. Long, because a
+	// The default model request timeout bounds a whole generation. Long, because a
 	// 12-billion-parameter model on a laptop CPU is slow.
 	defaultModelRequestTimeout = 120 * time.Second
 
-	// defaultModelFirstTokenTimeout bounds the wait for the first token.
+	// The default first-token timeout bounds the wait for the first token.
 	//
 	// A TIMEOUT, NOT A BUDGET, AND THE DISTINCTION MATTERS. ADR-0011 §5.2 hop 6
 	// budgets time-to-first-token at 250 ms p50 / 550 ms p95 — for
@@ -126,10 +126,10 @@ const (
 	// responding, nothing more.
 	defaultModelFirstTokenTimeout = 30 * time.Second
 
-	// defaultModelMaxOutputTokens bounds a response.
+	// The default output-token limit bounds a response.
 	defaultModelMaxOutputTokens = 512
 
-	// defaultModelMaxPendingChunks bounds the token stream's buffer.
+	// The default token-stream buffer bounds the stream's pending chunks.
 	defaultModelMaxPendingChunks = 256
 )
 

@@ -94,9 +94,11 @@ func (a Authorization) Decision() governance.DecisionID { return a.decision }
 // DecidedBy returns the policy that allowed the action.
 func (a Authorization) DecidedBy() governance.PolicyID { return a.policy }
 
-// Operation and Resource report what was authorised.
+// Operation reports the operation that was authorised.
 func (a Authorization) Operation() string { return a.operation }
-func (a Authorization) Resource() string  { return a.resource }
+
+// Resource reports the resource that was authorised.
+func (a Authorization) Resource() string { return a.resource }
 
 // String renders the authorisation, content-free.
 func (a Authorization) String() string {
@@ -371,8 +373,8 @@ func (g *ToolGateway) Invoke(ctx context.Context, turn TurnID, intent ToolIntent
 	// that has already ended is an audit record for something that never
 	// happened.
 	if err := ctx.Err(); err != nil {
-		return ToolResult{}, fmt.Errorf("%w: before the governance decision: %v",
-			ErrSessionClosed, err)
+		return ToolResult{}, fmt.Errorf("%w: before the governance decision: %s",
+			ErrSessionClosed, errText(err))
 	}
 
 	decision := g.cfg.Governor.Decide(governance.Request{
@@ -444,15 +446,15 @@ func (g *ToolGateway) Invoke(ctx context.Context, turn TurnID, intent ToolIntent
 		// A tool that fails AFTER approval is a tool failure, not a governance
 		// one. Conflating them would make an outage look like a policy problem
 		// and send an operator to the wrong runbook.
-		return result, fmt.Errorf("%w: %s on %s: %v",
-			ErrProviderFailed, intent.Operation, intent.Resource, err)
+		return result, fmt.Errorf("%w: %s on %s: %s",
+			ErrProviderFailed, intent.Operation, intent.Resource, errText(err))
 	}
 	return result, nil
 }
 
 // refuse records a decision that did not permit execution.
 func (g *ToolGateway) refuse(
-	_ context.Context, turn TurnID, intent ToolIntent, d governance.Decision,
+	ctx context.Context, turn TurnID, intent ToolIntent, d governance.Decision,
 ) (ToolResult, error) {
 	err := &DenialError{
 		Operation: intent.Operation, Resource: intent.Resource,
@@ -473,7 +475,9 @@ func (g *ToolGateway) refuse(
 	// The event carries CODES ONLY: the outcome, the reason and the policy. Not
 	// the attributes, not the resource contents, and nothing anybody said.
 	if g.cfg.Publisher != nil {
-		_ = g.cfg.Publisher.Publish(context.Background(), VoiceEvent{
+		// Not cancellable: a caller that has gone away must not suppress the record
+		// of a denial.
+		_ = g.cfg.Publisher.Publish(context.WithoutCancel(ctx), VoiceEvent{ //nolint:errcheck // EventPublisher: a publish error MUST NOT fail the operation that produced it
 			Type:    EventGovernanceDenied,
 			Session: g.cfg.Session,
 			Turn:    turn,
@@ -484,13 +488,20 @@ func (g *ToolGateway) refuse(
 	return ToolResult{}, err
 }
 
-// Allowed, Denied, ObligationsUnmet and Invoked report what the gateway has
-// done. Exported so a test can assert the invoker was never reached without
-// reaching into the type.
-func (g *ToolGateway) Allowed() uint64          { return g.allowed.Load() }
-func (g *ToolGateway) Denied() uint64           { return g.denied.Load() }
+// Allowed reports how many requests the gateway authorised. It and the counters
+// below are exported so a test can assert the invoker was never reached
+// without reaching into the type.
+func (g *ToolGateway) Allowed() uint64 { return g.allowed.Load() }
+
+// Denied reports how many requests governance denied outright.
+func (g *ToolGateway) Denied() uint64 { return g.denied.Load() }
+
+// ObligationsUnmet reports how many requests were refused for unmet
+// obligations or a required human.
 func (g *ToolGateway) ObligationsUnmet() uint64 { return g.unmet.Load() }
-func (g *ToolGateway) Invoked() uint64          { return g.invoked.Load() }
+
+// Invoked reports how many requests reached the invoker.
+func (g *ToolGateway) Invoked() uint64 { return g.invoked.Load() }
 
 // ---------------------------------------------------------------------------
 // Memory
