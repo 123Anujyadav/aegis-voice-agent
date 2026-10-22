@@ -140,7 +140,7 @@ func TestLifecycle_HoldMuteAndTransfer(t *testing.T) {
 	// The table refuses a transfer from Muted; the far end would receive a
 	// silent leg indistinguishable from a broken one.
 	if _, transferErr := l.Transfer(ctx, sess.ID(), "agent_handoff"); !errors.Is(transferErr, ErrInvalidTransition) {
-		t.Errorf("transfer from muted: transferErr = %v, want ErrInvalidTransition", transferErr)
+		t.Errorf("transfer from muted: err = %v, want ErrInvalidTransition", transferErr)
 	}
 
 	if unmuteErr := l.Unmute(ctx, sess.ID()); unmuteErr != nil {
