@@ -208,7 +208,7 @@ type SignalStats struct {
 // energies are around 1e-3, their squares around 1e-6, and subtracting two
 // nearly equal small numbers is where catastrophic cancellation lives. The
 // second pass costs another hundred iterations and removes the failure mode.
-func (w *FeatureWindow) Stats() SignalStats {
+func (w *FeatureWindow) Stats() SignalStats { //nolint:gocyclo // one statistic after another over the same window
 	if w.statsValid {
 		return w.stats
 	}
@@ -348,18 +348,18 @@ func (w *FeatureWindow) RecentMinRMS(n int) (float64, bool) {
 	// is order-independent, so unlike a sum this direction carries no
 	// reproducibility consequence — but the indexing cost is identical and this
 	// runs on every frame.
-	min := math.MaxFloat64
+	lowest := math.MaxFloat64
 	idx := w.next - 1
 	for k := 0; k < n; k++ {
 		if idx < 0 {
 			idx += len(w.buf)
 		}
-		if r := w.buf[idx].RMS; r < min {
-			min = r
+		if r := w.buf[idx].RMS; r < lowest {
+			lowest = r
 		}
 		idx--
 	}
-	return min, true
+	return lowest, true
 }
 
 // RecentModulation returns the coefficient of variation of energy across the

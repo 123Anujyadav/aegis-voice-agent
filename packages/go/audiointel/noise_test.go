@@ -134,7 +134,7 @@ func TestNoise_SpeechDoesNotMoveTheFloor(t *testing.T) {
 // even when the speech gate fails completely.
 //
 // §4 of the phase brief in one test: "Do not allow a sudden loud speech frame to
-// permanently redefine the noise floor."
+// permanently redefine the noise floor".
 func TestNoise_OneLoudFrameCannotRedefineTheFloor(t *testing.T) {
 	t.Parallel()
 
