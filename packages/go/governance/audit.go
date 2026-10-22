@@ -114,6 +114,21 @@ type NoopAuditor struct{}
 // Record discards the entry.
 func (NoopAuditor) Record(AuditEntry) error { return nil }
 
+// recordAudit writes e and counts the outcome, applying the [Auditor]
+// contract outside the decision path: a failure is counted in AuditFailed and
+// never fails the operation that produced the entry.
+func recordAudit(a Auditor, m *Metrics, e AuditEntry) {
+	err := a.Record(e)
+	if m == nil {
+		return
+	}
+	if err != nil {
+		m.AuditFailed.Inc(string(e.Kind))
+		return
+	}
+	m.AuditWritten.Inc(string(e.Kind))
+}
+
 // RecordingAuditor captures entries for assertion.
 //
 // Exported because every service embedding this engine needs to test its own
