@@ -326,5 +326,5 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	// An encoding failure here cannot be reported to the client, since the
 	// status line is already written. The error is deliberately discarded
 	// rather than panicking a probe handler.
-	_ = json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v) //nolint:errcheck // deliberate, as explained above
 }
