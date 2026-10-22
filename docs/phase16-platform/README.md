@@ -17,7 +17,46 @@ blockers are tracked there, not here.
 
 The full documented freeze applies (the 13 modules listed in
 `docs/phase14/DEPENDENCY_MAP.md` §13). Nothing in this phase edits a frozen
-module without an explicit exception.
+module without an explicit exception. The one exception granted so far is
+recorded under [Freeze exception FE-1](#freeze-exception-fe-1--lint-only-cleanup).
+
+## Freeze exception FE-1 — lint-only cleanup
+
+**Granted by the owner on 2026-10-22, before Phase 16's M2 work continues,**
+so that `pr-go` can be fully green.
+
+**Scope: these 11 frozen modules, and only these:** `audiointel`, `evaluation`,
+`toolruntime`, `speech`, `telephony`, `governance`, `media`, `runtime`,
+`evalsubjects`, `memory` and `conversation`. `audiobridge` and `metrics` are
+frozen too but have no lint findings, so they are not in scope.
+
+**Rationale.** On `main` `fcd4c99`, `pr-go` run 39731168851 failed 11 jobs. All
+11 are the `golangci-lint` jobs of these modules, with 492 findings in total.
+Every other job passed. #63, #64, #65 and #66 had already cleared every
+non-frozen lint baseline. The freeze was the only remaining obstacle to a green
+`pr-go`.
+
+**What it permits.** Only the smallest source edits that resolve those verified
+findings: comments, local renames, idiomatic rewrites with identical behaviour,
+explicit handling of errors that were silently discarded, and one-line
+`nolint` directives that each state a reason.
+
+**What it does NOT permit.** It does not unfreeze any module. It excludes
+changes to:
+- business logic or runtime behaviour;
+- exported APIs or interfaces;
+- dependency versions;
+- CI gates or the lint configuration;
+- security controls;
+- any file outside the 11 modules.
+
+A finding that turns out to need any of those stops that fix, and the finding
+is reported on its own rather than presented as lint cleanup.
+
+**Error semantics.** A `%v` is not mechanically changed to `%w` where wrapping
+would change what `errors.Is` or `errors.As` match.
+
+**Pull requests.** Recorded here as they merge.
 
 ## M1 — CI security and supply chain
 
