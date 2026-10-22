@@ -11,7 +11,7 @@ import (
 //
 // NINE SCOPES, IN A FIXED ORDER, AND THE ORDER IS THE ENGINE'S MOST
 // CONSEQUENTIAL CONSTANT. Every position is an answer to "if these two
-// disagree, which should the platform obey?"
+// disagree, which should the platform obey?".
 type Scope uint8
 
 // The scopes, in DESCENDING precedence. Lower numeric value wins.
@@ -278,7 +278,7 @@ func resolveField(f Field, r Request) Attr {
 // because a policy file that fails the whole evaluation on one malformed
 // condition takes the platform down, and validation at registration is where
 // malformed conditions are supposed to be caught.
-func (c Condition) Matches(r Request) bool {
+func (c Condition) Matches(r Request) bool { //nolint:gocyclo // one case per condition operator; FE-1 permits lint fixes, not restructuring the frozen evaluator
 	// The role field is a set, and In against a set means membership rather
 	// than string equality. Handled before the scalar path because treating it
 	// as a joined string would make the obvious policy silently wrong.
@@ -486,7 +486,7 @@ type Match struct {
 }
 
 // applies reports whether the policy is in scope for a request, and why not.
-func (m Match) applies(r Request) (bool, string) {
+func (m Match) applies(r Request) (bool, string) { //nolint:gocyclo // one check per match field; FE-1 permits lint fixes, not restructuring the frozen evaluator
 	if len(m.Kinds) > 0 {
 		found := false
 		for _, k := range m.Kinds {
@@ -608,7 +608,7 @@ type Policy struct {
 	Tags map[string]string
 }
 
-func (p Policy) validate() []string {
+func (p Policy) validate() []string { //nolint:gocyclo // one check per policy field
 	var problems []string
 	where := string(p.ID)
 	if where == "" {

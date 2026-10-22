@@ -232,9 +232,10 @@ func (p *RecordingEventPublisher) OfType(t MediaEventType) []MediaEvent {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	var out []MediaEvent
-	for _, e := range p.events {
+	for i := range p.events {
+		e := &p.events[i]
 		if e.Type == t {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	return out
@@ -245,9 +246,10 @@ func (p *RecordingEventPublisher) ForStream(id StreamID) []MediaEvent {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	var out []MediaEvent
-	for _, e := range p.events {
+	for i := range p.events {
+		e := &p.events[i]
 		if e.Stream == id {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	return out

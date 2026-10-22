@@ -166,7 +166,7 @@ func transitionSpec() map[StreamState][]StreamState {
 
 // newStreamFSM builds the state machine for one stream.
 //
-// initial is StateIdle for a new stream and StateRecovering for one restored
+// The initial state is StateIdle for a new stream and StateRecovering for one restored
 // from a snapshot. Any other is refused: those are the only two ways a stream
 // legitimately begins, and allowing an arbitrary start would let a caller
 // fabricate an active stream that never opened.

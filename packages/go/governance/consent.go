@@ -448,11 +448,12 @@ func (r *ConsentRegistry) Sweep() int {
 		return expired[i].Basis < expired[j].Basis
 	})
 
-	for _, rec := range expired {
+	for i := range expired {
+		rec := &expired[i]
 		if r.metrics != nil {
 			r.metrics.ConsentExpiries.Inc(rec.Basis)
 		}
-		r.record(AuditConsentExpired, rec, "expired")
+		r.record(AuditConsentExpired, *rec, "expired")
 	}
 	return len(expired)
 }

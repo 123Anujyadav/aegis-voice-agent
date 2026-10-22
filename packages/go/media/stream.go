@@ -609,14 +609,14 @@ func (s *Stream) Snapshot(cfg SnapshotConfig) StreamSnapshot {
 		all = append(all, ring...)
 		all = append(all, holding...)
 
-		max := cfg.MaxAudioFrames
-		if max <= 0 || max > len(all) {
-			max = len(all)
+		limit := cfg.MaxAudioFrames
+		if limit <= 0 || limit > len(all) {
+			limit = len(all)
 		}
 		// The NEWEST frames are kept when the bound binds. Oldest audio is
 		// closest to having been played already; the newest is what a resumed
 		// consumer still needs.
-		start := len(all) - max
+		start := len(all) - limit
 		snap.Buffered = all[start:]
 		snap.BufferedDropped = start
 	}
@@ -686,5 +686,5 @@ func RestoreStream(snap StreamSnapshot, cfg PipelineConfig, clock rt.Clock) (*St
 		}
 	}
 
-	return s, nil
+	return s, nil //nolint:nilerr // buffered frames are restored best-effort; a full buffer ends the restore without failing it
 }

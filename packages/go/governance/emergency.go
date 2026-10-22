@@ -225,7 +225,7 @@ func (e *EmergencyEngine) Deactivate(name, reason string) error {
 
 	for i := range em.Policies {
 		p := &em.Policies[i]
-		_ = e.registry.SetEnabled(p.ID, false)
+		_ = e.registry.SetEnabled(p.ID, false) //nolint:errcheck // fails only with ErrNotRegistered: a policy already removed cannot stay enabled
 	}
 
 	if e.metrics != nil {
@@ -245,8 +245,8 @@ func (e *EmergencyEngine) Sweep() int {
 
 	e.mu.RLock()
 	var expired []string
-	for name, em := range e.active {
-		if !em.Active(now) {
+	for name := range e.active {
+		if !e.active[name].Active(now) {
 			expired = append(expired, name)
 		}
 	}
@@ -254,7 +254,7 @@ func (e *EmergencyEngine) Sweep() int {
 
 	sort.Strings(expired) // deterministic audit order
 	for _, name := range expired {
-		_ = e.Deactivate(name, "expired")
+		_ = e.Deactivate(name, "expired") //nolint:errcheck // fails only with ErrNotRegistered: deactivated concurrently, the intended end state
 	}
 	return len(expired)
 }
@@ -264,8 +264,8 @@ func (e *EmergencyEngine) Active() []Emergency {
 	now := e.clock.Now()
 	e.mu.RLock()
 	out := make([]Emergency, 0, len(e.active))
-	for _, em := range e.active {
-		if em.Active(now) {
+	for name := range e.active {
+		if em := e.active[name]; em.Active(now) {
 			out = append(out, em)
 		}
 	}
@@ -315,9 +315,10 @@ func (e *EmergencyEngine) NoteUse(name string, d Decision) {
 func (e *EmergencyEngine) ActiveNameFor(p PolicyID) string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	for name, em := range e.active {
-		for i := range em.Policies {
-			policy := &em.Policies[i]
+	for name := range e.active {
+		policies := e.active[name].Policies
+		for i := range policies {
+			policy := &policies[i]
 			if policy.ID == p {
 				return name
 			}

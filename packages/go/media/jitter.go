@@ -384,7 +384,7 @@ func (j *JitterBuffer) Put(f Frame) FrameDisposition {
 //
 // # playout moves with current, and that is the point
 //
-// Release is gated on playout+current. playout was anchored under the delay in
+// Release is gated on playout+current. The playout position was anchored under the delay in
 // force at the time; changing current alone would move that sum and
 // retroactively make already-due frames un-due, stalling the buffer. Shifting
 // playout by the same delta holds the release frontier continuous, so adaptation
@@ -423,7 +423,7 @@ func (j *JitterBuffer) adaptLocked() {
 // and the fresh playout+current overtakes the latch within a frame or two; what
 // it can no longer do is retract a decision already made.
 //
-// playout itself is deliberately NOT adjusted here. It means "media already
+// The playout position itself is deliberately NOT adjusted here. It means "media already
 // consumed" and late detection is gated on it; moving it to compensate for a
 // delay change would report the next perfectly-on-time frame as late.
 func (j *JitterBuffer) releaseLimitLocked() time.Duration {
