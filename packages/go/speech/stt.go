@@ -265,7 +265,14 @@ func (o *STTOrchestrator) handle(seg TranscriptSegment, turn TurnID, lang Langua
 	if seg.IsFinal {
 		o.metrics.FinalsReceived.Add(1, label)
 		o.observeFinalLatency(label)
-		_ = o.turns.Transition(turn, TurnFinal, "final_transcript")
+		if err := o.turns.Transition(turn, TurnFinal, "final_transcript"); err != nil && o.turnEnded(turn) {
+			// The turn ended — interrupted, cancelled or failed — before its
+			// final arrived. It stays committed to the transcript for the
+			// record, but is not delivered: a final for a turn the caller has
+			// abandoned must not start a response to it.
+			o.metrics.Cancellations.Add(1, "stt")
+			return
+		}
 	} else {
 		o.metrics.PartialsReceived.Add(1, label)
 		o.observeFirstPartial(label)
@@ -396,6 +403,12 @@ func (o *STTOrchestrator) Cancel(reason string) error {
 
 	o.metrics.Cancellations.Add(1, "stt")
 	return nil
+}
+
+// turnEnded reports whether the turn has reached a terminal state.
+func (o *STTOrchestrator) turnEnded(id TurnID) bool {
+	t, ok := o.turns.Turn(id)
+	return ok && t.State().Terminal()
 }
 
 // Close shuts the orchestrator down permanently.
