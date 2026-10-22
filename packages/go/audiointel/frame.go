@@ -286,7 +286,7 @@ func (f *FrameFeatures) measurePCM16(p []byte, scale float64, clipAt int64) {
 	var prevPositive bool
 
 	for i := 0; i < n; i++ {
-		s := int64(int16(binary.LittleEndian.Uint16(p[i*2:])))
+		s := int64(int16(binary.LittleEndian.Uint16(p[i*2:]))) //nolint:gosec // PCM16 samples are two's complement: this reinterprets the bits, as the format defines
 
 		norm := float64(s) * scale
 		sumSquares += norm * norm
@@ -326,7 +326,7 @@ func (f *FrameFeatures) measurePCM32(p []byte, scale float64, clipAt int64) {
 	var prevPositive bool
 
 	for i := 0; i < n; i++ {
-		s := int64(int32(binary.LittleEndian.Uint32(p[i*4:])))
+		s := int64(int32(binary.LittleEndian.Uint32(p[i*4:]))) //nolint:gosec // PCM32 samples are two's complement: this reinterprets the bits, as the format defines
 
 		norm := float64(s) * scale
 		sumSquares += norm * norm

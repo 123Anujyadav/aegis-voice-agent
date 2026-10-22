@@ -45,7 +45,7 @@ func NewSessionRegistry() *SessionRegistry {
 
 // shardFor picks the shard owning an identifier.
 //
-// maphash rather than a hand-rolled hash: identifiers carry a millisecond
+// It uses maphash rather than a hand-rolled hash: identifiers carry a millisecond
 // timestamp prefix, so sessions opened in the same instant share a long common
 // prefix and a naive hash would pile them onto one shard — which is exactly the
 // burst a busy moment produces.

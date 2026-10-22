@@ -1,6 +1,7 @@
 package audiointel
 
 import (
+	"bytes"
 	"errors"
 	"math"
 	"testing"
@@ -280,7 +281,7 @@ func TestFrameAnalyzer_BothWidthsAgree(t *testing.T) {
 // TestFrameAnalyzer_NegativeFullScaleNormalisesToMinusOne guards the two's
 // complement asymmetry.
 //
-// int16 runs -32768..32767. Scaling by 32767 would put the most negative sample
+// An int16 runs -32768..32767. Scaling by 32767 would put the most negative sample
 // past -1.0, which makes "normalised to full scale" false exactly where it
 // matters — at the clipping boundary the quality classifier watches.
 func TestFrameAnalyzer_NegativeFullScaleNormalisesToMinusOne(t *testing.T) {
@@ -603,7 +604,7 @@ func TestSignalGenerator_IsReproducible(t *testing.T) {
 		if a[i].Sequence != b[i].Sequence || a[i].Timestamp != b[i].Timestamp {
 			t.Fatalf("frame %d metadata differs between runs", i)
 		}
-		if string(a[i].Payload) != string(b[i].Payload) {
+		if !bytes.Equal(a[i].Payload, b[i].Payload) {
 			t.Fatalf("frame %d payload differs between runs; the generator is not "+
 				"reproducible and every fixture-based assertion is a coin flip", i)
 		}

@@ -74,7 +74,7 @@ const FixtureSeed = 0x11D
 
 // NewSignalGenerator builds a generator for one format at one cadence.
 //
-// math/rand rather than crypto/rand, deliberately: this needs to be
+// It uses math/rand rather than crypto/rand, deliberately: this needs to be
 // REPRODUCIBLE, which is the opposite of what a cryptographic source provides.
 // Nothing here mints an identifier or a secret.
 func NewSignalGenerator(format media.AudioFormat, interval time.Duration) *SignalGenerator {
@@ -364,7 +364,7 @@ func writeSample(dst []byte, v float64, format media.SampleFormat) {
 		if s < -32768 {
 			s = -32768
 		}
-		binary.LittleEndian.PutUint16(dst, uint16(int16(s)))
+		binary.LittleEndian.PutUint16(dst, uint16(int16(s))) //nolint:gosec // s is clamped to the int16 range just above
 	case media.FormatPCM32:
 		s := int64(v * 2147483647)
 		if s > 2147483647 {
@@ -373,7 +373,7 @@ func writeSample(dst []byte, v float64, format media.SampleFormat) {
 		if s < -2147483648 {
 			s = -2147483648
 		}
-		binary.LittleEndian.PutUint32(dst, uint32(int32(s)))
+		binary.LittleEndian.PutUint32(dst, uint32(int32(s))) //nolint:gosec // s is clamped to the int32 range just above
 	}
 }
 
@@ -386,33 +386,33 @@ func writeSample(dst []byte, v float64, format media.SampleFormat) {
 // a test signal is, not how the engine judges it.
 
 const (
-	// harmonic2Weight and harmonic3Weight roll the harmonic source off, which
+	// The harmonic2Weight and harmonic3Weight values roll the harmonic source off, which
 	// is roughly what a glottal source does.
 	harmonic2Weight = 0.5
 	harmonic3Weight = 0.25
 
-	// fricativeMix is how much aperiodic energy is blended in. Without it the
+	// The fricativeMix value is how much aperiodic energy is blended in. Without it the
 	// zero-crossing rate sits at the bottom of the speech band and the signal
 	// looks like a tone to the feature that exists to reject tones.
 	fricativeMix = 0.35
 
-	// envelopeSharpness narrows the syllable openings so the closures between
+	// The envelopeSharpness value narrows the syllable openings so the closures between
 	// them are deep enough to produce measurable modulation.
 	envelopeSharpness = 2.0
 
-	// envelopeFloor stops the envelope reaching exact zero. Real speech does
+	// The envelopeFloor value stops the envelope reaching exact zero. Real speech does
 	// not go digitally silent between syllables, and a fixture that did would
 	// make the hangover look better than it is.
 	envelopeFloor = 0.02
 
-	// defaultF0 is a low adult fundamental, in hertz.
+	// The defaultF0 value is a low adult fundamental, in hertz.
 	defaultF0 = 120.0
 
-	// defaultSyllableHz is roughly five syllables a second, which is ordinary
+	// The defaultSyllableHz value is roughly five syllables a second, which is ordinary
 	// conversational speed across languages.
 	defaultSyllableHz = 5.0
 
-	// rapidSyllableHz is roughly nine syllables a second — fast, hurried
+	// The rapidSyllableHz value is roughly nine syllables a second — fast, hurried
 	// speech.
 	rapidSyllableHz = 9.0
 
@@ -421,13 +421,13 @@ const (
 	normalSpeechAmplitude = 0.25
 	loudSpeechAmplitude   = 0.80
 
-	// clippedAmplitude drives the signal past full scale so the writer's clamp
+	// The clippedAmplitude value drives the signal past full scale so the writer's clamp
 	// produces genuine flat-topping.
 	clippedAmplitude = 1.40
 
-	// transientFraction is how much of a frame a burst occupies.
+	// The transientFraction value is how much of a frame a burst occupies.
 	transientFraction = 0.15
 
-	// transientDecay shapes the exponential tail of a burst.
+	// The transientDecay value shapes the exponential tail of a burst.
 	transientDecay = 0.30
 )
