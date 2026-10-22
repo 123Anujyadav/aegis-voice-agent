@@ -308,7 +308,7 @@ func (p *Pipeline) Pump() int {
 		p.lastDelivered = f.Sequence
 		p.haveDelivered = true
 		p.nextExpected = f.Sequence + 1
-		p.gapFrames += uint64(gapFrames)
+		p.gapFrames += uint64(gapFrames) //nolint:gosec // fillGaps returns a count of frames written, never negative
 		p.mu.Unlock()
 
 		delivered += 1 + gapFrames
@@ -342,7 +342,7 @@ func (p *Pipeline) fillGaps(f Frame) int {
 		maxFrames = 0
 	}
 	if int(missing) > maxFrames {
-		missing = uint64(maxFrames)
+		missing = uint64(maxFrames) //nolint:gosec // clamped to zero or more just above
 	}
 
 	var written int

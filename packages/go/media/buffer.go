@@ -429,7 +429,7 @@ func (b *RingBuffer) Flush() int {
 	n := b.count
 	b.head, b.tail, b.count = 0, 0, 0
 	b.dataHead, b.dataTail, b.dataUsed = 0, 0, 0
-	b.dropped += uint64(n)
+	b.dropped += uint64(n) //nolint:gosec // n is a count of discarded frames, never negative
 	return n
 }
 
