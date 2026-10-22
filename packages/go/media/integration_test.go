@@ -1007,8 +1007,8 @@ func TestRestore_ContinuesTheMediaTimeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 10; i++ {
-		if _, err := h.Dispatcher.Dispatch(s.ID(), h.Gen.Next(h.Clock.Now())); err != nil {
-			t.Fatal(err)
+		if _, dispatchErr := h.Dispatcher.Dispatch(s.ID(), h.Gen.Next(h.Clock.Now())); dispatchErr != nil {
+			t.Fatal(dispatchErr)
 		}
 		h.Clock.Advance(20 * time.Millisecond)
 	}
@@ -1110,15 +1110,15 @@ func TestRecovery_ResumesStreamsWithAnAttachedSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 5; i++ {
-		if _, err := first.Dispatcher.Dispatch(s.ID(), first.Gen.Next(first.Clock.Now())); err != nil {
-			t.Fatal(err)
+		if _, dispatchErr := first.Dispatcher.Dispatch(s.ID(), first.Gen.Next(first.Clock.Now())); dispatchErr != nil {
+			t.Fatal(dispatchErr)
 		}
 		first.Clock.Advance(20 * time.Millisecond)
 	}
 	s.Pump()
 
-	if _, err := first.Runtime.Stop(ctx); err != nil {
-		t.Fatal(err)
+	if _, stopErr := first.Runtime.Stop(ctx); stopErr != nil {
+		t.Fatal(stopErr)
 	}
 
 	second, err := New(cfg, WithClock(first.Clock), WithStreamStore(first.Store),
@@ -1183,7 +1183,7 @@ func TestRecovery_IsDeterministic(t *testing.T) {
 	ctx := context.Background()
 
 	sequence := func() []StreamID {
-		h := started(t)
+		h := started(t) //nolint:contextcheck // the harness owns its lifetime; ctx scopes the operations below
 		for i := 0; i < 5; i++ {
 			if _, err := h.Open(ctx); err != nil {
 				t.Fatal(err)
@@ -1709,11 +1709,11 @@ func TestBackpressure_StalledConsumerIsBoundedByCapacity(t *testing.T) {
 	}
 
 	// Memory is bounded: neither stage may exceed its configured capacity.
-	if got, cap := s.Pipeline().Jitter().Len(), DefaultJitterConfig().Capacity; got > cap {
-		t.Errorf("jitter buffer holds %d frames, capacity is %d", got, cap)
+	if got, limit := s.Pipeline().Jitter().Len(), DefaultJitterConfig().Capacity; got > limit {
+		t.Errorf("jitter buffer holds %d frames, capacity is %d", got, limit)
 	}
-	if got, cap := s.Pipeline().Buffer().Len(), s.Pipeline().Buffer().Capacity(); got > cap {
-		t.Errorf("ring holds %d frames, capacity is %d", got, cap)
+	if got, limit := s.Pipeline().Buffer().Len(), s.Pipeline().Buffer().Capacity(); got > limit {
+		t.Errorf("ring holds %d frames, capacity is %d", got, limit)
 	}
 	// Dropping under overload is designed behaviour, not a fault.
 	if s.State() != StateActive {
