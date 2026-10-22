@@ -80,10 +80,10 @@ var idCounter atomic.Uint64
 // working halfway through an incident.
 func newID(prefix string) string {
 	var buf [16]byte
-	binary.BigEndian.PutUint64(buf[0:8], uint64(time.Now().UnixNano()))
-	binary.BigEndian.PutUint32(buf[8:12], uint32(idCounter.Add(1)))
+	binary.BigEndian.PutUint64(buf[0:8], uint64(time.Now().UnixNano())) //nolint:gosec // non-negative for any clock set after 1970
+	binary.BigEndian.PutUint32(buf[8:12], uint32(idCounter.Add(1)))     //nolint:gosec // the low 32 bits of the counter, truncation intended
 	if _, err := rand.Read(buf[12:16]); err != nil {
-		binary.BigEndian.PutUint32(buf[12:16], uint32(idCounter.Load()))
+		binary.BigEndian.PutUint32(buf[12:16], uint32(idCounter.Load())) //nolint:gosec // the low 32 bits of the counter, truncation intended
 	}
 	return prefix + "_" + idEncoding.EncodeToString(buf[:])
 }

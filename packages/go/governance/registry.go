@@ -2,6 +2,7 @@ package governance
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -145,7 +146,8 @@ func (r *PolicyRegistry) Register(p Policy) error {
 func (r *PolicyRegistry) RegisterAll(policies ...Policy) error {
 	var problems []string
 	seen := make(map[PolicyID]bool, len(policies))
-	for _, p := range policies {
+	for i := range policies {
+		p := &policies[i]
 		problems = append(problems, p.validate()...)
 		if seen[p.ID] {
 			problems = append(problems, fmt.Sprintf("%s: registered twice in one batch", p.ID))
@@ -161,7 +163,8 @@ func (r *PolicyRegistry) RegisterAll(policies ...Policy) error {
 	defer r.writeMu.Unlock()
 
 	old := r.snapshot.Load()
-	for _, p := range policies {
+	for i := range policies {
+		p := &policies[i]
 		if prev, exists := old.byID[p.ID]; exists && p.Version <= prev.Version {
 			return &ConfigError{Problems: []string{fmt.Sprintf(
 				"%s: version %d does not advance %d", p.ID, p.Version, prev.Version)}}
@@ -169,13 +172,15 @@ func (r *PolicyRegistry) RegisterAll(policies ...Policy) error {
 	}
 
 	r.commit(old, func(next map[PolicyID]Policy) {
-		for _, p := range policies {
-			next[p.ID] = p
+		for i := range policies {
+			p := &policies[i]
+			next[p.ID] = *p
 		}
 	})
 
 	if r.audit != nil {
-		for _, p := range policies {
+		for i := range policies {
+			p := &policies[i]
 			_ = r.audit.Record(AuditEntry{
 				At: r.clock.Now(), Kind: AuditPolicyRegistered, Policy: p.ID,
 				Reason:  p.Scope.String(),
@@ -240,9 +245,7 @@ func (r *PolicyRegistry) SetEnabled(id PolicyID, enabled bool) error {
 // commit rebuilds the snapshot and swaps it in. Caller holds writeMu.
 func (r *PolicyRegistry) commit(old *PolicySnapshot, mutate func(map[PolicyID]Policy)) {
 	next := make(map[PolicyID]Policy, len(old.byID)+1)
-	for k, v := range old.byID {
-		next[k] = v
-	}
+	maps.Copy(next, old.byID)
 	mutate(next)
 
 	snap := &PolicySnapshot{
@@ -303,9 +306,11 @@ func (r *PolicyRegistry) All() []Policy { return r.snapshot.Load().All() }
 func (r *PolicyRegistry) Expired() []Policy {
 	now := r.clock.Now()
 	var out []Policy
-	for _, p := range r.All() {
+	all := r.All()
+	for i := range all {
+		p := &all[i]
 		if !p.EffectiveUntil.IsZero() && !now.Before(p.EffectiveUntil) {
-			out = append(out, p)
+			out = append(out, *p)
 		}
 	}
 	return out
@@ -325,7 +330,9 @@ func (r *PolicyRegistry) Coverage() map[ActionKind]int {
 	} {
 		out[k] = 0
 	}
-	for _, p := range r.All() {
+	pList := r.All()
+	for i := range pList {
+		p := &pList[i]
 		if !p.Enabled {
 			continue
 		}

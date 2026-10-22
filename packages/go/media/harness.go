@@ -239,7 +239,7 @@ func (g *FrameGenerator) NextAt(seq uint64, ts time.Duration, arrival time.Time)
 
 // Skip advances the generator without producing a frame, creating a gap.
 func (g *FrameGenerator) Skip(n int) {
-	g.seq += uint64(n)
+	g.seq += uint64(n) //nolint:gosec // test harness: n is a frame count supplied by the test
 	g.ts += time.Duration(n) * g.interval
 }
 
