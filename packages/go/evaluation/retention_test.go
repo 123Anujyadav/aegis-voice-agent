@@ -150,8 +150,8 @@ func TestRetentionManager_StoreStampsExpiry(t *testing.T) {
 
 	r := rec(RecordObservation, "o1", clock.Now())
 	r.ExpiresAt = time.Time{}
-	if err := mgr.Store(ctx, r); err != nil {
-		t.Fatal(err)
+	if opErr := mgr.Store(ctx, r); opErr != nil {
+		t.Fatal(opErr)
 	}
 
 	got, err := repo.Get(ctx, r.Key())
@@ -182,11 +182,11 @@ func TestRetentionManager_UnstampedFindsTheLeak(t *testing.T) {
 
 	// Bypassing the manager, as an engine that called Put directly would.
 	leaked := rec(RecordObservation, "leaked", clock.Now())
-	if err := repo.Put(ctx, leaked); err != nil {
-		t.Fatal(err)
+	if opErr := repo.Put(ctx, leaked); opErr != nil {
+		t.Fatal(opErr)
 	}
-	if err := mgr.Store(ctx, rec(RecordObservation, "stamped", clock.Now())); err != nil {
-		t.Fatal(err)
+	if opErr := mgr.Store(ctx, rec(RecordObservation, "stamped", clock.Now())); opErr != nil {
+		t.Fatal(opErr)
 	}
 
 	unstamped, err := mgr.Unstamped(ctx)
@@ -231,8 +231,8 @@ func TestRetentionManager_ReapplyReportsTheBlastRadius(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 5; i++ {
-		if err := mgr.Store(ctx, rec(RecordObservation, string(rune('a'+i)), clock.Now())); err != nil {
-			t.Fatal(err)
+		if opErr := mgr.Store(ctx, rec(RecordObservation, string(rune('a'+i)), clock.Now())); opErr != nil {
+			t.Fatal(opErr)
 		}
 	}
 
@@ -289,8 +289,8 @@ func TestRetentionManager_ArchivesBeforeDeleting(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if err := mgr.Store(ctx, rec(RecordGolden, "g1", clock.Now())); err != nil {
-		t.Fatal(err)
+	if opErr := mgr.Store(ctx, rec(RecordGolden, "g1", clock.Now())); opErr != nil {
+		t.Fatal(opErr)
 	}
 	clock.Advance(Retain180Days + time.Hour)
 
@@ -364,11 +364,11 @@ func TestRetentionManager_LegalHoldSurvivesEnforcement(t *testing.T) {
 	ctx := context.Background()
 
 	held := rec(RecordObservation, "held", clock.Now())
-	if err := mgr.Store(ctx, held); err != nil {
-		t.Fatal(err)
+	if opErr := mgr.Store(ctx, held); opErr != nil {
+		t.Fatal(opErr)
 	}
-	if err := repo.SetLegalHold(ctx, held.Key(), true, "counsel", "matter 1"); err != nil {
-		t.Fatal(err)
+	if opErr := repo.SetLegalHold(ctx, held.Key(), true, "counsel", "matter 1"); opErr != nil {
+		t.Fatal(opErr)
 	}
 
 	clock.Advance(Retain90Days + time.Hour)
@@ -399,8 +399,8 @@ func TestRetentionManager_NothingDueIsANoOp(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	if err := mgr.Store(ctx, rec(RecordObservation, "fresh", clock.Now())); err != nil {
-		t.Fatal(err)
+	if opErr := mgr.Store(ctx, rec(RecordObservation, "fresh", clock.Now())); opErr != nil {
+		t.Fatal(opErr)
 	}
 	clock.Advance(time.Hour)
 

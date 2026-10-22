@@ -202,9 +202,7 @@ func (s Scenario) Key() GoldenKey {
 func (s Scenario) Digest() Fingerprint {
 	var b []byte
 	b = append(b, s.ID...)
-	b = append(b, '|')
-	b = append(b, byte('0'+s.Kind))
-	b = append(b, '|')
+	b = append(b, '|', byte('0'+s.Kind), '|')
 	b = append(b, s.SubjectName...)
 	for _, step := range s.Steps {
 		b = append(b, '\n')
@@ -229,9 +227,10 @@ type ScenarioSet []Scenario
 // ByKind returns the scenarios of one kind.
 func (s ScenarioSet) ByKind(k ScenarioKind) ScenarioSet {
 	var out ScenarioSet
-	for _, sc := range s {
+	for i := range s {
+		sc := &s[i]
 		if sc.Kind == k {
-			out = append(out, sc)
+			out = append(out, *sc)
 		}
 	}
 	return out
@@ -240,9 +239,10 @@ func (s ScenarioSet) ByKind(k ScenarioKind) ScenarioSet {
 // BySubject returns the scenarios for one subject.
 func (s ScenarioSet) BySubject(name SubjectName) ScenarioSet {
 	var out ScenarioSet
-	for _, sc := range s {
+	for i := range s {
+		sc := &s[i]
 		if sc.SubjectName == name {
-			out = append(out, sc)
+			out = append(out, *sc)
 		}
 	}
 	return out
@@ -275,7 +275,8 @@ func (s ScenarioSet) Coverage() map[ScenarioKind]int {
 	for _, k := range AllScenarioKinds() {
 		out[k] = 0
 	}
-	for _, sc := range s {
+	for i := range s {
+		sc := &s[i]
 		out[sc.Kind]++
 	}
 	return out

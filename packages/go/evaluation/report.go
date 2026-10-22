@@ -61,7 +61,8 @@ func (s Scorecard) String() string {
 func Scorecards(run Run) []Scorecard {
 	bySubject := make(map[SubjectName]*Scorecard)
 
-	for _, res := range run.Results {
+	for i := range run.Results {
+		res := &run.Results[i]
 		sc, ok := bySubject[res.Subject]
 		if !ok {
 			sc = &Scorecard{Subject: res.Subject, ByKind: map[ScenarioKind]int{}}
@@ -150,14 +151,16 @@ func (r RunReport) Summary() string {
 	}
 	if len(r.Blocking) > 0 {
 		b.WriteString("  BLOCKING:\n")
-		for _, res := range r.Blocking {
+		for i := range r.Blocking {
+			res := &r.Blocking[i]
 			fmt.Fprintf(&b, "    %s on %s: %s\n",
 				res.Scenario, res.Subject, res.Comparison.Reason)
 		}
 	}
 	if len(r.Drifted) > 0 {
 		b.WriteString("  DRIFT (awaiting a decision):\n")
-		for _, res := range r.Drifted {
+		for i := range r.Drifted {
+			res := &r.Drifted[i]
 			fmt.Fprintf(&b, "    %s on %s: %s → %s (%d differences)\n",
 				res.Scenario, res.Subject,
 				res.Comparison.BaselineBehaviour, res.Comparison.ObservedBehaviour,
@@ -215,9 +218,10 @@ func (c *Coordinator) CompareRuns(baseline, current RunID, latencyRatio float64)
 func (c *Coordinator) CompareAgainstPrevious(suite SuiteID) (RegressionReport, error) {
 	runs := c.runtime.storage.Runs(0)
 	var matching []Run
-	for _, r := range runs {
+	for i := range runs {
+		r := &runs[i]
 		if suite == "" || r.Suite == suite {
-			matching = append(matching, r)
+			matching = append(matching, *r)
 		}
 	}
 	if len(matching) < 2 {
@@ -351,14 +355,15 @@ func (c *Coordinator) Dashboard(run Run, trendWindow int) DashboardModel {
 	for _, sc := range Scorecards(run) {
 		summary := SubsystemSummary{Subject: sc.Subject, Scorecard: sc}
 		var worst, slowest []ScenarioResult
-		for _, res := range run.Results {
+		for i := range run.Results {
+			res := &run.Results[i]
 			if res.Subject != sc.Subject {
 				continue
 			}
 			if res.Verdict == VerdictFail || res.Verdict == VerdictDrift {
-				worst = append(worst, res)
+				worst = append(worst, *res)
 			}
-			slowest = append(slowest, res)
+			slowest = append(slowest, *res)
 		}
 		sort.SliceStable(worst, func(i, j int) bool {
 			// Failures before drift, then alphabetical — a stable order so the
@@ -371,19 +376,21 @@ func (c *Coordinator) Dashboard(run Run, trendWindow int) DashboardModel {
 		sort.SliceStable(slowest, func(i, j int) bool {
 			return slowest[i].Observation.TotalStepTime() > slowest[j].Observation.TotalStepTime()
 		})
-		for _, res := range worst {
+		for i := range worst {
+			res := &worst[i]
 			summary.WorstScenarios = append(summary.WorstScenarios, res.Scenario)
 		}
-		for i, res := range slowest {
+		for i := range slowest {
 			if i >= 5 {
 				break
 			}
-			summary.SlowestScenarios = append(summary.SlowestScenarios, res.Scenario)
+			summary.SlowestScenarios = append(summary.SlowestScenarios, slowest[i].Scenario)
 		}
 		model.Subjects = append(model.Subjects, summary)
 	}
 
-	for _, res := range run.Results {
+	for j := range run.Results {
+		res := &run.Results[j]
 		points := c.runtime.storage.Trend(res.Scenario)
 		if trendWindow > 0 && len(points) > trendWindow {
 			points = points[len(points)-trendWindow:]
@@ -419,7 +426,8 @@ func failureHeatmap(run Run) Heatmap {
 	rows := map[string]bool{}
 	cols := map[string]bool{}
 
-	for _, res := range run.Results {
+	for i := range run.Results {
+		res := &run.Results[i]
 		row, col := string(res.Subject), res.Kind.String()
 		rows[row], cols[col] = true, true
 		if grid[row] == nil {
@@ -462,7 +470,8 @@ func latencyHeatmap(run Run) Heatmap {
 	rows := map[string]bool{}
 	cols := map[string]bool{}
 
-	for _, res := range run.Results {
+	for i := range run.Results {
+		res := &run.Results[i]
 		row, col := string(res.Subject), res.Kind.String()
 		rows[row], cols[col] = true, true
 		if grid[row] == nil {
@@ -537,7 +546,8 @@ func (p PlatformReadiness) Summary() string {
 	for _, sc := range p.Subjects {
 		fmt.Fprintf(&b, "  %s\n", sc)
 	}
-	for _, d := range p.Determinism {
+	for i := range p.Determinism {
+		d := &p.Determinism[i]
 		fmt.Fprintf(&b, "  %s\n", d.Summary())
 	}
 	if len(p.UnevaluatedSubjects) > 0 {
@@ -546,7 +556,8 @@ func (p PlatformReadiness) Summary() string {
 	if len(p.UncoveredKinds) > 0 {
 		fmt.Fprintf(&b, "  scenario kinds with no coverage: %v\n", p.UncoveredKinds)
 	}
-	for _, blocker := range p.Blockers {
+	for i := range p.Blockers {
+		blocker := &p.Blockers[i]
 		fmt.Fprintf(&b, "  BLOCKER: %s on %s (%s)\n",
 			blocker.Scenario, blocker.Subject, blocker.Comparison.Reason)
 	}
@@ -583,17 +594,20 @@ func (c *Coordinator) Readiness(ctx context.Context, label string, determinismRu
 	// readiness pass, and the per-scenario checks remain available for
 	// anything that needs more.
 	seen := make(map[SubjectName]bool)
-	for _, s := range c.runtime.registry.Scenarios() {
+	sList := c.runtime.registry.Scenarios()
+	for i := range sList {
+		s := &sList[i]
 		if seen[s.SubjectName] {
 			continue
 		}
 		seen[s.SubjectName] = true
 		readiness.Determinism = append(readiness.Determinism,
-			c.runtime.CheckDeterminism(ctx, s, determinismRuns))
+			c.runtime.CheckDeterminism(ctx, *s, determinismRuns))
 	}
 
 	nonDeterministic := false
-	for _, d := range readiness.Determinism {
+	for i := range readiness.Determinism {
+		d := &readiness.Determinism[i]
 		if !d.Deterministic {
 			nonDeterministic = true
 		}
