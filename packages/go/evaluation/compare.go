@@ -322,7 +322,8 @@ func failureDifferences(base, obs Observation) []Difference {
 	if obs.Error != "" {
 		out = append(out, Difference{Kind: DiffFailure, Was: base.Error, Now: obs.Error})
 	}
-	for _, s := range obs.Steps {
+	for i := range obs.Steps {
+		s := &obs.Steps[i]
 		if !s.Failed {
 			continue
 		}
@@ -348,15 +349,18 @@ func behaviourDifferences(base, obs Observation) []Difference {
 	}
 
 	baseByName := make(map[string]StepObservation, len(base.Steps))
-	for _, s := range base.Steps {
-		baseByName[s.Name] = s
+	for i := range base.Steps {
+		s := &base.Steps[i]
+		baseByName[s.Name] = *s
 	}
 	obsByName := make(map[string]StepObservation, len(obs.Steps))
-	for _, s := range obs.Steps {
-		obsByName[s.Name] = s
+	for i := range obs.Steps {
+		s := &obs.Steps[i]
+		obsByName[s.Name] = *s
 	}
 
-	for _, s := range base.Steps {
+	for i := range base.Steps {
+		s := &base.Steps[i]
 		if _, ok := obsByName[s.Name]; !ok {
 			out = append(out, Difference{
 				Kind: DiffStepMissing, Step: s.Name,
@@ -365,7 +369,8 @@ func behaviourDifferences(base, obs Observation) []Difference {
 		}
 	}
 
-	for _, s := range obs.Steps {
+	for i := range obs.Steps {
+		s := &obs.Steps[i]
 		b, ok := baseByName[s.Name]
 		if !ok {
 			out = append(out, Difference{
@@ -418,7 +423,8 @@ func latencyDifferences(base, obs Observation, tol Tolerances) []Difference {
 
 	var out []Difference
 	baseTimes := base.Timings()
-	for _, s := range obs.Steps {
+	for i := range obs.Steps {
+		s := &obs.Steps[i]
 		was, ok := baseTimes[s.Name]
 		if !ok || was <= 0 {
 			continue
