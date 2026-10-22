@@ -104,8 +104,9 @@ func (s *MemoryStreamStore) SaveBatch(ctx context.Context, snaps []StreamSnapsho
 	if err := s.takeFailure(); err != nil {
 		return err
 	}
-	for _, snap := range snaps {
-		s.snaps[snap.Stream] = snap
+	for i := range snaps {
+		snap := &snaps[i]
+		s.snaps[snap.Stream] = *snap
 	}
 	return nil
 }
@@ -136,8 +137,8 @@ func (s *MemoryStreamStore) LoadAll(ctx context.Context) ([]StreamSnapshot, erro
 	}
 
 	out := make([]StreamSnapshot, 0, len(s.snaps))
-	for _, snap := range s.snaps {
-		out = append(out, snap)
+	for id := range s.snaps {
+		out = append(out, s.snaps[id])
 	}
 	sortSnapshots(out)
 	return out, nil
@@ -289,8 +290,9 @@ func (r *MediaRuntime) recoverStreams(ctx context.Context) (RecoveryReport, erro
 		check = AssumeDetached
 	}
 
-	for _, snap := range snaps {
-		outcome, frames := r.recoverOne(ctx, snap, check)
+	for i := range snaps {
+		snap := &snaps[i]
+		outcome, frames := r.recoverOne(ctx, *snap, check)
 		report.Streams[snap.Stream] = outcome
 		report.FramesRestored += frames
 
@@ -322,7 +324,7 @@ func (r *MediaRuntime) recoverOne(ctx context.Context, snap StreamSnapshot,
 		// An unrecoverable snapshot is deleted rather than retried forever: a
 		// snapshot at an unreadable schema will never become readable, and
 		// leaving it makes every subsequent recovery slower and noisier.
-		_ = r.store.Delete(ctx, snap.Stream)
+		_ = r.store.Delete(ctx, snap.Stream) //nolint:errcheck // best-effort cleanup: this stream's outcome is decided, and a snapshot left behind is reconsidered by the next recovery
 		r.logger.WarnContext(ctx, "abandoning unrecoverable stream",
 			slog.String("stream_id", string(snap.Stream)),
 			slog.String("state", string(snap.State)),
@@ -342,22 +344,22 @@ func (r *MediaRuntime) recoverOne(ctx context.Context, snap StreamSnapshot,
 
 	if check(ctx, snap) {
 		if err := r.transition(stream, StateActive, "resumed_after_restart"); err != nil {
-			_ = r.transition(stream, StateFailed, "resume_failed")
+			_ = r.transition(stream, StateFailed, "resume_failed") //nolint:errcheck // a refused transition leaves the stream where it is; it is removed from the registry below either way
 			r.registry.Remove(stream.ID())
 			r.scheduler.Release(snap.Context.Source)
 			return RecoveryAbandoned, 0
 		}
-		_ = r.store.Delete(ctx, snap.Stream)
+		_ = r.store.Delete(ctx, snap.Stream) //nolint:errcheck // best-effort cleanup: this stream's outcome is decided, and a snapshot left behind is reconsidered by the next recovery
 		return RecoveryResumed, restored
 	}
 
 	// No source. Conclude it cleanly so a consumer sees a closed stream rather
 	// than one that simply stopped producing frames.
-	_ = r.transition(stream, StateClosing, "no_source_after_restart")
-	_ = r.transition(stream, StateClosed, "concluded_after_restart")
+	_ = r.transition(stream, StateClosing, "no_source_after_restart") //nolint:errcheck // a refused transition leaves the stream where it is; it is removed from the registry below either way
+	_ = r.transition(stream, StateClosed, "concluded_after_restart")  //nolint:errcheck // a refused transition leaves the stream where it is; it is removed from the registry below either way
 	r.registry.Remove(stream.ID())
 	r.scheduler.Release(snap.Context.Source)
-	_ = r.store.Delete(ctx, snap.Stream)
+	_ = r.store.Delete(ctx, snap.Stream) //nolint:errcheck // best-effort cleanup: this stream's outcome is decided, and a snapshot left behind is reconsidered by the next recovery
 	return RecoveryConcluded, 0
 }
 

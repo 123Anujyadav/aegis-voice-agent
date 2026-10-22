@@ -79,24 +79,6 @@ type Signal struct {
 	Detail string
 }
 
-func (s Signal) validate() []string {
-	var problems []string
-	if s.Source == "" {
-		problems = append(problems, "signal: source is required")
-	}
-	if s.Kind == "" {
-		problems = append(problems, "signal: kind is required")
-	}
-	if s.Weight < 0 || s.Weight > 1 {
-		problems = append(problems, fmt.Sprintf(
-			"signal %s/%s: weight %g is outside [0,1]", s.Source, s.Kind, s.Weight))
-	}
-	if s.Level > RiskCritical {
-		problems = append(problems, fmt.Sprintf("signal %s/%s: unknown level", s.Source, s.Kind))
-	}
-	return problems
-}
-
 // RiskAssessment is the aggregated view a decision sees.
 type RiskAssessment struct {
 	// Level is the aggregate.

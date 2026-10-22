@@ -256,7 +256,7 @@ type FrameClock struct {
 
 // NewFrameClock builds a frame clock for the given cadence.
 //
-// tolerance defaults to half the interval: a frame more than half a frame late
+// The tolerance defaults to half the interval: a frame more than half a frame late
 // is late by any reasonable standard, and a tighter bound would flag ordinary
 // scheduler jitter on a loaded host.
 func NewFrameClock(clock rt.Clock, interval, tolerance time.Duration) *FrameClock {
