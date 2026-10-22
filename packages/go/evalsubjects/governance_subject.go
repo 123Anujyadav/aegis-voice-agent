@@ -58,7 +58,8 @@ type governanceSession struct {
 // Advance moves the governance engine's clock.
 func (s *governanceSession) Advance(d time.Duration) { s.h.Clock.Advance(d) }
 
-func (s *governanceSession) Execute(ctx context.Context, step ev.Step) ev.StepResult {
+// Execute runs one scenario step against the real subject.
+func (s *governanceSession) Execute(ctx context.Context, step ev.Step) ev.StepResult { //nolint:gocyclo // one case per scenario step kind; FE-1 permits lint fixes, not restructuring the frozen subject
 	switch step.Op {
 	case "decide":
 		action := s.actionFor(step)
@@ -232,6 +233,7 @@ func (s *governanceSession) record(kind string) {
 	s.events = append(s.events, ev.EventRecord{Type: kind})
 }
 
+// State returns the session's observable state, for scenario assertions.
 func (s *governanceSession) State() ev.Values {
 	return ev.Values{
 		"decisions": ev.N(float64(s.decisions)),
@@ -241,10 +243,12 @@ func (s *governanceSession) State() ev.Values {
 	}
 }
 
+// Events returns the events the session has recorded.
 func (s *governanceSession) Events() []ev.EventRecord {
 	out := s.events
 	s.events = nil
 	return out
 }
 
+// Close stops the governance engine.
 func (s *governanceSession) Close() error { return s.h.Engine.Stop() }

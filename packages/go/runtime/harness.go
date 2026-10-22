@@ -227,8 +227,8 @@ func (f *FakeProvider) FailNext(n int, err error) {
 	f.failWith = err
 }
 
-// SetChunkDelay makes the stream wait d of FAKE time between chunks. clock must
-// be the harness clock; without it the delay would be real and the test slow.
+// SetChunkDelay makes the stream wait d of FAKE time between chunks. The clock
+// must be the harness clock; without it the delay would be real and the test slow.
 func (f *FakeProvider) SetChunkDelay(clock Clock, d time.Duration) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
