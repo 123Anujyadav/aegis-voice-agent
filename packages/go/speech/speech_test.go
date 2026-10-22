@@ -221,7 +221,7 @@ func TestTranscriptSegment_RedactedOmitsText(t *testing.T) {
 }
 
 func contains(haystack, needle string) bool {
-	return len(needle) > 0 && len(haystack) >= len(needle) &&
+	return needle != "" && len(haystack) >= len(needle) &&
 		func() bool {
 			for i := 0; i+len(needle) <= len(haystack); i++ {
 				if haystack[i:i+len(needle)] == needle {
@@ -323,12 +323,12 @@ func TestTurn_InterruptedStartsANewTurn(t *testing.T) {
 	for _, to := range []SpeechTurnState{
 		TurnPartial, TurnFinalizing, TurnFinal, TurnResponding, TurnSpeaking,
 	} {
-		if err := m.Transition(first.ID, to, "test"); err != nil {
-			t.Fatal(err)
+		if e1 := m.Transition(first.ID, to, "test"); e1 != nil {
+			t.Fatal(e1)
 		}
 	}
-	if err := m.Transition(first.ID, TurnInterrupted, "barge_in"); err != nil {
-		t.Fatal(err)
+	if e2 := m.Transition(first.ID, TurnInterrupted, "barge_in"); e2 != nil {
+		t.Fatal(e2)
 	}
 	second, err := m.Begin(RoleCaller)
 	if err != nil {

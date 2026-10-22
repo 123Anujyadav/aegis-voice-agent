@@ -134,20 +134,20 @@ func TestLifecycle_HoldMuteAndTransfer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := l.Mute(ctx, sess.ID()); err != nil {
-		t.Fatal(err)
+	if muteErr := l.Mute(ctx, sess.ID()); muteErr != nil {
+		t.Fatal(muteErr)
 	}
 	// The table refuses a transfer from Muted; the far end would receive a
 	// silent leg indistinguishable from a broken one.
-	if _, err := l.Transfer(ctx, sess.ID(), "agent_handoff"); !errors.Is(err, ErrInvalidTransition) {
-		t.Errorf("transfer from muted: err = %v, want ErrInvalidTransition", err)
+	if _, transferErr := l.Transfer(ctx, sess.ID(), "agent_handoff"); !errors.Is(transferErr, ErrInvalidTransition) {
+		t.Errorf("transfer from muted: transferErr = %v, want ErrInvalidTransition", transferErr)
 	}
 
-	if err := l.Unmute(ctx, sess.ID()); err != nil {
-		t.Fatal(err)
+	if unmuteErr := l.Unmute(ctx, sess.ID()); unmuteErr != nil {
+		t.Fatal(unmuteErr)
 	}
-	if err := l.Hold(ctx, sess.ID()); err != nil {
-		t.Fatal(err)
+	if holdErr := l.Hold(ctx, sess.ID()); holdErr != nil {
+		t.Fatal(holdErr)
 	}
 	leg, err := l.Transfer(ctx, sess.ID(), "agent_handoff")
 	if err != nil {
@@ -301,12 +301,12 @@ func TestFailure_PublisherOutageDoesNotStopCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := r.RegisterProvider(h.Provider); err != nil {
-		t.Fatal(err)
+	if regErr := r.RegisterProvider(h.Provider); regErr != nil {
+		t.Fatal(regErr)
 	}
 	ctx := context.Background()
-	if _, err := r.Start(ctx); err != nil {
-		t.Fatal(err)
+	if _, startErr := r.Start(ctx); startErr != nil {
+		t.Fatal(startErr)
 	}
 	defer func() { _, _ = r.Stop(ctx) }()
 
@@ -413,11 +413,11 @@ func TestFailure_ProviderTimeoutIsBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := l.Ring(ctx, sess.ID()); err != nil {
-		t.Fatal(err)
+	if ringErr := l.Ring(ctx, sess.ID()); ringErr != nil {
+		t.Fatal(ringErr)
 	}
-	if err := l.Screen(ctx, sess.ID()); err != nil {
-		t.Fatal(err)
+	if screenErr := l.Screen(ctx, sess.ID()); screenErr != nil {
+		t.Fatal(screenErr)
 	}
 
 	// A hung carrier SDK must not hold the runtime.
@@ -616,8 +616,8 @@ func TestRecovery_ConcludesCallsThatAreNoLongerLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := second.RegisterProvider(first.Provider); err != nil {
-		t.Fatal(err)
+	if regErr := second.RegisterProvider(first.Provider); regErr != nil {
+		t.Fatal(regErr)
 	}
 	report, err := second.Start(ctx)
 	if err != nil {
@@ -660,8 +660,8 @@ func TestRecovery_ResumesCallsThatAreStillLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := second.RegisterProvider(first.Provider); err != nil {
-		t.Fatal(err)
+	if regErr := second.RegisterProvider(first.Provider); regErr != nil {
+		t.Fatal(regErr)
 	}
 	report, err := second.Start(ctx)
 	if err != nil {
@@ -720,7 +720,7 @@ func TestRecovery_IsDeterministic(t *testing.T) {
 	ctx := context.Background()
 
 	sequence := func() []string {
-		h := started(t)
+		h := started(t) //nolint:contextcheck // the harness owns its lifetime; ctx scopes the operations below
 		for i := 0; i < 5; i++ {
 			if _, err := h.Connected(ctx); err != nil {
 				t.Fatal(err)

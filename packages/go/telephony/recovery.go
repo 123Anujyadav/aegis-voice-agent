@@ -109,8 +109,9 @@ func (s *MemorySessionStore) SaveBatch(ctx context.Context, snaps []Snapshot) er
 	if err := s.takeFailure(); err != nil {
 		return err
 	}
-	for _, snap := range snaps {
-		s.snaps[snap.Call] = snap
+	for i := range snaps {
+		snap := &snaps[i]
+		s.snaps[snap.Call] = *snap
 	}
 	return nil
 }
@@ -142,8 +143,8 @@ func (s *MemorySessionStore) LoadAll(ctx context.Context) ([]Snapshot, error) {
 	}
 
 	out := make([]Snapshot, 0, len(s.snaps))
-	for _, snap := range s.snaps {
-		out = append(out, snap)
+	for id := range s.snaps {
+		out = append(out, s.snaps[id])
 	}
 	sortSnapshots(out)
 	return out, nil
@@ -270,8 +271,9 @@ func (r *TelephonyRuntime) recoverSessions(ctx context.Context) (RecoveryReport,
 	sortSnapshots(snaps)
 	report.Attempted = len(snaps)
 
-	for _, snap := range snaps {
-		outcome := r.recoverOne(ctx, snap)
+	for i := range snaps {
+		snap := &snaps[i]
+		outcome := r.recoverOne(ctx, *snap)
 		report.Calls[snap.Call] = outcome
 
 		switch outcome {
@@ -297,7 +299,7 @@ func (r *TelephonyRuntime) recoverOne(ctx context.Context, snap Snapshot) Recove
 		// An unrecoverable snapshot is deleted rather than retried forever. A
 		// snapshot at an unreadable schema will never become readable, and
 		// leaving it makes every subsequent recovery slower and noisier.
-		_ = r.store.Delete(ctx, snap.Call)
+		_ = r.store.Delete(ctx, snap.Call) //nolint:errcheck // best-effort cleanup: the call's outcome is decided, and a snapshot left behind is reconsidered by the next recovery
 		r.metrics.SnapshotsRestored.Inc("abandoned")
 		r.logger.WarnContext(ctx, "abandoning unrecoverable session",
 			"call_id", string(snap.Call), "state", string(snap.State),
@@ -325,10 +327,10 @@ func (r *TelephonyRuntime) recoverOne(ctx context.Context, snap Snapshot) Recove
 
 	if r.liveness(ctx, snap) {
 		if err := r.lifecycle.transition(ctx, sess, StateConnected, "resumed_after_restart"); err != nil {
-			_ = r.lifecycle.end(ctx, sess, StateFailed, "resume_failed")
+			_ = r.lifecycle.end(ctx, sess, StateFailed, "resume_failed") //nolint:errcheck // recovery's outcome for this call is already decided; a refused end leaves the call to the lifecycle sweep
 			return RecoveryAbandoned
 		}
-		_ = r.store.Delete(ctx, snap.Call)
+		_ = r.store.Delete(ctx, snap.Call) //nolint:errcheck // best-effort cleanup: the call's outcome is decided, and a snapshot left behind is reconsidered by the next recovery
 		r.lifecycle.publish(ctx, Event{
 			Type: EventRecoveryResumed,
 			Call: sess.ID(), Session: sess.SessionID(), Correlation: sess.Correlation(),
@@ -341,8 +343,8 @@ func (r *TelephonyRuntime) recoverOne(ctx context.Context, snap Snapshot) Recove
 
 	// Not live. End it cleanly so downstream consumers see a terminal event
 	// rather than a call that simply stopped producing them.
-	_ = r.lifecycle.end(ctx, sess, StateEnded, "concluded_after_restart")
-	_ = r.store.Delete(ctx, snap.Call)
+	_ = r.lifecycle.end(ctx, sess, StateEnded, "concluded_after_restart") //nolint:errcheck // recovery's outcome for this call is already decided; a refused end leaves the call to the lifecycle sweep
+	_ = r.store.Delete(ctx, snap.Call)                                    //nolint:errcheck // best-effort cleanup: the call's outcome is decided, and a snapshot left behind is reconsidered by the next recovery
 	r.lifecycle.publish(ctx, Event{
 		Type: EventRecoveryAbandoned,
 		Call: sess.ID(), Session: sess.SessionID(), Correlation: sess.Correlation(),

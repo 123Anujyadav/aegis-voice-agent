@@ -458,7 +458,7 @@ func ScriptedPartials(texts []string, final string) []TranscriptSegment {
 	out := make([]TranscriptSegment, 0, len(texts)+1)
 	for i, text := range texts {
 		out = append(out, TranscriptSegment{
-			Sequence: uint64(i), Text: text, IsFinal: false,
+			Sequence: uint64(i), Text: text, IsFinal: false, //nolint:gosec // a range index, never negative
 			Confidence: 0.7, Role: RoleCaller,
 			StartTime: 0, EndTime: time.Duration(i+1) * 200 * time.Millisecond,
 		})
