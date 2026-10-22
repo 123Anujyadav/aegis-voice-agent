@@ -286,7 +286,7 @@ func (r *Registry) Register(reg Registration) error {
 	})
 
 	if r.audit != nil {
-		_ = r.audit.Record(AuditEntry{
+		recordAudit(r.audit, r.metrics, AuditEntry{
 			At: now, Kind: AuditRegistered,
 			Descriptor: reg.Descriptor(), Reason: reg.Lifecycle.String(),
 			Details: map[string]string{"owner": reg.Contract.Owner},
@@ -313,7 +313,7 @@ func (r *Registry) Unregister(d Descriptor) error {
 	})
 
 	if r.audit != nil {
-		_ = r.audit.Record(AuditEntry{At: r.clock.Now(), Kind: AuditUnregistered, Descriptor: d})
+		recordAudit(r.audit, r.metrics, AuditEntry{At: r.clock.Now(), Kind: AuditUnregistered, Descriptor: d})
 	}
 	return nil
 }
