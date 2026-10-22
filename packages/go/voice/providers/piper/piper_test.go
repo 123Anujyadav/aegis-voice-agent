@@ -228,7 +228,7 @@ func engine(t *testing.T) string {
 
 		build := exec.Command("go", "build", "-o", bin, src)
 		if out, err := build.CombinedOutput(); err != nil {
-			engineErr = fmt.Errorf("building the stand-in engine: %v\n%s", err, out)
+			engineErr = fmt.Errorf("building the stand-in engine: %w\n%s", err, out)
 			return
 		}
 		enginePath = bin
@@ -1307,8 +1307,8 @@ func TestStream_ManyStreamsAreIndependent(t *testing.T) {
 				if inner, ok := s.(*stream); ok {
 					why = inner.Err()
 				}
-				errs <- fmt.Errorf("stream %d produced %d frames, want %d (stream error: %v)",
-					n, frames, want, why)
+				errs <- fmt.Errorf("stream %d produced %d frames, want %d (stream error: %s)",
+					n, frames, want, errText(why))
 			}
 		}(i)
 	}

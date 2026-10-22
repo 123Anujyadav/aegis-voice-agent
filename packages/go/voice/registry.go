@@ -177,7 +177,7 @@ func (m ModelIdentity) String() string {
 
 // ProviderCapabilities is the descriptor's view of what a provider can do.
 //
-// A UNION OF TWO PORTS, read from whichever applies. speech.Capabilities and
+// A UNION OF TWO PORTS, read from whichever applies. The speech.Capabilities and
 // runtime.Capabilities describe different jobs and neither is a superset, so a
 // registry that holds both kinds needs one shape to report. Fields that do not
 // apply to a kind are zero, which is why [ProviderDescriptor.Kind] is the field
@@ -449,6 +449,30 @@ func (r *ProviderRegistry) RegisterModel(p rt.Provider, spec ProviderSpec) error
 	return r.store(d, p)
 }
 
+// credentialProblems reports authored descriptor strings that look like
+// credentials.
+//
+// A descriptor is read by operators and served from status endpoints. A
+// credential reaching one would be published, so the authored strings are
+// checked against the same heuristic the process environment uses.
+func credentialProblems(spec ProviderSpec) []string {
+	var problems []string
+	for field, value := range map[string]string{
+		"Engine":             spec.Engine,
+		"Version":            spec.Version,
+		"Model.Revision":     spec.Model.Revision,
+		"Model.Quantization": spec.Model.Quantization,
+		"Model":              string(spec.Model.Model),
+	} {
+		if value != "" && looksLikeCredential(value) {
+			problems = append(problems, fmt.Sprintf(
+				"%s looks like a credential; a descriptor is published and carries "+
+					"no secrets", field))
+		}
+	}
+	return problems
+}
+
 // describe validates a registration and builds its descriptor.
 func (r *ProviderRegistry) describe(
 	id ProviderID, kind ProviderKind, spec ProviderSpec,
@@ -494,22 +518,7 @@ func (r *ProviderRegistry) describe(
 				"by being registered", id, ClassDevelopment, ModeProduction))
 	}
 
-	// A descriptor is read by operators and served from status endpoints. A
-	// credential reaching one would be published, so the authored strings are
-	// checked against the same heuristic the process environment uses.
-	for field, value := range map[string]string{
-		"Engine":             spec.Engine,
-		"Version":            spec.Version,
-		"Model.Revision":     spec.Model.Revision,
-		"Model.Quantization": spec.Model.Quantization,
-		"Model":              string(spec.Model.Model),
-	} {
-		if value != "" && looksLikeCredential(value) {
-			problems = append(problems, fmt.Sprintf(
-				"%s looks like a credential; a descriptor is published and carries "+
-					"no secrets", field))
-		}
-	}
+	problems = append(problems, credentialProblems(spec)...)
 
 	if len(problems) > 0 {
 		prefixed := make([]string, 0, len(problems))

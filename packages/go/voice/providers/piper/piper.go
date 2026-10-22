@@ -52,6 +52,16 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/voice/providers/process"
 )
 
+// errText renders err for a message that deliberately does not wrap it. The
+// cause is reported, but errors.Is and errors.As match only the sentinel the
+// message wraps, exactly as they did when these messages used %v.
+func errText(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	return err.Error()
+}
+
 // Errors this adapter returns.
 var (
 	// ErrUnavailable is returned when the binary or voice model is missing.
@@ -341,7 +351,8 @@ func (p *Provider) processConfig() process.Config {
 	if p.cfg.SpeakerID >= 0 {
 		args = append(args, "--speaker", strconv.Itoa(p.cfg.SpeakerID))
 	}
-	cfg.Args = append(args, p.cfg.Process.Args...)
+	args = append(args, p.cfg.Process.Args...)
+	cfg.Args = args
 
 	// Piper writes progress to stderr and audio to stdout. There is no banner
 	// on stdout to wait for, and waiting for one would hang every start.
@@ -451,15 +462,15 @@ func (s *stream) feed() {
 		select {
 		case chunk, ok := <-s.chunks:
 			if !ok {
-				_ = s.proc.CloseStdin()
+				_ = s.proc.CloseStdin() //nolint:errcheck // end of input; the engine's exit, observed by the reader, decides the outcome
 				return
 			}
 			if _, err := s.proc.Write([]byte(chunk.Text + "\n")); err != nil {
 				// As in emit: a write that fails because this stream is being
 				// torn down is the teardown working, not the engine failing.
 				if !s.closing() {
-					s.note(fmt.Errorf("%w: writing chunk %d: %v",
-						ErrSynthesisFailed, chunk.Sequence, err))
+					s.note(fmt.Errorf("%w: writing chunk %d: %s",
+						ErrSynthesisFailed, chunk.Sequence, errText(err)))
 				}
 				return
 			}
@@ -532,7 +543,7 @@ func (s *stream) emit() {
 				s.deliver(buf, frameBytes)
 			}
 			if !errors.Is(err, io.EOF) {
-				s.note(fmt.Errorf("%w: reading audio: %v", ErrSynthesisFailed, err))
+				s.note(fmt.Errorf("%w: reading audio: %s", ErrSynthesisFailed, errText(err)))
 			}
 			s.noteExit()
 			return
@@ -552,7 +563,7 @@ func (s *stream) deliver(buf []byte, n int) bool {
 	seq := s.sequence.Add(1) - 1
 	frame := media.Frame{
 		Sequence:  seq,
-		Timestamp: time.Duration(seq) * s.cfg.FrameDuration,
+		Timestamp: time.Duration(seq) * s.cfg.FrameDuration, //nolint:gosec // a per-stream frame counter stays far below 2^63
 		Format:    s.cfg.Format,
 		Payload:   payload,
 	}
@@ -614,7 +625,7 @@ func (s *stream) Close() error {
 
 // Err returns why synthesis failed, or nil.
 //
-// speech.TTSStream reports errors only from calls a caller makes. An engine
+// The speech.TTSStream interface reports errors only from calls a caller makes. An engine
 // that dies mid-utterance has no such call to fail, so without this the only
 // symptom is audio that stops — indistinguishable from a response that ended.
 func (s *stream) Err() error {
@@ -655,8 +666,8 @@ func (s *stream) noteExit() {
 	<-s.proc.Exited()
 
 	if exitErr := s.proc.ExitError(); exitErr != nil {
-		s.note(fmt.Errorf("%w: the engine exited with %v; stderr: %s",
-			ErrSynthesisFailed, exitErr, s.proc.StderrTail()))
+		s.note(fmt.Errorf("%w: the engine exited with %s; stderr: %s",
+			ErrSynthesisFailed, errText(exitErr), s.proc.StderrTail()))
 	}
 }
 
@@ -671,7 +682,7 @@ func (s *stream) noteExit() {
 func SilenceFrame(format media.AudioFormat, d time.Duration, seq uint64) media.Frame {
 	return media.Frame{
 		Sequence:  seq,
-		Timestamp: time.Duration(seq) * d,
+		Timestamp: time.Duration(seq) * d, //nolint:gosec // seq is a frame sequence number, far below 2^63
 		Format:    format,
 		Payload:   make([]byte, format.BytesFor(d)),
 	}
@@ -689,7 +700,7 @@ func PCMLevel(payload []byte) float64 {
 	var total float64
 	n := len(payload) / 2
 	for i := 0; i < n; i++ {
-		v := int16(binary.LittleEndian.Uint16(payload[i*2:]))
+		v := int16(binary.LittleEndian.Uint16(payload[i*2:])) //nolint:gosec // PCM16 samples are two's complement: this reinterprets the bits, as the format defines
 		if v < 0 {
 			total += float64(-int(v))
 		} else {

@@ -862,8 +862,8 @@ func TestFailure_ConcurrentFailuresStayIsolated(t *testing.T) {
 			}
 			defer func() { _ = h.pipeline.Disconnect() }()
 
-			for i := 0; i < 4; i++ {
-				if err := h.pipeline.WriteFrame(testFrame(uint64(i))); err != nil {
+			for frame := 0; frame < 4; frame++ {
+				if err := h.pipeline.WriteFrame(testFrame(uint64(frame))); err != nil {
 					errs <- fmt.Errorf("session %d: WriteFrame: %w", n, err)
 					return
 				}
@@ -1039,7 +1039,7 @@ func buildHeartbeatProgram(t *testing.T) string {
 			out += ".exe"
 		}
 		if b, err := exec.Command("go", "build", "-o", out, src).CombinedOutput(); err != nil {
-			heartbeatErr = fmt.Errorf("building the heartbeat program: %v\n%s", err, b)
+			heartbeatErr = fmt.Errorf("building the heartbeat program: %w\n%s", err, b)
 			return
 		}
 		heartbeatPath = out

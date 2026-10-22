@@ -149,7 +149,7 @@ func TestAdapter_RefusesInvalidConfiguration(t *testing.T) {
 // TestAdapter_ParseOffsetHandlesBothTimeFormats pins the difference that makes
 // this adapter's parser incompatible with whisper.cpp's.
 //
-// The Python tool prints MM:SS.mmm. whisper.cpp prints HH:MM:SS.mmm. Sharing a
+// The Python tool prints MM:SS.mmm, while whisper.cpp prints HH:MM:SS.mmm. Sharing a
 // parser would silently misread every timestamp by a factor of sixty.
 func TestAdapter_ParseOffsetHandlesBothTimeFormats(t *testing.T) {
 	t.Parallel()
@@ -681,8 +681,8 @@ func synthesiseWithSAPI(t *testing.T, text string) []byte {
 	converted := filepath.Join(dir, "sapi16k.raw")
 	convert := exec.Command(ffmpeg, "-y", "-i", rawWAV,
 		"-ar", "16000", "-ac", "1", "-f", "s16le", converted)
-	if out, err := convert.CombinedOutput(); err != nil {
-		t.Skipf("ffmpeg could not convert the SAPI output: %v\n%s", err, out)
+	if out, convErr := convert.CombinedOutput(); convErr != nil {
+		t.Skipf("ffmpeg could not convert the SAPI output: %v\n%s", convErr, out)
 	}
 
 	pcm, err := os.ReadFile(converted)
@@ -701,7 +701,7 @@ func synthesiseWithSAPI(t *testing.T, text string) []byte {
 
 // TestAdapter_BooleanArgsUsePythonCapitalisation is a regression.
 //
-// strconv.FormatBool renders "false"; the tool's argparse str2bool accepts only
+// Go's strconv.FormatBool renders "false"; the tool's argparse str2bool accepts only
 // "True" and "False" and rejects anything else with exit code 2. The failure is
 // invisible from outside — argparse prints usage to stderr and produces no
 // transcript — so it looked exactly like a caller who said nothing.

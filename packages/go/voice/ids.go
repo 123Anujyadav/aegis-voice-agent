@@ -55,7 +55,7 @@ var idAlphabet = base32.NewEncoding("0123456789abcdefghjkmnpqrstvwxyz").
 func newID(prefix string) string {
 	var buf [16]byte
 
-	ms := uint64(time.Now().UnixMilli())
+	ms := uint64(time.Now().UnixMilli()) //nolint:gosec // non-negative for any clock set after 1970
 	for i := 5; i >= 0; i-- {
 		buf[i] = byte(ms)
 		ms >>= 8
@@ -135,32 +135,3 @@ func (m ModelID) String() string { return string(m) }
 
 // maxReasonLen bounds a reason code.
 const maxReasonLen = 48
-
-// boundedReason clamps a reason to something safe as a metric label.
-//
-// Reasons reach labels. An unbounded one taken from a provider's stderr would
-// let that provider choose our metric cardinality — and stderr is exactly where
-// a caller's words could end up if an adapter were careless.
-func boundedReason(r string) string {
-	if r == "" {
-		return "unspecified"
-	}
-	out := make([]rune, 0, maxReasonLen)
-	for _, c := range r {
-		if len(out) == maxReasonLen {
-			break
-		}
-		switch {
-		case c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '_':
-			out = append(out, c)
-		case c >= 'A' && c <= 'Z':
-			out = append(out, c+('a'-'A'))
-		case c == ' ', c == '-':
-			out = append(out, '_')
-		}
-	}
-	if len(out) == 0 {
-		return "unspecified"
-	}
-	return string(out)
-}

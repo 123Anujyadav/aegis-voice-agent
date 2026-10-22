@@ -153,11 +153,12 @@ func (e *TransitionError) Error() string {
 // Unwrap lets errors.Is match ErrInvalidTransition.
 func (e *TransitionError) Unwrap() error { return ErrInvalidTransition }
 
-// invariant builds an error naming a violated invariant.
-//
-// The identifier is stable and greppable: INV-VOICE-n. An invariant failure is
-// a bug in this package, not a caller mistake, and the identifier is what turns
-// a production log line into a specific line of code.
-func invariant(id, format string, args ...any) error {
-	return fmt.Errorf("voice: %s violated: %s", id, fmt.Sprintf(format, args...))
+// errText renders err for a message that deliberately does not wrap it. The
+// cause is reported, but errors.Is and errors.As match only the sentinel the
+// message wraps, exactly as they did when these messages used %v.
+func errText(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	return err.Error()
 }

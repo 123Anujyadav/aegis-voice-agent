@@ -72,7 +72,6 @@ func TestSecurity_HostileTranscriptNeverEscapesAsCodeOrContent(t *testing.T) {
 	t.Parallel()
 
 	for i, payload := range hostilePayloads() {
-		payload := payload
 		t.Run(fmt.Sprintf("payload-%02d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -129,10 +128,11 @@ func TestSecurity_HostileTranscriptNeverEscapesAsCodeOrContent(t *testing.T) {
 func assertNoPayloadInEvents(t *testing.T, events []VoiceEvent, payload string) {
 	t.Helper()
 
-	for _, e := range events {
+	for k := range events {
+		e := &events[k]
 		// Every string-typed field, by reflection, so a field added later is
 		// covered without this test being updated.
-		v := reflect.ValueOf(e)
+		v := reflect.ValueOf(*e)
 		for i := 0; i < v.NumField(); i++ {
 			f := v.Field(i)
 			if f.Kind() != reflect.String {
@@ -233,7 +233,7 @@ func TestSecurity_ErrorsDoNotEmbedContent(t *testing.T) {
 	}
 
 	fset := token.NewFileSet()
-	var pkgs []*ast.Package
+	var fileSets []map[string]*ast.File
 	for _, root := range roots {
 		parsed, err := parser.ParseDir(fset, root, func(fi os.FileInfo) bool {
 			return !strings.HasSuffix(fi.Name(), "_test.go")
@@ -242,12 +242,12 @@ func TestSecurity_ErrorsDoNotEmbedContent(t *testing.T) {
 			t.Fatalf("parsing %s: %v", root, err)
 		}
 		for _, pkg := range parsed {
-			pkgs = append(pkgs, pkg)
+			fileSets = append(fileSets, pkg.Files)
 		}
 	}
 
-	for _, pkg := range pkgs {
-		for name, file := range pkg.Files {
+	for _, files := range fileSets {
+		for name, file := range files {
 			ast.Inspect(file, func(n ast.Node) bool {
 				call, ok := n.(*ast.CallExpr)
 				if !ok {
@@ -328,8 +328,8 @@ func TestSecurity_EveryRetainedCollectionIsBounded(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	if err := fsm.To(ctx, StateListening, ReasonOK); err != nil {
-		t.Fatal(err)
+	if toErr := fsm.To(ctx, StateListening, ReasonOK); toErr != nil {
+		t.Fatal(toErr)
 	}
 	for i := 0; i < 500; i++ {
 		_ = fsm.To(ctx, StateSpeakingDetected, ReasonOK)
@@ -360,9 +360,9 @@ func TestSecurity_EveryRetainedCollectionIsBounded(t *testing.T) {
 
 	// Pipeline queues: fixed-capacity channels.
 	reg := newRegistry(t, ModeDevelopment)
-	if err := reg.RegisterSTT(
-		&recordingSTT{id: "stt-sec", segments: defaultSegments()}, sttSpec()); err != nil {
-		t.Fatal(err)
+	if regErr := reg.RegisterSTT(
+		&recordingSTT{id: "stt-sec", segments: defaultSegments()}, sttSpec()); regErr != nil {
+		t.Fatal(regErr)
 	}
 	fsm2, err := NewSessionFSM(FSMConfig{Session: SessionID("ses-sec-2")})
 	if err != nil {
@@ -509,7 +509,7 @@ func TestSecurity_GovernanceCannotBeBypassed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := gw.Invoke(context.Background(), TurnID("t"), testIntent()); err == nil {
+	if _, invokeErr := gw.Invoke(context.Background(), TurnID("t"), testIntent()); invokeErr == nil {
 		t.Fatal("a denied action reported success")
 	}
 	if got := inv.calls.Load(); got != 0 {

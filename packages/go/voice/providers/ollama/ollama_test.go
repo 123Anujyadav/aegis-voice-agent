@@ -1314,7 +1314,7 @@ func pulledModels(t *testing.T) []string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, DefaultBaseURL+"/api/tags", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, DefaultBaseURL+"/api/tags", http.NoBody)
 	if err != nil {
 		return nil
 	}

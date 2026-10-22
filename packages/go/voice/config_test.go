@@ -79,7 +79,7 @@ func TestConfig_FullyConfiguredIsValid(t *testing.T) {
 func TestConfig_RefusesUnsafeExecutablePaths(t *testing.T) {
 	t.Parallel()
 
-	real := stubExecutable(t, "ok-bin")
+	working := stubExecutable(t, "ok-bin")
 	dir := t.TempDir()
 
 	cases := []struct {
@@ -95,7 +95,7 @@ func TestConfig_RefusesUnsafeExecutablePaths(t *testing.T) {
 		{"backtick", filepath.Join(dir, "a`b`"), "shell metacharacter"},
 		{"dollar", filepath.Join(dir, "a$(id)"), "shell metacharacter"},
 		{"ampersand", filepath.Join(dir, "a&&b"), "shell metacharacter"},
-		{"newline", filepath.Join(dir, "a\nb"), "shell metacharacter"},
+		{"newline", filepath.Join(dir, "a"+"\n"+"b"), "shell metacharacter"},
 		{"missing", filepath.Join(dir, "nope"), "unavailable"},
 		{"directory", dir, "is a directory"},
 	}
@@ -114,7 +114,7 @@ func TestConfig_RefusesUnsafeExecutablePaths(t *testing.T) {
 		})
 	}
 
-	if err := validateExecutablePath("test", real); err != nil {
+	if err := validateExecutablePath("test", working); err != nil {
 		t.Errorf("a real absolute path was refused: %v", err)
 	}
 }

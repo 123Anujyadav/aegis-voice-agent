@@ -45,6 +45,26 @@ import (
 	"time"
 )
 
+// errText renders err for a message that deliberately does not wrap it. The
+// cause is reported, but errors.Is and errors.As match only the sentinel the
+// message wraps, exactly as they did when these messages used %v.
+func errText(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	return err.Error()
+}
+
+// withCleanup returns err unchanged when every cleanup step succeeded, and err
+// joined with the cleanup failures otherwise, so a failed cleanup is reported
+// without changing the error a successful cleanup leaves.
+func withCleanup(err error, cleanup ...error) error {
+	if errors.Join(cleanup...) == nil {
+		return err
+	}
+	return errors.Join(append([]error{err}, cleanup...)...)
+}
+
 // Errors this package returns. Callers match with errors.Is.
 var (
 	// ErrNotStarted is returned by an operation on a process that is not
@@ -277,7 +297,7 @@ func (p *Process) Start(ctx context.Context) error {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		p.mu.Unlock()
-		return fmt.Errorf("%w: stdin pipe: %v", ErrStartFailed, err)
+		return fmt.Errorf("%w: stdin pipe: %s", ErrStartFailed, errText(err))
 	}
 	// PIPES THIS PACKAGE OWNS, NOT cmd.StdoutPipe.
 	//
@@ -298,28 +318,27 @@ func (p *Process) Start(ctx context.Context) error {
 	stdoutR, stdoutW, err := os.Pipe()
 	if err != nil {
 		p.mu.Unlock()
-		return fmt.Errorf("%w: stdout pipe: %v", ErrStartFailed, err)
+		return fmt.Errorf("%w: stdout pipe: %s", ErrStartFailed, errText(err))
 	}
 	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
-		_, _ = stdoutR.Close(), stdoutW.Close()
+		cleanup := []error{stdoutR.Close(), stdoutW.Close()}
 		p.mu.Unlock()
-		return fmt.Errorf("%w: stderr pipe: %v", ErrStartFailed, err)
+		return withCleanup(fmt.Errorf("%w: stderr pipe: %s", ErrStartFailed, errText(err)), cleanup...)
 	}
 	cmd.Stdout = stdoutW
 	cmd.Stderr = stderrW
 
 	if err := cmd.Start(); err != nil {
-		_, _ = stdoutR.Close(), stdoutW.Close()
-		_, _ = stderrR.Close(), stderrW.Close()
+		cleanup := []error{stdoutR.Close(), stdoutW.Close(), stderrR.Close(), stderrW.Close()}
 		p.mu.Unlock()
-		return fmt.Errorf("%w: %v", ErrStartFailed, err)
+		return withCleanup(fmt.Errorf("%w: %s", ErrStartFailed, errText(err)), cleanup...)
 	}
 
 	// The child holds its own handles now. Releasing the parent's copies is
 	// what lets a reader see EOF when the child exits — hold them and the
 	// stream never ends.
-	_, _ = stdoutW.Close(), stderrW.Close()
+	_, _ = stdoutW.Close(), stderrW.Close() //nolint:errcheck // releasing the parent's copies of a pipe the child now holds; the child is running and a failure here has no remedy
 
 	stdout, stderr := stdoutR, stderrR
 
@@ -374,11 +393,11 @@ func (p *Process) awaitReady(ctx context.Context, ready <-chan error) error {
 				// Stop joins every goroutine this Process started, including the
 				// stderr drain — so once it returns, the ring holds everything
 				// the child ever wrote and the tail below is complete.
-				_ = p.Stop(context.Background())
+				stopErr := p.Stop(context.WithoutCancel(ctx))
 				if errors.Is(err, ErrExited) {
-					return fmt.Errorf("%w\nstderr: %s", err, p.StderrTail())
+					return withCleanup(fmt.Errorf("%w\nstderr: %s", err, p.StderrTail()), stopErr)
 				}
-				return err
+				return withCleanup(err, stopErr)
 			}
 			// Usable, even if it has exited since: that exit is reported where
 			// exits are, through Exited and ExitError.
@@ -397,17 +416,17 @@ func (p *Process) awaitReady(ctx context.Context, ready <-chan error) error {
 			exited = nil
 
 		case <-ctx.Done():
-			_ = p.Stop(context.Background())
-			return fmt.Errorf("%w: %v", ErrStartFailed, ctx.Err())
+			stopErr := p.Stop(context.WithoutCancel(ctx))
+			return withCleanup(fmt.Errorf("%w: %s", ErrStartFailed, errText(ctx.Err())), stopErr)
 
 		case <-timer.C:
-			_ = p.Stop(context.Background())
+			stopErr := p.Stop(context.WithoutCancel(ctx))
 			if exited == nil {
-				return fmt.Errorf("%w during startup: %v\nstderr: %s",
-					ErrExited, p.exitError(), p.StderrTail())
+				return withCleanup(fmt.Errorf("%w during startup: %s\nstderr: %s",
+					ErrExited, errText(p.exitError()), p.StderrTail()), stopErr)
 			}
-			return fmt.Errorf("%w after %s\nstderr: %s",
-				ErrReadinessTimeout, p.cfg.StartTimeout, p.StderrTail())
+			return withCleanup(fmt.Errorf("%w after %s\nstderr: %s",
+				ErrReadinessTimeout, p.cfg.StartTimeout, p.StderrTail()), stopErr)
 		}
 	}
 }
@@ -418,7 +437,7 @@ func (p *Process) pumpStdout(r io.ReadCloser, ready chan<- error) {
 	defer p.wg.Done()
 	defer close(p.stdout)
 	// This pipe is this package's to close now that Wait no longer does it.
-	defer func() { _ = r.Close() }()
+	defer func() { _ = r.Close() }() //nolint:errcheck // a reader goroutine has no caller to report to, and the pipe is already drained
 
 	resolved := p.cfg.Ready == nil
 	scanner := bufio.NewScanner(r)
@@ -483,7 +502,7 @@ const (
 func (p *Process) drainStderr(r io.ReadCloser) {
 	defer p.wg.Done()
 	defer close(p.stderrDone)
-	defer func() { _ = r.Close() }()
+	defer func() { _ = r.Close() }() //nolint:errcheck // a reader goroutine has no caller to report to, and the pipe is already drained
 
 	buf := make([]byte, stderrChunk)
 	for {
@@ -560,7 +579,7 @@ func (p *Process) Write(b []byte) (int, error) {
 
 	select {
 	case <-p.exited:
-		return 0, fmt.Errorf("%w: %v", ErrExited, p.exitError())
+		return 0, fmt.Errorf("%w: %s", ErrExited, errText(p.exitError()))
 	default:
 	}
 
@@ -683,7 +702,7 @@ func (p *Process) Stop(ctx context.Context) error {
 
 	// Ask nicely: closing stdin is how a filter program is told to finish.
 	if stdin != nil {
-		_ = stdin.Close()
+		_ = stdin.Close() //nolint:errcheck // a best-effort request to finish; a child that ignores it is killed below
 	}
 
 	// A caller parked in a raw stdout read would otherwise block until the
@@ -693,7 +712,7 @@ func (p *Process) Stop(ctx context.Context) error {
 	raw := p.rawStdout
 	p.mu.Unlock()
 	if raw != nil {
-		_ = raw.Close()
+		_ = raw.Close() //nolint:errcheck // only unblocks a parked reader; the stop outcome is decided below
 	}
 
 	timer := time.NewTimer(p.cfg.StopTimeout)
@@ -724,7 +743,7 @@ func (p *Process) kill(cmd *exec.Cmd) error {
 	}
 
 	p.killed.Store(true)
-	_ = cmd.Process.Kill()
+	_ = cmd.Process.Kill() //nolint:errcheck // a child that exited first reports os.ErrProcessDone; the reap awaited below is the source of truth
 
 	// Wait for reap to observe the death. Without this, Stop could return while
 	// the operating system still holds the process — which is exactly the
@@ -792,8 +811,8 @@ func (r *ring) string() string {
 	return string(out)
 }
 
-// Written returns how many stderr bytes the child produced in total, including
-// any the ring discarded.
+// StderrWritten returns how many stderr bytes the child produced in total,
+// including any the ring discarded.
 func (p *Process) StderrWritten() int64 {
 	p.stderr.mu.Lock()
 	defer p.stderr.mu.Unlock()

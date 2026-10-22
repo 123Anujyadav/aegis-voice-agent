@@ -103,7 +103,7 @@ func BenchmarkProcess_WriteRead(b *testing.B) {
 			if !ok {
 				b.Fatal("the child's output ended")
 			}
-			if len(out) == 0 {
+			if out == "" {
 				b.Fatal("empty line")
 			}
 		case <-time.After(10 * time.Second):

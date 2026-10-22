@@ -132,7 +132,8 @@ func (s *sharedSTTStream) emit() {
 		{Segment: speech.SegmentID("seg-1"), Text: transcriptFor(s.cfg.Session)},
 		{Segment: speech.SegmentID("seg-2"), Text: transcriptFor(s.cfg.Session), IsFinal: true},
 	}
-	for _, seg := range segments {
+	for i := range segments {
+		seg := segments[i]
 		seg.Session, seg.Turn = s.cfg.Session, s.cfg.Turn
 		select {
 		case s.results <- seg:
@@ -764,7 +765,7 @@ func TestConcurrency_BargeInDoesNotCrossSessions(t *testing.T) {
 		if err := s.pipeline.Start(context.Background()); err != nil {
 			t.Fatalf("Start(%s): %v", s.id, err)
 		}
-		defer func(s *session) { _ = s.pipeline.Disconnect() }(s)
+		t.Cleanup(func() { _ = s.pipeline.Disconnect() })
 	}
 
 	// Get both speaking.
@@ -835,7 +836,7 @@ func TestConcurrency_AuthorizationDoesNotLeakBetweenSessions(t *testing.T) {
 		if err := s.pipeline.Start(context.Background()); err != nil {
 			t.Fatalf("Start(%s): %v", s.id, err)
 		}
-		defer func(s *session) { _ = s.pipeline.Disconnect() }(s)
+		t.Cleanup(func() { _ = s.pipeline.Disconnect() })
 	}
 
 	var wg sync.WaitGroup
@@ -887,7 +888,7 @@ func TestConcurrency_InboundAudioIsNotShared(t *testing.T) {
 		if err := s.pipeline.Start(context.Background()); err != nil {
 			t.Fatalf("Start(%s): %v", s.id, err)
 		}
-		defer func(s *session) { _ = s.pipeline.Disconnect() }(s)
+		t.Cleanup(func() { _ = s.pipeline.Disconnect() })
 	}
 
 	const written = 30
@@ -985,14 +986,14 @@ func TestConcurrency_AdversarialFleetReachesIndependentOutcomes(t *testing.T) {
 				return
 
 			case outcomeBargedIn:
-				for i := 0; i < 400 && s.sink.count() == 0; i++ {
+				for n := 0; n < 400 && s.sink.count() == 0; n++ {
 					s.feed(1)
 					time.Sleep(2 * time.Millisecond)
 				}
 				s.intel.mu.Lock()
 				s.intel.bargeAt = s.intel.frames + 1
 				s.intel.mu.Unlock()
-				for i := 0; i < 400 && s.pipeline.BargeIns() == 0; i++ {
+				for n := 0; n < 400 && s.pipeline.BargeIns() == 0; n++ {
 					s.feed(1)
 					time.Sleep(2 * time.Millisecond)
 				}
@@ -1204,8 +1205,9 @@ func captureRun(t *testing.T, deny bool, sttFault string) runSignature {
 	// The event TYPES in order. Ordering within a session is contractual —
 	// Sequence exists so a consumer can detect a gap — so it must not vary.
 	var types []string
-	for _, e := range s.pub.Events() {
-		types = append(types, string(e.Type))
+	events := s.pub.Events()
+	for i := range events {
+		types = append(types, string(events[i].Type))
 	}
 
 	s.obs.mu.Lock()

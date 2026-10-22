@@ -41,6 +41,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -274,10 +275,13 @@ func (p *Provider) OpenSTT(ctx context.Context, cfg speech.STTConfig) (speech.ST
 	}
 
 	audioPath := filepath.Join(workDir, "utterance.wav")
-	f, err := os.OpenFile(audioPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	f, err := os.OpenFile(audioPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) //nolint:gosec // a fixed name inside the directory os.MkdirTemp just created
 	if err != nil {
-		_ = os.RemoveAll(workDir)
-		return nil, fmt.Errorf("whispercli: creating audio file: %w", err)
+		createErr := fmt.Errorf("whispercli: creating audio file: %w", err)
+		if rmErr := os.RemoveAll(workDir); rmErr != nil {
+			return nil, errors.Join(createErr, rmErr)
+		}
+		return nil, createErr
 	}
 
 	s := &stream{
@@ -296,7 +300,9 @@ func (p *Provider) OpenSTT(ctx context.Context, cfg speech.STTConfig) (speech.ST
 	// A placeholder header, rewritten with the real length once the utterance
 	// ends. Writing it now keeps the sample offset correct as frames arrive.
 	if err := writeWAVHeader(s.writer, p.cfg.Format, 0); err != nil {
-		_ = s.cleanup()
+		if cleanupErr := s.cleanup(); cleanupErr != nil {
+			return nil, errors.Join(err, cleanupErr)
+		}
 		return nil, err
 	}
 
@@ -336,7 +342,7 @@ type stream struct {
 
 	session speech.SessionID
 	turn    speech.TurnID
-	seq     int
+	seq     uint64
 }
 
 // Compile-time proof that the frozen stream port is satisfied.
@@ -504,7 +510,7 @@ func (s *stream) processConfig() process.Config {
 
 // pythonBool renders a boolean the way Python argparse's str2bool expects it.
 //
-// strconv.FormatBool gives "false"; the tool's str2bool accepts only "True" and
+// Go's strconv.FormatBool gives "false"; the tool's str2bool accepts only "True" and
 // "False" with a leading capital and rejects anything else with exit code 2.
 // The failure is silent from the outside — argparse prints usage to stderr and
 // produces no transcript — so this cost a real debugging session.
@@ -645,7 +651,7 @@ func (s *stream) parse(line string) (speech.TranscriptSegment, bool) {
 		Segment:  speech.NewSegmentID(),
 		Session:  s.session,
 		Turn:     s.turn,
-		Sequence: uint64(seq),
+		Sequence: seq,
 		Text:     body,
 		IsFinal:  true,
 		// The tool reports avg_logprob, which is a mean log probability over
@@ -743,16 +749,21 @@ func (s *stream) cleanup() error {
 	s.file, s.writer = nil, nil
 	s.mu.Unlock()
 
+	// A file already closed by the normal path reports os.ErrClosed, which is
+	// not a failure here.
+	var closeErr error
 	if file != nil {
-		_ = file.Close()
+		if err := file.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			closeErr = fmt.Errorf("whispercli: closing buffered audio: %w", err)
+		}
 	}
 	if dir == "" {
-		return nil
+		return closeErr
 	}
 	if err := os.RemoveAll(dir); err != nil {
-		return fmt.Errorf("whispercli: removing buffered audio at %q: %w", dir, err)
+		return errors.Join(closeErr, fmt.Errorf("whispercli: removing buffered audio at %q: %w", dir, err))
 	}
-	return nil
+	return closeErr
 }
 
 // AudioPath returns where the utterance is buffered.
@@ -779,8 +790,18 @@ func writeWAVHeader(w *bufio.Writer, format media.AudioFormat, dataBytes int) er
 	byteRate := int(format.Rate) * channels * bitsPerSample / 8
 	blockAlign := channels * bitsPerSample / 8
 
-	put32 := func(v int) error { return binary.Write(w, binary.LittleEndian, uint32(v)) }
-	put16 := func(v int) error { return binary.Write(w, binary.LittleEndian, uint16(v)) }
+	put32 := func(v int) error {
+		if v < 0 || int64(v) > math.MaxUint32 {
+			return fmt.Errorf("%w: WAV field %d does not fit in 32 bits", ErrFormat, v)
+		}
+		return binary.Write(w, binary.LittleEndian, uint32(v)) //nolint:gosec // bounded to [0, MaxUint32] just above
+	}
+	put16 := func(v int) error {
+		if v < 0 || v > math.MaxUint16 {
+			return fmt.Errorf("%w: WAV field %d does not fit in 16 bits", ErrFormat, v)
+		}
+		return binary.Write(w, binary.LittleEndian, uint16(v))
+	}
 
 	for _, step := range []func() error{
 		func() error { _, err := w.WriteString("RIFF"); return err },
