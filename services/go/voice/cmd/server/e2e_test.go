@@ -39,8 +39,6 @@ type e2eCase struct {
 	wantIntent conversation.IntentName
 	wantAction conversation.Action
 	wantReason string
-	// wantTerminal records whether this turn ends the conversation.
-	wantTerminal bool
 }
 
 // e2eCases uses only names declared in the current lexicon. Verified against
@@ -187,8 +185,8 @@ func TestT4_TheSameTableCollapsesWithoutTheClassifier(t *testing.T) {
 			{Kind: conversation.EventStart},
 			{Kind: conversation.EventGreetingComplete},
 		} {
-			if _, err := conv.Handle(e); err != nil {
-				t.Fatalf("%v: %v", e.Kind, err)
+			if _, hErr := conv.Handle(e); hErr != nil {
+				t.Fatalf("%v: %v", e.Kind, hErr)
 			}
 		}
 		plan, err := conv.Handle(utter(tc.utterance))
@@ -259,10 +257,10 @@ func TestT4_FrozenTurnSemanticsAreReached(t *testing.T) {
 
 	// Only when the agent finishes speaking does the turn close and the floor
 	// pass to the caller. Asserting the whole handoff, not a single snapshot.
-	if _, err := p.Handle(conversation.Event{
+	if _, hErr := p.Handle(conversation.Event{
 		Kind: conversation.EventSpeechComplete,
-	}); err != nil {
-		t.Fatalf("speech complete: %v", err)
+	}); hErr != nil {
+		t.Fatalf("speech complete: %v", hErr)
 	}
 	if got := conv.Turns().Holder(); got != conversation.PartyCaller {
 		t.Errorf("floor holder after the answer = %v, want PartyCaller", got)
@@ -293,7 +291,8 @@ func TestT4_FrozenTurnSemanticsAreReached(t *testing.T) {
 	}
 }
 
-// TestT4_TurnClassificationComposesOverServiceOutputs.
+// TestT4_TurnClassificationComposesOverServiceOutputs feeds the service's real
+// Plan-derived values into intent.ClassifyTurn and checks the composed result.
 //
 // VERIFIED AGAINST SOURCE: intent.ClassifyTurn has no production caller. The
 // conversation engine owns turn-taking itself. This test therefore demonstrates
@@ -590,10 +589,10 @@ func TestT4_IntelligenceFailureStaysSessionScoped(t *testing.T) {
 	if before.Intent != intent.IntentRequestTransfer {
 		t.Fatalf("neighbour setup: intent = %q", before.Intent)
 	}
-	if _, err := healthy.Handle(conversation.Event{
+	if _, hErr := healthy.Handle(conversation.Event{
 		Kind: conversation.EventSpeechComplete,
-	}); err != nil {
-		t.Fatal(err)
+	}); hErr != nil {
+		t.Fatal(hErr)
 	}
 
 	// The failing session.
@@ -610,7 +609,7 @@ func TestT4_IntelligenceFailureStaysSessionScoped(t *testing.T) {
 	}
 
 	// Typed and bounded: further work on that session is refused, not panicked.
-	if _, err := bad.Handle(utter("are you there")); err == nil {
+	if _, hErr := bad.Handle(utter("are you there")); hErr == nil {
 		t.Error("a terminal session accepted further work")
 	}
 

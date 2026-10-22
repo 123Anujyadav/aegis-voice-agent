@@ -233,8 +233,8 @@ func TestT3_LiveServiceResolvesANonFallbackIntent(t *testing.T) {
 		{Kind: conversation.EventStart},
 		{Kind: conversation.EventGreetingComplete},
 	} {
-		if _, err := p.Handle(e); err != nil {
-			t.Fatalf("%v: %v", e.Kind, err)
+		if _, hErr := p.Handle(e); hErr != nil {
+			t.Fatalf("%v: %v", e.Kind, hErr)
 		}
 	}
 
@@ -286,8 +286,8 @@ func TestT3_WithoutClassifierTheSameUtteranceFallsBack(t *testing.T) {
 		{Kind: conversation.EventStart},
 		{Kind: conversation.EventGreetingComplete},
 	} {
-		if _, err := conv.Handle(e); err != nil {
-			t.Fatalf("%v: %v", e.Kind, err)
+		if _, hErr := conv.Handle(e); hErr != nil {
+			t.Fatalf("%v: %v", e.Kind, hErr)
 		}
 	}
 	bareplan, err := conv.Handle(conversation.Event{
@@ -314,8 +314,8 @@ func TestT3_WithoutClassifierTheSameUtteranceFallsBack(t *testing.T) {
 		{Kind: conversation.EventStart},
 		{Kind: conversation.EventGreetingComplete},
 	} {
-		if _, err := p.Handle(e); err != nil {
-			t.Fatalf("%v: %v", e.Kind, err)
+		if _, hErr := p.Handle(e); hErr != nil {
+			t.Fatalf("%v: %v", e.Kind, hErr)
 		}
 	}
 	wired, err := p.Handle(conversation.Event{

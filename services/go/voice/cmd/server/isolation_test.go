@@ -499,7 +499,9 @@ func TestT5_ConcurrentFailureStaysScopedToItsSession(t *testing.T) {
 				return
 			}
 
-			if sn.failing {
+			// escalate is the failing half's path. It is a closure so the branch
+			// below stays flat; its returns end only this path.
+			escalate := func() {
 				// Below the frozen reject threshold: a real typed escalation.
 				plan, err := sn.planner.Handle(utter("callback transfer"))
 				if err != nil {
@@ -526,6 +528,9 @@ func TestT5_ConcurrentFailureStaysScopedToItsSession(t *testing.T) {
 					errs <- fmt.Sprintf("%s: terminal session accepted more work",
 						sn.spec.id)
 				}
+			}
+			if sn.failing {
+				escalate()
 				return
 			}
 
@@ -645,7 +650,7 @@ func trimQuotes(s string) string {
 }
 
 func pathContains(haystack, needle string) bool {
-	return len(needle) > 0 && len(haystack) >= len(needle) &&
+	return needle != "" && len(haystack) >= len(needle) &&
 		func() bool {
 			for i := 0; i+len(needle) <= len(haystack); i++ {
 				if haystack[i:i+len(needle)] == needle {
