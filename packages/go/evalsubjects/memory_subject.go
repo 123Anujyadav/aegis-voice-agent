@@ -50,7 +50,8 @@ type memorySession struct {
 // Advance moves the memory engine's clock.
 func (s *memorySession) Advance(d time.Duration) { s.h.Clock.Advance(d) }
 
-func (s *memorySession) Execute(ctx context.Context, step ev.Step) ev.StepResult {
+// Execute runs one scenario step against the real subject.
+func (s *memorySession) Execute(ctx context.Context, step ev.Step) ev.StepResult { //nolint:gocyclo // one case per scenario step kind; FE-1 permits lint fixes, not restructuring the frozen subject
 	store := s.h.Assistant().Store
 
 	subject := mem.SubjectID(step.Args.Str("subject"))

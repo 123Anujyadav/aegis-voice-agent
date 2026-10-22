@@ -63,20 +63,6 @@ func (c Class) Sheddable() bool {
 	return c == ClassStandard || c == ClassInteractive
 }
 
-// priority orders classes for dequeue. Higher wins.
-func (c Class) priority() int {
-	switch c {
-	case ClassSafety:
-		return 3
-	case ClassSystem:
-		return 2
-	case ClassInteractive:
-		return 1
-	default:
-		return 0
-	}
-}
-
 // SchedulerConfig tunes admission and concurrency.
 type SchedulerConfig struct {
 	// MaxConcurrent bounds simultaneously executing tasks. This is the real

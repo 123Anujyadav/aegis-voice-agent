@@ -72,8 +72,10 @@ func bootstrap(t *testing.T, r *ev.EvaluationRuntime) {
 	t.Helper()
 
 	ctx := context.Background()
-	for _, s := range r.Registry().Scenarios() {
-		res := r.Execute(ctx, s)
+	scenarios := r.Registry().Scenarios()
+	for i := range scenarios {
+		s := &scenarios[i]
+		res := r.Execute(ctx, *s)
 		if res.Observation.Failed() {
 			t.Fatalf("scenario %s failed against the real subject before any "+
 				"baseline existed: %s", s.ID, res.Comparison.Reason)

@@ -55,7 +55,8 @@ type conversationSession struct {
 // Advance moves the conversation engine's clock.
 func (s *conversationSession) Advance(d time.Duration) { s.h.Clock.Advance(d) }
 
-func (s *conversationSession) Execute(ctx context.Context, step ev.Step) ev.StepResult {
+// Execute runs one scenario step against the real subject.
+func (s *conversationSession) Execute(ctx context.Context, step ev.Step) ev.StepResult { //nolint:gocyclo // one case per scenario step kind; FE-1 permits lint fixes, not restructuring the frozen subject
 	switch step.Op {
 	case "begin":
 		id := step.Args.Str("id")
@@ -158,6 +159,7 @@ func (s *conversationSession) record(kind string) {
 	s.events = append(s.events, ev.EventRecord{Type: kind})
 }
 
+// State returns the session's observable state, for scenario assertions.
 func (s *conversationSession) State() ev.Values {
 	if s.conv == nil {
 		return ev.Values{"state": ev.S("<none>"), "turns": ev.N(0)}
@@ -169,10 +171,12 @@ func (s *conversationSession) State() ev.Values {
 	}
 }
 
+// Events returns the events the session has recorded.
 func (s *conversationSession) Events() []ev.EventRecord {
 	out := s.events
 	s.events = nil
 	return out
 }
 
+// Close releases nothing; the session holds no resources.
 func (s *conversationSession) Close() error { return nil }

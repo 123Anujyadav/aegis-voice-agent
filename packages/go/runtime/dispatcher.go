@@ -284,7 +284,7 @@ type recvResult struct {
 // is not leaked: Close causes the in-flight Recv to return, the goroutine sees
 // its done channel closed, and it exits. This is asserted by a leak check in
 // the test suite rather than assumed.
-func (d *Dispatcher) Run(ctx context.Context, stream TokenStream) StreamResult {
+func (d *Dispatcher) Run(ctx context.Context, stream TokenStream) StreamResult { //nolint:gocyclo // the frozen dispatch loop; FE-1 permits lint fixes, not restructuring it
 	if d.started.Swap(true) {
 		return StreamResult{StreamID: d.id, Err: errors.New("runtime: dispatcher already run")}
 	}
@@ -331,7 +331,7 @@ func (d *Dispatcher) Run(ctx context.Context, stream TokenStream) StreamResult {
 	// path, including panic.
 	defer func() {
 		close(readerDone)
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck // releases the stream on every exit path; the run's outcome is decided by what it read
 	}()
 
 	var (
@@ -606,7 +606,7 @@ type BufferedSink struct {
 
 // NewBufferedSink returns a sink with the given queue depth.
 //
-// acceptThinking must be true for the sink to receive ChunkThinking, and should
+// The acceptThinking flag must be true for the sink to receive ChunkThinking, and should
 // be false for anything that persists, transmits or renders (INV-AI-10).
 func NewBufferedSink(depth int, acceptThinking bool) *BufferedSink {
 	if depth <= 0 {

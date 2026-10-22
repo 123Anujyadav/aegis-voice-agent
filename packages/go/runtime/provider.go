@@ -313,7 +313,7 @@ type TokenStream interface {
 // Thinking chunks are counted in usage and deliberately excluded from the
 // returned text (INV-AI-10).
 func Collect(ctx context.Context, s TokenStream) (string, Usage, error) {
-	defer func() { _ = s.Close() }()
+	defer func() { _ = s.Close() }() //nolint:errcheck // the collected result is complete before Close; its error has no bearing on it
 
 	var (
 		sb    []byte
