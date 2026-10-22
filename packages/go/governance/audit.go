@@ -166,9 +166,10 @@ func (a *RecordingAuditor) OfKind(k AuditKind) []AuditEntry {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	var out []AuditEntry
-	for _, e := range a.entries {
+	for i := range a.entries {
+		e := &a.entries[i]
 		if e.Kind == k {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	return out
@@ -206,9 +207,10 @@ type GovernanceTrace struct {
 func TraceFor(a *RecordingAuditor, c CorrelationID) GovernanceTrace {
 	a.mu.Lock()
 	var out []AuditEntry
-	for _, e := range a.entries {
+	for i := range a.entries {
+		e := &a.entries[i]
 		if e.Correlation == c {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	a.mu.Unlock()
@@ -228,7 +230,8 @@ func TraceFor(a *RecordingAuditor, c CorrelationID) GovernanceTrace {
 // Summary renders the trace as one line per entry, for diagnostics.
 func (t GovernanceTrace) Summary() []string {
 	out := make([]string, 0, len(t.Entries))
-	for _, e := range t.Entries {
+	for i := range t.Entries {
+		e := &t.Entries[i]
 		line := string(e.Kind)
 		if e.ActionLabel != "" {
 			line += " " + e.ActionLabel

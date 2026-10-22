@@ -378,7 +378,7 @@ func (e *Engine) Decide(r Request) Decision {
 	if e.cfg.AutoEscalate && d.Outcome.NeedsHuman() {
 		if kind, ok := KindFor(d.Outcome); ok {
 			timeout := e.cfg.EscalationTimeouts[kind]
-			_, _ = e.human.Raise(d, kind, timeout)
+			_, _ = e.human.Raise(d, kind, timeout) //nolint:errcheck // HumanRuntime.Raise has no failure path
 		}
 	}
 	return d

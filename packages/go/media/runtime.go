@@ -283,7 +283,7 @@ func (r *MediaRuntime) Start(ctx context.Context) (RecoveryReport, error) {
 	if err != nil {
 		return report, err
 	}
-	r.recovered.Add(uint64(report.Resumed))
+	r.recovered.Add(uint64(report.Resumed)) //nolint:gosec // a count of resumed streams, never negative
 
 	r.mu.Lock()
 	r.state = RuntimeRunning
@@ -291,7 +291,7 @@ func (r *MediaRuntime) Start(ctx context.Context) (RecoveryReport, error) {
 
 	if !r.manualSweep {
 		r.wg.Add(1)
-		go r.sweepLoop()
+		go r.sweepLoop() //nolint:contextcheck // the sweep runs for the runtime's lifetime and stops on r.stop, not with Start's context
 	}
 
 	if r.cfg.PumpInterval > 0 {
@@ -815,7 +815,7 @@ func (c *MediaCoordinator) conclude(ctx context.Context, id StreamID,
 	c.rt.registry.Remove(id)
 	c.rt.scheduler.Release(sc.Source)
 	if c.rt.store != nil {
-		_ = c.rt.store.Delete(ctx, id)
+		_ = c.rt.store.Delete(ctx, id) //nolint:errcheck // the close has completed; a failed delete leaves the snapshot to the next recovery pass
 	}
 	c.rt.metrics.LiveStreams.Set(float64(c.rt.registry.Len()))
 	return nil

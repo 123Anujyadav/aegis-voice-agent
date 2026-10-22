@@ -380,9 +380,11 @@ func (h *HumanRuntime) Pending() []Escalation {
 // PendingFor returns waiting escalations of one kind.
 func (h *HumanRuntime) PendingFor(k EscalationKind) []Escalation {
 	var out []Escalation
-	for _, esc := range h.Pending() {
+	escList := h.Pending()
+	for i := range escList {
+		esc := &escList[i]
 		if esc.Kind == k {
-			out = append(out, esc)
+			out = append(out, *esc)
 		}
 	}
 	return out
