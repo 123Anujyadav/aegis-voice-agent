@@ -237,7 +237,7 @@ func refusalReason(err error) string {
 // speech_started. It is emitted ONCE per run, at the point the run exceeds
 // VADConfig.MinSpeech, which is the moment the engine stops being able to
 // dismiss it as a transient. That is a fact worth one event.
-func (s *Session) record(ctx context.Context, a Analysis, state ConversationState) {
+func (s *Session) record(ctx context.Context, a Analysis, state ConversationState) { //nolint:gocyclo // one metric and event per analysis outcome
 	m := s.metrics
 	dir := s.direction
 
@@ -417,7 +417,7 @@ func (s *Session) publish(
 
 	// A publisher error MUST NOT fail the analysis that produced it: a broker
 	// outage cannot be allowed to stop the engine noticing somebody is talking.
-	_ = s.events.Publish(ctx, e)
+	_ = s.events.Publish(ctx, e) //nolint:errcheck // deliberate, as explained above
 }
 
 // ObserveDelivery folds in Phase 11B's verdict on a frame that never arrived.

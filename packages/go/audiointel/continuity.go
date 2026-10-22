@@ -203,11 +203,12 @@ func (c *ContinuityDetector) classify(f FrameFeatures) ContinuityFault {
 
 // advance moves the sliding window and the timestamp reference.
 func (c *ContinuityDetector) advance(f FrameFeatures) {
-	if !c.haveSeq {
+	switch {
+	case !c.haveSeq:
 		c.highestSeq = f.Sequence
 		c.seenMask = 1
 		c.haveSeq = true
-	} else if f.Sequence > c.highestSeq {
+	case f.Sequence > c.highestSeq:
 		shift := f.Sequence - c.highestSeq
 		if shift >= 64 {
 			c.seenMask = 1
@@ -215,8 +216,10 @@ func (c *ContinuityDetector) advance(f FrameFeatures) {
 			c.seenMask = (c.seenMask << shift) | 1
 		}
 		c.highestSeq = f.Sequence
-	} else if delta := c.highestSeq - f.Sequence; delta < 64 {
-		c.seenMask |= 1 << delta
+	default:
+		if delta := c.highestSeq - f.Sequence; delta < 64 {
+			c.seenMask |= 1 << delta
+		}
 	}
 
 	// A frame that arrived out of order must not drag the timestamp reference

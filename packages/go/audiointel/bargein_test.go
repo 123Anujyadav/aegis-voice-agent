@@ -102,7 +102,7 @@ func TestBargeIn_CancelsAgentSpeechThroughThePhase11CPort(t *testing.T) {
 
 // TestBargeIn_RefusesWhenTheAgentIsNotSpeaking mirrors Phase 11C.
 //
-// speech.SpeechSession.Interrupt refuses unless the turn is responding or
+// The speech.SpeechSession.Interrupt method refuses unless the turn is responding or
 // speaking, because a caller talking while we are listening is not
 // interrupting — they are just talking, and their audio already belongs to the
 // live turn. Firing anyway would cancel a turn that was recognising speech

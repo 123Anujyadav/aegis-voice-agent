@@ -48,9 +48,9 @@ func TestDependencies_GoModDeclaresOnlyFirstPartyModules(t *testing.T) {
 // TestDependencies_NoForbiddenImports is §29 checked against the source.
 //
 // The dependency rule names specific modules that must never appear here, and
-// each is forbidden for a different reason. speech and conversation would
-// invert the layering. governance, memory and toolruntime are other planes
-// entirely. telephony is two layers down. A provider SDK would make "provider
+// each is forbidden for a different reason: speech and conversation would
+// invert the layering; governance, memory and toolruntime are other planes
+// entirely; telephony is two layers down. A provider SDK would make "provider
 // agnostic" a claim rather than a property.
 func TestDependencies_NoForbiddenImports(t *testing.T) {
 	t.Parallel()

@@ -211,7 +211,7 @@ func (r *AudioIntelligenceRuntime) Stop(ctx context.Context) (int, error) {
 	})
 
 	for _, s := range live {
-		_ = s.Close(ctx, ReasonRuntimeStopped)
+		_ = s.Close(ctx, ReasonRuntimeStopped) //nolint:errcheck // stop closes every session whatever any one reports
 	}
 
 	r.logger.InfoContext(ctx, "audiointel: runtime stopped",

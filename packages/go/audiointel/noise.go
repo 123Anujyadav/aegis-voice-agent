@@ -156,7 +156,7 @@ func NewNoiseAnalyzer(cfg Config) (*NoiseAnalyzer, error) {
 
 // Observe folds one frame into the estimate and returns the current view.
 //
-// speechActive must be the voice activity detector's verdict for the PREVIOUS
+// The speechActive flag must be the voice activity detector's verdict for the PREVIOUS
 // frame, not this one — this analyser runs before the detector, and asking it
 // to wait for a verdict derived from its own output is the circular dependency
 // this ordering exists to avoid. One frame of lag on the gate is 20 ms, well
@@ -435,8 +435,8 @@ func (n *NoiseAnalyzer) Retract(count int) {
 
 	// The retracted frames are no longer evidence about the background, so they
 	// no longer count toward coverage either.
-	if n.total >= uint64(count) {
-		n.total -= uint64(count)
+	if n.total >= uint64(count) { //nolint:gosec // count is a number of retracted frames, never negative
+		n.total -= uint64(count) //nolint:gosec // as above
 	} else {
 		n.total = 0
 	}
