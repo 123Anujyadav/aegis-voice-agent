@@ -27,7 +27,7 @@ const maxIDLen = 64
 
 // newID returns a prefixed random identifier.
 //
-// crypto/rand rather than math/rand: these identifiers appear in events that
+// It uses crypto/rand rather than math/rand: these identifiers appear in events that
 // cross a service boundary, and a predictable session identifier lets an
 // attacker who can reach the API guess one that is live.
 func newID(prefix string) string {

@@ -254,8 +254,8 @@ func sttRig(t *testing.T, script []TranscriptSegment) (
 		t.Fatal(err)
 	}
 	p := NewFakeSTTProvider("asr", script, clock)
-	if err := r.RegisterSTT(p, TierPrimary); err != nil {
-		t.Fatal(err)
+	if hErr := r.RegisterSTT(p, TierPrimary); hErr != nil {
+		t.Fatal(hErr)
 	}
 	sess := NewSessionID()
 	asm := NewTranscriptAssembler(sess, clock)
@@ -462,8 +462,8 @@ func ttsRig(t *testing.T, framesPerChunk int) (
 		t.Fatal(err)
 	}
 	p := NewFakeTTSProvider("voice", framesPerChunk, clock)
-	if err := r.RegisterTTS(p, TierPrimary); err != nil {
-		t.Fatal(err)
+	if hErr := r.RegisterTTS(p, TierPrimary); hErr != nil {
+		t.Fatal(hErr)
 	}
 	turns := NewSpeechTurnManager(clock)
 	o, err := NewTTSOrchestrator(

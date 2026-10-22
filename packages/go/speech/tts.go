@@ -259,7 +259,7 @@ func (o *TTSOrchestrator) Speak(ctx context.Context, turn TurnID, text string, l
 			if errors.Is(err, ErrBackpressure) {
 				o.metrics.BackpressureEvents.Add(1, "chunk")
 			}
-			_ = stream.CloseSend()
+			_ = stream.CloseSend() //nolint:errcheck // the submit failure, returned below, is the error reported
 			return err
 		}
 		o.mu.Lock()
@@ -386,7 +386,7 @@ func (o *TTSOrchestrator) Cancel(reason string) (int, error) {
 		cancel()
 	}
 	if stream != nil {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck // teardown: the stream is being discarded, and a close failure has no remedy
 	}
 	o.wg.Wait()
 
@@ -420,7 +420,7 @@ func (o *TTSOrchestrator) Close() error {
 	o.closed = true
 	o.mu.Unlock()
 
-	_, _ = o.Cancel("close")
+	_, _ = o.Cancel("close") //nolint:errcheck // Close proceeds whatever Cancel reports
 	close(o.frames)
 	return nil
 }

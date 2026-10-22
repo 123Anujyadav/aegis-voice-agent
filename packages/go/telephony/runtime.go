@@ -211,18 +211,18 @@ func (r *TelephonyRuntime) Start(ctx context.Context) (RecoveryReport, error) {
 	if err != nil {
 		return report, err
 	}
-	r.recovered.Add(uint64(report.Resumed))
+	r.recovered.Add(uint64(report.Resumed)) //nolint:gosec // a count of resumed calls, never negative
 
 	r.mu.Lock()
 	r.state = RuntimeRunning
 	r.mu.Unlock()
 
 	r.wg.Add(1)
-	go r.sweepLoop()
+	go r.sweepLoop() //nolint:contextcheck // runs for the runtime's lifetime and stops on r.stop, not with Start's context
 
 	if r.cfg.SnapshotInterval > 0 && r.store != nil {
 		r.wg.Add(1)
-		go r.snapshotLoop()
+		go r.snapshotLoop() //nolint:contextcheck // runs for the runtime's lifetime and stops on r.stop, not with Start's context
 	}
 
 	r.logger.InfoContext(ctx, "telephony runtime started",
@@ -509,7 +509,7 @@ func (c *CallCoordinator) End(ctx context.Context, id CallID, reason string) err
 	}
 	c.rt.scheduler.Release(provider)
 	if c.rt.store != nil {
-		_ = c.rt.store.Delete(ctx, id)
+		_ = c.rt.store.Delete(ctx, id) //nolint:errcheck // the call has ended; a failed delete leaves the snapshot to the next recovery pass
 	}
 	return nil
 }
@@ -527,7 +527,7 @@ func (c *CallCoordinator) Fail(ctx context.Context, id CallID, reason string) er
 	}
 	c.rt.scheduler.Release(provider)
 	if c.rt.store != nil {
-		_ = c.rt.store.Delete(ctx, id)
+		_ = c.rt.store.Delete(ctx, id) //nolint:errcheck // the call has ended; a failed delete leaves the snapshot to the next recovery pass
 	}
 	return nil
 }
@@ -582,7 +582,7 @@ func (d *CallDispatcher) Dispatch(ctx context.Context, id CallID,
 	sess, err := d.rt.registry.Get(id)
 	if err != nil {
 		d.rt.metrics.InvalidTransitions.Inc("unknown", string(to))
-		return SignalUnknownCall, nil
+		return SignalUnknownCall, nil //nolint:nilerr // documented: an unknown call is an outcome, and only SignalRejected carries an error
 	}
 
 	from := sess.State()

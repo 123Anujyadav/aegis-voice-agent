@@ -11,7 +11,7 @@ import (
 	rt "github.com/callscreen/callscreen-platform/packages/go/runtime"
 )
 
-// STTConfigDefaults are the orchestrator's queue bounds and deadlines.
+// STTOrchestratorConfig holds the orchestrator's queue bounds and deadlines.
 type STTOrchestratorConfig struct {
 	// Format is the audio the orchestrator accepts. A frame of any other format
 	// is refused rather than resampled: this package does no DSP.
@@ -269,7 +269,7 @@ func (o *STTOrchestrator) handle(seg TranscriptSegment, turn TurnID, lang Langua
 	} else {
 		o.metrics.PartialsReceived.Add(1, label)
 		o.observeFirstPartial(label)
-		_ = o.turns.NotePartial(turn)
+		_ = o.turns.NotePartial(turn) //nolint:errcheck // a late partial is refused with ErrTranscriptOutOfOrder; the segment itself was accepted above
 	}
 
 	select {
@@ -331,7 +331,7 @@ func (o *STTOrchestrator) Push(f media.Frame) error {
 			ErrInvalidAudio, f.Format, o.cfg.Format)
 	}
 	if err := f.Validate(); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidAudio, err)
+		return fmt.Errorf("%w: %s", ErrInvalidAudio, err.Error())
 	}
 
 	// CLONED. The payload is borrowed from a ring that will overwrite it; the
@@ -371,7 +371,7 @@ func (o *STTOrchestrator) EndOfSpeech() error {
 
 	// The turn may legitimately already be finalizing if the endpoint fired
 	// twice; a refused transition is not an error here.
-	_ = o.turns.Transition(turn, TurnFinalizing, "end_of_speech")
+	_ = o.turns.Transition(turn, TurnFinalizing, "end_of_speech") //nolint:errcheck // deliberate, as explained above
 	return stream.CloseSend()
 }
 
@@ -390,7 +390,7 @@ func (o *STTOrchestrator) Cancel(reason string) error {
 		cancel()
 	}
 	if stream != nil {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck // teardown: the stream is being discarded, and a close failure has no remedy
 	}
 	o.wg.Wait()
 
@@ -408,7 +408,7 @@ func (o *STTOrchestrator) Close() error {
 	o.closed = true
 	o.mu.Unlock()
 
-	_ = o.Cancel("close")
+	_ = o.Cancel("close") //nolint:errcheck // Close proceeds whatever Cancel reports
 
 	close(o.segments)
 	return nil

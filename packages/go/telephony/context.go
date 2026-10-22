@@ -109,7 +109,7 @@ func NewCapabilities(caps ...Capability) Capabilities {
 //
 // A zero-value Capabilities has nothing, which is the safe default: an
 // unconfigured provider supports no optional operation rather than all of them.
-func (c Capabilities) Has(cap Capability) bool { return c.set[cap] }
+func (c Capabilities) Has(capability Capability) bool { return c.set[capability] }
 
 // List returns the capabilities, sorted.
 func (c Capabilities) List() []Capability {
@@ -309,11 +309,11 @@ func (c CallContext) String() string {
 }
 
 func truncate(s string) string {
-	const max = 32
-	if len(s) <= max {
+	const maxLen = 32
+	if len(s) <= maxLen {
 		return s
 	}
-	return s[:max] + "…"
+	return s[:maxLen] + "…"
 }
 
 // ---------------------------------------------------------------------------
