@@ -191,9 +191,10 @@ func (p *RecordingPublisher) OfType(t EventType) []Event {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	var out []Event
-	for _, e := range p.events {
+	for i := range p.events {
+		e := &p.events[i]
 		if e.Type == t {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	return out

@@ -127,18 +127,18 @@ type Ledger struct {
 // longest plausible retry storm — a conversation plus a client's own retries —
 // and no longer, because an entry that outlives its usefulness is a stored
 // result that could be served to a caller who wanted fresh work.
-func NewLedger(clock rt.Clock, metrics *Metrics, ttl time.Duration, max int) *Ledger {
+func NewLedger(clock rt.Clock, metrics *Metrics, ttl time.Duration, maxEntries int) *Ledger {
 	if clock == nil {
 		clock = rt.SystemClock{}
 	}
 	if ttl <= 0 {
 		ttl = 10 * time.Minute
 	}
-	if max <= 0 {
-		max = 10_000
+	if maxEntries <= 0 {
+		maxEntries = 10_000
 	}
 	return &Ledger{
-		clock: clock, metrics: metrics, ttl: ttl, max: max,
+		clock: clock, metrics: metrics, ttl: ttl, max: maxEntries,
 		entries: make(map[IdempotencyKey]*LedgerEntry),
 	}
 }
@@ -163,15 +163,12 @@ func (l *Ledger) Claim(key IdempotencyKey, d Descriptor, exec ExecutionID) (*Led
 	l.evictHeadLocked(now)
 
 	if existing, ok := l.entries[key]; ok {
-		if existing.Settled() {
-			existing.Replays++
-			if l.metrics != nil {
-				l.metrics.LedgerHits.Inc(string(d.Tool))
-			}
-			return nil, existing, nil
-		}
 		if l.metrics != nil {
 			l.metrics.LedgerHits.Inc(string(d.Tool))
+		}
+		if existing.Settled() {
+			existing.Replays++
+			return nil, existing, nil
 		}
 		return nil, existing, ErrDuplicate
 	}

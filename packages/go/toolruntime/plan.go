@@ -110,7 +110,8 @@ func (s Step) Leaves() []Step {
 		return []Step{s}
 	}
 	var out []Step
-	for _, c := range s.Children {
+	for i := range s.Children {
+		c := &s.Children[i]
 		out = append(out, c.Leaves()...)
 	}
 	return out
@@ -156,7 +157,9 @@ func (p Plan) StepCount() int { return len(p.Steps()) }
 // The question a caller asks before deciding whether a plan needs confirmation
 // from a person. A read-only plan can run on a hunch; a mutating one should not.
 func (p Plan) Mutates() bool {
-	for _, s := range p.Steps() {
+	steps := p.Steps()
+	for i := range steps {
+		s := &steps[i]
 		if s.Effect.Mutating() {
 			return true
 		}
@@ -166,7 +169,9 @@ func (p Plan) Mutates() bool {
 
 // Irreversible reports whether any step cannot be undone by any means.
 func (p Plan) Irreversible() bool {
-	for _, s := range p.Steps() {
+	steps := p.Steps()
+	for i := range steps {
+		s := &steps[i]
 		if s.Effect == EffectIrreversible {
 			return true
 		}
@@ -180,7 +185,9 @@ func (p Plan) Irreversible() bool {
 // that half of what it did cannot be undone has learned it too late. This lets
 // the decision be made while it is still a decision.
 func (p Plan) FullyCompensable() bool {
-	for _, s := range p.Steps() {
+	steps := p.Steps()
+	for i := range steps {
+		s := &steps[i]
 		if s.Effect.Mutating() && !s.Compensable {
 			return false
 		}
@@ -192,7 +199,9 @@ func (p Plan) FullyCompensable() bool {
 func (p Plan) Tools() []Descriptor {
 	seen := make(map[Descriptor]bool)
 	var out []Descriptor
-	for _, s := range p.Steps() {
+	sList := p.Steps()
+	for i := range sList {
+		s := &sList[i]
 		if !seen[s.Descriptor] {
 			seen[s.Descriptor] = true
 			out = append(out, s.Descriptor)
@@ -242,8 +251,9 @@ func explainStep(b *strings.Builder, s Step, depth int) {
 			fmt.Fprintf(b, " for %s", s.Capability)
 		}
 		b.WriteByte('\n')
-		for _, c := range s.Children {
-			explainStep(b, c, depth+1)
+		for i := range s.Children {
+			c := &s.Children[i]
+			explainStep(b, *c, depth+1)
 		}
 	}
 }
@@ -272,8 +282,9 @@ func fingerprintStep(b *strings.Builder, s Step) {
 		fmt.Fprintf(b, "%s.%s>%s,", bind.FromRef, bind.FromField, bind.ToArg)
 	}
 	b.WriteByte('{')
-	for _, c := range s.Children {
-		fingerprintStep(b, c)
+	for i := range s.Children {
+		c := &s.Children[i]
+		fingerprintStep(b, *c)
 		b.WriteByte(';')
 	}
 	b.WriteByte('}')
@@ -315,12 +326,13 @@ func (p *Planner) Plan(intent ToolIntent) (Plan, error) {
 	resolved := make(map[string]Step, len(intent.Requests))
 	order := make([]string, 0, len(intent.Requests))
 
-	for idx, req := range intent.Requests {
+	for idx := range intent.Requests {
+		req := &intent.Requests[idx]
 		ref := req.Ref
 		if ref == "" {
 			ref = fmt.Sprintf("r%d", idx)
 		}
-		step, err := p.planRequest(ref, req, intent)
+		step, err := p.planRequest(ref, *req, intent)
 		if err != nil {
 			p.failed("unresolvable")
 			return Plan{}, err
@@ -394,7 +406,8 @@ func (p *Planner) planRequest(ref string, req CapabilityRequest, intent ToolInte
 	}
 
 	invokes := make([]Step, 0, len(candidates))
-	for i, c := range candidates {
+	for i := range candidates {
+		c := &candidates[i]
 		id := StepID(ref)
 		if len(candidates) > 1 {
 			id = StepID(fmt.Sprintf("%s#%d", ref, i))
@@ -453,7 +466,8 @@ func (p *Planner) planRequest(ref string, req CapabilityRequest, intent ToolInte
 }
 
 func allCompensable(steps []Step) bool {
-	for _, s := range steps {
+	for i := range steps {
+		s := &steps[i]
 		if !s.Compensable {
 			return false
 		}
@@ -491,7 +505,8 @@ func (p *Planner) checkStatic(s Step) error {
 		}
 	}
 
-	for _, f := range s.Contract.Input {
+	for i := range s.Contract.Input {
+		f := &s.Contract.Input[i]
 		if !f.Required || f.HasDefault {
 			continue
 		}
@@ -512,12 +527,13 @@ func (p *Planner) checkStatic(s Step) error {
 func levelise(reqs []CapabilityRequest, order []string) ([][]string, error) {
 	deps := make(map[string]map[string]bool, len(order))
 	index := make(map[string]CapabilityRequest, len(order))
-	for i, r := range reqs {
+	for i := range reqs {
+		r := &reqs[i]
 		ref := r.Ref
 		if ref == "" {
 			ref = order[i]
 		}
-		index[ref] = r
+		index[ref] = *r
 		set := make(map[string]bool)
 		for _, d := range r.DependsOn {
 			set[d] = true
