@@ -149,7 +149,7 @@ func TestT12_HardeningCoversPhase13IntelligenceModules(t *testing.T) {
 // TestT12_ServiceModuleIsInHardeningAllowlist pins the T13 decision.
 //
 // T12 found services/go/voice — the module holding every Phase 14 T2–T11 test —
-// absent from hardening.yml's hard-coded AI_MODULES. pr-go.yml gated it (build,
+// absent from hardening.yml's hard-coded AI_MODULES. The pr-go.yml workflow gated it (build,
 // vet, single-pass -race, coverage artifact, golangci-lint, govulncheck), but it
 // did not receive hardening's three extra gates:
 //

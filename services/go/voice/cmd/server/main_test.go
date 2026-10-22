@@ -103,13 +103,13 @@ func TestWiring_EngineHasTheRealClassifierNotTheFallback(t *testing.T) {
 	}
 	// The frozen turn-taking floor: the agent holds it until the greeting
 	// completes, so an utterance before that is queued rather than planned.
-	if _, err := p.Handle(conversation.Event{Kind: conversation.EventStart}); err != nil {
-		t.Fatalf("EventStart: %v", err)
+	if _, hErr := p.Handle(conversation.Event{Kind: conversation.EventStart}); hErr != nil {
+		t.Fatalf("EventStart: %v", hErr)
 	}
-	if _, err := p.Handle(conversation.Event{
+	if _, hErr := p.Handle(conversation.Event{
 		Kind: conversation.EventGreetingComplete,
-	}); err != nil {
-		t.Fatalf("EventGreetingComplete: %v", err)
+	}); hErr != nil {
+		t.Fatalf("EventGreetingComplete: %v", hErr)
 	}
 
 	plan, err := p.Handle(conversation.Event{
@@ -326,7 +326,7 @@ func TestWiring_OnlyOneBridgeExists(t *testing.T) {
 			"package-level singleton exists")
 	}
 	// And within one construction the runner's bridge is stable.
-	if vi1.Bridge() != vi1.Bridge() {
+	if first, second := vi1.Bridge(), vi1.Bridge(); first != second {
 		t.Fatal("Bridge() is not stable across calls")
 	}
 	var _ *voiceintel.Bridge = vi1.Bridge()

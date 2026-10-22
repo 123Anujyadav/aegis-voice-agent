@@ -39,8 +39,9 @@ const serviceName = "voice"
 const envPrefix = "CS_VOICE"
 
 // main is a thin wrapper around run so that deferred cleanup executes before
-// the process exits. os.Exit skips deferred functions, so calling it directly
-// from a function that owns resources is a resource leak on every shutdown.
+// the process exits. Because os.Exit skips deferred functions, calling it
+// directly from a function that owns resources is a resource leak on every
+// shutdown.
 func main() {
 	if err := run(); err != nil {
 		// Reported to stderr rather than through the logger because a failure
@@ -125,7 +126,7 @@ type voiceIntelligence struct {
 }
 
 // Compile-time proof that this satisfies the lifecycle contract the service
-// expects. voiceintel.Bridge deliberately does NOT implement Runner itself:
+// expects. The voiceintel.Bridge type deliberately does NOT implement Runner:
 // lifecycle is the service's concern, not the bridge's, and keeping them apart
 // is what stops the bridge growing process-level responsibilities.
 var _ platform.Runner = (*voiceIntelligence)(nil)
@@ -133,7 +134,7 @@ var _ platform.Runner = (*voiceIntelligence)(nil)
 // newVoiceIntelligence constructs the bridge with the real deterministic
 // classifier.
 //
-// voiceintel.New with no options builds intent.New(intent.DefaultConfig()) and
+// Calling voiceintel.New with no options builds intent.New(intent.DefaultConfig()) and
 // passes it to conversation.NewEngine through WithClassifier. No test double,
 // no nil classifier, no fallback-only engine.
 //
