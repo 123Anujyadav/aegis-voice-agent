@@ -41,9 +41,10 @@ func (r PlanResult) OK() bool { return r.Err == nil }
 // Failed returns the step outcomes that failed.
 func (r PlanResult) Failed() []ExecutionResult {
 	var out []ExecutionResult
-	for _, s := range r.Steps {
+	for i := range r.Steps {
+		s := &r.Steps[i]
 		if s.Err != nil {
-			out = append(out, s)
+			out = append(out, *s)
 		}
 	}
 	return out
@@ -102,7 +103,7 @@ func (d *ExecutionDispatcher) Run(ctx context.Context, plan Plan, grant Grant, s
 	res.FinishedAt = d.clock.Now()
 
 	if err != nil && journal.Len() > 0 {
-		report := d.compensator.Rollback(journal, shortReason(err))
+		report := d.compensator.Rollback(journal, shortReason(err)) //nolint:contextcheck // compensation runs on its own context by design (see Compensator.Rollback)
 		res.Compensation = &report
 		if cErr := report.Err(); cErr != nil {
 			// A compensation failure REPLACES the original error. The original
@@ -117,11 +118,10 @@ func (d *ExecutionDispatcher) Run(ctx context.Context, plan Plan, grant Grant, s
 
 // planState is the mutable state of one plan execution.
 type planState struct {
-	mu       sync.Mutex
-	results  map[string]Result
-	steps    []ExecutionResult
-	sink     StreamSink
-	rollback atomic.Bool
+	mu      sync.Mutex
+	results map[string]Result
+	steps   []ExecutionResult
+	sink    StreamSink
 }
 
 func (s *planState) put(ref string, out Result) {
@@ -230,8 +230,8 @@ func (d *ExecutionDispatcher) runInvoke(ctx context.Context, step Step, plan Pla
 func (d *ExecutionDispatcher) runSequence(ctx context.Context, step Step, plan Plan,
 	grant Grant, state *planState, journal *Journal,
 ) error {
-	for _, child := range step.Children {
-		if err := d.runStep(ctx, child, plan, grant, state, journal); err != nil {
+	for i := range step.Children {
+		if err := d.runStep(ctx, step.Children[i], plan, grant, state, journal); err != nil {
 			return err
 		}
 	}
@@ -251,12 +251,12 @@ func (d *ExecutionDispatcher) runParallel(ctx context.Context, step Step, plan P
 	var wg sync.WaitGroup
 	errs := make([]error, len(step.Children))
 
-	for i, child := range step.Children {
+	for i := range step.Children {
 		wg.Add(1)
 		go func(i int, child Step) {
 			defer wg.Done()
 			errs[i] = d.runStep(ctx, child, plan, grant, state, journal)
-		}(i, child)
+		}(i, step.Children[i])
 	}
 	wg.Wait()
 
@@ -277,7 +277,9 @@ func (d *ExecutionDispatcher) runConditional(ctx context.Context, step Step, pla
 		return invariant("INV-TOOL-8", "conditional step %s has no condition", step.ID)
 	}
 	if !step.Condition.Evaluate(state.snapshot()) {
-		for _, leaf := range step.Leaves() {
+		leaves := step.Leaves()
+		for i := range leaves {
+			leaf := &leaves[i]
 			state.add(ExecutionResult{
 				Step: leaf.ID, Ref: leaf.Ref,
 				Descriptor: leaf.Descriptor, Skipped: true, Phase: PhasePlan,
@@ -285,8 +287,8 @@ func (d *ExecutionDispatcher) runConditional(ctx context.Context, step Step, pla
 		}
 		return nil
 	}
-	for _, child := range step.Children {
-		if err := d.runStep(ctx, child, plan, grant, state, journal); err != nil {
+	for i := range step.Children {
+		if err := d.runStep(ctx, step.Children[i], plan, grant, state, journal); err != nil {
 			return err
 		}
 	}
@@ -304,7 +306,8 @@ func (d *ExecutionDispatcher) runFallback(ctx context.Context, step Step, plan P
 	grant Grant, state *planState, journal *Journal,
 ) error {
 	var last error
-	for rank, child := range step.Children {
+	for rank := range step.Children {
+		child := step.Children[rank]
 		child.Optional = false // the CHAIN may be optional; a branch is not
 		err := d.runInvoke(ctx, child, plan, grant, state, journal)
 		if err == nil {
@@ -445,7 +448,7 @@ func (s *ExecutionSupervisor) end(p PlanID) {
 func (s *ExecutionSupervisor) abandon(d Descriptor, ch chan invokeOutcome) {
 	s.abandoned.Add(1)
 	v, _ := s.byTool.LoadOrStore(d.Tool, new(atomic.Uint64))
-	v.(*atomic.Uint64).Add(1)
+	v.(*atomic.Uint64).Add(1) //nolint:errcheck // byTool only ever stores *atomic.Uint64 (just above)
 
 	go func() { <-ch }()
 }
@@ -478,7 +481,7 @@ func (s *ExecutionSupervisor) Abandoned() uint64 { return s.abandoned.Load() }
 func (s *ExecutionSupervisor) AbandonedByTool() map[ToolID]uint64 {
 	out := make(map[ToolID]uint64)
 	s.byTool.Range(func(k, v any) bool {
-		out[k.(ToolID)] = v.(*atomic.Uint64).Load()
+		out[k.(ToolID)] = v.(*atomic.Uint64).Load() //nolint:errcheck // byTool only ever stores ToolID keys and *atomic.Uint64 values
 		return true
 	})
 	return out

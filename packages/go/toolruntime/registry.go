@@ -2,6 +2,7 @@ package toolruntime
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -385,9 +386,7 @@ func (r *Registry) RecordOutcome(d Descriptor, ok bool) {
 // commit rebuilds the snapshot and swaps it in. Caller holds writeMu.
 func (r *Registry) commit(old *registrySnapshot, mutate func(map[Descriptor]Registration)) {
 	next := make(map[Descriptor]Registration, len(old.byDescriptor)+1)
-	for k, v := range old.byDescriptor {
-		next[k] = v
-	}
+	maps.Copy(next, old.byDescriptor)
 	mutate(next)
 
 	snap := &registrySnapshot{
@@ -517,8 +516,8 @@ func (r *Registry) Len() int { return len(r.snapshot.Load().byDescriptor) }
 func (r *Registry) Owners() map[ToolID]string {
 	snap := r.snapshot.Load()
 	out := make(map[ToolID]string, len(snap.byDescriptor))
-	for d, reg := range snap.byDescriptor {
-		out[d.Tool] = reg.Contract.Owner
+	for d := range snap.byDescriptor {
+		out[d.Tool] = snap.byDescriptor[d].Contract.Owner
 	}
 	return out
 }

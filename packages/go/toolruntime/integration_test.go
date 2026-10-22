@@ -946,9 +946,9 @@ func TestStress_ConcurrentPlansAcrossTools(t *testing.T) {
 		go func(w int) {
 			defer wg.Done()
 			for i := 0; i < each; i++ {
-				cap := CapabilityID(fmt.Sprintf("cap%d", (w+i)%5))
+				capability := CapabilityID(fmt.Sprintf("cap%d", (w+i)%5))
 				res, execErr := h.Runtime.Execute(context.Background(),
-					h.Intent(cap, Arguments{"query": String("q")}))
+					h.Intent(capability, Arguments{"query": String("q")}))
 				if execErr != nil || !res.OK() {
 					failures.Add(1)
 				}
