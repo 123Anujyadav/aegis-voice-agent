@@ -93,17 +93,17 @@ func TestBargeIn_CancelsTTSAndOpensANewTurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.PushAudio(testFrame(clock, 0)); err != nil {
-		t.Fatal(err)
+	if e1 := s.PushAudio(testFrame(clock, 0)); e1 != nil {
+		t.Fatal(e1)
 	}
-	if err := s.EndOfSpeech(); err != nil {
-		t.Fatal(err)
+	if e2 := s.EndOfSpeech(); e2 != nil {
+		t.Fatal(e2)
 	}
 	waitForState(t, turn, TurnFinal)
 
-	if err := s.Respond(context.Background(),
-		"This is a long reply. It has several clauses. Here is another."); err != nil {
-		t.Fatal(err)
+	if e3 := s.Respond(context.Background(),
+		"This is a long reply. It has several clauses. Here is another."); e3 != nil {
+		t.Fatal(e3)
 	}
 
 	// 1. The interruption is accepted from the media/speech boundary.
@@ -497,16 +497,16 @@ func TestBargeIn_LatencyIsWithinFrozenBudget(t *testing.T) {
 			Sequence: 0, Format: format,
 			Payload: make([]byte, format.BytesFor(20*time.Millisecond)),
 		}
-		if err := s.PushAudio(f); err != nil {
-			t.Fatal(err)
+		if e1 := s.PushAudio(f); e1 != nil {
+			t.Fatal(e1)
 		}
-		if err := s.EndOfSpeech(); err != nil {
-			t.Fatal(err)
+		if e2 := s.EndOfSpeech(); e2 != nil {
+			t.Fatal(e2)
 		}
 		waitForState(t, turn, TurnFinal)
-		if err := s.Respond(context.Background(),
-			"A fairly long reply. With several clauses in it. And one more."); err != nil {
-			t.Fatal(err)
+		if e3 := s.Respond(context.Background(),
+			"A fairly long reply. With several clauses in it. And one more."); e3 != nil {
+			t.Fatal(e3)
 		}
 
 		res, err := s.Interrupt("caller_spoke")

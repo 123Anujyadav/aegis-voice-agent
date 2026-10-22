@@ -261,7 +261,7 @@ func (r *SpeechRuntime) Open(ctx context.Context, sc SessionContext) (*SpeechSes
 	tts, err := NewTTSOrchestrator(ttsCfg, r.router, turns, id, r.clock, r.metrics)
 	if err != nil {
 		cancel()
-		_ = stt.Close()
+		_ = stt.Close() //nolint:errcheck // the construction failure, returned below, is the error reported
 		return nil, err
 	}
 
@@ -280,7 +280,7 @@ func (r *SpeechRuntime) Open(ctx context.Context, sc SessionContext) (*SpeechSes
 	r.opened.Add(1)
 	r.metrics.SessionsActive.Add(1)
 	r.metrics.SessionsOpened.Add(1, sc.Language.Label())
-	s.publish(EventSpeechSessionCreated, "", "", nil)
+	s.publish(EventSpeechSessionCreated, "", "", nil) //nolint:contextcheck // events publish on their own context: a caller's cancellation must not suppress the record
 
 	_ = sessCtx
 	return s, nil
@@ -334,7 +334,7 @@ func (r *SpeechRuntime) Stop(ctx context.Context) (int, error) {
 	r.mu.Unlock()
 
 	for _, s := range live {
-		_ = s.Close(ctx, "runtime_stop")
+		_ = s.Close(ctx, "runtime_stop") //nolint:errcheck // stop closes every session whatever any one reports
 	}
 	return len(live), nil
 }

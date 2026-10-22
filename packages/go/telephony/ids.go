@@ -28,7 +28,7 @@ import (
 // false. Found by running the suite at -count=3 -shuffle=on; a single ordered
 // pair passes by luck about half the time. See ENGINEERING_AUDIT F3.
 //
-// packages/go/runtime got this right with uppercase Crockford. This is the same
+// The packages/go/runtime module got this right with uppercase Crockford. This is the same
 // alphabet, lowercased.
 var idAlphabet = base32.NewEncoding("0123456789abcdefghjkmnpqrstvwxyz").
 	WithPadding(base32.NoPadding)
@@ -49,7 +49,7 @@ var idAlphabet = base32.NewEncoding("0123456789abcdefghjkmnpqrstvwxyz").
 func newID(prefix string) string {
 	var buf [16]byte
 
-	ms := uint64(time.Now().UnixMilli())
+	ms := uint64(time.Now().UnixMilli()) //nolint:gosec // non-negative for any clock set after 1970
 	for i := 5; i >= 0; i-- {
 		buf[i] = byte(ms)
 		ms >>= 8
