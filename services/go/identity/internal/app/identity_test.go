@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -64,7 +65,7 @@ func TestIdentityService_TokenRotationAndReuse(t *testing.T) {
 
 	// 2. Attempt reuse of old refresh token (Security violation)
 	_, _, err = service.RefreshToken(ctx, session.SessionID, oldRefreshToken)
-	if err != ErrTokenReused {
+	if !errors.Is(err, ErrTokenReused) {
 		t.Fatalf("expected ErrTokenReused, got: %v", err)
 	}
 }
