@@ -294,3 +294,69 @@ copyleft licence.
 - This inventory is a point-in-time record. It is not enforced in CI; an
   automated licence check would have to run whenever `go.mod` changes.
 - Python (`uv.lock`) and Android dependencies are not covered here.
+
+---
+
+## 11. Python licence inventory (2026-10-22)
+
+The Python counterpart of section 10, with the same limits: it records the
+licence text each locked package ships, it is not legal advice, and it draws no
+conclusion beyond what those texts say.
+
+**Scope.** Every third-party package `uv.lock` pins on `main` `9201a62` (25),
+split by what reaches an image. `docker/python/Dockerfile` installs with
+`uv sync --frozen --no-dev`, so only the runtime set is shipped:
+
+```console
+uv export --frozen --all-packages --no-emit-workspace [--no-dev]
+```
+
+**Method.** Each package was installed from the lock (`uv sync --frozen`,
+uv 0.5.14) and its licence file read from the installed `.dist-info`, identified
+by its standard text as in section 10. The `License-Expression` metadata, where
+the package declares one, agrees with the file in every case.
+
+**Runtime (shipped in images), 9 packages:**
+
+| Package | Version | Licence file | Licence text | sha256 (prefix) |
+|---|---|---|---|---|
+| `annotated-types` | 0.8.0 | `licenses/LICENSE` | MIT | `fe1049884b1a0d93` |
+| `protobuf` | 5.29.6 | `LICENSE` | BSD-3-Clause | `6e5e117324afd944` |
+| `pydantic` | 2.13.4 | `licenses/LICENSE` | MIT | `a9e186f3ca16b5ee` |
+| `pydantic-core` | 2.46.4 | `licenses/LICENSE` | MIT | `fbe7f615f18d135c` |
+| `pydantic-settings` | 2.14.2 | `licenses/LICENSE` | MIT | `eb355a753e020346` |
+| `python-dotenv` | 1.2.2 | `licenses/LICENSE` | BSD-3-Clause | `80619b7049f08c81` |
+| `structlog` | 25.5.0 | `licenses/LICENSE-MIT`, `LICENSE-APACHE` (+ `NOTICE`) | MIT OR Apache-2.0 | `2bc12bb94eec2cce` (MIT file) |
+| `typing-extensions` | 4.16.0 | `licenses/LICENSE` | PSF-2.0 | `3b2f81fe21d181c4` |
+| `typing-inspection` | 0.4.2 | `licenses/LICENSE` | MIT | `804b59b25f2c31bd` |
+
+**Development and test only (not installed in images), 16 packages:**
+
+| Package | Version | Licence text |
+|---|---|---|
+| `attrs` | 26.1.0 | MIT |
+| `colorama` | 0.4.6 | BSD-3-Clause |
+| `coverage` | 7.15.4 | Apache-2.0 |
+| `hypothesis` | 6.123.17 | **MPL-2.0** |
+| `iniconfig` | 2.3.0 | MIT |
+| `mypy` | 1.14.1 | MIT |
+| `mypy-extensions` | 1.1.0 | MIT |
+| `packaging` | 26.3 | Apache-2.0 OR BSD-2-Clause (its `LICENSE` points to `LICENSE.APACHE` and `LICENSE.BSD`) |
+| `pluggy` | 1.6.0 | MIT |
+| `pygments` | 2.21.0 | BSD-2-Clause |
+| `pytest` | 9.0.3 | MIT |
+| `pytest-asyncio` | 1.3.0 | Apache-2.0 |
+| `pytest-cov` | 6.0.0 | MIT |
+| `pytest-randomly` | 3.16.0 | MIT |
+| `ruff` | 0.9.2 | Apache-2.0 |
+| `sortedcontainers` | 2.4.0 | Apache-2.0 |
+
+**What the texts show.** Every runtime package carries a permissive licence.
+The one weak-copyleft licence, MPL-2.0 (`hypothesis`, a property-testing
+library), is in the development set only and is not installed in images.
+
+**Open items, not resolved here:**
+- `structlog` ships a `NOTICE` file with its Apache-2.0 option. As in section 10,
+  how third-party notices reach artefacts is not defined.
+- This is a point-in-time record and is not enforced in CI.
+- Android dependencies are not covered.
