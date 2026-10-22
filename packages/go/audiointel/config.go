@@ -134,7 +134,7 @@ type NoiseConfig struct {
 	TransientModulation float64
 }
 
-func (c NoiseConfig) validate() []string {
+func (c NoiseConfig) validate() []string { //nolint:gocyclo // one check per configuration field
 	var p []string
 	if c.WarmupFrames <= 0 {
 		p = append(p, "noise: WarmupFrames must be positive; without a warm-up the "+
@@ -293,7 +293,7 @@ type VADConfig struct {
 	NoiseHoldFrames int
 }
 
-func (c VADConfig) validate(frameInterval time.Duration) []string {
+func (c VADConfig) validate(frameInterval time.Duration) []string { //nolint:gocyclo // one check per configuration field
 	var p []string
 	if c.OnsetThresholdDB <= 0 {
 		p = append(p, "vad: OnsetThresholdDB must be positive — speech must be LOUDER "+

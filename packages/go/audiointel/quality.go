@@ -105,7 +105,7 @@ func NewQualityAnalyzer(cfg QualityThresholds) (*QualityAnalyzer, error) {
 
 // Observe folds one frame's evidence in and returns the current judgement.
 //
-// gapRatio comes from the continuity detector; everything else from the signal
+// The gapRatio input comes from the continuity detector; everything else from the signal
 // view.
 func (q *QualityAnalyzer) Observe(v SignalView, gapRatio float64) QualityReport {
 	q.observed++

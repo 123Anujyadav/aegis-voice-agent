@@ -124,7 +124,7 @@ func NewSignalAnalyzer(cfg Config) (*SignalAnalyzer, error) {
 
 // Observe folds one frame in and returns the complete view.
 //
-// prevSpeechActive is the voice activity verdict for the PREVIOUS frame. See
+// The prevSpeechActive flag is the voice activity verdict for the PREVIOUS frame. See
 // the type comment for why it lags.
 func (s *SignalAnalyzer) Observe(f FrameFeatures, prevSpeechActive bool) SignalView {
 	// The floor is updated FIRST, so this frame is judged against the most

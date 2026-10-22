@@ -338,7 +338,7 @@ func (d *SpeechDetector) LastFalseTrigger() string { return d.lastFalseTrigger }
 //
 // Runs inline on the caller's goroutine, allocates nothing, and returns the
 // complete decision including its explanation.
-func (d *SpeechDetector) Observe(v SignalView) VADDecision {
+func (d *SpeechDetector) Observe(v SignalView) VADDecision { //nolint:gocyclo // the frozen VAD state machine; FE-1 permits lint fixes, not restructuring the frozen detector
 	ex := d.explain(v)
 	prev := d.fsm.State()
 	next := prev

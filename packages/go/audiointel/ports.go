@@ -21,8 +21,8 @@ import (
 // those types here would mean importing packages/go/speech, and packages/go/speech
 // is FROZEN so it cannot be made to depend on this module instead.
 //
-// So this module declares the two operations it needs and calls them.
-// packages/go/audiobridge implements this interface over a real
+// So this module declares the two operations it needs and calls them. The
+// packages/go/audiobridge module implements this interface over a real
 // *speech.SpeechSession and is the only place in the repository where the two
 // meet. `go list -deps` on this module is therefore provably free of speech,
 // and TestDependencies_ClosureIsFirstPartyOnly checks it.
