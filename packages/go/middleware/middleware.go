@@ -1,3 +1,6 @@
+// Package middleware holds cross-cutting HTTP handlers: problem-details
+// errors, security headers, correlation IDs and rate limiting. It performs no
+// real authentication; see AuthMiddleware.
 package middleware
 
 import (
@@ -12,11 +15,16 @@ import (
 
 type contextKey string
 
+// Context keys under which the middleware stores request values.
 const (
-	UserContextKey        contextKey = "user_claims"
+	// UserContextKey holds the request's *UserClaims.
+	UserContextKey contextKey = "user_claims"
+	// CorrelationContextKey holds the request's correlation ID string.
 	CorrelationContextKey contextKey = "correlation_id"
 )
 
+// UserClaims is the shape of a caller's identity claims. It is a data shape
+// only: nothing in this package verifies it.
 type UserClaims struct {
 	Subject   string   `json:"sub"`
 	MSISDN    string   `json:"msisdn"`
@@ -26,6 +34,7 @@ type UserClaims struct {
 	ExpiresAt int64    `json:"exp"`
 }
 
+// ProblemDetails is an RFC 7807 problem-details error body.
 type ProblemDetails struct {
 	Type      string    `json:"type"`
 	Title     string    `json:"title"`
@@ -37,6 +46,7 @@ type ProblemDetails struct {
 	TraceID   string    `json:"traceId"`
 }
 
+// WriteProblemDetails writes status and a problem-details JSON body.
 func WriteProblemDetails(w http.ResponseWriter, status int, title, detail, code, instance, traceID string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)
@@ -50,9 +60,11 @@ func WriteProblemDetails(w http.ResponseWriter, status int, title, detail, code,
 		Timestamp: time.Now().UTC(),
 		TraceID:   traceID,
 	}
-	_ = json.NewEncoder(w).Encode(problem)
+	_ = json.NewEncoder(w).Encode(problem) //nolint:errcheck // the status line is already written, so an encoding error cannot reach the client
 }
 
+// SecurityHeadersMiddleware sets nosniff, frame-deny, XSS-protection and HSTS
+// response headers before calling next.
 func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -63,6 +75,10 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// CorrelationIDMiddleware propagates the inbound X-Correlation-ID header, or
+// mints one, and stores it in the request context and the response header.
+// Minted IDs have one-second resolution and no random part, so requests minted
+// in the same second share an ID.
 func CorrelationIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		correlationID := r.Header.Get("X-Correlation-ID")
@@ -75,6 +91,10 @@ func CorrelationIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// AuthMiddleware performs NO authentication. It rejects requests without a
+// "Bearer " Authorization prefix and attaches a hardcoded identity to every
+// other request, verifying no signature, issuer or expiry. It has no callers
+// and must not be used as an access control.
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -92,6 +112,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// RequireRole rejects requests whose context claims lack requiredRole. The
+// claims come from AuthMiddleware, which fabricates them, so this enforces
+// nothing about the real caller.
 func RequireRole(requiredRole string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := r.Context().Value(UserContextKey).(*UserClaims)
@@ -114,6 +137,10 @@ func RequireRole(requiredRole string, next http.Handler) http.Handler {
 	})
 }
 
+// RateLimitingMiddleware rejects requests once cache.Increment reports more
+// than limitPerMin requests in a minute for the client's remote address
+// (IP and port). With redis.MemoryCache, whose Increment always returns 1, it
+// never limits.
 func RateLimitingMiddleware(cache redis.Cache, limitPerMin int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
