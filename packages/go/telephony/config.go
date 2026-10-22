@@ -94,7 +94,7 @@ func DefaultConfig() Config {
 	}
 }
 
-func (c Config) validate() []string {
+func (c Config) validate() []string { //nolint:gocyclo // one check per configuration field
 	var problems []string
 
 	if c.MaxConcurrentCalls <= 0 {

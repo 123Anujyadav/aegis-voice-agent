@@ -151,7 +151,7 @@ func (l *CallLifecycle) Accept(ctx context.Context, id CallID, reason string) er
 		// The carrier refused or timed out. The call has failed, and saying so
 		// is better than leaving it in Ringing until the lifecycle timeout
 		// sweeps it — a failure with a cause beats a timeout without one.
-		_ = l.transition(ctx, sess, StateFailed, "provider_answer_failed")
+		_ = l.transition(ctx, sess, StateFailed, "provider_answer_failed") //nolint:errcheck // the provider's refusal, returned below, is the error reported
 		l.metrics.ProviderErrors.Inc(string(sess.Context().Provider), "answer")
 		return fmt.Errorf("telephony: provider answer failed for %s: %w", id, err)
 	}
@@ -165,8 +165,8 @@ func (l *CallLifecycle) Reject(ctx context.Context, id CallID, reason string) er
 	if err != nil {
 		return err
 	}
-	if err := checkReasonCode(reason); err != nil {
-		return err
+	if reasonErr := checkReasonCode(reason); reasonErr != nil {
+		return reasonErr
 	}
 
 	prov, err := l.providers.get(sess.Context().Provider)
@@ -200,7 +200,8 @@ func (l *CallLifecycle) Connect(ctx context.Context, id CallID) error {
 	return l.move(ctx, id, StateConnected, "media_established")
 }
 
-// Mute, Unmute, Hold and Resume are the in-call controls.
+// Mute mutes a connected call. It, Unmute, Hold and Unhold are the in-call
+// controls.
 func (l *CallLifecycle) Mute(ctx context.Context, id CallID) error {
 	return l.controlled(ctx, id, StateMuted, CapMute, "muted")
 }
