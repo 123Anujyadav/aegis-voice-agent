@@ -236,7 +236,7 @@ func (c *Compensator) record(w CompletedWork, kind AuditKind, reason string, d t
 	if c.audit == nil {
 		return
 	}
-	_ = c.audit.Record(AuditEntry{
+	recordAudit(c.audit, c.metrics, AuditEntry{
 		At: c.clock.Now(), Kind: kind, Execution: w.Execution, Step: w.Step,
 		Correlation: w.Invocation.Correlation, Session: w.Invocation.Session,
 		Actor: w.Invocation.Actor, Descriptor: w.Descriptor,
