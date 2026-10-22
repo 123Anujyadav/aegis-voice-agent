@@ -201,39 +201,39 @@ func (g *SignalGenerator) HinglishSpeech(segments, framesPerSegment int) []media
 // SHAPE, NOT POLICY. These describe what a generated waveform IS, not how the
 // engine judges it, which is why they live here rather than in defaults.go.
 const (
-	// hindiSyllableHz is faster than the English default: conversational Hindi
+	// The hindiSyllableHz value is faster than the English default: conversational Hindi
 	// runs at a higher syllable rate.
 	hindiSyllableHz = 6.5
 
-	// hindiEvenness is high — Hindi is syllable-timed, so syllable durations
+	// The hindiEvenness value is high — Hindi is syllable-timed, so syllable durations
 	// cluster rather than alternating long and short.
 	hindiEvenness = 0.9
 
-	// englishEvenness is lower: stress timing alternates.
+	// The englishEvenness value is lower: stress timing alternates.
 	englishEvenness = 0.45
 
-	// stressRatio is how much a stressed syllable stretches at zero evenness.
+	// The stressRatio value is how much a stressed syllable stretches at zero evenness.
 	stressRatio = 0.6
 
-	// hindiGeminateEvery inserts a doubled-consonant closure every fourth
+	// The hindiGeminateEvery value inserts a doubled-consonant closure every fourth
 	// syllable.
 	hindiGeminateEvery = 4
 
-	// hindiFinalLengthening and englishFinalLengthening stretch the final part
+	// The hindiFinalLengthening and englishFinalLengthening values stretch the final part
 	// of an utterance.
 	hindiFinalLengthening   = 1.6
 	englishFinalLengthening = 1.25
 
-	// finalLengtheningSpan is what fraction of the utterance counts as final.
+	// The finalLengtheningSpan value is what fraction of the utterance counts as final.
 	finalLengtheningSpan = 0.2
 
-	// geminateFloor is how far a geminate closure drops and geminateSharpness
+	// The geminateFloor value is how far a geminate closure drops and geminateSharpness
 	// how abruptly. Deeper and sharper than an ordinary inter-syllable closure,
 	// which is what makes it the hangover's hardest case.
 	geminateFloor     = 0.004
 	geminateSharpness = 3.5
 
-	// codeSwitchPauseFrames is the pause at a language switch: 100 ms at the
+	// The codeSwitchPauseFrames value is the pause at a language switch: 100 ms at the
 	// default cadence, comfortably inside the 250 ms endpoint window.
 	codeSwitchPauseFrames = 5
 )

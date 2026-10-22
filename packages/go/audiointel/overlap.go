@@ -107,8 +107,8 @@ func (d OverlapDecision) String() string {
 // occurred, because a caller can perfectly well speak in the same rhythm as the
 // agent and the absence of correlation proves nothing either.
 //
-// Consumers should act on [OverlapDecision.Confidence], not on the state.
-// docs/audio-intelligence/OVERLAP_DETECTION.md says the same thing at greater
+// Consumers should act on [OverlapDecision.Confidence], not on the state. The
+// document docs/audio-intelligence/OVERLAP_DETECTION.md says the same thing at greater
 // length and leads with it.
 //
 // # What it does exclude
@@ -178,10 +178,10 @@ func (o *OverlapDetector) State() OverlapState { return o.fsm.State() }
 
 // Observe folds one frame in.
 //
-// envelope may be nil, in which case no echo correlation is measured and the
+// The envelope may be nil, in which case no echo correlation is measured and the
 // confidence carries no echo penalty — which makes it an UPPER bound on how
 // sure the detector could be, not a higher certainty.
-func (o *OverlapDetector) Observe(
+func (o *OverlapDetector) Observe( //nolint:gocyclo // the frozen overlap state machine; FE-1 permits lint fixes, not restructuring the frozen detector
 	v SignalView,
 	d VADDecision,
 	agentSpeaking bool,
