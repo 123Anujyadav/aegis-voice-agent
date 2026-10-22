@@ -394,7 +394,7 @@ func (c *ContextEngine) LatestSnapshot() (Snapshot, bool) {
 // values merely because they were in scope. The caller states what it is
 // allowed to see and the engine enforces it, rather than the caller filtering
 // afterwards and occasionally forgetting.
-func (c *ContextEngine) Export(max Sensitivity) []Entry {
+func (c *ContextEngine) Export(ceiling Sensitivity) []Entry {
 	now := c.clock.Now()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -405,7 +405,7 @@ func (c *ContextEngine) Export(max Sensitivity) []Entry {
 		ScopeTemporary, ScopeShared,
 	} {
 		for _, e := range c.scopes[scope] {
-			if e.Expired(now) || e.Sensitivity > max {
+			if e.Expired(now) || e.Sensitivity > ceiling {
 				continue
 			}
 			out = append(out, e)

@@ -29,7 +29,9 @@ func Library() ev.ScenarioSet {
 // Suites returns the platform's suites.
 func Suites() []ev.Suite {
 	var acceptance, compliance, benchmark []ev.ScenarioID
-	for _, s := range Library() {
+	library := Library()
+	for i := range library {
+		s := &library[i]
 		switch s.Kind {
 		case ev.KindGovernance, ev.KindEmergency:
 			compliance = append(compliance, s.ID)

@@ -274,7 +274,7 @@ type IntentEngine struct {
 
 // NewIntentEngine constructs an intent engine.
 //
-// classifier may be nil. An engine with no classifier resolves every utterance
+// The classifier may be nil. An engine with no classifier resolves every utterance
 // to the fallback intent, which is what a deployment running deterministic
 // flows only actually wants — and it means the engine is usable in test with no
 // model at all.

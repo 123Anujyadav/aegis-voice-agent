@@ -195,7 +195,7 @@ func NewContextBuilder(s *Store, r Retriever, est TokenEstimator) *ContextBuilde
 // ones rather than every scope half-filled. A partially-filled scope is worse
 // than an absent one: a caller can reason about missing conversation history,
 // but not about a preference list that silently contains three of five entries.
-func (b *ContextBuilder) Build(req ContextRequest) (AssembledContext, error) {
+func (b *ContextBuilder) Build(req ContextRequest) (AssembledContext, error) { //nolint:gocyclo // frozen context assembly; FE-1 permits lint fixes, not restructuring it
 	if req.Subject == "" {
 		return AssembledContext{}, invariant("INV-MEM-5",
 			"context assembly requires a subject")

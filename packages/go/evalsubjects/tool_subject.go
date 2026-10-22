@@ -53,7 +53,8 @@ type toolSession struct {
 // Advance moves the tool runtime's clock.
 func (s *toolSession) Advance(d time.Duration) { s.h.Clock.Advance(d) }
 
-func (s *toolSession) Execute(ctx context.Context, step ev.Step) ev.StepResult {
+// Execute runs one scenario step against the real subject.
+func (s *toolSession) Execute(ctx context.Context, step ev.Step) ev.StepResult { //nolint:gocyclo // one case per scenario step kind; FE-1 permits lint fixes, not restructuring the frozen subject
 	capability := step.Args.Str("capability")
 	if capability == "" {
 		capability = "lookup"
@@ -113,7 +114,7 @@ func (s *toolSession) Execute(ctx context.Context, step ev.Step) ev.StepResult {
 			intent.Correlation = tr.CorrelationID(corr)
 		}
 
-		res, _ := s.h.Runtime.Execute(ctx, intent)
+		res, _ := s.h.Runtime.Execute(ctx, intent) //nolint:errcheck // the error is also res.Err, checked below, on every path except ErrClosed (reported separately under FE-1)
 		s.execs++
 		s.record("executed")
 
@@ -177,15 +178,15 @@ func (s *toolSession) Execute(ctx context.Context, step ev.Step) ev.StepResult {
 
 func totalAttempts(res tr.PlanResult) int {
 	total := 0
-	for _, s := range res.Steps {
-		total += s.Attempts
+	for i := range res.Steps {
+		total += res.Steps[i].Attempts
 	}
 	return total
 }
 
 func anyReplayed(res tr.PlanResult) bool {
-	for _, s := range res.Steps {
-		if s.Replayed {
+	for i := range res.Steps {
+		if res.Steps[i].Replayed {
 			return true
 		}
 	}
