@@ -493,6 +493,47 @@ class LatestAttemptTest(unittest.TestCase):
         self.assertIn("--paginate", calls[0])
         self.assertIn("run_attempt", calls[0][-1])
 
+    def test_main_jobs_uses_the_newest_completed_run_without_a_status_filter(self) -> None:
+        from unittest import mock
+
+        calls: list[tuple[str, ...]] = []
+
+        def fake_lines(*args: str) -> list[dict]:
+            calls.append(args)
+            if "/workflows/" in args[0]:
+                return [
+                    {"id": 3, "status": "in_progress"},
+                    {"id": 2, "status": "completed"},
+                    {"id": 1, "status": "completed"},
+                ]
+            return [
+                {
+                    "id": 9,
+                    "name": "lint",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "run_attempt": 1,
+                },
+            ]
+
+        with mock.patch.object(ci_gate, "_gh_lines", side_effect=fake_lines):
+            got = ci_gate.GitHub("o/r").main_jobs(".github/workflows/pr-go.yml")
+        self.assertEqual(
+            got, [{"id": 9, "name": "lint", "status": "completed", "conclusion": "failure"}]
+        )
+        self.assertNotIn("status=", calls[0][0])
+        self.assertIn("workflows/pr-go.yml/runs?branch=main&event=push", calls[0][0])
+        self.assertIn("actions/runs/2/jobs", calls[1][0])
+
+    def test_main_jobs_without_a_completed_run_is_none(self) -> None:
+        from unittest import mock
+
+        def fake_lines(*args: str) -> list[dict]:
+            return [{"id": 3, "status": "in_progress"}] if "/workflows/" in args[0] else []
+
+        with mock.patch.object(ci_gate, "_gh_lines", side_effect=fake_lines):
+            self.assertIsNone(ci_gate.GitHub("o/r").main_jobs(".github/workflows/pr-go.yml"))
+
 
 class OutputTest(unittest.TestCase):
     """The printed report cannot act as workflow commands."""
