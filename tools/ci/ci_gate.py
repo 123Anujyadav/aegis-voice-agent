@@ -54,6 +54,10 @@ GATE_WORKFLOW = ".github/workflows/ci-gate.yml"
 ADVISORY_JOB = re.compile(r"^golangci-lint \(")
 OK_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
 SUPPORTED_FILTERS = frozenset({"branches", "paths"})
+
+# How many of main's most recent push runs of a workflow are searched for the
+# latest completed one. Runs still in progress are skipped, not waited for.
+MAIN_RUN_WINDOW = 20
 # One golangci-lint issue line in a GitHub Actions job log, e.g.
 #   2026-10-18T03:21:10.1234567Z ##[error]internal/app/x.go:12:3: message (linter)
 LINT_FINDING = re.compile(
@@ -473,17 +477,27 @@ class GitHub:
         return _gh_text("--allow-escape-sequences", f"repos/{self.repo}/actions/jobs/{job_id}/logs")
 
     def main_jobs(self, workflow: str) -> list[dict[str, Any]] | None:
-        """Return the jobs of main's latest completed push run of workflow."""
+        """Return the jobs of main's latest completed push run of workflow.
+
+        Runs are listed newest first WITHOUT a ``status`` filter, and the first
+        completed one is chosen here. With ``status=completed&per_page=1`` the
+        listing intermittently returned no runs at all (measured: 1 call in 6
+        locally; every attempt of ci-gate on PRs #75 and #77), which the gate
+        read as "no counterpart on main" and so failed closed on a baseline lint
+        job. The same listing without the filter was consistent. A main with no
+        completed run among the most recent still yields None and fails closed.
+        """
         name = workflow.rsplit("/", 1)[-1]
         rows = _gh_lines(
             f"repos/{self.repo}/actions/workflows/{name}/runs"
-            "?branch=main&event=push&status=completed&per_page=1",
+            f"?branch=main&event=push&per_page={MAIN_RUN_WINDOW}",
             "--jq",
-            ".workflow_runs[] | {id}",
+            ".workflow_runs[] | {id, status}",
         )
-        if not rows:
+        completed = [r for r in rows if r.get("status") == "completed"]
+        if not completed:
             return None
-        return self.jobs(rows[0]["id"])
+        return self.jobs(completed[0]["id"])
 
 
 # --------------------------------------------------------------------------
