@@ -2,6 +2,7 @@ package audiointel
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	media "github.com/callscreen/callscreen-platform/packages/go/media"
@@ -104,7 +105,14 @@ func (c *ContinuityDetector) Observe(f FrameFeatures) ContinuityReport {
 	report := ContinuityReport{Fault: c.classify(f)}
 
 	if report.Fault == FaultMissing {
-		report.MissingBefore = int(f.Sequence - c.highestSeq - 1)
+		// The gap is a uint64 difference. Converted straight to int, a gap above
+		// 2^63 wrapped negative; it saturates at math.MaxInt instead.
+		gap := f.Sequence - c.highestSeq - 1
+		if gap > math.MaxInt {
+			report.MissingBefore = math.MaxInt
+		} else {
+			report.MissingBefore = int(gap) //nolint:gosec // at most math.MaxInt, checked just above
+		}
 	}
 
 	// Timestamp continuity is measured from the previous frame's END, so a
