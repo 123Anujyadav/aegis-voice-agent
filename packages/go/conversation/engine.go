@@ -298,7 +298,8 @@ func (e *Engine) Get(id ConversationID) (*Conversation, bool) {
 	if !ok {
 		return nil, false
 	}
-	return v.(*Conversation), true
+	c, ok := v.(*Conversation)
+	return c, ok
 }
 
 // Conversation is one dialogue, and the Dialogue Manager of the Phase 10B
@@ -598,7 +599,7 @@ func (c *Conversation) handleInterrupt(e Event) (Plan, error) {
 	// An emergency permanently narrows the persona. The switch is one-way and
 	// is what makes every subsequent policy evaluation refuse to converse.
 	if e.Interruption == InterruptionEmergency {
-		_ = c.personas.Switch(PersonaEmergencyAssistant, "emergency_interrupt")
+		_ = c.personas.Switch(PersonaEmergencyAssistant, "emergency_interrupt") //nolint:errcheck // a refused switch is counted by PersonaDenied; the interrupt proceeds either way
 	}
 
 	if e.Interruption.Preemptive() || e.Interruption == InterruptionUser {
@@ -660,7 +661,7 @@ func (c *Conversation) handleSilence() (Plan, error) {
 }
 
 // handleUtterance is the main decision path.
-func (c *Conversation) handleUtterance(e Event, latency *LatencyController) (Plan, error) {
+func (c *Conversation) handleUtterance(e Event, latency *LatencyController) (Plan, error) { //nolint:gocyclo // the frozen utterance pipeline, one stage after another; FE-1 permits lint fixes, not restructuring it
 	state := c.fsm.State()
 	if !state.IsAwaiting() {
 		// An utterance arriving while the agent holds the floor is an overlap,
@@ -689,7 +690,7 @@ func (c *Conversation) handleUtterance(e Event, latency *LatencyController) (Pla
 
 	// --- context ---
 	if end, run := latency.Enter(StageContext); run {
-		_ = c.context.Set(Entry{
+		_ = c.context.Set(Entry{ //nolint:errcheck // ContextEngine.Set has no failure path
 			Key: "last_intent", Value: string(intent.Name),
 			Scope: ScopeConversation, Sensitivity: Internal, Source: "intent_engine",
 		})

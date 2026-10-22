@@ -261,7 +261,7 @@ func (t *TurnManager) Holder() Party {
 
 // Acquire attempts to take the floor for a party.
 //
-// nonYielding marks a turn the caller may not take. It is true for exactly one
+// The nonYielding flag marks a turn the caller may not take. It is true for exactly one
 // thing — the opening announcement — and [INV-CV-2] depends on it.
 func (t *TurnManager) Acquire(p Party, nonYielding bool) (Turn, FloorDecision) {
 	t.mu.Lock()

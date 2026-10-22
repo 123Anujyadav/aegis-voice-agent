@@ -262,7 +262,7 @@ func (p *PolicyEngine) RuleCount() int {
 // Every rule here traces to a frozen invariant or a stated product commitment,
 // and each carries that trace in its name so a denial in a log says which rule
 // of the platform was being honoured.
-func BuiltinRules() []Rule {
+func BuiltinRules() []Rule { //nolint:gocyclo // one closure per built-in rule; a frozen decision table; FE-1 permits lint fixes, not restructuring it
 	return []Rule{
 		// ---- Safety. Never overridable. ----
 

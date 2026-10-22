@@ -305,7 +305,7 @@ type shard struct {
 
 // SessionManager owns session lifetime.
 //
-// Sessions are held in a sharded map rather than a sync.Map. sync.Map is
+// Sessions are held in a sharded map rather than a sync.Map, which is
 // optimised for append-mostly workloads with stable keys; ours is a
 // high-churn create/delete workload with a periodic full scan for expiry, which
 // is close to sync.Map's worst case and squarely in a sharded map's best.
@@ -350,7 +350,7 @@ func NewSessionManager(cfg SessionConfig, clock Clock, metrics *Metrics) (*Sessi
 		metrics: metrics,
 		shards:  make([]*shard, n),
 		seed:    maphash.MakeSeed(),
-		mask:    uint64(n - 1),
+		mask:    uint64(n - 1), //nolint:gosec // n is a power of two, at least 1
 		stopped: make(chan struct{}),
 	}
 	for i := range m.shards {
@@ -435,7 +435,7 @@ func (m *SessionManager) Remove(id SessionID) bool {
 		return false
 	}
 	if !s.fsm.IsTerminal() {
-		_ = s.Close()
+		_ = s.Close() //nolint:errcheck // removal proceeds whatever Close reports; the session is gone from the manager either way
 	}
 	m.count.Add(-1)
 	m.metrics.SessionsActive.Set(float64(m.count.Load()))
@@ -540,7 +540,7 @@ func (m *SessionManager) Close(ctx context.Context) error {
 			if err := s.Drain(ctx); err != nil && firstErr == nil {
 				firstErr = err
 			}
-			_ = s.Close()
+			_ = s.Close() //nolint:errcheck // shutdown reports the first drain error; a close failure changes nothing at this point
 			m.count.Add(-1)
 		}
 	}

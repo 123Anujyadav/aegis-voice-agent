@@ -285,7 +285,7 @@ func (r *ModelRegistry) Get(id ModelID) (ModelSpec, error) {
 
 // ResolveTier returns the preferred enabled model for a tier.
 //
-// avoid lists models already tried and found unavailable, so a caller retrying
+// The avoid list names models already tried and found unavailable, so a caller retrying
 // after a provider failure gets a genuinely different model rather than the
 // same one again.
 func (r *ModelRegistry) ResolveTier(tier ModelTier, avoid ...ModelID) (ModelSpec, error) {

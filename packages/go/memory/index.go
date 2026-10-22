@@ -27,11 +27,6 @@ const (
 	AttrBusiness = "business_id"
 )
 
-// reservedAttributes lists the attribute names with dedicated lookups.
-func reservedAttributes() []string {
-	return []string{AttrConversation, AttrSession, AttrContact, AttrBusiness}
-}
-
 // IndexConfig tunes the index layer.
 type IndexConfig struct {
 	// Shards is the primary index's lock-stripe count. Rounded up to a power
@@ -121,7 +116,7 @@ func NewIndex(cfg IndexConfig) (*Index, error) {
 	idx := &Index{
 		cfg:       cfg,
 		seed:      maphash.MakeSeed(),
-		mask:      uint64(n - 1),
+		mask:      uint64(n - 1), //nolint:gosec // n is a power of two, at least 1
 		shard:     make([]*primaryShard, n),
 		secondary: make(map[string]map[string][]Key),
 		timeline:  make(map[int64][]Key),
