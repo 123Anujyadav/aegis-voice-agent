@@ -88,7 +88,7 @@ type Executor struct {
 // execution blocks the corrected retry. Claiming a sandbox slot before the
 // ledger means a burst of identical requests is shed for concurrency it was
 // never going to use. Both were found by tests; see ENGINEERING_AUDIT F3.
-func (e *Executor) Execute(ctx context.Context, step Step, plan Plan, grant Grant, sink StreamSink, journal *Journal) ExecutionResult {
+func (e *Executor) Execute(ctx context.Context, step Step, plan Plan, grant Grant, sink StreamSink, journal *Journal) ExecutionResult { //nolint:gocyclo // the frozen execution pipeline, one phase after another; FE-1 permits lint fixes, not restructuring the frozen tool runtime
 	start := e.clock.Now()
 	execID := NewExecutionID()
 
@@ -111,7 +111,7 @@ func (e *Executor) Execute(ctx context.Context, step Step, plan Plan, grant Gran
 		res.Phase = PhasePermission
 		res.Duration = e.clock.Since(start)
 		e.emit(EventPermissionDenied, plan, step, execID, 0, PhasePermission,
-			decision.Reason, Arguments(step.Args).Fingerprint(), nil, res.Duration)
+			decision.Reason, step.Args.Fingerprint(), nil, res.Duration)
 		e.record(AuditExecutionFailed, plan, step, execID, 0, PhasePermission,
 			decision.Reason, step.Args, nil, res.Duration)
 		return res
@@ -185,7 +185,7 @@ func (e *Executor) Execute(ctx context.Context, step Step, plan Plan, grant Gran
 				// outcome rather than running the same mutating call twice.
 				waited, waitErr := e.ledger.Await(ctx, existing)
 				if waitErr != nil {
-					res.Err = fmt.Errorf("%w: %v", ErrCancelled, waitErr)
+					res.Err = fmt.Errorf("%w: %s", ErrCancelled, waitErr.Error())
 					res.Phase = PhaseIdempotency
 					res.Duration = e.clock.Since(start)
 					return res
@@ -384,9 +384,9 @@ func (e *Executor) invokeOnce(ctx context.Context, step Step, contract Contract,
 			if e.metrics != nil {
 				e.metrics.TimedOut.Inc(string(step.Descriptor.Tool))
 			}
-			return nil, fmt.Errorf("%w after %s: %v", ErrTimeout, contract.Timeout, err)
+			return nil, fmt.Errorf("%w after %s: %s", ErrTimeout, contract.Timeout, err.Error())
 		case ctx.Err() != nil:
-			return nil, fmt.Errorf("%w: %v", ErrCancelled, err)
+			return nil, fmt.Errorf("%w: %s", ErrCancelled, err.Error())
 		}
 		return nil, err
 	}
@@ -450,7 +450,7 @@ func (e *Executor) callTool(ctx context.Context, tool Tool, inv Invocation, sink
 // deadlineContext derives a context whose deadline is driven by the INJECTED
 // clock rather than by wall time.
 //
-// This is Phase 10A's finding F1 applied here rather than rediscovered.
+// This is Phase 10A's finding F1 applied here rather than rediscovered:
 // context.WithDeadline schedules against real time; a runtime whose deadlines
 // come from a FakeClock but whose timers come from the OS has tests that either
 // hang or expire instantly, depending on which way the two clocks disagree.
@@ -487,7 +487,7 @@ func (e *Executor) deadlineContext(parent context.Context, deadline time.Time) (
 // budgetRemaining reports whether there is time left for another attempt.
 func (e *Executor) budgetRemaining(ctx context.Context, plan Plan, budget Budget, start time.Time) error {
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrCancelled, err)
+		return fmt.Errorf("%w: %s", ErrCancelled, err.Error())
 	}
 	now := e.clock.Now()
 	if budget.WallClock > 0 && now.Sub(start) >= budget.WallClock {
@@ -575,7 +575,7 @@ func (e *Executor) journal(j *Journal, step Step, contract Contract, execID Exec
 	if j == nil || !contract.Effect.Mutating() {
 		return
 	}
-	comp, _ := e.toolFor(step.Descriptor).(CompensatingTool)
+	comp, _ := e.toolFor(step.Descriptor).(CompensatingTool) //nolint:errcheck // optional interface: a tool that cannot compensate leaves comp nil
 	j.Record(CompletedWork{
 		Step: step.ID, Execution: execID, Descriptor: step.Descriptor,
 		Invocation: Invocation{

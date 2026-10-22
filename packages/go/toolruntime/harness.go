@@ -231,7 +231,7 @@ func (f *FakeTool) Invoke(ctx context.Context, in Invocation) (Result, error) {
 		if f.IgnoreCancellation {
 			// Deliberately ignores the context: sleeps on a background context
 			// so cancellation cannot reach it.
-			_ = f.Clock.Sleep(context.Background(), f.Delay)
+			_ = f.Clock.Sleep(context.Background(), f.Delay) //nolint:errcheck,contextcheck // deliberately uncancellable, as explained above
 		} else if err := f.Clock.Sleep(ctx, f.Delay); err != nil {
 			return nil, err
 		}
