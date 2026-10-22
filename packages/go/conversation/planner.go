@@ -110,7 +110,7 @@ func (p *Planner) Plan(in PlanInput) Plan {
 	return plan
 }
 
-func (p *Planner) decide(in PlanInput) Plan {
+func (p *Planner) decide(in PlanInput) Plan { //nolint:gocyclo // a frozen decision table; FE-1 permits lint fixes, not restructuring it
 	denied := func(a Action) bool { return in.PolicyDenied != nil && in.PolicyDenied[a] }
 
 	// 1 — Emergency outranks everything, including the conversation's own

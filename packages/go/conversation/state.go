@@ -117,7 +117,7 @@ const (
 )
 
 // String renders the state for logs, metrics and diagrams.
-func (s State) String() string {
+func (s State) String() string { //nolint:gocyclo // one case per declared state
 	switch s {
 	case StateIdle:
 		return "idle"

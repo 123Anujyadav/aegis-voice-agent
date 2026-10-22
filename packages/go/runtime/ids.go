@@ -59,7 +59,7 @@ var idCounter atomic.Uint64
 func newID(prefix string) string {
 	var buf [16]byte
 
-	ms := uint64(time.Now().UnixMilli())
+	ms := uint64(time.Now().UnixMilli()) //nolint:gosec // non-negative for any clock set after 1970
 	buf[0] = byte(ms >> 40)
 	buf[1] = byte(ms >> 32)
 	buf[2] = byte(ms >> 24)
@@ -102,7 +102,7 @@ func newID(prefix string) string {
 // they are just strings. An end-to-end trace was therefore not assemblable,
 // which is the concrete cost that production blocker B3 names.
 //
-// runtime is the correct home for the reason the other modules gave: it sits at
+// This package is the correct home for the reason the other modules gave: it sits at
 // the bottom, every subsystem already depends on it directly, and it depends on
 // nothing but packages/go/metrics. Putting the type anywhere else inverts a
 // dependency; putting it in a new module means every subsystem takes a new one.

@@ -525,7 +525,7 @@ func (k *Kernel) Health() HealthState {
 //  4. Model resolution and invariant enforcement (I3).
 //  5. Provider call with breaker, retry and fallback.
 //  6. Dispatcher started on its own goroutine.
-func (k *Kernel) Generate(ctx context.Context, spec GenerateSpec, sinks ...Sink) (*Dispatcher, error) {
+func (k *Kernel) Generate(ctx context.Context, spec GenerateSpec, sinks ...Sink) (*Dispatcher, error) { //nolint:gocyclo // frozen generation setup; FE-1 permits lint fixes, not restructuring it
 	if !k.started.Load() {
 		return nil, fmt.Errorf("%w: runtime not started", ErrClosed)
 	}
@@ -590,12 +590,12 @@ func (k *Kernel) Generate(ctx context.Context, spec GenerateSpec, sinks ...Sink)
 
 	dispatcher, err := NewDispatcher(k.cfg.Dispatcher, k.clock, k.metrics)
 	if err != nil {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck // the setup failure is the error reported; closing only releases the stream
 		return failWithSession(err)
 	}
 	for _, s := range sinks {
 		if err := dispatcher.AddSink(s); err != nil {
-			_ = stream.Close()
+			_ = stream.Close() //nolint:errcheck // the setup failure is the error reported; closing only releases the stream
 			return failWithSession(err)
 		}
 	}
@@ -631,7 +631,7 @@ func (k *Kernel) Generate(ctx context.Context, spec GenerateSpec, sinks ...Sink)
 			slog.Duration("ttft", result.TimeToFirstToken),
 			slog.Duration("duration", result.Duration))
 	}); err != nil {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck // the setup failure is the error reported; closing only releases the stream
 		return failWithSession(err)
 	}
 
@@ -650,8 +650,8 @@ func (k *Kernel) Generate(ctx context.Context, spec GenerateSpec, sinks ...Sink)
 // deadlineContext returns a context cancelled at the given instant on the
 // KERNEL'S clock.
 //
-// context.WithDeadline cannot be used here, and the reason is worth stating
-// because it is a trap the first version of this file fell into.
+// The context.WithDeadline function cannot be used here, and the reason is worth stating
+// because it is a trap the first version of this file fell into:
 // context.WithDeadline schedules against real wall-clock time. Every deadline
 // in this runtime is derived from the injected [Clock]. Under a [FakeClock] the
 // two disagree completely — the fake clock's instant is an arbitrary fixed date
@@ -720,7 +720,8 @@ func (k *Kernel) openStream(ctx context.Context, spec GenerateSpec, span Span) (
 		if err != nil {
 			tried = append(tried, model.ID)
 			lastErr = err
-			if hops++; hops > k.cfg.MaxFallbackHops {
+			hops++
+			if hops > k.cfg.MaxFallbackHops {
 				return nil, ModelSpec{}, lastErr
 			}
 			continue
@@ -732,7 +733,8 @@ func (k *Kernel) openStream(ctx context.Context, spec GenerateSpec, span Span) (
 			tried = append(tried, model.ID)
 			lastErr = fmt.Errorf("%w: provider %s circuit is open",
 				ErrProviderUnavailable, model.Provider)
-			if hops++; hops > k.cfg.MaxFallbackHops {
+			hops++
+			if hops > k.cfg.MaxFallbackHops {
 				return nil, ModelSpec{}, lastErr
 			}
 			continue
@@ -781,7 +783,8 @@ func (k *Kernel) openStream(ctx context.Context, spec GenerateSpec, span Span) (
 			span.SetAttribute("fallback_from", string(model.ID))
 			span.SetAttribute("fallback_to", string(fb.ID))
 		}
-		if hops++; hops > k.cfg.MaxFallbackHops {
+		hops++
+		if hops > k.cfg.MaxFallbackHops {
 			return nil, ModelSpec{}, lastErr
 		}
 	}

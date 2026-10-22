@@ -74,7 +74,8 @@ type runtimeSession struct {
 // platform looks for. Only the adapter knows which clock a step means.
 func (s *runtimeSession) Advance(d time.Duration) { s.clock.Advance(d) }
 
-func (s *runtimeSession) Execute(ctx context.Context, step ev.Step) ev.StepResult {
+// Execute runs one scenario step against the real subject.
+func (s *runtimeSession) Execute(ctx context.Context, step ev.Step) ev.StepResult { //nolint:gocyclo // one case per scenario step kind; FE-1 permits lint fixes, not restructuring the frozen subject
 	switch step.Op {
 	case "breaker_allow":
 		allowed, report := s.breaker.Allow()
@@ -127,11 +128,11 @@ func (s *runtimeSession) Execute(ctx context.Context, step ev.Step) ev.StepResul
 		})
 
 	case "window_assemble":
-		max := int(step.Args.Num("max_tokens"))
-		if max <= 0 {
-			max = s.window.Budget()
+		limit := int(step.Args.Num("max_tokens"))
+		if limit <= 0 {
+			limit = s.window.Budget()
 		}
-		msgs, err := s.window.Assemble(max)
+		msgs, err := s.window.Assemble(limit)
 		if err != nil {
 			return failed("assemble_error", err.Error())
 		}
@@ -163,6 +164,7 @@ func (s *runtimeSession) record(kind string) {
 	s.events = append(s.events, ev.EventRecord{Type: kind})
 }
 
+// State returns the session's observable state, for scenario assertions.
 func (s *runtimeSession) State() ev.Values {
 	return ev.Values{
 		"breaker_state":  ev.S(s.breaker.State().String()),
@@ -173,10 +175,12 @@ func (s *runtimeSession) State() ev.Values {
 	}
 }
 
+// Events returns the events the session has recorded.
 func (s *runtimeSession) Events() []ev.EventRecord {
 	out := s.events
 	s.events = nil
 	return out
 }
 
+// Close releases nothing; the session holds no resources.
 func (s *runtimeSession) Close() error { return nil }
