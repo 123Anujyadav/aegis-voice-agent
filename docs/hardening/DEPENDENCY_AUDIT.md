@@ -229,3 +229,68 @@ Related controls added on 2026-10-21: CI secret scanning (`pr-security.yml`,
 #50), Gradle wrapper verification (`pr-android-wrapper.yml`, #54), the Python
 lock audit (`python-deps-audit.yml`, #55) and workflow linting
 (`workflow-lint.yml`, #57).
+
+---
+
+## 10. Go licence inventory (2026-10-22)
+
+Section 9 left a licence review of the Go plane's new third-party dependencies
+open. This is that inventory. It records which licence text each shipped module
+carries; it is not legal advice, and it draws no conclusion about obligations
+beyond what the licence texts themselves say.
+
+**Scope.** The modules whose packages are compiled into the non-test build of
+the three modules that have third-party requirements (`main` `63cbed5`),
+excluding the standard library and this repository's own modules:
+
+```console
+GOWORK=off GOFLAGS=-mod=readonly go list -deps \
+  -f '{{with .Module}}{{if not .Main}}{{.Path}} {{.Version}}{{end}}{{end}}' ./...
+```
+
+run in `packages/go/contracts-go`, `packages/go/evalstore` and
+`services/go/telephony-gateway`. That is 18 module versions. Modules that appear
+only in `go list -m all` (test-only or unused requirements) are not shipped and
+are not listed.
+
+**Method.** Each module's licence file, read from the Go module cache at the
+exact version above, was identified by its standard text: "Apache License …
+Version 2.0", the MIT permission grant, or the BSD redistribution conditions
+(three-clause when it includes the "Neither the name…" clause). Nothing was
+inferred from repository metadata. The sha256 prefix identifies the exact file.
+
+| Module | Version | Licence file | Licence text | sha256 (prefix) |
+|---|---|---|---|---|
+| `github.com/aws/aws-sdk-go-v2` | v1.47.1 | `LICENSE.txt` (+ `NOTICE.txt`) | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/credentials` | v1.20.6 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/feature/rds/auth` | v1.7.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/internal/configsources` | v1.5.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/internal/endpoints/v2` | v2.8.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/internal/v4a` | v1.5.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding` | v1.13.19 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/service/internal/presigned-url` | v1.14.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/service/sts` | v1.51.1 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/smithy-go` | v1.28.1 | `LICENSE` (+ `NOTICE`) | Apache-2.0 | `09e8a9bcec806710` |
+| `github.com/jackc/pgpassfile` | v1.0.0 | `LICENSE` | MIT | `adb1663fda031df8` |
+| `github.com/jackc/pgservicefile` | v0.0.0-20240606120523-5a60cdf6a761 | `LICENSE` | MIT | `fc505773403fe869` |
+| `github.com/jackc/pgx/v5` | v5.10.0 | `LICENSE` | MIT | `467f95e074fe2307` |
+| `github.com/jackc/puddle/v2` | v2.2.2 | `LICENSE` | MIT | `2d50e98a4900b4d6` |
+| `golang.org/x/sync` | v0.21.0 | `LICENSE` | BSD-3-Clause | `911f8f5782931320` |
+| `golang.org/x/text` | v0.39.0 (evalstore), v0.41.0 (gateway) | `LICENSE` | BSD-3-Clause | `911f8f5782931320` |
+| `google.golang.org/protobuf` | v1.36.4 | `LICENSE` | BSD-3-Clause | `4835612df0098ca9` |
+
+**What the texts show.** Every shipped module carries a permissive licence:
+Apache-2.0 (10), MIT (4) or BSD-3-Clause (4 module versions). None carries a
+copyleft licence.
+
+**Open items, not resolved here:**
+- `aws-sdk-go-v2` and `smithy-go` ship NOTICE files. Apache-2.0 section 4(d)
+  asks that a redistributed work include the NOTICE text. Whether the service
+  images, or any other distribution, carry it has not been checked, and it
+  depends on the image strategy that is still undecided.
+- MIT and BSD licences ask that the copyright and permission notice accompany
+  copies; how this project reproduces third-party notices in its artefacts is
+  not defined yet.
+- This inventory is a point-in-time record. It is not enforced in CI; an
+  automated licence check would have to run whenever `go.mod` changes.
+- Python (`uv.lock`) and Android dependencies are not covered here.
