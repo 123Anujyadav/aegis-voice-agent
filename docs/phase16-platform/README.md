@@ -81,7 +81,7 @@ committed, or needs a decision. None has been started.
 | Unique correlation IDs; propagate them into logs | `packages/go/middleware/middleware.go` | the owner has modified `middleware.go` and added `middleware`/`ratelimit` tests: coordinate first |
 | Serve `/metrics` from each Go service | `services/go/*/cmd/server/main.go` | the owner has modified all 15 services' `main.go` (build-info `version` subcommand): coordinate first |
 | Alert and SLO rules, checked by a pinned `promtool` in CI | new rules directory + workflow | where the rules live (the infrastructure tree is the ADR-0024 decision) |
-| Tracing export | new OpenTelemetry dependency; `runtime` holds the tracer port | an ADR (no free ADR number is verified: 0024 to 0026 are already used by #44 and the owner's untracked documents) and the `runtime` freeze |
+| Tracing export | new OpenTelemetry dependency; `runtime` holds the tracer port | an ADR (no free ADR number is verified: 0024 is taken by #44 and by an untracked owner document, 0025 by another untracked owner document, and 0026 is cited in the owner's untracked phase 18/19 documents) and the `runtime` freeze |
 | Probe port alignment | `infra/k8s` | ADR-0024 |
 
 **Credentials and cost.** None of the M2 changes needs an external credential
