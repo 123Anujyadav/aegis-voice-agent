@@ -424,3 +424,153 @@ Collector's ServiceAccount, provisioned by SRE.
   - 0027 is the first number used or claimed nowhere.
   - The proposal stays Proposed and unmerged, because it amends the
     owner-approved P1-37 staging path.
+
+## Objective 3 — decision packet and integration plans (2026-10-23)
+
+Everything below is analysis and planning. **No ADR status changes, no backend
+is chosen, and nothing is provisioned or deployed.**
+
+### Decision A — ADR-0026 acceptance
+
+- **Not ready as merged.** A review against the implementation (#87), the
+  frozen `runtime.Span` contract and ADR-0008/0012 found six unspecified
+  points:
+  1. `tracestate`;
+  2. inbound `traceparent` trust at a public edge;
+  3. the meaning of the inbound `sampled` flag;
+  4. error text in spans;
+  5. exporter blocking, drop and flush behaviour;
+  6. how the attribute allowlist grows.
+- **PR #90** adds those rules and corrects stale facts. **The status stays
+  Proposed.** Its description carries the exact status-only diff to apply on
+  acceptance.
+- **Recommendation:** merge #90, then accept with that diff.
+- **Implementation status:**
+  - **Implemented and tested** (#87, and #89 test-only): the `runtime.Tracer`
+    adapter, the W3C codec, the log exporter, and a real kernel recording
+    `runtime.generate`.
+  - **Absent from production:**
+    - any production span, because no service constructs a `runtime.Kernel`;
+    - `traceparent` at any edge, because no service on `main` binds an
+      application listener;
+    - any backend.
+
+### Decision B — tracing backend (recommendation, not an approval)
+
+| Criterion | A. OTel Collector to AWS X-Ray (`ap-south-1`), recommended | B. OTel Collector to self-hosted Grafana Tempo | C. Vendor SaaS |
+|---|---|---|---|
+| Operation and ownership | SRE runs the Collector; AWS runs storage and query | SRE runs the Collector, Tempo and its object storage, compaction and upgrades | Least to run; the vendor runs everything after the agent |
+| Cost model | Per trace recorded and per trace scanned. **No price is recorded in this repository; SRE must check current `ap-south-1` pricing.** | Compute and S3 storage only; scales with retained bytes | Per span or per GB ingested, usually the highest at volume |
+| Residency and retention | In-region. X-Ray's fixed **30-day** retention matches ADR-0012's 30 days for "Telemetry, traces" | In-region S3. Retention is configurable and must be set to 30 days | Depends on vendor regions; needs ADR-0012 review. ADR-0008's region-lock SCPs do not cover a third party |
+| IAM and least privilege | IRSA role on the Collector's ServiceAccount only: `xray:PutTraceSegments` and `xray:PutTelemetryRecords` | IRSA role for Tempo's bucket only | An ingest API key in the secret manager, which is a static credential that ADR-0008 avoids |
+| Network path | Service to Collector (ClusterIP, OTLP) to the X-Ray **VPC interface endpoint**, never the internet (ADR-0008) | Service to Collector to Tempo, all in-cluster or in-VPC | Collector or agent to the internet through NAT egress |
+| Failure behaviour | Collector down: the exporter drops and counts spans; turns never wait (ADR-0026 rule 5). X-Ray down: the Collector's bounded retry, then drop | The same, plus Tempo's own availability | The same, plus internet and vendor availability |
+| Sampling and loss | Always-on in process. The Collector may tail-sample before export to control cost | The same | The same, or vendor-side sampling |
+| Local development and testing | The log exporter needs nothing. A local Collector with its `debug` exporter, or Jaeger, in compose; no AWS | Tempo and Grafana run locally in compose | Needs the vendor's account or a mock |
+| Fit with the tracer and frozen interfaces | One step-4 OTLP adapter behind `telemetry.Exporter`; no frozen change. **Check:** X-Ray must accept random W3C trace ids. Older X-Ray ingestion required an epoch-prefixed id; SRE confirms on the account. If it is unsupported, add an epoch-prefixed id option, which is still valid W3C | Same adapter; W3C ids are native | Same adapter |
+
+**Traffic and cost assumption.** The repository records no call volumes.
+- **Unit:** one trace per call, with about 12 spans per turn (11 ADR-0011 hops
+  plus the turn).
+- **Monthly traces:** about 30 × the daily call count.
+- **Cost:** X-Ray cost scales with traces, Tempo with stored bytes, and SaaS
+  with spans.
+- **Before step 4:** SRE prices option A at the expected call volume.
+
+**Recommendation: A.** It is the only option that is in-region, fixed at
+ADR-0012's retention, reached over a VPC endpoint, and credential-free for
+every service, using IRSA as ADR-0008 requires. B is the fallback if X-Ray's
+trace-id or pricing check fails.
+
+**SRE-owned prerequisites for A.** None of these is performed by this phase.
+1. **IAM role** for the Collector, trusted only by the EKS OIDC provider for
+   `system:serviceaccount:<namespace>:otel-collector`.
+   - Policy: `xray:PutTraceSegments` and `xray:PutTelemetryRecords`.
+   - Add the X-Ray sampling-rule reads only if remote sampling is ever used;
+     always-on recording does not need them.
+2. **The Collector's ServiceAccount** annotated `eks.amazonaws.com/role-arn`, in
+   the manifest tree ADR-0027 decides.
+3. **A VPC interface endpoint** `com.amazonaws.ap-south-1.xray` with private
+   DNS, and a security group allowing 443 from the node security group.
+   Mirror it in `ap-south-2` for DR.
+4. **The Collector workload:**
+   - an image pinned by digest (`infra/README.md` policy);
+   - at least 2 replicas with a PodDisruptionBudget;
+   - `memory_limiter` and `batch` processors;
+   - a **ClusterIP** Service only, with no Ingress;
+   - a NetworkPolicy admitting OTLP from `aegis-system` only.
+5. **Region-lock SCPs** that allow X-Ray in `ap-south-1` and `ap-south-2`.
+6. **Optional KMS encryption** for X-Ray, and a budget alarm on X-Ray spend.
+
+No service needs a credential, and none is ever pasted into chat or committed.
+
+### Decision C — PR #44 (ADR-0027) and the manifest tree
+
+- **Numbering is correct now.** ADR-0027 is the first number used or claimed
+  nowhere, while 0024 is the owner's Accepted VAD ADR and 0026 is on `main`.
+  The PR changes only the ADR file and one index row.
+- **Compatibility with P1-37:**
+  - **The deletion:** ADR-0027 keeps "`infra/k8s/base/deployment.yaml` is never
+    restored", so the deletion is respected.
+  - **The service manifests:** it keeps "`infra/k8s/base/services/` left
+    untouched".
+  - **The one change:** it amends the **staging path** from
+    `infra/kubernetes/overlays/staging/` to `infra/k8s/overlays/staging/`, by a
+    recorded amendment that leaves the originals untouched.
+  - **Agreement with existing work:** the owner's untracked per-service
+    manifests and tooling already live under `infra/k8s`.
+- **Accept:** one tree, `infra/k8s`.
+  - **Records:** amend P1-37/P1-39 by the appendix, and correct
+    `docker-compose.yml:8`.
+  - **Helm:** resolve the dead references (remove them, or open a Helm ADR).
+  - **Then:** commit the owner's manifests and validation workflow.
+  - **Retiring 9090:** the template `deployment.yaml` is still tracked on
+    `main`, and the owner's deletion exists only in their working tree.
+    Committing that deletion is what finally retires the 9090 probe port.
+- **Revise:** keep `infra/kubernetes/overlays/staging/` and move `base/` there
+  instead. That means moving every tracked and untracked file and its tooling
+  (ADR-0027 Option 2).
+- **Close:** two trees remain, `infra/k8s` and `infra/kubernetes`. The 9090
+  template stays tracked alongside 8081 manifests, so the probe contract stays
+  ambiguous.
+- **Port, probe, exposure and rollback implications:**
+  - ADR-0027 decides paths only, not ports.
+  - The owner's manifests probe 8081, which is the bound health port.
+  - No manifest declares a Service or Ingress for the health or metrics port.
+  - Rollback of accepting is a documentation revert, because nothing is
+    deployed.
+- **Recommendation:** accept ADR-0027 (Option 1), then:
+  1. record the P1-37 amendment;
+  2. land the owner's manifests;
+  3. commit the deletion of the tracked template.
+
+### Integration plans, prepared but not applied
+
+**Production tracing (after ADR-0026 is accepted):**
+1. **First HTTP edge, `edge-api`.** It exists in the owner's uncommitted work:
+   `cmd/server/auth.go` registers `platform.NewHTTPRunner`, with handler
+   `SecurityHeaders(CorrelationID(auth(mux)))`.
+   - The safe hook is a server-span middleware between `CorrelationID` and
+     `auth`, so the span carries the correlation ID and covers authentication.
+   - As a public edge, it **always starts a new root** (rule 2).
+   - It lands after the owner's `edge-api` work lands, and is exercised by that
+     service's real requests.
+2. **`identity`.** It also registers an HTTP runner in the owner's work. It
+   honours an inbound `traceparent` only if it is reached solely from internal
+   peers; that is to be confirmed when its exposure is decided.
+3. **Kernel.** The first service to call `runtime.New` passes
+   `runtime.WithTracer(telemetry.NewRecordingTracer(telemetry.NewLogExporter(logger)))`.
+   No service does today.
+4. **Backend (step 4):** an OTLP adapter behind `telemetry.Exporter`, with its
+   own ADR, after Decision B.
+
+**Voice metrics prerequisites:**
+- **Providers.** A production call driver needs providers. The owner's ADR-0022
+  §6 says "the production build registers no driver"; ADR-0018 is still
+  Proposed.
+- **ADR-0018's revisit trigger:** "a real-time-capable STT provider … without a
+  model download, or an approved credential and egress path for a cloud
+  provider".
+- **When both are met:** mount `voice`'s
+  `Bridge.Engine().Metrics().Registry()` the same way as #86, with a test that
+  a driven turn moves a series.
