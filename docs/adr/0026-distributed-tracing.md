@@ -17,6 +17,13 @@ twice. No file, branch, commit or open PR uses 0026 or any higher number. The
 owner's own closure audit records "no ADR-0026". The owner may renumber this
 proposal when accepting it, as PR #44 also allows.
 
+**What this ADR does not claim.** Tracing does not exist on the platform today.
+- **Instrumentation:** no tracer implementation exists. No production code path
+  emits a span. No `traceparent` is parsed or propagated.
+- **Backend:** none is chosen, configured or credentialed.
+- **Status:** this ADR is a proposal and a plan. It changes no code, and merging
+  it does not accept it.
+
 ---
 
 ## Context
@@ -42,7 +49,7 @@ What exists today:
 
 | Piece | State on `main` |
 |---|---|
-| `runtime.Tracer` / `runtime.Span` (frozen `runtime`, `kernel.go`) | **The platform's tracing port.** Documented as *"the subset of OpenTelemetry the runtime actually uses. An adapter in a sibling module implements it over the real SDK."* `Span` has `SetAttribute`, `RecordError` and `End`, and its doc forbids `PERSONAL`/`SENSITIVE` attributes. The kernel opens one span, `runtime.generate`, with `request_id`, `session_id`, `tier`, `class` and `model` attributes. The only implementation is `NoopTracer`, and `runtime.WithTracer` has **0 callers**. |
+| `runtime.Tracer` / `runtime.Span` (frozen `runtime`, `kernel.go`) | **The platform's tracing port.** Documented as *"the subset of OpenTelemetry the runtime actually uses. An adapter in a sibling module implements it over the real SDK."* `Span` has `SetAttribute`, `RecordError` and `End`, and its doc forbids `PERSONAL`/`SENSITIVE` attributes. The kernel opens one span, `runtime.generate`, with `request_id`, `session_id`, `tier`, `class` and `model` attributes. The only implementation is `NoopTracer`, and `runtime.WithTracer` has **0 callers**. No code outside `runtime`'s own tests constructs a `Kernel` (`runtime.New`), so that span runs in **no production path** today. |
 | `packages/go/telemetry` | A stub with **zero importers**. `InitializeOpenTelemetry` prints a line and returns no-ops; `Tracer.StartSpan(ctx, name) (ctx, func())` carries no attributes, status or parent. |
 | `platform.WithTraceID` / `TraceIDFrom`, `AttrTraceID = "trace_id"` | Logging plumbing that adds `trace_id` to every log record when the context carries one. **0 callers** set it. |
 | `middleware.WriteProblemDetails(…, traceID)` | Echoes a caller-supplied string into problem details; no trace exists to supply. |
@@ -93,10 +100,20 @@ Two constraints carry over unchanged:
   correlation-ID middleware applies.
 - **The port is `runtime.Tracer`. The implementation lives in
   `packages/go/telemetry`, which is not frozen.** Frozen `runtime` already
-  defines the port and expects "an adapter in a sibling module". Implementing
-  an interface does not edit the module that declares it. The kernel's
-  existing `runtime.generate` span (ADR-0011 hop 6) therefore becomes real
-  through `runtime.WithTracer`, with no frozen change.
+  defines the port and expects "an adapter in a sibling module". Reusing it
+  needs no frozen change, for three reasons:
+  - `Tracer` and `Span` are exported interfaces. A Go type satisfies an
+    interface structurally, so a type in `telemetry` implements them without
+    any declaration in `runtime` changing.
+  - `runtime.WithTracer` is an existing exported `Option` of `runtime.New`.
+    Supplying the implementation uses the frozen API as it stands.
+  - `runtime`'s own span sites, such as `runtime.generate` (ADR-0011 hop 6),
+    already call the port. They record as soon as a kernel is built with a real
+    tracer, without editing them.
+
+  Today nothing outside `runtime`'s tests builds a kernel, so this turns on no
+  production span by itself. It makes such spans possible the day a service
+  constructs one.
   - Each span records a name, trace-id, span-id, parent, start and end times,
     a status, and an allowlisted set of attributes. IDs come from
     `crypto/rand`.
@@ -135,8 +152,8 @@ it fails D2 on both counts.
 - ADR-0011 §9 becomes implementable, and per-hop latency becomes attributable.
 - No dependency, no credential and no backend are introduced. No frozen module
   changes.
-- The kernel's existing `runtime.generate` span starts recording, with no
-  change to `runtime`.
+- Any kernel built with the tracer records its existing `runtime.generate`
+  span, with no change to `runtime`. No production code builds a kernel yet.
 - The misleading `InitializeOpenTelemetry` stub, which reports configuring
   OpenTelemetry and configures nothing, goes away. With it goes the second,
   incompatible `Tracer` port.
@@ -183,7 +200,7 @@ be settled hop by hop in step 3 of the plan.
 |---|---|---|---|
 | 1 | `packages/go/telemetry`: a `runtime.Tracer` and `runtime.Span` implementation, `traceparent` parse and format, `crypto/rand` IDs, an `Exporter` interface and a log exporter. Replace the stub's zero-importer declarations. | A compile-time assertion shows the type satisfies `runtime.Tracer`. W3C test vectors pass. Malformed, all-zero, upper-case and oversized `traceparent` values are rejected. IDs are unique under concurrency (`-race` in CI). Attributes outside the allowlist are dropped. golangci-lint is clean. | Owner acceptance |
 | 2 | `platform` and `middleware`: inbound `traceparent` extraction, or a new root span; outbound injection helper; `WithTraceID` set. | Valid inbound context propagates unchanged and invalid context is replaced. `trace_id` appears on log records. The health listener is unaffected. | Step 1 |
-| 3 | Inject the tracer with `runtime.WithTracer` where a kernel is built. In the `voice` and `voiceintel` seams, add one span per ADR-0011 hop that a non-frozen seam can time, named for the §5.2 hop number. | `runtime.generate` spans appear as children of the turn's span. A table maps every §5.2 hop to "instrumented at `<seam>`" or "uninstrumented: no non-frozen seam". Tests assert span names and parentage for a simulated turn. | Step 2; per-hop seam inventory |
+| 3 | Inject the tracer with `runtime.WithTracer` wherever a service builds a kernel (none does today). In the `voice` and `voiceintel` seams, add one span per ADR-0011 hop that a non-frozen seam can time, named for the §5.2 hop number. | `runtime.generate` spans appear as children of the turn's span. A table maps every §5.2 hop to "instrumented at `<seam>`" or "uninstrumented: no non-frozen seam". Tests assert span names and parentage for a simulated turn. | Step 2; per-hop seam inventory |
 | 4 | Backend adapter, for example OTLP via the OpenTelemetry SDK. | The adapter's own ADR, covering dependency, endpoint, credential handling and ADR-0012 egress and retention. | **Owner and SRE backend choice; credential provisioning** |
 
 Out of scope for every step: alert rules and dashboards (operator artefacts,
