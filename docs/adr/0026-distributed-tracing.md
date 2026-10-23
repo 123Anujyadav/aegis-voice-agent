@@ -224,11 +224,19 @@ implementation (#87, #89) already does, or what a later step must do.
    - **Local roots:** these are always sampled.
    - **Export-side sampling:** deciding what reaches a backend is the step 4
      adapter's concern.
-4. **Error text** recorded by `RecordError` is treated exactly like error text
-   in log lines: exported under the `error` key, through the same logger. A
-   span adds no new path for content, and no exemption from the policy logs
-   follow. A stricter rule, such as recording only an error category, would
-   apply to logs and spans together.
+4. **Error text is allowlisted, never recorded as-is.** `err.Error()` can embed
+   content that no attribute allowlist sees, such as a provider response that
+   quotes a prompt, and the platform logger redacts by key, not by value.
+   `RecordError` therefore records, in order:
+   1. the vetted text of the first `SafeError` in the error chain, an opt-in
+      interface for errors whose text has a fixed, content-free vocabulary;
+   2. otherwise the fixed category of the first known sentinel it wraps:
+      `context.Canceled`, `context.DeadlineExceeded`, or any exported
+      `runtime` sentinel;
+   3. otherwise only the error's Go type, as `unclassified error (%T)`.
+
+   A wrapping error's own message is never recorded. A new category is added
+   in code, reviewed against the same privacy rule as attributes (#92).
 5. **Exporters never block the call path.**
    - **Synchronous exporters:** `Export` runs on the goroutine that ends the
      span, so a synchronous exporter must be as cheap as one log line. The step
@@ -244,8 +252,8 @@ implementation (#87, #89) already does, or what a later step must do.
    log exporter's output, which errs on the safe side.
 
 **Implementation status:**
-- **Step 1 is implemented and tested** (#87, #89), except for replacing the
-  stub declarations in `telemetry.go`, which waits for acceptance.
+- **Step 1 is implemented and tested** (#87, #89, #92), except for replacing
+  the stub declarations in `telemetry.go`, which waits for acceptance.
 - **No production span exists:** no production code constructs a
   `runtime.Kernel`, and no service on `main` binds an application HTTP
   listener.
