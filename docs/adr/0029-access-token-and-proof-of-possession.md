@@ -218,9 +218,11 @@ request made with that private key" on refresh and on every mutating request:
   - **Session lifetime:** the session (refresh family) lifetime is currently
     **24 hours**, not ADR-0010's 90 days. That is stricter. Extending it is a
     product decision.
-  - **Play Integrity (ADR-0010 §5(b)) is not implemented.**
-    `VerifyPlayIntegrity` is a stub that verifies nothing. **This blocks
-    production on its own**, independently of everything decided here.
+  - **Play Integrity (ADR-0010 §5(b)) is not verified against Google.** The
+    verdict policy and a fail-closed verifier boundary exist, but no verifier
+    is implemented, so `VerifyPlayIntegrity` returns "unavailable" and
+    certifies nothing (see "Still open"). **This blocks production on its
+    own**, independently of everything decided here.
   - **No OTP delivery provider exists.** No real user can enrol, per the
     owner's runbook.
 
