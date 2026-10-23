@@ -68,6 +68,9 @@ func (f ExporterFunc) Export(r SpanRecord) { f(r) }
 var DefaultAllowedAttributes = []string{
 	"request_id", "session_id", "stream_id", "correlation_id",
 	"tier", "class", "model", "provider", "shed_reason",
+	// Edge request spans (middleware.EdgeTraceMiddleware): the request
+	// method, normalised to a closed set, and the numeric response status.
+	"http_method", "http_status_code",
 }
 
 // RecordingTracer is a runtime.Tracer that records spans and hands each
