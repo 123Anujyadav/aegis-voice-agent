@@ -3,8 +3,9 @@
 // invalid.
 //
 // It constructs; it does not serve. Nothing here registers an HTTP route,
-// mounts middleware or starts a listener, and cmd/server does not call it yet
-// (see Build for what blocks that).
+// mounts middleware or starts a listener. cmd/server calls Open (runtime.go),
+// which validates the activation configuration, opens PostgreSQL and then
+// calls Build; cmd/server serves the result.
 //
 // # Configuration contract
 //
@@ -152,11 +153,11 @@ type Dependencies struct {
 // enrolment and proof-bound refresh all configured, or returns an error and
 // nothing. Errors never carry key material.
 //
-// The cmd/server binary does not call Build, because a running process cannot yet supply
-// the Dependencies safely: SecretKey has no configuration contract, and the
-// only Repository and ReplayStore implementations are in-memory and
-// process-local, so sessions, rate limits and proof reservations would be lost
-// on restart and not shared between replicas.
+// A running process reaches Build only through Open, which supplies the
+// Dependencies safely: SecretKey from CS_IDENTITY_HMAC_SECRET_KEY_FILE, and a
+// pgstore repository and replay stores shared by every replica. Tests may call
+// Build directly with in-memory dependencies, which are process-local: never
+// suitable for more than one replica, or for a process that restarts.
 func Build(cfg SecurityConfig, deps Dependencies) (*app.IdentityService, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
