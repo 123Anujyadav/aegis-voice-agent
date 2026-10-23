@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -228,6 +229,24 @@ func TestLifecycle_ActivatedHTTPEndToEndAndOrderlyShutdown(t *testing.T) {
 		t.Errorf("reuse over HTTP: %d %v", code, body)
 	}
 
+	// GET /metrics on the HEALTH port shows the reuse as a security event and
+	// as a refused refresh, through the real lifecycle.
+	scrape, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metrics", cfg.HealthPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exposition, _ := io.ReadAll(scrape.Body)
+	scrape.Body.Close()
+	for _, want := range []string{
+		`identity_security_events_total{type="identity.refresh.token_reused"} 1`,
+		`identity_auth_requests_total{endpoint="token_refresh",outcome="invalid_token"} 1`,
+		`identity_auth_requests_total{endpoint="otp_validate",outcome="success"} 1`,
+	} {
+		if scrape.StatusCode != http.StatusOK || !strings.Contains(string(exposition), want) {
+			t.Errorf("metrics scrape (%d) lacks %q:\n%s", scrape.StatusCode, want, exposition)
+		}
+	}
+
 	// A request in flight across shutdown: headers and half the body now, the
 	// rest after shutdown has begun.
 	reqID2 := ""
@@ -280,7 +299,7 @@ func TestLifecycle_ActivatedHTTPEndToEndAndOrderlyShutdown(t *testing.T) {
 	}
 
 	// With the pool closed, the API fails closed and says nothing about why.
-	h := httpapi.New(rt.Service, quiet)
+	h := httpapi.New(rt.Service, quiet, nil)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", routes.Enrollment, strings.NewReader(fmt.Sprintf(`{"requestId":%q,"code":"123456"}`, reqID2)))
 	req.Header.Set("Content-Type", "application/json")
@@ -318,9 +337,9 @@ func TestLifecycle_TwoInstancesOverHTTP(t *testing.T) {
 	defer b.Close()
 	sender := &codeSender{codes: map[string]string{}}
 	a.Service.SetOtpSender(sender)
-	sa := httptest.NewServer(httpapi.New(a.Service, quiet))
+	sa := httptest.NewServer(httpapi.New(a.Service, quiet, nil))
 	defer sa.Close()
-	sb := httptest.NewServer(httpapi.New(b.Service, quiet))
+	sb := httptest.NewServer(httpapi.New(b.Service, quiet, nil))
 	defer sb.Close()
 
 	code, body := call(t, sa.URL, routes.OTPRequest, `{"msisdn":"`+testNumber+`"}`, "")

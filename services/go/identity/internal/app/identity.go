@@ -768,6 +768,11 @@ const (
 	// a lockout.
 	// Emitted once per lockout, not for each request refused during it.
 	EventOtpLockout SecurityEventType = "identity.otp.lockout"
+	// EventRefreshTokenReused records a refresh token presented after it was
+	// rotated away: the exfiltration alarm (ADR-0010 §6, §9). The session
+	// family is revoked; the event is emitted whether or not the revocation
+	// succeeded, because the reuse happened either way.
+	EventRefreshTokenReused SecurityEventType = "identity.refresh.token_reused"
 )
 
 // SecurityEvent is one identity security audit record, as required by
@@ -789,6 +794,9 @@ type SecurityEvent struct {
 	RequestID string
 	// LockedUntil is set on EventOtpLockout only.
 	LockedUntil time.Time
+	// SessionID is set on EventRefreshTokenReused only: the revoked session's
+	// own random identifier (sess_…), which references nobody.
+	SessionID string
 }
 
 // SecurityAuditor receives identity security audit events.
@@ -873,6 +881,9 @@ type IdentityService struct {
 	// otpSender delivers one-time codes. Nil — the default, and the only value
 	// production code sets today — means no delivery exists; see SetOtpSender.
 	otpSender OtpSender
+	// integrity is Play Integrity verification (integrity.go); nil means
+	// unavailable, and VerifyPlayIntegrity then fails closed.
+	integrity *integrityCheck
 
 	// newCode mints the one-time code. Injected rather than called directly so
 	// a test can make the value predictable WITHOUT the production path ever
@@ -976,6 +987,16 @@ func (s *IdentityService) SetOtpSender(o OtpSender) { s.otpSender = o }
 // RequestOtp still creates a challenge, but nothing can deliver its code — so
 // a caller that would tell a user "a code is on its way" must check this first.
 func (s *IdentityService) CanDeliverOtp() bool { return s.otpSender != nil }
+
+// SetSecurityAuditor configures where security audit events go. It is
+// construction-time configuration, not safe to change while requests are
+// being served. Nil restores the default, which discards events.
+func (s *IdentityService) SetSecurityAuditor(a SecurityAuditor) {
+	if a == nil {
+		a = NoopSecurityAuditor{}
+	}
+	s.auditor = a
+}
 
 // AuditFailures reports how many security audit events the auditor refused.
 func (s *IdentityService) AuditFailures() uint64 { return s.auditFailures.Load() }
@@ -1424,39 +1445,6 @@ func (s *IdentityService) refreshTokenHash(raw string) string {
 	return HashRefreshToken(s.secretKey, raw)
 }
 
-// VerifyPlayIntegrity is a STUB. It verifies nothing.
-//
-// It accepts any token of ten or more characters and returns a FABRICATED
-// attestation, including IsPlayCertified: true and a hardcoded device model.
-// ADR-0010 §5(b) requires the verdict be "verified server-side against Google",
-// checking app recognition, device integrity and licensing. None of that
-// happens here.
-//
-// Recorded by Phase 18 D11. It is unreachable in a running process — nothing
-// constructs IdentityService outside tests — so this is a latent trap, not a
-// live vulnerability. It must not be wired to anything until the ADR-0010
-// verification inputs exist.
-func (s *IdentityService) VerifyPlayIntegrity(ctx context.Context, token string) (*DeviceAttestation, error) {
-	if token == "" || len(token) < 10 {
-		return nil, ErrPlayIntegrityFailed
-	}
-
-	attestation := &DeviceAttestation{
-		DeviceID:        "dev_" + token[:8],
-		Model:           "Pixel 9 Pro",
-		OsVersion:       "Android 15",
-		IntegrityToken:  token,
-		AttestedAt:      time.Now(),
-		IsPlayCertified: true,
-	}
-
-	if err := s.repo.SaveDevice(ctx, attestation); err != nil {
-		return nil, err
-	}
-
-	return attestation, nil
-}
-
 // RefreshToken rotates the refresh token of a session that is NOT bound to a
 // device key. A device-bound session is refused here and refreshes only
 // through RefreshTokenWithDeviceProof.
@@ -1487,8 +1475,10 @@ func (s *IdentityService) RefreshToken(ctx context.Context, sessionID, oldRefres
 		// stay matchable with errors.Is: the reuse is still a reuse, and the
 		// failure is not hidden behind it. A successful revocation still
 		// returns the sentinel itself.
-		if err := s.repo.RevokeSession(ctx, sessionID); err != nil {
-			return "", "", fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, err)
+		revokeErr := s.repo.RevokeSession(ctx, sessionID)
+		s.audit(SecurityEvent{Type: EventRefreshTokenReused, At: time.Now(), SessionID: sessionID})
+		if revokeErr != nil {
+			return "", "", fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, revokeErr)
 		}
 		return "", "", ErrTokenReused
 	}
@@ -1593,7 +1583,9 @@ func (s *IdentityService) RefreshTokenWithDeviceProof(ctx context.Context, sessi
 	// token to compare against.
 	presentedHash := s.refreshTokenHash(oldRefreshToken)
 	if !equalHash(session.RefreshTokenHash, presentedHash) {
-		if revokeSessionErr := s.repo.RevokeSession(ctx, sessionID); revokeSessionErr != nil {
+		revokeSessionErr := s.repo.RevokeSession(ctx, sessionID)
+		s.audit(SecurityEvent{Type: EventRefreshTokenReused, At: time.Now(), SessionID: sessionID})
+		if revokeSessionErr != nil {
 			return "", "", fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, revokeSessionErr)
 		}
 		return "", "", ErrTokenReused

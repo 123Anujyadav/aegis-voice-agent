@@ -218,9 +218,11 @@ request made with that private key" on refresh and on every mutating request:
   - **Session lifetime:** the session (refresh family) lifetime is currently
     **24 hours**, not ADR-0010's 90 days. That is stricter. Extending it is a
     product decision.
-  - **Play Integrity (ADR-0010 §5(b)) is not implemented.**
-    `VerifyPlayIntegrity` is a stub that verifies nothing. **This blocks
-    production on its own**, independently of everything decided here.
+  - **Play Integrity (ADR-0010 §5(b)) is not verified against Google.** The
+    verdict policy and a fail-closed verifier boundary exist, but no verifier
+    is implemented, so `VerifyPlayIntegrity` returns "unavailable" and
+    certifies nothing (see "Still open"). **This blocks production on its
+    own**, independently of everything decided here.
   - **No OTP delivery provider exists.** No real user can enrol, per the
     owner's runbook.
 
@@ -311,8 +313,30 @@ The real-PostgreSQL suites of both services run under `-race` in CI
 
 **Still open:**
 - **Owner ratification** of this ADR.
-- **Play Integrity is a stub**, which blocks production on its own.
+- **Play Integrity is not verified against Google**, which blocks production on
+  its own.
+  - **Fixed:** the fabricating stub is gone. Without a configured
+    `IntegrityVerifier`, `VerifyPlayIntegrity` fails closed and certifies
+    nothing.
+  - **Implemented and tested offline:** the ADR-0010 §5(b) verdict policy (app
+    recognition, signing certificate, device integrity, licensing, request
+    binding, freshness), with the restricted tier on failure.
+  - **Live verification needs:**
+    - a Google Cloud project linked to the app in Play Console, with the Play
+      Integrity API enabled;
+    - a credential for `decodeIntegrityToken`, provisioned by SRE;
+    - egress to Google;
+    - the client binding its standard request to a server-chosen hash.
+  - **Wiring the tier into issuance and refresh** is a product decision. No
+    restricted-tier model exists yet.
 - **No OTP delivery provider exists.**
+  - **Exists:** a failover sender, `internal/otpdelivery`, as ADR-0010 §9
+    requires. It tries ordered providers, bounds each attempt, never returns
+    provider text, and has a delivery-outcome hook. It is tested with fakes.
+  - **Missing:** a real provider. One needs a commercial account, credentials
+    provisioned by SRE, egress, and in India DLT-registered sender ids and
+    templates. Until then identity is not configured with a sender, and it
+    refuses OTP requests truthfully.
 - **Key provisioning and rotation as an operation** (Secret volumes, the order
   of rollout). This is SRE's, and needs authorisation for infrastructure
   changes. The procedure is documented in
