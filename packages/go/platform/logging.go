@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 // contextKey is an unexported type for context keys defined by this package.
@@ -78,6 +79,26 @@ var sensitiveKeys = []string{
 	"cookie",
 	"set-cookie",
 }
+
+// contentSubstrings and contentTokens name attributes that carry conversation
+// content: what a caller said or what a model was asked. ADR-0006 §10
+// classifies prompts and transcripts as SENSITIVE and states that "neither is
+// logged verbatim"; metricsexport already refuses the same words as metric
+// labels. Values under these keys are replaced, never hashed, because content
+// has no correlation value that would justify a pseudonym.
+//
+// Two matching modes, because substring matching is only safe for distinctive
+// words. "transcript", "utterance" and "prompt" are matched as substrings, like
+// sensitiveKeys, so "partial_transcript" and "systemPrompt" are caught. "text",
+// "content" and "body" must be the key's LAST word (split on punctuation and
+// case boundaries), its head noun: "message_text", "replyContent" and
+// "request_body" are caught. As substrings they would also catch "context";
+// as any word they would catch "content_type" and "body_size", which describe
+// content rather than carry it.
+var (
+	contentSubstrings = []string{"transcript", "utterance", "prompt"}
+	contentTokens     = map[string]struct{}{"text": {}, "content": {}, "body": {}}
+)
 
 // alwaysAllowed names attributes that are explicitly safe. It is consulted
 // BEFORE sensitiveKeys and hashedKeys.
@@ -215,6 +236,10 @@ func (h *RedactingHandler) redact(a slog.Attr) slog.Attr {
 		}
 	}
 
+	if isContentKey(a.Key) {
+		return slog.String(a.Key, redactedMarker)
+	}
+
 	for _, s := range hashedKeys {
 		if strings.Contains(key, s) {
 			return slog.String(a.Key, h.pseudonymise(a.Value.String()))
@@ -222,6 +247,57 @@ func (h *RedactingHandler) redact(a slog.Attr) slog.Attr {
 	}
 
 	return a
+}
+
+// isContentKey reports whether key names conversation content, under the two
+// matching modes documented on contentSubstrings and contentTokens.
+func isContentKey(key string) bool {
+	lower := strings.ToLower(key)
+	for _, s := range contentSubstrings {
+		if strings.Contains(lower, s) {
+			return true
+		}
+	}
+	tokens := keyTokens(key)
+	if len(tokens) == 0 {
+		return false
+	}
+	_, ok := contentTokens[tokens[len(tokens)-1]]
+	return ok
+}
+
+// keyTokens splits an attribute key into lower-case words at every character
+// that is not a letter or digit, and at case boundaries, so "message_text",
+// "message-text", "message.text" and "messageText" all yield "message" and
+// "text", and "HTTPBody" yields "http" and "body".
+func keyTokens(key string) []string {
+	rs := []rune(key)
+	var (
+		tokens []string
+		cur    []rune
+	)
+	flush := func() {
+		if len(cur) > 0 {
+			tokens = append(tokens, strings.ToLower(string(cur)))
+			cur = cur[:0]
+		}
+	}
+	for i, r := range rs {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			flush()
+			continue
+		}
+		if i > 0 && unicode.IsUpper(r) {
+			prev := rs[i-1]
+			nextLower := i+1 < len(rs) && unicode.IsLower(rs[i+1])
+			if unicode.IsLower(prev) || unicode.IsDigit(prev) || (unicode.IsUpper(prev) && nextLower) {
+				flush()
+			}
+		}
+		cur = append(cur, r)
+	}
+	flush()
+	return tokens
 }
 
 // pseudonymise returns a truncated keyed HMAC of v, prefixed so that a reader
