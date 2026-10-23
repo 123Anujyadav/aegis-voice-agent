@@ -1,7 +1,17 @@
 # ADR-0027: One Kubernetes manifest tree, `infra/k8s`
 
-- **Status:** Proposed. **NOT accepted.** This ADR records a recommendation for
-  the owner's decision. Until it is accepted, nothing below is in force.
+- **Status:** **Accepted** (2026-10-23, repository owner): Option 1, one tree,
+  `infra/k8s`.
+  - **Accepted scope:** the single manifest tree, and the documented amendment
+    of the P1-37/P1-39 staging path from `infra/kubernetes/overlays/staging/`
+    to `infra/k8s/overlays/staging/`. P1-37's other rules are unchanged:
+    `infra/k8s/base/services/` is left untouched, and
+    `infra/k8s/base/deployment.yaml` is never restored.
+  - **Not decided by this acceptance:** assumption A2 (Helm), the kubeconform
+    policy, the enforcement checks, and A5 and every later gate. Each needs its
+    own decision.
+  - **Nothing is deployed** by this acceptance, and no port, probe or exposure
+    changes.
 - **Date:** 2026-10-20
 - **Deciders:** the repository owner (architecture authority; see "Approval
   required")
@@ -246,10 +256,10 @@ staging manifests in separate repositories.
 
 | Decision | Authority | Status |
 |---|---|---|
-| Accept, amend or reject this ADR (and its number) | repository owner (architecture) | **pending** |
-| Confirm assumption A1 (what P1-37's "staging-only path" requires) | repository owner (author of P1-37) | **pending** |
+| Accept, amend or reject this ADR (and its number) | repository owner (architecture) | **accepted** 2026-10-23 (Option 1, number 0027) |
+| Confirm assumption A1 (what P1-37's "staging-only path" requires) | repository owner (author of P1-37) | **confirmed** 2026-10-23, by accepting `infra/k8s/overlays/staging/` as the staging path |
 | Confirm assumption A2 (no Helm), or open a Helm ADR | repository owner | **pending** |
-| Amend the P1-37/P1-39 staging path (an approved design decision; P1-38:18) | repository owner (author of those records) | pending; depends on this ADR; proposed text in the appendix |
+| Amend the P1-37/P1-39 staging path (an approved design decision; P1-38:18) | repository owner (author of those records) | **accepted** 2026-10-23. The owner records the amendment in their P1-37/P1-39 using the appendix text; the originals are not edited |
 | kubeconform policy for `kustomization.yaml` and CRD kinds | owner / SRE (`/infra/` code owner) | pending |
 | A5 (staging manifests) and every later gate | owner, per P1-38 §2 | **unapproved**; this ADR does not approve any of them |
 
