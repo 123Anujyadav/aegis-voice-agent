@@ -213,7 +213,7 @@ overwritten or reverted.
 
 ### M2 — auth stubs
 
-**PR:** #83.
+**Merged:** #83, as `af51394`.
 
 - **Decision:** delete `AuthMiddleware`, `RequireRole` and `UserContextKey`.
   Keep `UserClaims`, because `services/go/identity` serialises it.
@@ -237,8 +237,9 @@ overwritten or reverted.
   - `platform.ServiceConfig.HealthPort` defaults to 8081;
   - `platform/metrics_route_test.go` asserts that `/metrics` shares the health
     listener on `:8081`.
-- **The 9090 in `infra/k8s/base/deployment.yaml` is the stale side.** That file
-  is not changed here:
+- **The 9090 in `infra/k8s/base/deployment.yaml` is the stale side.** The
+  port question is therefore **decided, but not applied** to the tracked
+  manifest. That file is not changed here:
   - the owner deliberately deleted it in their working tree, and their
     untracked per-service manifests probe 8081;
   - their P1-37 record says `deployment.yaml` "is never restored";
@@ -252,24 +253,65 @@ overwritten or reverted.
 - **Not exposed publicly, now or when mounted.** The health listener has no
   Kubernetes Service in the owner's manifests and no ingress, so it is
   reachable only at the pod IP inside the cluster.
-- **Unblocks when** a service first constructs an instrumented component (for
-  example `voice` building a kernel or pipeline) and the owner's `main.go`
-  changes have landed. Mount it in that service's `main.go` through
-  `SetMetricsHandler(metricsexport.New(...).Handler())`.
+- **First meaningful owner: `voice`.** It is the only service that registers a
+  runner. That runner owns a `voiceintel.Bridge`, whose
+  `Engine().Metrics().Registry()` is the `conversation` engine's real
+  instrument set, built on the production path.
+- **Not wired yet, for two reasons:**
+  - **No traffic source on `main`.** No call driver exists on `main`, and the
+    owner's ADR-0022 records that "the production build registers no driver".
+    The engine therefore never runs a conversation in production.
+    `metrics.Counter.samples` emits only label sets that have been observed,
+    so an unincremented counter, labelled or not, produces **no series at
+    all**. Only gauges would appear, each reading zero. That is an empty
+    endpoint in effect, and this phase does not ship one to claim
+    completion.
+  - **The owner's uncommitted work.** It rewrites `services/go/voice/go.mod`'s
+    require block, which is exactly where `metricsexport` would be added. It
+    also modifies `cmd/server/main.go` and 17 of its tests, and adds
+    `driver.go` and `internal/`. Landing a change there first would force the
+    owner into a merge in the middle of their work.
+- **Unblocks when** the owner's voice work, including its call driver, has
+  landed on `main`. Then mount `/metrics` in `voice`'s `buildService`, using
+  `SetMetricsHandler(metricsexport.New(...).Handler())` over the bridge
+  engine's registry. A test should assert that a driven turn moves a series.
 
 ### M2 — tracing
 
-**PR:** #82, ADR-0026, **Proposed** and held open for the owner, like PR #44.
+**Merged:** #82, as `c17177d`. ADR-0026 has status **Proposed**: merging it
+records the proposal and does not accept it.
 
 - **Recommendation:** W3C Trace Context, implementing the existing frozen
   `runtime.Tracer` / `runtime.Span` port in the non-frozen `telemetry`, with a
   log exporter first and the backend deferred.
+- **Reuse without a frozen edit:** a type in `telemetry` satisfies the exported
+  interfaces structurally, and `runtime.WithTracer` already exists to inject
+  it. No production code constructs a `runtime.Kernel` today, so no production
+  span exists yet.
+- **Status today:** the ADR exists. No tracing instrumentation exists, and no
+  backend is chosen.
 - **No tracing code is written** until the ADR is accepted.
 - **Numbering:** 0026 is the first number used or claimed nowhere:
   - `main` has 0000–0017;
   - the owner's tree has 0018–0025;
   - #44 claims a second 0024;
   - no file, branch, commit or open PR uses 0026 or above.
+
+### M2 — content redaction in logs
+
+**PR:** #85.
+
+- **Decision:** `RedactingHandler` replaces values under conversation-content
+  keys with `[REDACTED]`. This enforces ADR-0006 §10: prompts and transcripts
+  are "never logged verbatim".
+- **Matching:**
+  - `transcript`, `utterance` and `prompt` match as substrings;
+  - `text`, `content` and `body` must be the key's last word, so `context`,
+    `content_type` and `body_size` are kept.
+- **Effect today:** no production log call uses a content key, so no current
+  log output changes.
+- **Tests:** 20 content-key spellings suppressed and 10 lookalikes preserved;
+  groups, `WithAttrs`, allow-list precedence and the tokeniser are covered.
 
 **Correction to the M2 table above:** it said "0026 is cited in the owner's
 untracked phase 18/19 documents". The only such citation,
