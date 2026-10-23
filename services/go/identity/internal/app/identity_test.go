@@ -71,4 +71,3 @@ func TestIdentityService_TokenRotationAndReuse(t *testing.T) {
 		t.Fatalf("expected ErrTokenReused, got: %v", err)
 	}
 }
-
