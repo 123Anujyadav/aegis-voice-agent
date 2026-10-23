@@ -637,7 +637,7 @@ func TestE2E_IdentityTokenAdmittedByEdgeThroughTheRealLifecycle(t *testing.T) {
 	req, _ := http.NewRequest("GET", whoamiPath, http.NoBody)
 	req.Header.Set("Authorization", "DPoP "+token)
 	req.Header.Set("DPoP", proof(t, device, "GET", e2eOrigin+whoamiPath, token))
-	applicationHandler(realRT.Authenticator(), routes).ServeHTTP(rec, req)
+	applicationHandler(realRT.Authenticator(), routes, nil).ServeHTTP(rec, req)
 	if rec.code != http.StatusServiceUnavailable || reached.Load() != before {
 		t.Errorf("after the pool closed: %d, handler ran %d more", rec.code, reached.Load()-before)
 	}

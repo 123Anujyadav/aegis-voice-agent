@@ -109,7 +109,7 @@ func newMeRig(t *testing.T) *meRig {
 		r.reached.Add(1)
 		prod.ServeHTTP(w, req)
 	})
-	r.h = applicationHandler(a, routes)
+	r.h = applicationHandler(a, routes, nil)
 	return r
 }
 

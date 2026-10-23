@@ -238,7 +238,7 @@ func TestConfigureAuth_RoutesAreServedOnlyBehindAuthentication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := applicationHandler(a, someRoutes(&n))
+	h := applicationHandler(a, someRoutes(&n), nil)
 	for _, hdr := range []map[string]string{nil, {"Authorization": "Bearer x"}, {"Authorization": "DPoP x", "DPoP": "y"}} {
 		req := httptest.NewRequest("GET", "/v1/protected", http.NoBody)
 		for k, v := range hdr {

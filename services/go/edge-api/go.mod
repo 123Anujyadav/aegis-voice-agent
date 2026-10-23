@@ -13,11 +13,12 @@ require (
 	github.com/callscreen/callscreen-platform/packages/go/dpop v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/middleware v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/platform v0.0.0
+	github.com/callscreen/callscreen-platform/packages/go/runtime v0.0.0
+	github.com/callscreen/callscreen-platform/packages/go/telemetry v0.0.0
 	github.com/jackc/pgx/v5 v5.10.0
 )
 
 require (
-	github.com/callscreen/callscreen-platform/packages/go/telemetry v0.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -29,7 +30,6 @@ require (
 	github.com/callscreen/callscreen-platform/packages/go/metrics v0.0.0 // indirect
 	github.com/callscreen/callscreen-platform/packages/go/pgshared v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/redis v0.0.0 // indirect
-	github.com/callscreen/callscreen-platform/packages/go/runtime v0.0.0 // indirect
 )
 
 // The module path above is not yet a fetchable remote: this monorepo is
