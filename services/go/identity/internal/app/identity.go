@@ -884,6 +884,8 @@ type IdentityService struct {
 	// integrity is Play Integrity verification (integrity.go); nil means
 	// unavailable, and VerifyPlayIntegrity then fails closed.
 	integrity *integrityCheck
+	// integrityObserver is told every VerifyPlayIntegrity outcome; nil is none.
+	integrityObserver func(IntegrityOutcome, []IntegrityReason)
 
 	// newCode mints the one-time code. Injected rather than called directly so
 	// a test can make the value predictable WITHOUT the production path ever
