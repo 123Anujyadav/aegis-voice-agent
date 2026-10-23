@@ -330,6 +330,13 @@ The real-PostgreSQL suites of both services run under `-race` in CI
   - **Wiring the tier into issuance and refresh** is a product decision. No
     restricted-tier model exists yet.
 - **No OTP delivery provider exists.**
+  - **Exists:** a failover sender, `internal/otpdelivery`, as ADR-0010 §9
+    requires. It tries ordered providers, bounds each attempt, never returns
+    provider text, and has a delivery-outcome hook. It is tested with fakes.
+  - **Missing:** a real provider. One needs a commercial account, credentials
+    provisioned by SRE, egress, and in India DLT-registered sender ids and
+    templates. Until then identity is not configured with a sender, and it
+    refuses OTP requests truthfully.
 - **Key provisioning and rotation as an operation** (Secret volumes, the order
   of rollout). This is SRE's, and needs authorisation for infrastructure
   changes. The procedure is documented in
