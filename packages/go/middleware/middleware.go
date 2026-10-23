@@ -1,6 +1,7 @@
 // Package middleware holds cross-cutting HTTP handlers: problem-details
 // errors, security headers, correlation IDs and rate limiting. It performs no
-// real authentication; see AuthMiddleware.
+// authentication or authorisation: the unverifying AuthMiddleware and
+// RequireRole stubs were removed (Phase 18 D11.1) and must not return.
 package middleware
 
 import (
@@ -18,8 +19,6 @@ type contextKey string
 
 // Context keys under which the middleware stores request values.
 const (
-	// UserContextKey holds the request's *UserClaims.
-	UserContextKey contextKey = "user_claims"
 	// CorrelationContextKey holds the request's correlation ID string.
 	CorrelationContextKey contextKey = "correlation_id"
 )
@@ -123,52 +122,6 @@ func isCorrelationID(s string) bool {
 		}
 	}
 	return true
-}
-
-// AuthMiddleware performs NO authentication. It rejects requests without a
-// "Bearer " Authorization prefix and attaches a hardcoded identity to every
-// other request, verifying no signature, issuer or expiry. It has no callers
-// and must not be used as an access control.
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			WriteProblemDetails(w, http.StatusUnauthorized, "Unauthorized", "Missing or invalid Bearer token", "ERR_UNAUTHORIZED", r.URL.Path, r.Header.Get("X-Correlation-ID"))
-			return
-		}
-		claims := &UserClaims{
-			Subject:  "usr_subscriber",
-			Roles:    []string{"subscriber"},
-			TenantID: "ten_in_south",
-		}
-		ctx := context.WithValue(r.Context(), UserContextKey, claims)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// RequireRole rejects requests whose context claims lack requiredRole. The
-// claims come from AuthMiddleware, which fabricates them, so this enforces
-// nothing about the real caller.
-func RequireRole(requiredRole string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := r.Context().Value(UserContextKey).(*UserClaims)
-		if !ok || claims == nil {
-			WriteProblemDetails(w, http.StatusUnauthorized, "Unauthorized", "User claims absent", "ERR_UNAUTHORIZED", r.URL.Path, r.Header.Get("X-Correlation-ID"))
-			return
-		}
-		hasRole := false
-		for _, role := range claims.Roles {
-			if role == requiredRole {
-				hasRole = true
-				break
-			}
-		}
-		if !hasRole {
-			WriteProblemDetails(w, http.StatusForbidden, "Forbidden", "Insufficient privileges for role: "+requiredRole, "ERR_FORBIDDEN", r.URL.Path, r.Header.Get("X-Correlation-ID"))
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 // RateLimitingMiddleware rejects requests once cache.Increment reports more
