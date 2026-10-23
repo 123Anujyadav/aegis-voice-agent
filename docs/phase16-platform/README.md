@@ -245,9 +245,10 @@ overwritten or reverted.
   - their P1-37 record says `deployment.yaml` "is never restored";
   - the manifest tree itself is PR #44's pending ADR.
 - **Mounting `/metrics` now would publish nothing.**
-  - None of the 16 service binaries owns an instrumented registry. Every one
-    imports only `platform`; `identity` adds `middleware`, and `voice` adds
-    `voiceintel`, which records no metrics.
+  - No service exports a metric today. Fifteen of the 16 service binaries
+    import only `platform` (`identity` also imports `middleware`) and own no
+    instruments at all. The one instrument set reachable from a service
+    binary is `voice`'s `conversation` engine, described below.
   - The only mount points are the 15 `cmd/server/main.go` files, and the owner
     has uncommitted changes in all of them (build-info `version` subcommand).
 - **Not exposed publicly, now or when mounted.** The health listener has no
@@ -259,7 +260,8 @@ overwritten or reverted.
   instrument set, built on the production path.
 - **Not wired yet, for two reasons:**
   - **No traffic source on `main`.** No call driver exists on `main`, and the
-    owner's ADR-0022 records that "the production build registers no driver".
+    owner's untracked ADR-0022 records that "the production build registers
+    no driver".
     The engine therefore never runs a conversation in production.
     `metrics.Counter.samples` emits only label sets that have been observed,
     so an unincremented counter, labelled or not, produces **no series at
@@ -268,8 +270,8 @@ overwritten or reverted.
     completion.
   - **The owner's uncommitted work.** It rewrites `services/go/voice/go.mod`'s
     require block, which is exactly where `metricsexport` would be added. It
-    also modifies `cmd/server/main.go` and 17 of its tests, and adds
-    `driver.go` and `internal/`. Landing a change there first would force the
+    also modifies `cmd/server/main.go` and 17 of its tests, and carries
+    `cmd/server/driver.go` and `internal/`, neither of which is on `main`. Landing a change there first would force the
     owner into a merge in the middle of their work.
 - **Unblocks when** the owner's voice work, including its call driver, has
   landed on `main`. Then mount `/metrics` in `voice`'s `buildService`, using
