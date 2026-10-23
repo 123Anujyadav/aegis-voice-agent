@@ -27,9 +27,13 @@ import (
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))
 
-type fakeRunners struct{ got []platform.Runner }
+type fakeRunners struct {
+	got     []platform.Runner
+	metrics http.Handler
+}
 
-func (f *fakeRunners) Register(r platform.Runner) { f.got = append(f.got, r) }
+func (f *fakeRunners) Register(r platform.Runner)       { f.got = append(f.got, r) }
+func (f *fakeRunners) SetMetricsHandler(h http.Handler) { f.metrics = h }
 
 type fakeChecks struct{ got []string }
 

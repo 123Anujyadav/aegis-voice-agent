@@ -60,6 +60,7 @@ func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(
 
 type rig struct {
 	h       http.Handler
+	a       *Authenticator
 	signer  *accesstoken.Signer
 	priv    ed25519.PrivateKey
 	device  *ecdsa.PrivateKey
@@ -123,6 +124,7 @@ func newRig(t *testing.T) *rig {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("protected business logic ran"))
 	})
+	r.a = a
 	r.h = middleware.CorrelationIDMiddleware(a.Middleware(protected))
 	return r
 }
