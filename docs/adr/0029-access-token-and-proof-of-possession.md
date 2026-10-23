@@ -286,9 +286,14 @@ The real-PostgreSQL suites of both services run under `-race` in CI
   without echoing the DSN, unless `ENVIRONMENT` is explicitly `development`.
 - **Tested:** refusal when `ENVIRONMENT` is unset, staging or production, in
   both services.
-- **Not yet tested:** a successful `verify-full` connection to a real
-  TLS-serving PostgreSQL. The tests cover the refusal path and the parsed TLS
-  configuration only.
+- **Tested against a real TLS-serving PostgreSQL** (#104, in the
+  `identity-postgres` job):
+  - `verify-full` with the right CA connects, and the server's `pg_stat_ssl`
+    shows the connection encrypted with TLS 1.2+;
+  - an unrelated CA is refused at the handshake;
+  - a host name the certificate does not carry is refused at the handshake.
+
+  A mutation that skips certificate verification fails both refusal tests.
 
 **§6 findings:**
 
@@ -304,7 +309,6 @@ The real-PostgreSQL suites of both services run under `-race` in CI
 - **Owner ratification** of this ADR.
 - **Play Integrity is a stub**, which blocks production on its own.
 - **No OTP delivery provider exists.**
-- **The real `verify-full` connection test** described above.
 - **Key provisioning and rotation as an operation** (Secret volumes, the order
   of rollout). This is SRE's, and needs authorisation for infrastructure
   changes.
