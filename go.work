@@ -34,6 +34,9 @@
 go 1.25.0
 
 use (
+	./packages/go/accesstoken
+	./packages/go/dpop
+	./packages/go/pgshared
 	./packages/go/audiobridge
 	./packages/go/voice
 	./packages/go/voiceintel
