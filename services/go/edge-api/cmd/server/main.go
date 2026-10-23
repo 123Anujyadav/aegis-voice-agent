@@ -40,6 +40,15 @@ func main() {
 		}
 		return
 	}
+	// `service trusted-keys` prints the kid and public fingerprint of each key
+	// the verifier trusts (keyfp.go), reading only the key variables.
+	if len(os.Args) == 2 && os.Args[1] == "trusted-keys" {
+		if err := writeTrustedKeys(os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		// Reported to stderr rather than through the logger because a failure
 		// here may well BE a failure to construct the logger.
