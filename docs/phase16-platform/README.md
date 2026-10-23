@@ -324,7 +324,7 @@ that the number is absent rather than claiming it.
 
 ### M2 — `/metrics` with real measurements
 
-**Merged:** #86, as `GWSHA`.
+**Merged:** #86, as `83f0f40`.
 
 - **Owner:** the telephony gateway is the first service to own and expose real
   metrics.
@@ -357,7 +357,8 @@ that the number is absent rather than claiming it.
     losing ownership as seen through the exporter.
   - **Binary:** the real binary's probes appear on `/metrics` over HTTP.
   - **Real PostgreSQL:** a single-owner test, run in gateway-postgres, asserts
-    `owned`=1.
+    `owned`=1. That suite went from 141 to 157 passing tests, with 0 skipped,
+    under `-race`.
 - **Still without metrics:** `voice`. It unblocks when a production call driver
   and providers exist. Then `voice` exposes
   `Bridge.Engine().Metrics().Registry()` the same way.
