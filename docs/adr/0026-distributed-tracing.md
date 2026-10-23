@@ -1,8 +1,7 @@
 # ADR-0026: Distributed tracing: W3C Trace Context and a stdlib span model, backend deferred
 
-- **Status:** **Proposed, not accepted.** This ADR records a recommendation for
-  the owner to decide. Nothing in it is in force. Only step 1, a
-  backend-independent adapter (#87), is implemented.
+- **Status:** **Accepted** (2026-10-23, repository owner). Steps 1–3 are
+  authorised. Step 4, the backend adapter, needs its own ADR (ADR-0028).
 - **Date:** 2026-10-23
 - **Deciders:** the repository owner (architecture authority)
 - **Consulted:** _none yet_
@@ -24,8 +23,7 @@ today.
   (#87, #89). No production code path emits a span, and no service edge parses
   or propagates `traceparent`.
 - **Backend:** none is chosen, configured or credentialed.
-- **Status:** this ADR is a proposal and a plan, and merging it does not
-  accept it.
+- **Status:** accepted as a decision and a plan. Acceptance deploys nothing.
 
 ---
 
@@ -303,8 +301,8 @@ change to a frozen module.
 
 | Decision | Authority | Status |
 |---|---|---|
-| Accept, amend or reject this ADR, and its number | repository owner | **pending** |
-| Replace the `packages/go/telemetry` stub's declarations | repository owner | pending; part of acceptance |
+| Accept, amend or reject this ADR, and its number | repository owner | **accepted** (2026-10-23) |
+| Replace the `packages/go/telemetry` stub's declarations | repository owner | **accepted**; done in a follow-up PR |
 | Tracing backend and its credential | owner and SRE | **not requested here** |
 | Any freeze exception for in-module spans | repository owner | **not requested here** |
 
