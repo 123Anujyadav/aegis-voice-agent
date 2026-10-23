@@ -1,45 +1,20 @@
-// Package telemetry defines the tracing and metrics interfaces services depend
-// on, with no-op implementations.
+// Package telemetry implements distributed tracing for the platform
+// (ADR-0026, accepted 2026-10-23).
+//
+// It provides:
+//   - RecordingTracer, the implementation of the frozen runtime.Tracer and
+//     runtime.Span port. A kernel takes it through runtime.WithTracer;
+//   - W3C Trace Context identity: ParseTraceparent and FormatTraceparent,
+//     plus SpanContext propagation through a context;
+//   - the Exporter interface, and LogExporter, which writes one structured
+//     record per span through the platform's redacting logger.
+//
+// Attributes and error text are allowlisted (ADR-0026 rules 4 and 6). No
+// backend is configured here: the backend adapter is ADR-0028's, behind
+// Exporter.
+//
+// This file previously held a stub: a second, incompatible Tracer interface,
+// a no-op MetricsExporter, and an InitializeOpenTelemetry that configured
+// nothing. None of it had an importer, and accepting ADR-0026 replaced it.
+// Metrics are exported by packages/go/metricsexport (ADR-0013).
 package telemetry
-
-import (
-	"context"
-	"fmt"
-)
-
-// Tracer starts trace spans. StartSpan returns a context for the span and a
-// function that ends it.
-type Tracer interface {
-	StartSpan(ctx context.Context, spanName string) (context.Context, func())
-}
-
-// MetricsExporter records gauge and counter metrics.
-type MetricsExporter interface {
-	RecordGauge(name string, value float64, labels map[string]string)
-	IncrementCounter(name string, value int64, labels map[string]string)
-}
-
-// NoopTracer is a Tracer that records nothing.
-type NoopTracer struct{}
-
-// StartSpan returns ctx unchanged and an end function that does nothing.
-func (n *NoopTracer) StartSpan(ctx context.Context, spanName string) (context.Context, func()) {
-	return ctx, func() {}
-}
-
-// NoopMetricsExporter is a MetricsExporter that discards every value.
-type NoopMetricsExporter struct{}
-
-// RecordGauge discards the value.
-func (n *NoopMetricsExporter) RecordGauge(name string, value float64, labels map[string]string) {}
-
-// IncrementCounter discards the value.
-func (n *NoopMetricsExporter) IncrementCounter(name string, value int64, labels map[string]string) {}
-
-// InitializeOpenTelemetry prints the service name to standard output and
-// returns a NoopTracer and a NoopMetricsExporter. Despite its name, it does not
-// configure OpenTelemetry, and it never returns an error.
-func InitializeOpenTelemetry(serviceName string) (Tracer, MetricsExporter, error) {
-	fmt.Printf("Initializing OpenTelemetry for service: %s\n", serviceName)
-	return &NoopTracer{}, &NoopMetricsExporter{}, nil
-}
