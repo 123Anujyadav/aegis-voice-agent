@@ -87,6 +87,9 @@ func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runne
 	// decides, by endpoint and outcome (httpapi.MetricRequests). It shares
 	// HealthPort and is never served on the application port.
 	apiMetrics.MountOn(runners, serviceName)
+	// Security audit events (wrong codes, lockouts, refresh-token reuse) are
+	// counted in the same registry (httpapi.MetricSecurityEvents).
+	apiMetrics.Instrument(rt.Service)
 	log.Info("identity service constructed on PostgreSQL; HTTP API registered",
 		slog.Int("http_port", svcCfg.HTTPPort))
 	return nil

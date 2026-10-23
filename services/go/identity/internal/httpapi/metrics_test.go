@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/routes"
 )
 
@@ -152,4 +153,61 @@ func TestMetrics_VocabularyIsClosed(t *testing.T) {
 	}
 	var none *Metrics
 	none.record(httptest.NewRequest("POST", routes.Refresh, http.NoBody), OutcomeSuccess)
+}
+
+// The security-event counter counts each audit event under its type only;
+// an unknown type is "other"; a nil Metrics counts nothing and never fails.
+func TestMetrics_SecurityEventsAreCountedByTypeOnly(t *testing.T) {
+	m := NewMetrics()
+	for _, e := range []app.SecurityEvent{
+		{Type: app.EventOtpVerificationFailed, RequestID: "req_secret"},
+		{Type: app.EventOtpVerificationFailed},
+		{Type: app.EventOtpLockout},
+		{Type: app.EventRefreshTokenReused, SessionID: "sess_secret"},
+		{Type: "identity.something.new"},
+	} {
+		if err := m.Record(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for typ, n := range map[string]uint64{
+		string(app.EventOtpVerificationFailed): 2, string(app.EventOtpLockout): 1,
+		string(app.EventRefreshTokenReused): 1, SecurityEventOther: 1,
+	} {
+		if got := m.security.Value(typ); got != n {
+			t.Errorf("%s = %d, want %d", typ, got, n)
+		}
+	}
+	for _, s := range m.security.Series() {
+		if strings.Contains(s, "secret") {
+			t.Errorf("series %q carries event data", s)
+		}
+	}
+	var none *Metrics
+	if err := none.Record(app.SecurityEvent{Type: app.EventOtpLockout}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Through the API: once Instrument makes Metrics the service's auditor, a
+// refresh-token reuse over HTTP is counted as a security event, alongside the
+// response counter's invalid_token.
+func TestMetrics_InstrumentCountsReuseOverHTTP(t *testing.T) {
+	r := newRig(t, true)
+	r.m.Instrument(r.svc)
+	k := deviceKey(t)
+	sid, rt := r.enrol(t, k)
+	if got := r.post(t, routes.Refresh, refreshBody(sid, rt), proof(t, k, k, "s1", "POST", refreshURL, time.Now())); got.code != 200 {
+		t.Fatalf("refresh: %d %s", got.code, got.raw)
+	}
+	r.post(t, routes.Refresh, refreshBody(sid, rt), proof(t, k, k, "s2", "POST", refreshURL, time.Now()))
+	if got := r.m.security.Value(string(app.EventRefreshTokenReused)); got != 1 {
+		t.Fatalf("reuse events = %d, want 1", got)
+	}
+	if got := r.m.requests.Value(EndpointRefresh, "invalid_token"); got != 1 {
+		t.Fatalf("invalid_token responses = %d, want 1", got)
+	}
+	if r.svc.AuditFailures() != 0 {
+		t.Fatalf("audit failures = %d", r.svc.AuditFailures())
+	}
 }

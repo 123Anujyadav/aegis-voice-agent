@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -226,6 +227,24 @@ func TestLifecycle_ActivatedHTTPEndToEndAndOrderlyShutdown(t *testing.T) {
 	}
 	if code, body = call(t, base, routes.Refresh, fmt.Sprintf(`{"sessionId":%q,"refreshToken":%q}`, sid, rtok), dpopProof(t, k, "r2", testRefreshURL)); code != 401 {
 		t.Errorf("reuse over HTTP: %d %v", code, body)
+	}
+
+	// GET /metrics on the HEALTH port shows the reuse as a security event and
+	// as a refused refresh, through the real lifecycle.
+	scrape, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metrics", cfg.HealthPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exposition, _ := io.ReadAll(scrape.Body)
+	scrape.Body.Close()
+	for _, want := range []string{
+		`identity_security_events_total{type="identity.refresh.token_reused"} 1`,
+		`identity_auth_requests_total{endpoint="token_refresh",outcome="invalid_token"} 1`,
+		`identity_auth_requests_total{endpoint="otp_validate",outcome="success"} 1`,
+	} {
+		if scrape.StatusCode != http.StatusOK || !strings.Contains(string(exposition), want) {
+			t.Errorf("metrics scrape (%d) lacks %q:\n%s", scrape.StatusCode, want, exposition)
+		}
 	}
 
 	// A request in flight across shutdown: headers and half the body now, the
