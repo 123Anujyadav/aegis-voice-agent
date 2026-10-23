@@ -35,6 +35,7 @@ func (f *fakeProvider) SendOtp(ctx context.Context, msisdn, code string) error {
 	f.mu.Lock()
 	f.calls++
 	f.gotCode = code
+	err := f.err
 	f.mu.Unlock()
 	if f.delay > 0 {
 		if f.ignore {
@@ -47,7 +48,7 @@ func (f *fakeProvider) SendOtp(ctx context.Context, msisdn, code string) error {
 			}
 		}
 	}
-	return f.err
+	return err
 }
 
 func (f *fakeProvider) callCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.calls }
@@ -257,5 +258,69 @@ func TestSender_ThroughIdentityRequestOtp(t *testing.T) {
 	svc.SetOtpSender(newSender(t, &recorder{}, &fakeProvider{name: "primary", err: errors.New("down")}))
 	if _, err := svc.RequestOtp(ctx, testNumber); !errors.Is(err, app.ErrOtpDeliveryFailed) {
 		t.Fatalf("err = %v, want ErrOtpDeliveryFailed", err)
+	}
+}
+
+// Health tracks each provider: failures and timeouts accumulate, a delivery
+// resets them, and an abandoned attempt (the caller gave up) is not held
+// against the provider.
+func TestSender_HealthTracksEachProvider(t *testing.T) {
+	failing := &fakeProvider{name: "primary", err: errors.New("down")}
+	backup := &fakeProvider{name: "secondary"}
+	s := newSender(t, &recorder{}, failing, backup)
+	for i := 0; i < 3; i++ {
+		if err := s.SendOtp(context.Background(), testNumber, testCode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := s.Health()
+	if len(h) != 2 || h[0].Name != "primary" || h[1].Name != "secondary" {
+		t.Fatalf("health order %+v, want the try order", h)
+	}
+	if h[0].ConsecutiveFailures != 3 || h[0].LastOutcome != OutcomeFailed || h[0].LastAttemptAt.IsZero() {
+		t.Errorf("primary %+v; want 3 consecutive failures", h[0])
+	}
+	if h[1].ConsecutiveFailures != 0 || h[1].LastOutcome != OutcomeDelivered {
+		t.Errorf("secondary %+v; want delivered", h[1])
+	}
+	failing.mu.Lock()
+	failing.err = nil
+	failing.mu.Unlock()
+	if err := s.SendOtp(context.Background(), testNumber, testCode); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Health()[0]; got.ConsecutiveFailures != 0 || got.LastOutcome != OutcomeDelivered {
+		t.Errorf("after recovery %+v; a delivery must reset the count", got)
+	}
+
+	// Abandoned attempts do not count against the provider.
+	slow := &fakeProvider{name: "primary", delay: 5 * time.Second}
+	s2 := newSender(t, &recorder{}, slow)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_ = s2.SendOtp(ctx, testNumber, testCode)
+	if got := s2.Health()[0]; got.ConsecutiveFailures != 0 || got.LastOutcome != OutcomeAbandoned {
+		t.Errorf("abandoned %+v; must not count as a failure", got)
+	}
+	// Untried providers report nothing yet.
+	s3 := newSender(t, &recorder{}, &fakeProvider{name: "primary"}, &fakeProvider{name: "secondary"})
+	_ = s3.SendOtp(context.Background(), testNumber, testCode)
+	if got := s3.Health()[1]; got.LastOutcome != "" || !got.LastAttemptAt.IsZero() {
+		t.Errorf("an untried provider reports %+v", got)
+	}
+}
+
+// Health is safe to read while sends are in flight (run under -race).
+func TestSender_HealthIsSafeUnderConcurrency(t *testing.T) {
+	s := newSender(t, &recorder{}, &fakeProvider{name: "primary"})
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(2)
+		go func() { defer wg.Done(); _ = s.SendOtp(context.Background(), testNumber, testCode) }()
+		go func() { defer wg.Done(); _ = s.Health() }()
+	}
+	wg.Wait()
+	if got := s.Health()[0]; got.LastOutcome != OutcomeDelivered {
+		t.Fatalf("%+v", got)
 	}
 }

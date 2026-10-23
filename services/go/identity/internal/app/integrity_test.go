@@ -28,6 +28,7 @@ func goodPolicy() IntegrityPolicy {
 		CertificateDigests: []string{goodDigest},
 		MaxAge:             2 * time.Minute,
 		FutureSkew:         30 * time.Second,
+		DecodeTimeout:      time.Second,
 	}
 }
 

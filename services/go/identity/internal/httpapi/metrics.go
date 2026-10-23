@@ -3,12 +3,14 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync/atomic"
 
 	"github.com/callscreen/callscreen-platform/packages/go/metrics"
 	"github.com/callscreen/callscreen-platform/packages/go/metricsexport"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
+	"github.com/callscreen/callscreen-platform/services/go/identity/internal/otpdelivery"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/routes"
 )
 
@@ -34,6 +36,27 @@ const MetricSecurityEvents = "identity_security_events_total"
 // know, so a new type can never add an unbounded label value.
 const SecurityEventOther = "other"
 
+// MetricIntegrityOutcomes counts Play Integrity verifications by outcome, and
+// MetricIntegrityRestrictions counts the reasons a verdict was restricted:
+// ADR-0010 §9's "Play Integrity verdict distribution". No verifier is
+// configured today, so in production every call is "unavailable".
+const (
+	MetricIntegrityOutcomes     = "identity_play_integrity_outcomes_total"
+	MetricIntegrityRestrictions = "identity_play_integrity_restrictions_total"
+)
+
+// MetricOtpDeliveries counts OTP delivery attempts by provider and outcome:
+// ADR-0010 §9's "OTP send failure rate", per provider. Provider names are the
+// short labels otpdelivery.New validated; anything else counts as
+// ProviderOther. No provider is configured today.
+const MetricOtpDeliveries = "identity_otp_deliveries_total"
+
+// ProviderOther is the provider label for a name that is not a valid
+// otpdelivery provider name.
+const ProviderOther = "other"
+
+var providerLabelPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+
 // Endpoint label values. The vocabulary is closed: the three routes, and
 // EndpointUnknown for any other path, which is never itself used as a label
 // (a path can carry anything a client sends).
@@ -52,18 +75,24 @@ const OutcomeSuccess = "success"
 
 // Metrics is the identity API's instrument set.
 type Metrics struct {
-	reg      *metrics.Registry
-	requests *metrics.Counter
-	security *metrics.Counter
+	reg          *metrics.Registry
+	requests     *metrics.Counter
+	security     *metrics.Counter
+	integrity    *metrics.Counter
+	restrictions *metrics.Counter
+	deliveries   *metrics.Counter
 }
 
 // NewMetrics registers the API's instruments in a fresh registry.
 func NewMetrics() *Metrics {
 	reg := metrics.NewRegistry()
 	return &Metrics{
-		reg:      reg,
-		requests: reg.Counter(MetricRequests, "endpoint", "outcome"),
-		security: reg.Counter(MetricSecurityEvents, "type"),
+		reg:          reg,
+		requests:     reg.Counter(MetricRequests, "endpoint", "outcome"),
+		security:     reg.Counter(MetricSecurityEvents, "type"),
+		integrity:    reg.Counter(MetricIntegrityOutcomes, "outcome"),
+		restrictions: reg.Counter(MetricIntegrityRestrictions, "reason"),
+		deliveries:   reg.Counter(MetricOtpDeliveries, "provider", "outcome"),
 	}
 }
 
@@ -108,7 +137,36 @@ func (m *Metrics) Record(e app.SecurityEvent) error {
 // Instrument makes m the service's security auditor, so its audit events are
 // counted (MetricSecurityEvents). Keeping this here keeps internal/app out of
 // cmd/server, whose only route to the service is through this package.
-func (m *Metrics) Instrument(svc *app.IdentityService) { svc.SetSecurityAuditor(m) }
+func (m *Metrics) Instrument(svc *app.IdentityService) {
+	svc.SetSecurityAuditor(m)
+	svc.SetIntegrityObserver(m.ObserveIntegrity)
+}
+
+// ObserveIntegrity counts one Play Integrity outcome and, for a restricted
+// verdict, each reason. Both vocabularies are closed in app. A nil m counts
+// nothing.
+func (m *Metrics) ObserveIntegrity(o app.IntegrityOutcome, reasons []app.IntegrityReason) {
+	if m == nil {
+		return
+	}
+	m.integrity.Inc(string(o))
+	for _, r := range reasons {
+		m.restrictions.Inc(string(r))
+	}
+}
+
+// ObserveOtpDelivery counts one OTP delivery attempt. Its signature is
+// otpdelivery.Config.Observe's, so a configured Sender reports here. A nil m
+// counts nothing.
+func (m *Metrics) ObserveOtpDelivery(provider string, o otpdelivery.Outcome) {
+	if m == nil {
+		return
+	}
+	if !providerLabelPattern.MatchString(provider) {
+		provider = ProviderOther
+	}
+	m.deliveries.Inc(provider, string(o))
+}
 
 // endpointFor maps a request path to its endpoint label.
 func endpointFor(path string) string {
