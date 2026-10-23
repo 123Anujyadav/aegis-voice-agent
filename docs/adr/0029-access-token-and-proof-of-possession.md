@@ -244,6 +244,71 @@ An independent read-only review found **no critical or high issues**.
 - **Low:** a NUL byte in `jti` produced a 503. Restricted under D11.4.
 - **Info:** a JSON parser differential. Condition (a).
 
+## Implementation status (2026-10-23)
+
+This records what has landed against the decisions above. It does **not**
+change the Status line: the decisions remain owner-ratification pending.
+
+**D11.5 order, all four steps merged:**
+1. this ADR (#98);
+2. `accesstoken`, `dpop` and `pgshared`, hardened (#99);
+3. `identity` and `edge-api` together, with the unsigned token removed (#100);
+4. edge tracing on top (#101, ADR-0026 step 2).
+
+The real-PostgreSQL suites of both services run under `-race` in CI
+(`identity-postgres`, #102). An unexpected skip fails that job.
+
+**D11.3 conditions:**
+- **(a) Strict JSON:** `accesstoken.DecodeStrictJSON` rejects duplicate member
+  names and any member name outside `[a-z]+`, at any depth. `dpop` uses it.
+- **(b) RFC vectors:**
+  - the RFC 8037 A.4 Ed25519 JWS example (`accesstoken/conformance_test.go`);
+  - RFC 9449's example proofs, `jkt` and `ath` (`dpop/conformance_test.go`).
+    The RFC 7638 thumbprint is checked against RFC 9449's published `jkt` for
+    its example EC key, because RFC 7638's own example is an RSA key.
+- **(c) Fuzzing:** `FuzzVerify` exists in both packages.
+
+**Keys and rotation:**
+- **Implemented:** `edge-api` verifies with the active key plus an optional
+  previous key (`ACCESS_TOKEN_PREVIOUS_PUBLIC_KEY_FILE` and
+  `ACCESS_TOKEN_PREVIOUS_KID`). Both are set or neither, the kid must be
+  distinct, and the file must be its own and must not hold the active key.
+- **Tested:** `TestRotation_OverlapProcedureNeverRejectsAValidToken` runs the
+  five-step procedure above through the real middleware. It is
+  mutation-checked: a verifier that ignores the previous key fails it.
+- **The production gate's own condition is met.** Production issuance remains
+  blocked for the reasons listed under "Still open" below.
+
+**Database TLS:**
+- **Implemented:** `pgshared.PolicyForEnvironment` is enforced by `identity`
+  (service start and `identity migrate`) and by `edge-api`. A DSN that is not
+  `verify-full` with an explicit CA bundle is refused before any connection,
+  without echoing the DSN, unless `ENVIRONMENT` is explicitly `development`.
+- **Tested:** refusal when `ENVIRONMENT` is unset, staging or production, in
+  both services.
+- **Not yet tested:** a successful `verify-full` connection to a real
+  TLS-serving PostgreSQL. The tests cover the refusal path and the parsed TLS
+  configuration only.
+
+**§6 findings:**
+
+| Finding | Closed by |
+|---|---|
+| Medium: database TLS not enforced | #99 (`pgshared` policy) and #100 (both services) |
+| Medium: single trusted `kid` | #100 (key-set verifier and rotation test) |
+| Low: replay reservation without a deadline | #99 (`pgshared.ReserveTimeout`, 2 s) |
+| Low: NUL in `jti` gave a 503 | #99 (`jti` restricted to printable ASCII, 1–128 bytes) |
+| Info: JSON parser differential | #99 (condition (a)) |
+
+**Still open:**
+- **Owner ratification** of this ADR.
+- **Play Integrity is a stub**, which blocks production on its own.
+- **No OTP delivery provider exists.**
+- **The real `verify-full` connection test** described above.
+- **Key provisioning and rotation as an operation** (Secret volumes, the order
+  of rollout). This is SRE's, and needs authorisation for infrastructure
+  changes.
+
 ## Revisit triggers
 
 - The token or proof profile must widen (D11.3(d)).
