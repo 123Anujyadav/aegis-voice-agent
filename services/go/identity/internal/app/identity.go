@@ -831,8 +831,20 @@ type OtpRatePolicy struct {
 
 // defaultOtpRatePolicy is the selected INITIAL policy: three requests and five
 // failed verifications per number in any 15 minutes, then a 15-minute lockout.
-// These are starting defaults, not production-tuned values. ADR-0010 (a) asks
-// for exponential backoff and a per-device limit as well; neither is here.
+// These are starting defaults, not production-tuned values.
+//
+// THE LOCKOUT IS DELIBERATELY FIXED, NOT ESCALATING, though ADR-0010 §5(a)
+// asks for exponential backoff. Anyone who knows a number can request a code
+// for it and guess wrong, so every lockout is also a way to deny the real
+// subscriber service. Escalation would make keeping a victim locked out much
+// cheaper, while guessing a 6-digit code at this rate already takes years per
+// number. Refused guesses during a lockout neither count nor extend it. The
+// trade-off is the owner's to revisit (ADR-0029 ratification brief §3a), and
+// lockout_policy_test.go pins it.
+//
+// Limitations: the limit is per number only. There is no per-device limit
+// (no device identity exists before enrolment) and no per-source-address limit
+// (ADR-0010 §10), so a distributed attacker is bounded only per number.
 var defaultOtpRatePolicy = OtpRatePolicy{
 	MaxRequests: 3,
 	MaxFailures: 5,

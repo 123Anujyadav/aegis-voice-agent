@@ -75,6 +75,7 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/accesstoken"
 	"github.com/callscreen/callscreen-platform/packages/go/dpop"
 	"github.com/callscreen/callscreen-platform/packages/go/middleware"
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/routes"
 )
@@ -105,10 +106,18 @@ type handler struct {
 // New returns the identity API. The log receives only fixed codes and paths.
 // Every response it decides is counted in m (MetricRequests); a nil m counts
 // nothing.
-func New(svc *app.IdentityService, log *slog.Logger, m *Metrics) http.Handler {
+//
+// Every request is one edge span (ADR-0026 step 2): identity's listener is a
+// public edge, so the span is a NEW root and an inbound traceparent is never
+// adopted (middleware.EdgeTraceMiddleware). It sits inside correlation, so it
+// carries the correlation ID, and outside the routes and their deadlines, so
+// refusals and timeouts are traced too. A nil tracer leaves the chain as it
+// was.
+func New(svc *app.IdentityService, log *slog.Logger, m *Metrics, tracer runtime.Tracer) http.Handler {
 	h := &handler{svc: svc, log: log, now: time.Now, m: m}
 	var next http.Handler = http.HandlerFunc(h.route)
 	next = withDeadlines(next)
+	next = middleware.EdgeTraceMiddleware(tracer)(next)
 	next = middleware.CorrelationIDMiddleware(next)
 	next = middleware.SecurityHeadersMiddleware(next)
 	return withDecision(h.recoverer(noStore(next)))

@@ -42,9 +42,10 @@ func main() {
 
 // dispatch selects the command. No argument runs the service, as it always
 // has; "migrate" applies the identity schema and exits; "version" prints the
-// build metadata (buildinfo.go) and exits, reading no configuration. Anything
-// else is
-// refused rather than silently running the service.
+// build metadata (buildinfo.go) and exits, reading no configuration;
+// "signing-key-fingerprint" prints the signing key's kid and public
+// fingerprint (keyfp.go). Anything else is refused rather than silently
+// running the service.
 func dispatch(args []string) error {
 	switch {
 	case len(args) == 0:
@@ -53,8 +54,10 @@ func dispatch(args []string) error {
 		return runMigrate(context.Background(), os.Stdout)
 	case len(args) == 1 && args[0] == "version":
 		return writeVersion(os.Stdout)
+	case len(args) == 1 && args[0] == "signing-key-fingerprint":
+		return writeSigningKeyFingerprint(os.Stdout)
 	default:
-		return fmt.Errorf("unknown command %q; usage: service [migrate|version]", strings.Join(args, " "))
+		return fmt.Errorf("unknown command %q; usage: service [migrate|version|signing-key-fingerprint]", strings.Join(args, " "))
 	}
 }
 
