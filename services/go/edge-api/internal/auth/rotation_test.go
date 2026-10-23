@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -49,7 +50,7 @@ func newRotationRig(t *testing.T, cfg Config, c *clock, device *ecdsa.PrivateKey
 func (r *rotationRig) present(t *testing.T, token string) int {
 	t.Helper()
 	claims := map[string]any{
-		"jti": "rot-" + time.Now().Format("150405.000000000"), "htm": http.MethodGet, "htu": origin + path,
+		"jti": "rot-" + strconv.FormatInt(jtiN.Add(1), 10), "htm": http.MethodGet, "htu": origin + path,
 		"iat": r.clock.now().Unix(), "ath": dpop.AccessTokenHash(token),
 	}
 	rr := (&rig{h: r.h, clock: r.clock}).do(t, http.MethodGet, origin+path, auth(token, proofFor(t, r.device, r.device, claims)))

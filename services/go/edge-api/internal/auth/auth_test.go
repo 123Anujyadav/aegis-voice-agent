@@ -19,6 +19,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -164,7 +165,7 @@ var jtiN atomic.Int64
 
 func claimsFor(r *rig, method, htu, token string) map[string]any {
 	return map[string]any{
-		"jti": "j" + string(rune('a'+jtiN.Add(1)%26)) + time.Now().Format("150405.000000000"),
+		"jti": "j" + strconv.FormatInt(jtiN.Add(1), 10),
 		"htm": method, "htu": htu, "iat": r.clock.now().Unix(), "ath": dpop.AccessTokenHash(token),
 	}
 }
