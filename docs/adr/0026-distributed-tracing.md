@@ -1,7 +1,8 @@
 # ADR-0026: Distributed tracing: W3C Trace Context and a stdlib span model, backend deferred
 
 - **Status:** **Proposed, not accepted.** This ADR records a recommendation for
-  the owner to decide. Nothing in it is in force, and no code implements it.
+  the owner to decide. Nothing in it is in force. Only step 1, a
+  backend-independent adapter (#87), is implemented.
 - **Date:** 2026-10-23
 - **Deciders:** the repository owner (architecture authority)
 - **Consulted:** _none yet_
@@ -17,12 +18,14 @@ twice. No file, branch, commit or open PR uses 0026 or any higher number. The
 owner's own closure audit records "no ADR-0026". The owner may renumber this
 proposal when accepting it, as PR #44 also allows.
 
-**What this ADR does not claim.** Tracing does not exist on the platform today.
-- **Instrumentation:** no tracer implementation exists. No production code path
-  emits a span. No `traceparent` is parsed or propagated.
+**What this ADR does not claim.** Tracing does not run anywhere in production
+today.
+- **Instrumentation:** a tracer and a `traceparent` codec exist and are tested
+  (#87, #89). No production code path emits a span, and no service edge parses
+  or propagates `traceparent`.
 - **Backend:** none is chosen, configured or credentialed.
-- **Status:** this ADR is a proposal and a plan. It changes no code, and merging
-  it does not accept it.
+- **Status:** this ADR is a proposal and a plan, and merging it does not
+  accept it.
 
 ---
 
@@ -49,7 +52,7 @@ What exists today:
 
 | Piece | State on `main` |
 |---|---|
-| `runtime.Tracer` / `runtime.Span` (frozen `runtime`, `kernel.go`) | **The platform's tracing port.** Documented as *"the subset of OpenTelemetry the runtime actually uses. An adapter in a sibling module implements it over the real SDK."* `Span` has `SetAttribute`, `RecordError` and `End`, and its doc forbids `PERSONAL`/`SENSITIVE` attributes. The kernel opens one span, `runtime.generate`, with `request_id`, `session_id`, `tier`, `class` and `model` attributes. The only implementation is `NoopTracer`, and `runtime.WithTracer` has **0 callers**. No code outside `runtime`'s own tests constructs a `Kernel` (`runtime.New`), so that span runs in **no production path** today. |
+| `runtime.Tracer` / `runtime.Span` (frozen `runtime`, `kernel.go`) | **The platform's tracing port.** Documented as *"the subset of OpenTelemetry the runtime actually uses. An adapter in a sibling module implements it over the real SDK."* `Span` has `SetAttribute`, `RecordError` and `End`, and its doc forbids `PERSONAL`/`SENSITIVE` attributes. The kernel opens one span, `runtime.generate`, with `request_id`, `session_id`, `tier` and `class` attributes, then `model`, `provider` and `stream_id` once a model is chosen, or `shed_reason` when the request is shed. The only implementation is `NoopTracer`, and `runtime.WithTracer` has **0 callers**. No code outside `runtime`'s own tests constructs a `Kernel` (`runtime.New`), so that span runs in **no production path** today. |
 | `packages/go/telemetry` | A stub with **zero importers**. `InitializeOpenTelemetry` prints a line and returns no-ops; `Tracer.StartSpan(ctx, name) (ctx, func())` carries no attributes, status or parent. |
 | `platform.WithTraceID` / `TraceIDFrom`, `AttrTraceID = "trace_id"` | Logging plumbing that adds `trace_id` to every log record when the context carries one. **0 callers** set it. |
 | `middleware.WriteProblemDetails(…, traceID)` | Echoes a caller-supplied string into problem details; no trace exists to supply. |
@@ -193,6 +196,59 @@ be settled hop by hop in step 3 of the plan.
 - The freeze lifts, so spans can move inside the modules that do the work.
 - A peer the platform does not control requires a propagation format other
   than W3C, for example a carrier's own header.
+
+## Specification required for acceptance (amendment, 2026-10-23)
+
+This amendment fills the gaps that a review before acceptance found. The
+status is still **Proposed**. Each rule describes what the step 1
+implementation (#87, #89) already does, or what a later step must do.
+
+1. **`tracestate` is not parsed, stored or propagated.** It is dropped at
+   every inbound edge until a chosen backend needs vendor state. That backend's
+   adapter ADR then decides whether to pass it through.
+2. **Trust boundary for inbound `traceparent`.** It is honoured only from
+   internal peers on the private network, the trust model ADR-0025 records for
+   service-to-service links.
+   - **At a public edge** (today `edge-api`), an inbound value is discarded and
+     a new root is started. Otherwise an external client could stitch its own
+     spans into, or inflate, platform traces.
+   - Only the service that terminates the edge decides which case applies. The
+     tracer offers both, through `ContextWithRemoteSpanContext` or a plain
+     context.
+3. **Sampling.**
+   - **Recording:** in-process head sampling is always on, as ADR-0011 traces
+     every turn. Every span is recorded and handed to the exporter, whatever
+     the inbound `sampled` flag says.
+   - **The flag:** it is carried unchanged to children and to the outbound
+     `traceparent`.
+   - **Local roots:** these are always sampled.
+   - **Export-side sampling:** deciding what reaches a backend is the step 4
+     adapter's concern.
+4. **Error text** recorded by `RecordError` is treated exactly like error text
+   in log lines: exported under the `error` key, through the same logger. A
+   span adds no new path for content, and no exemption from the policy logs
+   follow. A stricter rule, such as recording only an error category, would
+   apply to logs and spans together.
+5. **Exporters never block the call path.**
+   - **Synchronous exporters:** `Export` runs on the goroutine that ends the
+     span, so a synchronous exporter must be as cheap as one log line. The step
+     1 log exporter is.
+   - **Network exporters (step 4):** these must use a bounded in-memory queue,
+     drop and count spans when it is full, and flush within the service's
+     `ShutdownTimeout` on shutdown. Losing a span is acceptable; delaying a
+     turn is not.
+6. **Attributes.** `DefaultAllowedAttributes` is the kernel's own key set,
+   plus `correlation_id`. Adding a key is a code change reviewed against
+   runtime.Span's privacy rule: identifiers and enumerations only. Keys the
+   platform logger redacts (for example `session_id`) arrive redacted in the
+   log exporter's output, which errs on the safe side.
+
+**Implementation status:**
+- **Step 1 is implemented and tested** (#87, #89), except for replacing the
+  stub declarations in `telemetry.go`, which waits for acceptance.
+- **No production span exists:** no production code constructs a
+  `runtime.Kernel`, and no service on `main` binds an application HTTP
+  listener.
 
 ## Implementation plan (only after acceptance; one small PR per step)
 
