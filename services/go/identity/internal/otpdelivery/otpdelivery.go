@@ -34,6 +34,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
@@ -101,6 +102,26 @@ type Sender struct {
 	providers []Provider
 	timeout   time.Duration
 	observe   func(string, Outcome)
+	now       func() time.Time
+
+	mu     sync.Mutex
+	health map[string]*ProviderHealth
+}
+
+// ProviderHealth is what the sender has observed of one provider. It carries
+// no message data.
+type ProviderHealth struct {
+	// Name is the provider's name.
+	Name string
+	// LastOutcome is the provider's most recent attempt's outcome, or "" if
+	// it has not been tried.
+	LastOutcome Outcome
+	// LastAttemptAt is when that attempt ended.
+	LastAttemptAt time.Time
+	// ConsecutiveFailures counts failed or timed-out attempts since the last
+	// delivery. An abandoned attempt (the caller gave up) does not count: it
+	// says nothing about the provider.
+	ConsecutiveFailures int
 }
 
 // New validates cfg and returns a Sender.
@@ -129,7 +150,40 @@ func New(cfg Config) (*Sender, error) {
 	if observe == nil {
 		observe = func(string, Outcome) {}
 	}
-	return &Sender{providers: append([]Provider(nil), cfg.Providers...), timeout: cfg.AttemptTimeout, observe: observe}, nil
+	health := make(map[string]*ProviderHealth, len(cfg.Providers))
+	for _, p := range cfg.Providers {
+		health[p.Name()] = &ProviderHealth{Name: p.Name()}
+	}
+	return &Sender{
+		providers: append([]Provider(nil), cfg.Providers...), timeout: cfg.AttemptTimeout,
+		observe: observe, now: time.Now, health: health,
+	}, nil
+}
+
+// Health returns a snapshot of every provider's health, in the order the
+// providers are tried. It is safe for concurrent use.
+func (s *Sender) Health() []ProviderHealth {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]ProviderHealth, 0, len(s.providers))
+	for _, p := range s.providers {
+		out = append(out, *s.health[p.Name()])
+	}
+	return out
+}
+
+// record updates name's health with one attempt's outcome.
+func (s *Sender) record(name string, o Outcome) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	h := s.health[name]
+	h.LastOutcome, h.LastAttemptAt = o, s.now()
+	switch o {
+	case OutcomeDelivered:
+		h.ConsecutiveFailures = 0
+	case OutcomeFailed, OutcomeTimeout:
+		h.ConsecutiveFailures++
+	}
 }
 
 // SendOtp implements app.OtpSender: it delivers through the first provider
@@ -140,6 +194,7 @@ func (s *Sender) SendOtp(ctx context.Context, msisdn, code string) error {
 			return ctx.Err()
 		}
 		outcome := s.attempt(ctx, p, msisdn, code)
+		s.record(p.Name(), outcome)
 		s.observe(p.Name(), outcome)
 		switch outcome {
 		case OutcomeDelivered:

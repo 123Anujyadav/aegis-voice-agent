@@ -468,3 +468,11 @@ func TestConfigureIdentity_Postgres(t *testing.T) {
 		t.Errorf("after shutdown: %v, want the pool closed and the fixed message", err)
 	}
 }
+
+// The production tracer is the log-exporter one, never nil: identity's
+// listener always emits edge spans (ADR-0026 step 2).
+func TestIdentityTracer_ProductionDefaultIsReal(t *testing.T) {
+	if identityTracer(quiet) == nil {
+		t.Fatal("the production tracer is nil, so no edge span would be emitted")
+	}
+}

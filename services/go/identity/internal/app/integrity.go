@@ -129,7 +129,15 @@ type IntegrityPolicy struct {
 	MaxAge time.Duration
 	// FutureSkew bounds how far in the future a verdict timestamp may be.
 	FutureSkew time.Duration
+	// DecodeTimeout bounds one Decode call, within (0, MaxDecodeTimeout].
+	// Decoding is a network call to Google (ADR-0010 §12: "the one slow
+	// operation"), so it must not consume the request's whole budget.
+	DecodeTimeout time.Duration
 }
+
+// MaxDecodeTimeout is the longest DecodeTimeout a policy may set: well inside
+// identity's 10-second handler budget.
+const MaxDecodeTimeout = 5 * time.Second
 
 var (
 	packageNamePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$`)
@@ -148,6 +156,8 @@ func (p IntegrityPolicy) Validate() error {
 		return fmt.Errorf("%w: Play Integrity verdict max age must be in (0, 10m]", ErrInvalidIntegrityPolicy)
 	case p.FutureSkew < 0 || p.FutureSkew > time.Minute:
 		return fmt.Errorf("%w: Play Integrity future skew must be in [0, 1m]", ErrInvalidIntegrityPolicy)
+	case p.DecodeTimeout <= 0 || p.DecodeTimeout > MaxDecodeTimeout:
+		return fmt.Errorf("%w: Play Integrity decode timeout must be in (0, %v]", ErrInvalidIntegrityPolicy, MaxDecodeTimeout)
 	}
 	for _, d := range p.CertificateDigests {
 		if !digestPattern.MatchString(d) {
@@ -222,6 +232,62 @@ type integrityCheck struct {
 	policy   IntegrityPolicy
 }
 
+// IntegrityOutcome is what one VerifyPlayIntegrity call ended in. The
+// vocabulary is closed, so it can be counted (ADR-0010 §9: "Play Integrity
+// verdict distribution") without carrying any verdict data.
+type IntegrityOutcome string
+
+const (
+	// IntegrityCertified is a verdict that passed every check.
+	IntegrityCertified IntegrityOutcome = "certified"
+	// IntegrityRestricted is a verdict that failed at least one check.
+	IntegrityRestricted IntegrityOutcome = "restricted"
+	// IntegrityRejected is a token the verifier rejected.
+	IntegrityRejected IntegrityOutcome = "rejected"
+	// IntegrityUnavailable is no verifier, an outage, or a timeout.
+	IntegrityUnavailable IntegrityOutcome = "unavailable"
+	// IntegrityInvalidRequest is a missing or malformed token or binding,
+	// refused before the verifier is called.
+	IntegrityInvalidRequest IntegrityOutcome = "invalid_request"
+)
+
+// SetIntegrityObserver sets the function told the outcome of every
+// VerifyPlayIntegrity call, and the restriction reasons of a restricted one.
+// It receives nothing from the token or the verdict beyond those. It must be
+// safe for concurrent use. Nil removes it.
+func (s *IdentityService) SetIntegrityObserver(observe func(IntegrityOutcome, []IntegrityReason)) {
+	s.integrityObserver = observe
+}
+
+func (s *IdentityService) observeIntegrity(o IntegrityOutcome, reasons []IntegrityReason) {
+	if s.integrityObserver != nil {
+		s.integrityObserver(o, reasons)
+	}
+}
+
+// decode calls the verifier under the policy's DecodeTimeout. The wait is
+// bounded even for a verifier that ignores its context; its eventual answer
+// is discarded (the channel is buffered, so its goroutine always finishes).
+func (c *integrityCheck) decode(ctx context.Context, token string) (IntegrityVerdict, error) {
+	dctx, cancel := context.WithTimeout(ctx, c.policy.DecodeTimeout)
+	defer cancel()
+	type result struct {
+		v   IntegrityVerdict
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		v, err := c.verifier.Decode(dctx, token)
+		done <- result{v, err}
+	}()
+	select {
+	case r := <-done:
+		return r.v, r.err
+	case <-dctx.Done():
+		return IntegrityVerdict{}, dctx.Err()
+	}
+}
+
 // VerifyPlayIntegrity decodes token, assesses it against the configured
 // policy and binding, and records the outcome against the device key.
 //
@@ -233,16 +299,20 @@ type integrityCheck struct {
 // device.
 func (s *IdentityService) VerifyPlayIntegrity(ctx context.Context, token string, b IntegrityBinding) (IntegrityAssessment, error) {
 	if s.integrity == nil {
+		s.observeIntegrity(IntegrityUnavailable, nil)
 		return IntegrityAssessment{}, ErrPlayIntegrityUnavailable
 	}
 	if token == "" || len(token) > maxIntegrityTokenSize || !thumbprintPattern.MatchString(b.DeviceKeyThumbprint) || b.RequestHash == "" {
+		s.observeIntegrity(IntegrityInvalidRequest, nil)
 		return IntegrityAssessment{}, ErrPlayIntegrityFailed
 	}
-	verdict, err := s.integrity.verifier.Decode(ctx, token)
+	verdict, err := s.integrity.decode(ctx, token)
 	switch {
 	case errors.Is(err, ErrIntegrityTokenInvalid):
+		s.observeIntegrity(IntegrityRejected, nil)
 		return IntegrityAssessment{}, ErrPlayIntegrityFailed
 	case err != nil:
+		s.observeIntegrity(IntegrityUnavailable, nil)
 		return IntegrityAssessment{}, fmt.Errorf("%w: the verifier could not answer", ErrPlayIntegrityUnavailable)
 	}
 	now := s.now()
@@ -253,6 +323,11 @@ func (s *IdentityService) VerifyPlayIntegrity(ctx context.Context, token string,
 		IsPlayCertified: a.Tier == TierCertified,
 	}); err != nil {
 		return IntegrityAssessment{}, err
+	}
+	if a.Tier == TierCertified {
+		s.observeIntegrity(IntegrityCertified, nil)
+	} else {
+		s.observeIntegrity(IntegrityRestricted, a.Reasons)
 	}
 	return a, nil
 }
