@@ -321,6 +321,12 @@ type IdentityRepository interface {
 	// let a rotation overwrite a revocation that landed after the read.
 	ReplaceSession(ctx context.Context, session *UserSession, expectedRefreshTokenHash string) error
 	RevokeSession(ctx context.Context, sessionID string) error
+	// OtherDeviceKeyEnrolled reports whether subscriberID has a session on
+	// record, other than exceptSessionID, bound to a device key different from
+	// thumbprint: revoked sessions count, expired ones count until
+	// housekeeping removes them. It is how a re-enrolment on a new device (the
+	// SIM-swap signal, ADR-0010 §10) is recognised.
+	OtherDeviceKeyEnrolled(ctx context.Context, subscriberID, thumbprint, exceptSessionID string) (bool, error)
 	SaveDevice(ctx context.Context, device *DeviceAttestation) error
 	GetGuardianDelegation(ctx context.Context, guardianID, subscriberID string) (*GuardianDelegation, error)
 }
@@ -737,6 +743,18 @@ func (m *MemoryIdentityRepository) RevokeSession(ctx context.Context, sessionID 
 	return nil
 }
 
+// OtherDeviceKeyEnrolled implements IdentityRepository.
+func (m *MemoryIdentityRepository) OtherDeviceKeyEnrolled(_ context.Context, subscriberID, thumbprint, exceptSessionID string) (bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for id, s := range m.sessions {
+		if id != exceptSessionID && s.SubscriberID == subscriberID && s.DeviceKeyThumbprint != "" && s.DeviceKeyThumbprint != thumbprint {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // SaveDevice implements IdentityRepository.
 func (m *MemoryIdentityRepository) SaveDevice(ctx context.Context, device *DeviceAttestation) error {
 	m.mu.Lock()
@@ -777,6 +795,11 @@ const (
 	// that created a device-bound session (ADR-0010 §10 "audit logging for
 	// enrolment").
 	EventDeviceEnrolled SecurityEventType = "identity.device.enrolled"
+	// EventDeviceReenrolled records an enrolment on a NEW device for a
+	// subscriber who already had a device-bound session with another key: a
+	// re-enrolment, which ADR-0010 §10 treats as the SIM-swap signal. It is
+	// emitted in addition to EventDeviceEnrolled, naming the new session.
+	EventDeviceReenrolled SecurityEventType = "identity.device.reenrolled"
 )
 
 // SecurityEvent is one identity security audit record, as required by
@@ -1056,6 +1079,20 @@ func (f fanOutAuditor) Record(e SecurityEvent) error {
 	return errors.Join(errs...)
 }
 
+// auditReenrolment emits EventDeviceReenrolled when the subscriber already had
+// a device-bound session with another key. It never affects the enrolment: a
+// lookup that fails is counted as an audit failure, and nothing else happens.
+func (s *IdentityService) auditReenrolment(ctx context.Context, session *UserSession, at time.Time) {
+	other, err := s.repo.OtherDeviceKeyEnrolled(ctx, session.SubscriberID, session.DeviceKeyThumbprint, session.SessionID)
+	if err != nil {
+		s.auditFailures.Add(1)
+		return
+	}
+	if other {
+		s.audit(SecurityEvent{Type: EventDeviceReenrolled, At: at, SessionID: session.SessionID})
+	}
+}
+
 // AuditFailures reports how many security audit events the auditor refused.
 func (s *IdentityService) AuditFailures() uint64 { return s.auditFailures.Load() }
 
@@ -1243,7 +1280,9 @@ func (s *IdentityService) ValidateOtpWithDeviceProof(ctx context.Context, reques
 		}
 		return nil, "", fmt.Errorf("%w: %w", ErrAccessTokenIssuance, err)
 	}
-	s.audit(SecurityEvent{Type: EventDeviceEnrolled, At: s.now(), SessionID: session.SessionID})
+	at := s.now()
+	s.audit(SecurityEvent{Type: EventDeviceEnrolled, At: at, SessionID: session.SessionID})
+	s.auditReenrolment(ctx, session, at)
 	return session, token, nil
 }
 

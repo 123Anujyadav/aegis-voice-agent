@@ -91,6 +91,7 @@ var contract = []struct {
 	{"ReplaceSessionIsACompareAndSwap", testReplaceCAS},
 	{"RevocationCannotBeUndone", testRevocationSticky},
 	{"EnrolledKeyIsImmutable", testKeyImmutable},
+	{"OtherDeviceKeyEnrolledFindsOnlyOtherKeys", testOtherDeviceKey},
 	{"DevicesAndDelegations", testDevicesAndDelegations},
 	{"ReplayReservations", testReplay},
 	{"RefreshTokensAreStoredOnlyAsHashes", testRefreshTokensOnlyAsHashes},
@@ -637,5 +638,42 @@ func testPhoneNumbersOnlyAsPseudonyms(t *testing.T, be backend) {
 	// The pseudonym itself works, and is what comes back.
 	if err := be.a.ReserveOtpRequest(ctx, pk("+14155552671"), t0, policy); err != nil {
 		t.Errorf("a pseudonym was refused: %v", err)
+	}
+}
+
+// OtherDeviceKeyEnrolled: true only for ANOTHER session of the same subscriber
+// bound to a DIFFERENT key; revoked sessions count, the excepted session and
+// unenrolled sessions do not.
+func testOtherDeviceKey(t *testing.T, be backend) {
+	a1 := session("od_a1")
+	a1.SubscriberID, a1.DeviceKeyThumbprint = "usr_A", "jkt_X"
+	a2 := session("od_a2")
+	a2.SubscriberID = "usr_A" // unenrolled
+	b1 := session("od_b1")
+	b1.SubscriberID, b1.DeviceKeyThumbprint = "usr_B", "jkt_Y"
+	for _, s := range []*app.UserSession{a1, a2, b1} {
+		if err := be.a.SaveSession(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, tc := range map[string]struct {
+		sub, key, except string
+		want             bool
+	}{
+		"same key":               {"usr_A", "jkt_X", "od_new", false},
+		"new key":                {"usr_A", "jkt_Z", "od_new", true},
+		"only the excepted":      {"usr_A", "jkt_Z", "od_a1", false},
+		"other subscriber's key": {"usr_B", "jkt_Y", "od_new", false},
+		"unknown subscriber":     {"usr_C", "jkt_Z", "od_new", false},
+	} {
+		if got, err := be.b.OtherDeviceKeyEnrolled(ctx, tc.sub, tc.key, tc.except); err != nil || got != tc.want {
+			t.Errorf("%s: (%v, %v), want %v", name, got, err, tc.want)
+		}
+	}
+	if err := be.a.RevokeSession(ctx, "od_a1"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := be.b.OtherDeviceKeyEnrolled(ctx, "usr_A", "jkt_Z", "od_new"); err != nil || !got {
+		t.Errorf("a revoked session's device no longer counts: (%v, %v)", got, err)
 	}
 }
