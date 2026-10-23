@@ -71,7 +71,7 @@ complete".**
 | §5(a) OTP exponential backoff, per-device limit | Fixed lockout. Backoff deferred as an owner trade-off (brief §3a). There is no device identity before enrolment. |
 | §10 rate limiting on **token refresh**, and **per source address** | **Not implemented.** OTP send and verify are limited per number only. Refresh has no rate limit. |
 | §10 SIM-swap controls: cooling-off on re-enrolment, notification to the prior device, re-verification for elevated operations | **Not implemented.** None of the elevated operations exist yet. |
-| §10 audit logging with `LEGAL_HOLD` retention (enrolment, re-enrolment, refresh-token reuse, attestation failures) | **Counters only** (#113). There is no durable audit log, and enrolment is not audited. |
+| §10 audit logging with `LEGAL_HOLD` retention (enrolment, re-enrolment, refresh-token reuse, attestation failures) | **Partly met since this review (#120):** an append-only `identity_security_audit` table records wrong codes, lockouts, refresh-token reuse and device enrolment. **Still missing:** re-enrolment as its own event, and attestation failures (no verifier exists yet). |
 | §9 OTP delivery with a fallback provider | Failover sender (#109); no provider. |
 
 ## 3. What ratification would and would not change
