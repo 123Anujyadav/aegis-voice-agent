@@ -13,6 +13,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.6
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.7.4
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.1
+	github.com/callscreen/callscreen-platform/packages/go/metrics v0.0.0
+	github.com/callscreen/callscreen-platform/packages/go/metricsexport v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/platform v0.0.0
 	github.com/jackc/pgx/v5 v5.10.0
 )
@@ -44,3 +46,9 @@ require (
 // This directive is removed once the repository is published and the module
 // path resolves on its own.
 replace github.com/callscreen/callscreen-platform/packages/go/platform => ../../../packages/go/platform
+
+// metricsexport serves /metrics (ADR-0013) over the metrics registry; both are
+// unpublished workspace modules, resolved like platform above.
+replace github.com/callscreen/callscreen-platform/packages/go/metrics => ../../../packages/go/metrics
+
+replace github.com/callscreen/callscreen-platform/packages/go/metricsexport => ../../../packages/go/metricsexport
