@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/callscreen/callscreen-platform/packages/go/metricsexport"
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 	"github.com/callscreen/callscreen-platform/services/go/telephony-gateway/internal/app"
 )
@@ -97,9 +98,18 @@ func run() error {
 	// fence configuration the service still starts and serves health, but is
 	// never ready; a present-but-invalid configuration stops startup here.
 	// Nothing else runs yet: no carrier adapter, no call path.
-	if _, err := app.WireFence(svc, health, envPrefix, os.LookupEnv, logger); err != nil {
+	metrics := app.NewMetrics()
+	if _, err := app.WireFenceWithMetrics(svc, health, envPrefix, os.LookupEnv, logger, metrics); err != nil {
 		return fmt.Errorf("configure fence: %w", err)
 	}
+
+	// GET /metrics on the health listener (ADR-0013): the fence's readiness
+	// outcomes, recorded on every /readyz probe. It shares HealthPort (8081 by
+	// default) and is never served on the application port.
+	svc.SetMetricsHandler(metricsexport.New(metricsexport.Source{
+		Subsystem: serviceName,
+		Registry:  metrics.Registry(),
+	}).Handler())
 
 	return svc.Run(context.Background())
 }

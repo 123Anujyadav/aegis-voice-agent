@@ -363,6 +363,18 @@ func (n notConfigured) Check(context.Context) error {
 // Owned() immediately before acting. Ownership is NOT a guarantee about work
 // already started: a carrier request issued before a loss is not recalled.
 func WireFence(svc *platform.Service, health *platform.Health, prefix string, lookup Lookup, log *slog.Logger) (*fence.Fence, error) {
+	return wireFence(svc, health, prefix, lookup, log, nil)
+}
+
+// WireFenceWithMetrics is WireFence that also records every readiness
+// evaluation of the fence in m (see Metrics). The readiness check itself is
+// unchanged: same name, same criticality, same timeout, same result. A nil m
+// behaves exactly like WireFence.
+func WireFenceWithMetrics(svc *platform.Service, health *platform.Health, prefix string, lookup Lookup, log *slog.Logger, m *Metrics) (*fence.Fence, error) {
+	return wireFence(svc, health, prefix, lookup, log, m)
+}
+
+func wireFence(svc *platform.Service, health *platform.Health, prefix string, lookup Lookup, log *slog.Logger, m *Metrics) (*fence.Fence, error) {
 	if svc == nil || health == nil || lookup == nil || log == nil {
 		return nil, errors.New("telephony-gateway: WireFence requires a service, health, lookup and logger")
 	}
@@ -373,7 +385,7 @@ func WireFence(svc *platform.Service, health *platform.Health, prefix string, lo
 	if !s.Configured {
 		log.Error("single-active-process fence NOT configured; this instance will never report ready",
 			slog.Any("missing", s.Missing))
-		health.Register(notConfigured{missing: s.Missing}, true, CheckTimeout)
+		health.Register(observe(notConfigured{missing: s.Missing}, m), true, CheckTimeout)
 		return nil, nil
 	}
 	var dial fence.Dialer
@@ -400,7 +412,7 @@ func WireFence(svc *platform.Service, health *platform.Health, prefix string, lo
 		return nil, err
 	}
 	svc.Register(f)
-	health.Register(f, true, CheckTimeout)
+	health.Register(observe(f, m), true, CheckTimeout)
 	// The lock key is not a secret; logging it lets an operator confirm that
 	// every gateway process of one deployment uses the SAME key — processes
 	// with different keys would each own "the" fence (P1-31).
