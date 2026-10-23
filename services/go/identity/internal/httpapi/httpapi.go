@@ -93,16 +93,19 @@ type handler struct {
 	svc *app.IdentityService
 	log *slog.Logger
 	now func() time.Time
+	m   *Metrics
 }
 
 // New returns the identity API. The log receives only fixed codes and paths.
-func New(svc *app.IdentityService, log *slog.Logger) http.Handler {
-	h := &handler{svc: svc, log: log, now: time.Now}
+// Every response it decides is counted in m (MetricRequests); a nil m counts
+// nothing.
+func New(svc *app.IdentityService, log *slog.Logger, m *Metrics) http.Handler {
+	h := &handler{svc: svc, log: log, now: time.Now, m: m}
 	var next http.Handler = http.HandlerFunc(h.route)
 	next = withDeadlines(next)
 	next = middleware.CorrelationIDMiddleware(next)
 	next = middleware.SecurityHeadersMiddleware(next)
-	return h.recoverer(noStore(next))
+	return withDecision(h.recoverer(noStore(next)))
 }
 
 func (h *handler) route(w http.ResponseWriter, r *http.Request) {
@@ -309,6 +312,7 @@ func (h *handler) problem(w http.ResponseWriter, r *http.Request, status int, co
 	if status >= 500 {
 		h.log.Warn("identity request failed", slog.String("code", code), slog.String("path", r.URL.Path))
 	}
+	h.m.record(r, outcomeFor(code))
 	middleware.WriteProblemDetails(w, status, p.title, p.detail, code, r.URL.Path, correlationID(r))
 }
 
@@ -360,6 +364,7 @@ func (h *handler) ok(w http.ResponseWriter, r *http.Request, status int, v any) 
 		h.problem(w, r, http.StatusInternalServerError, "ERR_INTERNAL")
 		return
 	}
+	h.m.record(r, OutcomeSuccess)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, _ = w.Write(append(b, '\n')) //nolint:errcheck // the status is sent; a failed body write is the client going away
@@ -412,6 +417,7 @@ func (h *handler) recoverer(next http.Handler) http.Handler {
 					panic(rec)
 				}
 				h.log.Error("identity handler panicked", slog.String("path", r.URL.Path), slog.String("type", fmt.Sprintf("%T", rec)))
+				h.m.record(r, outcomeFor("ERR_INTERNAL"))
 				middleware.WriteProblemDetails(w, http.StatusInternalServerError, "Internal Error",
 					problems["ERR_INTERNAL"].detail, "ERR_INTERNAL", r.URL.Path, "")
 			}

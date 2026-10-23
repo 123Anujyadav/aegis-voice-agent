@@ -31,9 +31,13 @@ import (
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/pgstore"
 )
 
-type fakeRunners struct{ got []platform.Runner }
+type fakeRunners struct {
+	got     []platform.Runner
+	metrics http.Handler
+}
 
-func (f *fakeRunners) Register(r platform.Runner) { f.got = append(f.got, r) }
+func (f *fakeRunners) Register(r platform.Runner)       { f.got = append(f.got, r) }
+func (f *fakeRunners) SetMetricsHandler(h http.Handler) { f.metrics = h }
 
 type registeredCheck struct {
 	c        platform.Checker
@@ -122,6 +126,9 @@ func TestConfigureIdentity_InactivePreservesTheSkeleton(t *testing.T) {
 	}
 	if len(runners.got) != 0 {
 		t.Error("a runner (identity or housekeeping) was registered for an inactive identity")
+	}
+	if runners.metrics != nil {
+		t.Error("metrics were mounted for an inactive identity, which serves no API to count")
 	}
 	if len(health.got) != 1 || health.got[0].critical || health.got[0].c.Name() != "identity" {
 		t.Fatalf("checks = %+v, want one non-critical identity check", health.got)
@@ -424,6 +431,16 @@ func TestConfigureIdentity_Postgres(t *testing.T) {
 	// The HTTP listener is registered LAST, so it is the FIRST to stop.
 	if web, ok := runners.got[2].(*platform.HTTPRunner); !ok || web.Name() != "identity-http" {
 		t.Fatalf("third runner is %T, want the identity HTTP runner", runners.got[2])
+	}
+	// The API's outcome counter is mounted for GET /metrics on the health
+	// listener, alongside the listener it counts.
+	if runners.metrics == nil {
+		t.Fatal("no metrics handler was mounted with the identity API")
+	}
+	scrape := httptest.NewRecorder()
+	runners.metrics.ServeHTTP(scrape, httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody))
+	if scrape.Code != http.StatusOK {
+		t.Errorf("metrics scrape = %d", scrape.Code)
 	}
 	runCtx, cancelRun := context.WithCancel(context.Background())
 	hkDone := make(chan error, 1)
