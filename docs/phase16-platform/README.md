@@ -319,3 +319,108 @@ records the proposal and does not accept it.
 untracked phase 18/19 documents". The only such citation,
 `PHASE18_FINAL_CLOSURE_AUDIT.md:225`, records "**no ADR-0026**", which states
 that the number is absent rather than claiming it.
+
+## Objective 3 continuation — real metrics, tracing adapter, manifests (2026-10-23)
+
+### M2 — `/metrics` with real measurements
+
+**Merged:** #86, as `83f0f40`.
+
+- **Owner:** the telephony gateway is the first service to own and expose real
+  metrics.
+- **What it measures:** every readiness evaluation of its single-active-process
+  fence, which is the gateway's real, recurring production work. Each kubelet
+  `/readyz` probe evaluates the fence, and the answer decides whether the
+  instance receives traffic.
+  - `telephony_gateway_fence_readiness_checks_total{result}` counts
+    evaluations by `owned`, `not_owner` or `error`.
+  - `telephony_gateway_fence_owned` is 1 while the latest evaluation found
+    this process the owner, otherwise 0.
+- **How:** `app.WireFenceWithMetrics` wraps the checker the fence registers.
+  - The `fence` package is not touched: acquisition, heartbeats and the open
+    flake area are unchanged.
+  - The readiness check keeps its name, criticality, timeout and result.
+- **Where:** `/metrics` is mounted with `SetMetricsHandler` on the health
+  listener (8081), never on the application port.
+  `docker/compose/prometheus.yml` already scrapes `telephony-gateway:8081`.
+- **Why this service:**
+  - `platform` is standard-library-only at `go 1.23.0` (D8), and importing
+    `metrics` would raise that directive.
+  - `voice` has no production traffic source. There is no call driver on
+    `main`, and the owner's local driver is registered only when a test
+    supplies its options (ADR-0022), so its instruments would never move.
+  - The gateway's `main.go` is the one service entry point with no uncommitted
+    owner changes.
+- **Tests:**
+  - **Unit:** outcome classification, concurrency, duplicate registration and
+    shutdown; plus a real `fence.Fence`, driven by a fake session, gaining and
+    losing ownership as seen through the exporter.
+  - **Binary:** the real binary's probes appear on `/metrics` over HTTP.
+  - **Real PostgreSQL:** a single-owner test, run in gateway-postgres, asserts
+    `owned`=1. That suite went from 141 to 157 passing tests, with 0 skipped,
+    under `-race`.
+- **Still without metrics:** `voice`. It unblocks when a production call driver
+  and providers exist. Then `voice` exposes
+  `Bridge.Engine().Metrics().Registry()` the same way.
+
+### M2 — tracing: implemented adapter, decision still open
+
+**Merged:** #87, as `c9c2e65`. ADR-0026 stays **Proposed**.
+
+- **What exists now:** `packages/go/telemetry` implements the frozen
+  `runtime.Tracer` / `runtime.Span` port with:
+  - W3C Trace Context identity and a strict `traceparent` codec;
+  - `crypto/rand` ids;
+  - an attribute allowlist;
+  - a log exporter that writes through the platform's redacting logger.
+- **The tested path:** a real `runtime.Kernel` built with the existing
+  `runtime.WithTracer` records its own `runtime.generate` span as a child of
+  the caller's span. No frozen module changes.
+- **What does not exist, and why:**
+  - **No production span:** no production code constructs a `runtime.Kernel`.
+  - **No `traceparent` propagation at a service edge (ADR-0026 step 2):** no
+    service binds an application HTTP listener. `platform.HTTPRunner` has no
+    constructor call in any service, and `middleware` has no HTTP callers.
+  - **No backend:** none is chosen.
+- **Left for acceptance:** the `telemetry.go` stub declarations are untouched.
+  Replacing them is part of accepting the ADR.
+
+### Owner decision note — ADR-0026 acceptance and the tracing backend
+
+| | Option | Credential | Trade-off |
+|---|---|---|---|
+| **A (recommended)** | Services export OTLP to an **in-cluster OpenTelemetry Collector** (for example ADOT on EKS), which forwards to **AWS X-Ray in `ap-south-1`** | **None in any service.** Only the Collector's Kubernetes ServiceAccount needs an IAM role through **IRSA** (`xray:PutTraceSegments`, `xray:PutTelemetryRecords`), configured in infrastructure, never in the repository or in chat | Matches ADR-0008 ("IRSA for every workload. No static cloud credentials anywhere") and ADR-0012 residency. Adds one OpenTelemetry SDK dependency, behind the step-4 adapter, with its own ADR |
+| B | The same Collector forwarding to **self-hosted Grafana Tempo**, with S3 storage reached through IRSA | IRSA for Tempo's S3 bucket only | No vendor, and data stays in-account. But SRE operates Tempo |
+| C | Vendor SaaS (Datadog, Honeycomb) | An ingest API key in the secret manager | Least to operate. But it needs a credential, egresses operational data (ADR-0012), and creates vendor lock-in |
+
+**Recommendation:**
+1. Accept ADR-0026 as written, which authorises replacing the `telemetry` stub.
+2. Choose option A.
+3. Then implement step 2 when the first service binds an HTTP edge, and step 4
+   as a Collector adapter with its own ADR.
+
+No credential is needed until step 4. When it is, it is an IRSA role on the
+Collector's ServiceAccount, provisioned by SRE.
+
+### Kubernetes manifests and the probe port
+
+- **The only mismatch is the template.** Of everything tracked on `main`, the
+  9090 port appears only in `infra/k8s/base/deployment.yaml`. That is the
+  template the owner deliberately deleted, and that P1-37 says is never
+  restored. It is **documented and not resurrected**.
+- **No other tracked manifest exists:** only a ConfigMap and a Namespace.
+- **Everything else agrees on 8081:**
+  - ADR-0013 and the `HealthPort` default;
+  - `EXPOSE 8081` in both Dockerfiles;
+  - `docker/compose/prometheus.yml`, which scrapes 8081;
+  - the owner's untracked per-service manifests.
+  - The two compose 9090 entries are the Prometheus server's own port, not a
+    service port.
+- **No Kubernetes Service or Ingress exists**, tracked or local, so `/metrics`
+  is not publicly reachable.
+- **The decision still open:** the manifest tree itself (PR #44). PR #44's
+  proposal was **renumbered from 0024 to ADR-0027** on its branch.
+  - The owner's Accepted VAD ADR holds 0024, and 0026 is on `main`.
+  - 0027 is the first number used or claimed nowhere.
+  - The proposal stays Proposed and unmerged, because it amends the
+    owner-approved P1-37 staging path.
