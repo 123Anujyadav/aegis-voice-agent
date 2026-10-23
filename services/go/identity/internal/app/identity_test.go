@@ -8,7 +8,7 @@ import (
 
 func TestIdentityService_OtpLifecycle(t *testing.T) {
 	repo := NewMemoryIdentityRepository()
-	service := NewIdentityService(repo, []byte("test_secret_key"))
+	service := withFixedOtp(NewIdentityService(repo, []byte("test_secret_key")))
 
 	ctx := context.Background()
 	msisdn := "+919876543210"
@@ -32,25 +32,27 @@ func TestIdentityService_OtpLifecycle(t *testing.T) {
 	reqID2, _ := service.RequestOtp(ctx, msisdn)
 
 	// 4. Validate valid OTP
-	session, token, err := service.ValidateOtp(ctx, reqID2, "482910")
+	session, token, err := service.ValidateOtp(ctx, reqID2, testOtpCode)
 	if err != nil {
 		t.Fatalf("ValidateOtp failed: %v", err)
 	}
-	if session.MSISDN != msisdn {
-		t.Errorf("expected MSISDN %s, got %s", msisdn, session.MSISDN)
+	// The session carries no number; its link to the number is the keyed
+	// subscriber id derived from it.
+	if session.SubscriberID != service.subscriberID(msisdn) {
+		t.Errorf("subscriber id %s is not the one derived from %s", session.SubscriberID, msisdn)
 	}
-	if token == "" {
-		t.Errorf("expected non-empty access token")
+	if token != "" {
+		t.Errorf("an unenrolled session was issued an access token")
 	}
 }
 
 func TestIdentityService_TokenRotationAndReuse(t *testing.T) {
 	repo := NewMemoryIdentityRepository()
-	service := NewIdentityService(repo, []byte("test_secret_key"))
+	service := withFixedOtp(NewIdentityService(repo, []byte("test_secret_key")))
 
 	ctx := context.Background()
 	reqID, _ := service.RequestOtp(ctx, "+919876543210")
-	session, _, _ := service.ValidateOtp(ctx, reqID, "482910")
+	session, _, _ := service.ValidateOtp(ctx, reqID, testOtpCode)
 
 	oldRefreshToken := session.RefreshToken
 
@@ -59,8 +61,8 @@ func TestIdentityService_TokenRotationAndReuse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RefreshToken failed: %v", err)
 	}
-	if newToken == "" || newRefreshToken == "" {
-		t.Fatalf("expected new tokens on rotation")
+	if newToken != "" || newRefreshToken == "" {
+		t.Fatalf("expected a new refresh token and no access token on rotation")
 	}
 
 	// 2. Attempt reuse of old refresh token (Security violation)
@@ -70,17 +72,42 @@ func TestIdentityService_TokenRotationAndReuse(t *testing.T) {
 	}
 }
 
-func TestIdentityService_PlayIntegrityVerification(t *testing.T) {
+// TestIdentityService_PlayIntegrityIsAStubThatVerifiesNothing pins the Play
+// Integrity stub's behaviour.
+//
+// This test previously read as TestIdentityService_PlayIntegrityVerification and
+// asserted that a device was Play certified — putting a green tick on a
+// fabricated attestation. Phase 18 D11 found that VerifyPlayIntegrity accepts
+// ANY token of ten or more characters and invents the result.
+//
+// The test is retained, inverted in intent: it now pins the stub's behaviour so
+// the defect is visible rather than endorsed. It is written to FAIL the day
+// real verification is implemented, which is the signal to delete it along with
+// this comment.
+func TestIdentityService_PlayIntegrityIsAStubThatVerifiesNothing(t *testing.T) {
 	repo := NewMemoryIdentityRepository()
-	service := NewIdentityService(repo, []byte("test_secret_key"))
-
+	service := withFixedOtp(NewIdentityService(repo, []byte("test_secret_key")))
 	ctx := context.Background()
-	attestation, err := service.VerifyPlayIntegrity(ctx, "valid_play_integrity_token_string")
+
+	// Obvious garbage, accepted purely because it is ten characters long.
+	attestation, err := service.VerifyPlayIntegrity(ctx, "aaaaaaaaaa")
 	if err != nil {
-		t.Fatalf("VerifyPlayIntegrity failed: %v", err)
+		t.Fatalf("the stub rejected a ten-character string, so its behaviour has "+
+			"changed: %v. If real verification has been implemented, delete this "+
+			"test and the stub warnings on VerifyPlayIntegrity", err)
+	}
+	if !attestation.IsPlayCertified {
+		t.Fatal("the stub no longer reports IsPlayCertified for arbitrary input; " +
+			"if real verification has been implemented, delete this test")
 	}
 
-	if !attestation.IsPlayCertified {
-		t.Errorf("expected device to be Play certified")
+	// The fabrication, pinned explicitly. ADR-0010 §5(b) requires the verdict be
+	// verified server-side against Google; none of these values came from a
+	// verification.
+	if attestation.Model != "Pixel 9 Pro" {
+		t.Errorf("Model = %q; the stub hardcodes it", attestation.Model)
+	}
+	if attestation.IntegrityToken != "aaaaaaaaaa" {
+		t.Errorf("IntegrityToken = %q; the stub echoes its input", attestation.IntegrityToken)
 	}
 }

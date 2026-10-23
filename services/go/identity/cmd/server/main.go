@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 )
@@ -31,11 +32,29 @@ const envPrefix = "CS_IDENTITY"
 // directly from a function that owns resources is a resource leak on every
 // shutdown.
 func main() {
-	if err := run(); err != nil {
+	if err := dispatch(os.Args[1:]); err != nil {
 		// Reported to stderr rather than through the logger because a failure
 		// here may well BE a failure to construct the logger.
 		fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+// dispatch selects the command. No argument runs the service, as it always
+// has; "migrate" applies the identity schema and exits; "version" prints the
+// build metadata (buildinfo.go) and exits, reading no configuration. Anything
+// else is
+// refused rather than silently running the service.
+func dispatch(args []string) error {
+	switch {
+	case len(args) == 0:
+		return run()
+	case len(args) == 1 && args[0] == "migrate":
+		return runMigrate(context.Background(), os.Stdout)
+	case len(args) == 1 && args[0] == "version":
+		return writeVersion(os.Stdout)
+	default:
+		return fmt.Errorf("unknown command %q; usage: service [migrate|version]", strings.Join(args, " "))
 	}
 }
 
@@ -52,6 +71,11 @@ func run() error {
 	// it to be overridden would let a misconfigured deployment report itself as
 	// a different service and corrupt every dashboard it appears in.
 	cfg.Name = serviceName
+	// The version is fixed by the binary too: it is the build's own metadata
+	// (buildinfo.go), so what /readyz and every log line report is what was
+	// built, not what an environment variable claims. CS_*_VERSION is ignored.
+	build := buildInfo()
+	cfg.Version = build.Version
 
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
@@ -68,13 +92,18 @@ func run() error {
 
 	logger := platform.NewLogger(cfg, os.Stdout, hashKey)
 	platform.SetDefaultLogger(logger)
+	logBuild(logger, build)
 
 	health := platform.NewHealth(cfg)
 	svc := platform.NewService(cfg, logger, health)
 
 	// Runners are registered here in dependency order, lowest level first,
-	// because shutdown runs in reverse. No runners exist at Phase 2; the
-	// lifecycle serves health probes and waits for SIGTERM.
+	// because shutdown runs in reverse. Activated identity registers its pool
+	// owner, its housekeeping and, last, its HTTP listener; inactive, the
+	// lifecycle serves health probes and waits for SIGTERM, exactly as before.
+	if err := configureIdentity(context.Background(), cfg, svc, health, logger); err != nil {
+		return fmt.Errorf("identity: %w", err)
+	}
 
 	return svc.Run(context.Background())
 }
