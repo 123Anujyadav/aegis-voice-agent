@@ -1,4 +1,4 @@
-# ADR-0024: One Kubernetes manifest tree, `infra/k8s`
+# ADR-0027: One Kubernetes manifest tree, `infra/k8s`
 
 - **Status:** Proposed. **NOT accepted.** This ADR records a recommendation for
   the owner's decision. Until it is accepted, nothing below is in force.
@@ -10,9 +10,12 @@
   (owns `/infra/policy/` and the production Terraform environments,
   `.github/CODEOWNERS:80-82`)
 
-**Numbering:** 0018–0023 are already used by unpublished Phase 16 ADRs that are
-not on `main`, so this proposal takes the next number after them. The owner may
-renumber it when accepting.
+**Numbering:** first proposed as 0024, the number after the unpublished Phase
+16 ADRs 0018–0023. Renumbered on 2026-10-23: the owner's working tree holds
+0024 (VAD, endpointing and turn ownership) and 0025, its index lists that 0024
+as Accepted, and 0026 is on `main` (distributed tracing). 0027 is the first
+number used or claimed nowhere: no file, branch, commit, open PR or citation.
+The owner may renumber it again when accepting.
 
 ---
 
@@ -253,17 +256,17 @@ staging manifests in separate repositories.
 ## Appendix: proposed amendment text (applies only if Option 1 is accepted)
 
 **How to amend.** The owner records the change as an amendment, for example a
-short record "P1-37 amendment 1 (ADR-0024)". The original lines are not edited,
+short record "P1-37 amendment 1 (ADR-0027)". The original lines are not edited,
 so that history keeps what was approved and when. Lines that describe the
 repository's state at the time are history, and stay as they are: P1-33:22,
 P1-34A:5, P1-34B:8, P1-35:7, P1-36:5, P1-37:14 and P1-41:18.
 
 | Record and line | Now | Becomes |
 |---|---|---|
-| P1-37:59 (§1.6, approved design) | Staging manifests go in `infra/kubernetes/overlays/staging/`. | Staging manifests go in `infra/k8s/overlays/staging/` (ADR-0024). |
+| P1-37:59 (§1.6, approved design) | Staging manifests go in `infra/kubernetes/overlays/staging/`. | Staging manifests go in `infra/k8s/overlays/staging/` (ADR-0027). |
 | P1-37:60-61 | `infra/k8s/base/services/` is left untouched; `deployment.yaml` is never restored. | unchanged |
 | P1-37:95 (gate A5) | the staging set under `infra/kubernetes/overlays/staging/` | the staging set under `infra/k8s/overlays/staging/` |
-| P1-38:18 | "…and the staging manifest path `infra/kubernetes/overlays/staging/`" | "…`infra/k8s/overlays/staging/` (amended by ADR-0024)" |
+| P1-38:18 | "…and the staging manifest path `infra/kubernetes/overlays/staging/`" | "…`infra/k8s/overlays/staging/` (amended by ADR-0027)" |
 | P1-38:118, P1-38:142 (O-4 recommendation; gate A5) | `infra/kubernetes/overlays/staging/` | `infra/k8s/overlays/staging/` |
 | P1-39:24 (O-1) | "Staging manifests only under `infra/kubernetes/overlays/staging/`" | "…only under `infra/k8s/overlays/staging/`". Every other O-1 term is unchanged. |
 | P1-39:31 (O-4, conditional) | one shared ConfigMap in `infra/kubernetes/overlays/staging/` | in `infra/k8s/overlays/staging/`. Still conditional. |

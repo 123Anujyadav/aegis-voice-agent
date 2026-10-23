@@ -32,6 +32,7 @@ at all.
 | [0016](0016-intent-classification.md) | Intent classification | Accepted | **Implement the existing `conversation.IntentClassifier` port**; deterministic rule/lexicon default, no model, no second engine |
 | [0017](0017-service-wiring.md) | Service wiring | Accepted | **Register a `platform.Runner` in `services/go/voice` owning a `voiceintel.Bridge`**; existing seams only, provider-fed pipeline stages deferred |
 | [0026](0026-distributed-tracing.md) | Distributed tracing | Proposed | **W3C Trace Context with a stdlib implementation of the existing `runtime.Tracer` port in `packages/go/telemetry`**, log exporter first; backend deferred to owner and SRE. No tracing instrumentation or backend exists yet |
+| [0027](0027-kubernetes-manifest-tree.md) | One Kubernetes manifest tree | Proposed | **`infra/k8s` is the single manifest tree**; amends the approved P1-37 staging path, which needs the owner. Not accepted |
 
 ---
 
