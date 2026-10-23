@@ -122,7 +122,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) (MigrationResult, error) {
 		return res, err
 	}
 
-	if _, err := pool.Exec(ctx, ledgerDDL); err != nil {
+	if _, err = pool.Exec(ctx, ledgerDDL); err != nil {
 		return res, fmt.Errorf("evalstore: creating migration ledger: %w", err)
 	}
 
@@ -140,10 +140,10 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) (MigrationResult, error) {
 			res.AlreadyApplied = append(res.AlreadyApplied, m.Name)
 			continue
 		}
-		if err := applyOne(ctx, pool, m); err != nil {
+		if applyErr := applyOne(ctx, pool, m); applyErr != nil {
 			// res carries what succeeded before the failure, so a caller can
 			// see how far the chain got rather than only that it stopped.
-			return res, err
+			return res, applyErr
 		}
 		res.Applied = append(res.Applied, m.Name)
 	}
@@ -156,14 +156,20 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) (MigrationResult, error) {
 }
 
 // applyOne runs one migration and records it, atomically.
-func applyOne(ctx context.Context, pool *pgxpool.Pool, m Migration) error {
+func applyOne(ctx context.Context, pool *pgxpool.Pool, m Migration) (err error) {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("evalstore: begin migration %s: %w", m.Name, err)
 	}
-	// Rollback after a successful Commit is a no-op, so this is safe on every
-	// path and removes the chance of an early return leaking the transaction.
-	defer func() { _ = tx.Rollback(ctx) }()
+	// Rollback after a successful Commit is a no-op that reports
+	// pgx.ErrTxClosed, so this is safe on every path and removes the chance of
+	// an early return leaking the transaction. Any other rollback failure is
+	// returned alongside the error that caused the rollback.
+	defer func() {
+		if rbErr := tx.Rollback(ctx); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
+			err = errors.Join(err, fmt.Errorf("evalstore: rolling back migration %s: %w", m.Name, rbErr))
+		}
+	}()
 
 	if _, err := tx.Exec(ctx, m.SQL); err != nil {
 		return fmt.Errorf("evalstore: applying migration %s: %w", m.Name, err)

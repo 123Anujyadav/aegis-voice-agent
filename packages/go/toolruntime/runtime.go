@@ -537,7 +537,9 @@ func (c *ToolCoordinator) Health() HealthReport {
 	r := c.runtime
 
 	var overrides []string
-	for _, o := range r.permissions.ActiveOverrides() {
+	items := r.permissions.ActiveOverrides()
+	for i := range items {
+		o := &items[i]
 		overrides = append(overrides, o.Name)
 	}
 

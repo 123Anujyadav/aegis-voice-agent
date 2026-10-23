@@ -329,7 +329,9 @@ func TestT8_InterruptionDuringConcurrentClassification(t *testing.T) {
 			if !gate.wait() {
 				return
 			}
-			if sess.spec.index%2 == 0 {
+			// bargeIn is the interrupting half's path. It is a closure so the branch
+			// below stays flat; its returns end only this path.
+			bargeIn := func() {
 				plan, err := p.Handle(conversation.Event{
 					Kind:         conversation.EventInterrupt,
 					Interruption: conversation.InterruptionUser,
@@ -369,6 +371,9 @@ func TestT8_InterruptionDuringConcurrentClassification(t *testing.T) {
 					fail("%s: post-interrupt intent %q, want %q",
 						id, next.Intent, sess.spec.want)
 				}
+			}
+			if sess.spec.index%2 == 0 {
+				bargeIn()
 				return
 			}
 
@@ -586,7 +591,7 @@ func TestT8_FreshSessionsDuringConcurrentLoad(t *testing.T) {
 				{Kind: conversation.EventStart},
 				{Kind: conversation.EventGreetingComplete},
 			} {
-				if _, err := p.Handle(e); err != nil {
+				if _, err = p.Handle(e); err != nil {
 					fail("%s: %v: %v", id, e.Kind, err)
 					return
 				}

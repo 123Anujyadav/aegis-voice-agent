@@ -486,7 +486,7 @@ func Restore(snap Snapshot, clock rt.Clock) (*CallSession, error) {
 			ErrNotRecoverable, snap.Call, snap.State, snap.SchemaVersion)
 	}
 	if err := snap.Context.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNotRecoverable, err)
+		return nil, fmt.Errorf("%w: %s", ErrNotRecoverable, err.Error())
 	}
 
 	fsm, err := newCallFSM(StateRecovery, clock)

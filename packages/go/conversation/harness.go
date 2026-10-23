@@ -34,9 +34,8 @@ type Harness struct {
 type HarnessOption func(*harnessOptions)
 
 type harnessOptions struct {
-	cfg        *Config
-	classifier *ScriptedClassifier
-	logger     *slog.Logger
+	cfg    *Config
+	logger *slog.Logger
 }
 
 // WithHarnessConfig overrides the engine configuration.
@@ -274,8 +273,8 @@ func (s *Simulator) LastPlan() Plan {
 // Actions returns every planned action in order, for trace assertions.
 func (s *Simulator) Actions() []Action {
 	out := make([]Action, 0, len(s.Plans))
-	for _, p := range s.Plans {
-		out = append(out, p.Action)
+	for i := range s.Plans {
+		out = append(out, s.Plans[i].Action)
 	}
 	return out
 }
@@ -308,8 +307,8 @@ func (s *Simulator) TraceString() string {
 // CountAction returns how many plans chose an action.
 func (s *Simulator) CountAction(a Action) int {
 	n := 0
-	for _, p := range s.Plans {
-		if p.Action == a {
+	for i := range s.Plans {
+		if s.Plans[i].Action == a {
 			n++
 		}
 	}

@@ -357,7 +357,7 @@ func (b *Breaker) Reset() {
 // provider outcome, and the allocation errors.As causes was measurable.
 func asProviderError(err error, target **ProviderError) bool {
 	for err != nil {
-		if pe, ok := err.(*ProviderError); ok {
+		if pe, ok := err.(*ProviderError); ok { //nolint:errorlint // this loop is the unwrapping itself, written out to avoid errors.As's allocation (see above)
 			*target = pe
 			return true
 		}
@@ -443,7 +443,7 @@ func (p RetryPolicy) Backoff(attempt int, rnd *rand.Rand) time.Duration {
 
 // ShouldRetry decides whether another attempt is warranted.
 //
-// remaining is the time left before the request's absolute deadline; estimate
+// The remaining argument is the time left before the request's absolute deadline; estimate
 // is how long an attempt is expected to take. An attempt is refused when it
 // plausibly cannot finish, which is the budget-awareness this policy exists for.
 func (p RetryPolicy) ShouldRetry(attempt int, err error, remaining, estimate time.Duration) bool {

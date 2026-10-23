@@ -55,7 +55,7 @@ type Evaluator struct {
 // Stage 5 last, and can only raise. A risk signal that could lower an outcome
 // would let a detector overrule a written policy, which inverts the whole
 // precedence model.
-func (e Evaluator) Evaluate(snap *PolicySnapshot, r Request, now time.Time) Decision {
+func (e Evaluator) Evaluate(snap *PolicySnapshot, r Request, now time.Time) Decision { //nolint:gocyclo // the frozen precedence walk; FE-1 permits lint fixes, not restructuring the frozen evaluator
 	d := Decision{
 		Outcome:       e.Default,
 		Reason:        e.DefaultReason,

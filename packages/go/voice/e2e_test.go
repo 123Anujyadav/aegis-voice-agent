@@ -107,7 +107,7 @@ func (tr *e2eTrace) report(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // probeWhisper reports whether the recogniser can genuinely run.
-func probeWhisper() (path string, reason string) {
+func probeWhisper() (path, reason string) {
 	p, err := exec.LookPath("whisper")
 	if err != nil {
 		return "", fmt.Sprintf("openai-whisper is not on PATH (%v); "+
@@ -142,12 +142,12 @@ func probeWhisper() (path string, reason string) {
 }
 
 // probeOllama reports the daemon state and whether any model exists.
-func probeOllama() (model string, reason string) {
+func probeOllama() (model, reason string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"http://127.0.0.1:11434/api/tags", nil)
+		"http://127.0.0.1:11434/api/tags", http.NoBody)
 	if err != nil {
 		return "", fmt.Sprintf("cannot build a probe request: %v", err)
 	}
@@ -180,7 +180,7 @@ func probeOllama() (model string, reason string) {
 }
 
 // probePiper reports whether the synthesiser can genuinely run.
-func probePiper() (path string, reason string) {
+func probePiper() (path, reason string) {
 	p, err := exec.LookPath("piper")
 	if err != nil {
 		return "", fmt.Sprintf("piper is not on PATH (%v); to fix: install from "+
@@ -273,10 +273,10 @@ func TestE2E_LocalIntegration(t *testing.T) {
 
 	var onsets, endpoints, analysed int
 	for _, f := range frames {
-		a, err := aiSession.Analyze(context.Background(), f,
+		a, analyzeErr := aiSession.Analyze(context.Background(), f,
 			audiointel.ConversationState{}, nil, nil)
-		if err != nil {
-			t.Fatalf("audiointel Analyze: %v", err)
+		if analyzeErr != nil {
+			t.Fatalf("audiointel Analyze: %v", analyzeErr)
 		}
 		analysed++
 		if a.VAD.OnsetConfirmed {
@@ -320,37 +320,42 @@ func TestE2E_LocalIntegration(t *testing.T) {
 
 	// --- Stage 5: conversation ----------------------------------------------
 	var plan conversation.Plan
-	if transcript == "" {
-		tr.record("5. conversation", "BLOCKED",
-			"no transcript was produced upstream, so there is nothing to plan against", 0)
-	} else {
+	// conversationStage runs stage 5 against the transcript. It is a closure so
+	// the branch below stays flat; it assigns plan exactly as the branch did.
+	conversationStage := func() {
 		start = time.Now()
-		convEngine, err := conversation.NewEngine(conversation.DefaultConfig())
-		if err != nil {
-			t.Fatalf("conversation.New: %v", err)
+		convEngine, stageErr := conversation.NewEngine(conversation.DefaultConfig())
+		if stageErr != nil {
+			t.Fatalf("conversation.New: %v", stageErr)
 		}
-		conv, err := convEngine.Begin(conversation.ConversationID("conv-e2e-01"), "")
-		if err != nil {
-			t.Fatalf("conversation Begin: %v", err)
+		conv, stageErr := convEngine.Begin(conversation.ConversationID("conv-e2e-01"), "")
+		if stageErr != nil {
+			t.Fatalf("conversation Begin: %v", stageErr)
 		}
-		if _, err := conv.Handle(conversation.Event{Kind: conversation.EventStart}); err != nil {
-			t.Fatalf("conversation start: %v", err)
+		if _, hErr := conv.Handle(conversation.Event{Kind: conversation.EventStart}); hErr != nil {
+			t.Fatalf("conversation start: %v", hErr)
 		}
 
-		plan, err = conv.Handle(conversation.Event{
+		plan, stageErr = conv.Handle(conversation.Event{
 			Kind:      conversation.EventUtterance,
 			Utterance: conversation.Utterance{Text: transcript},
 			Party:     conversation.PartyCaller,
 		})
-		if err != nil {
+		if stageErr != nil {
 			tr.record("5. conversation", "NOT RUN",
-				"the real engine returned an error: "+err.Error(), time.Since(start))
+				"the real engine returned an error: "+stageErr.Error(), time.Since(start))
 		} else {
 			tr.record("5. conversation", "EXECUTED",
 				fmt.Sprintf("real conversation.Engine: action=%v reason=%q "+
 					"state=%v (a Plan, never text)",
 					plan.Action, plan.Reason, conv.State()), time.Since(start))
 		}
+	}
+	if transcript == "" {
+		tr.record("5. conversation", "BLOCKED",
+			"no transcript was produced upstream, so there is nothing to plan against", 0)
+	} else {
+		conversationStage()
 	}
 
 	// --- Stage 6: governance ------------------------------------------------
@@ -393,7 +398,7 @@ func TestE2E_LocalIntegration(t *testing.T) {
 		},
 	})
 
-	govOutcome := "allowed"
+	var govOutcome string
 	var denial *DenialError
 	switch {
 	case govErr == nil:
@@ -540,13 +545,13 @@ func runRealSTT(
 	if err != nil {
 		return "", "", err
 	}
-	if err := reg.RegisterSTT(provider, ProviderSpec{
+	if regErr := reg.RegisterSTT(provider, ProviderSpec{
 		Class: ClassDevelopment, Tier: speech.TierPrimary,
 		Engine: "openai-whisper", Version: "cli",
 		Model:    ModelIdentity{Model: ModelID("tiny")},
 		Locality: LocalityProcess,
-	}); err != nil {
-		return "", "", err
+	}); regErr != nil {
+		return "", "", regErr
 	}
 
 	selected, err := reg.PickSTT(speech.Language("en"))
@@ -630,11 +635,11 @@ func TestE2E_MissingProviderFailsCleanly(t *testing.T) {
 	}
 
 	// A recogniser is registered; no synthesiser is, because none exists.
-	if err := reg.RegisterSTT(
+	if regErr := reg.RegisterSTT(
 		&recordingSTT{id: speech.ProviderID("stt-e2e"), segments: defaultSegments()},
 		sttSpec(),
-	); err != nil {
-		t.Fatal(err)
+	); regErr != nil {
+		t.Fatal(regErr)
 	}
 
 	// The router must say WHICH kind of absence this is.
@@ -667,14 +672,14 @@ func TestE2E_MissingProviderFailsCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := p.Start(context.Background()); err != nil {
-		t.Fatal(err)
+	if startErr := p.Start(context.Background()); startErr != nil {
+		t.Fatal(startErr)
 	}
 
 	for i := 0; i < 4; i++ {
-		if err := p.WriteFrame(testFrame(uint64(i))); err != nil &&
-			!errors.Is(err, ErrSessionClosed) && !errors.Is(err, ErrBackpressure) {
-			t.Fatalf("WriteFrame: %v", err)
+		if writeErr := p.WriteFrame(testFrame(uint64(i))); writeErr != nil &&
+			!errors.Is(writeErr, ErrSessionClosed) && !errors.Is(writeErr, ErrBackpressure) {
+			t.Fatalf("WriteFrame: %v", writeErr)
 		}
 	}
 
@@ -765,9 +770,9 @@ func synthesiseFixture(t *testing.T, text string) ([]byte, string) {
 	converted := filepath.Join(dir, "fixture16k.raw")
 	convert := exec.Command(ffmpeg, "-y", "-i", rawWAV,
 		"-ar", "16000", "-ac", "1", "-f", "s16le", converted)
-	if out, err := convert.CombinedOutput(); err != nil {
+	if out, convErr := convert.CombinedOutput(); convErr != nil {
 		return nil, fmt.Sprintf("ffmpeg conversion failed: %v (%s)",
-			err, strings.TrimSpace(string(out)))
+			convErr, strings.TrimSpace(string(out)))
 	}
 
 	pcm, err := os.ReadFile(converted)

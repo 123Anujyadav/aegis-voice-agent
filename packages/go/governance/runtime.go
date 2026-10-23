@@ -378,7 +378,7 @@ func (e *Engine) Decide(r Request) Decision {
 	if e.cfg.AutoEscalate && d.Outcome.NeedsHuman() {
 		if kind, ok := KindFor(d.Outcome); ok {
 			timeout := e.cfg.EscalationTimeouts[kind]
-			_, _ = e.human.Raise(d, kind, timeout)
+			_, _ = e.human.Raise(d, kind, timeout) //nolint:errcheck // HumanRuntime.Raise has no failure path
 		}
 	}
 	return d
@@ -722,7 +722,9 @@ func (c *Coordinator) Health() Health {
 	snap := e.registry.Snapshot()
 
 	var emergencies []string
-	for _, em := range e.emergency.Active() {
+	items := e.emergency.Active()
+	for i := range items {
+		em := &items[i]
 		emergencies = append(emergencies, em.Name)
 	}
 

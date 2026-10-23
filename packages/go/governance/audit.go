@@ -114,6 +114,21 @@ type NoopAuditor struct{}
 // Record discards the entry.
 func (NoopAuditor) Record(AuditEntry) error { return nil }
 
+// recordAudit writes e and counts the outcome, applying the [Auditor]
+// contract outside the decision path: a failure is counted in AuditFailed and
+// never fails the operation that produced the entry.
+func recordAudit(a Auditor, m *Metrics, e AuditEntry) {
+	err := a.Record(e)
+	if m == nil {
+		return
+	}
+	if err != nil {
+		m.AuditFailed.Inc(string(e.Kind))
+		return
+	}
+	m.AuditWritten.Inc(string(e.Kind))
+}
+
 // RecordingAuditor captures entries for assertion.
 //
 // Exported because every service embedding this engine needs to test its own
@@ -126,12 +141,12 @@ type RecordingAuditor struct {
 	max     int
 }
 
-// NewRecordingAuditor builds a recording auditor holding up to max entries.
-func NewRecordingAuditor(max int) *RecordingAuditor {
-	if max <= 0 {
-		max = 8192
+// NewRecordingAuditor builds a recording auditor holding up to limit entries.
+func NewRecordingAuditor(limit int) *RecordingAuditor {
+	if limit <= 0 {
+		limit = 8192
 	}
-	return &RecordingAuditor{max: max}
+	return &RecordingAuditor{max: limit}
 }
 
 // Record captures an entry.
@@ -166,9 +181,10 @@ func (a *RecordingAuditor) OfKind(k AuditKind) []AuditEntry {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	var out []AuditEntry
-	for _, e := range a.entries {
+	for i := range a.entries {
+		e := &a.entries[i]
 		if e.Kind == k {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	return out
@@ -206,9 +222,10 @@ type GovernanceTrace struct {
 func TraceFor(a *RecordingAuditor, c CorrelationID) GovernanceTrace {
 	a.mu.Lock()
 	var out []AuditEntry
-	for _, e := range a.entries {
+	for i := range a.entries {
+		e := &a.entries[i]
 		if e.Correlation == c {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	a.mu.Unlock()
@@ -228,7 +245,8 @@ func TraceFor(a *RecordingAuditor, c CorrelationID) GovernanceTrace {
 // Summary renders the trace as one line per entry, for diagnostics.
 func (t GovernanceTrace) Summary() []string {
 	out := make([]string, 0, len(t.Entries))
-	for _, e := range t.Entries {
+	for i := range t.Entries {
+		e := &t.Entries[i]
 		line := string(e.Kind)
 		if e.ActionLabel != "" {
 			line += " " + e.ActionLabel
@@ -304,6 +322,6 @@ func (d Drift) String() string {
 	if d.Same {
 		return "same outcome under a changed policy set"
 	}
-	return string(d.WasOutcome.String()) + " → " + d.NowOutcome.String() +
+	return d.WasOutcome.String() + " → " + d.NowOutcome.String() +
 		" (" + string(d.WasPolicy) + " → " + string(d.NowPolicy) + ")"
 }

@@ -52,7 +52,7 @@ permissions:
 
 env:
   # Matches pr-go.yml: a supported release line (see the note there).
-  GO_VERSION: "1.26.x"
+  GO_VERSION: "1.26.10"
   GOTOOLCHAIN: "local"
   GOFLAGS: "-mod=readonly"
   # The AI plane. Listed explicitly rather than discovered, because these are
@@ -124,11 +124,11 @@ jobs:
         # interleaving-dependent ones surface.
         mode: [single, repeated]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -163,6 +163,8 @@ jobs:
             # Capture rather than stream-and-discard: a WARNING: DATA RACE block
             # is the artifact somebody needs to read, and scrolling a CI console
             # is not reading it.
+            # ${flags} holds several go test flags; it is split on purpose.
+            # shellcheck disable=SC2086
             (cd "${m}" && go test ${flags} ./... 2>&1) | tee "${log}" || failed="${failed} ${m}"
             echo "::endgroup::"
           done
@@ -198,7 +200,7 @@ jobs:
 
       - name: Upload race logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: race-logs-${{ matrix.mode }}
           path: race-logs/
@@ -212,11 +214,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -251,10 +253,12 @@ jobs:
             echo "::endgroup::"
           done
 
-          echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          cat "${summary}" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Coverage"
+            echo '```'
+            cat "${summary}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
           if [ -n "${failed}" ]; then
             echo "::error::modules failing under coverage:${failed}"
@@ -288,7 +292,7 @@ jobs:
           done < coverage/summary.txt
           exit "${fail}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: coverage
@@ -303,11 +307,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -329,7 +333,7 @@ jobs:
       # Recorded, not gated. A benchmark threshold on a shared runner fails for
       # reasons unrelated to the code, and a gate that fails for unrelated
       # reasons is a gate people learn to re-run until it passes.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: benchmarks
@@ -344,11 +348,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -361,8 +365,6 @@ jobs:
         run: |
           set -euo pipefail
           deps=$(go list -deps ./... | grep callscreen | grep -v '/evaluation$' || true)
-          expected="github.com/callscreen/callscreen-platform/packages/go/metrics
-          github.com/callscreen/callscreen-platform/packages/go/runtime"
           for d in ${deps}; do
             case "${d}" in
               */packages/go/runtime|*/packages/go/metrics) ;;

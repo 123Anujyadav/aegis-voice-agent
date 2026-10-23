@@ -63,6 +63,16 @@ import (
 	rt "github.com/callscreen/callscreen-platform/packages/go/runtime"
 )
 
+// errText renders err for a message that deliberately does not wrap it. The
+// cause is reported, but errors.Is and errors.As match only the sentinel the
+// message wraps, exactly as they did when these messages used %v.
+func errText(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	return err.Error()
+}
+
 // Errors this adapter returns. Callers match with errors.Is.
 var (
 	// ErrUnavailable is returned when the daemon cannot be reached.
@@ -281,7 +291,7 @@ func (p *Provider) Probe(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, p.cfg.ProbeTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.base+"/api/tags", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.base+"/api/tags", http.NoBody)
 	if err != nil {
 		return p.wrap(rt.KindInvalidRequest, 0, err)
 	}
@@ -295,8 +305,8 @@ func (p *Provider) Probe(ctx context.Context) error {
 	defer func() {
 		// Drained before closing so the connection can be reused rather than
 		// torn down on every health check.
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // connection reuse is best-effort; the probe's result is already decided
+		_ = resp.Body.Close()                 //nolint:errcheck // as above
 	}()
 
 	if resp.StatusCode != http.StatusOK {
@@ -311,7 +321,7 @@ func (p *Provider) Probe(ctx context.Context) error {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
 		return p.wrap(rt.KindTransport, resp.StatusCode,
-			fmt.Errorf("%w: /api/tags: %v", ErrMalformedResponse, err))
+			fmt.Errorf("%w: /api/tags: %s", ErrMalformedResponse, errText(err)))
 	}
 
 	want := string(p.cfg.Model)
@@ -370,12 +380,12 @@ func (p *Provider) Generate(ctx context.Context, req rt.GenerateRequest) (rt.Tok
 			return nil, p.wrapModel(rt.KindTimeout, 0, req.Model, err)
 		}
 		return nil, p.wrapModel(rt.KindTransport, 0, req.Model, fmt.Errorf(
-			"%w at %s: %v", ErrUnavailable, p.base, err))
+			"%w at %s: %s", ErrUnavailable, p.base, errText(err)))
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		detail := readBounded(resp.Body, 4<<10)
-		_ = resp.Body.Close()
+		_ = resp.Body.Close() //nolint:errcheck // the request has already failed; its status is the error reported
 		cancel()
 		return nil, p.wrapModel(kindForStatus(resp.StatusCode), resp.StatusCode,
 			req.Model, fmt.Errorf("ollama: %s: %s", resp.Status, detail))
@@ -528,8 +538,12 @@ func kindForStatus(status int) rt.ProviderErrorKind {
 
 // readBounded reads at most n bytes, for error detail.
 func readBounded(r io.Reader, n int64) string {
-	b, _ := io.ReadAll(io.LimitReader(r, n))
-	return strings.TrimSpace(string(b))
+	b, err := io.ReadAll(io.LimitReader(r, n))
+	detail := strings.TrimSpace(string(b))
+	if err != nil {
+		return detail + " (reading the detail failed: " + err.Error() + ")"
+	}
+	return detail
 }
 
 // ---------------------------------------------------------------------------

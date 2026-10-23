@@ -1052,23 +1052,23 @@ func TestBargeIn_MeasuresOrchestrationLatency(t *testing.T) {
 	}
 	resolution := deltas / probes
 
-	var total, max time.Duration
-	min := samples[0]
+	var total, longest time.Duration
+	shortest := samples[0]
 	for _, s := range samples {
 		total += s
-		if s > max {
-			max = s
+		if s > longest {
+			longest = s
 		}
-		if s < min {
-			min = s
+		if s < shortest {
+			shortest = s
 		}
 	}
 	mean := total / time.Duration(len(samples))
 
-	verdict := fmt.Sprintf("mean=%s min=%s max=%s", mean, min, max)
+	verdict := fmt.Sprintf("mean=%s min=%s max=%s", mean, shortest, longest)
 	if mean <= resolution {
 		verdict = fmt.Sprintf("below measurable resolution (mean %s <= clock "+
-			"granularity %s; max observed %s)", mean, resolution, max)
+			"granularity %s; max observed %s)", mean, resolution, longest)
 	}
 
 	t.Logf("BARGE-IN ORCHESTRATION LATENCY over %d interruptions\n"+

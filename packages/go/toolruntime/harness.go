@@ -109,14 +109,14 @@ func (h *Harness) RegisterAt(c Contract, tool Tool, l Lifecycle, health Health, 
 }
 
 // Intent builds a single-capability intent with a permissive grant.
-func (h *Harness) Intent(cap CapabilityID, args Arguments, perms ...Permission) ToolIntent {
+func (h *Harness) Intent(capability CapabilityID, args Arguments, perms ...Permission) ToolIntent {
 	return ToolIntent{
 		ID:          NewIntentID(),
 		Correlation: NewCorrelationID(),
 		Session:     "sess-test",
 		Actor:       "actor-test",
 		Requests: []CapabilityRequest{{
-			Ref: "only", Capability: cap, Version: AnyVersion(), Args: args,
+			Ref: "only", Capability: capability, Version: AnyVersion(), Args: args,
 		}},
 		Grant: Grant{Actor: "actor-test", Permissions: perms},
 	}
@@ -127,10 +127,10 @@ func (h *Harness) Intent(cap CapabilityID, args Arguments, perms ...Permission) 
 // ---------------------------------------------------------------------------
 
 // ReadContract builds a read-only contract, the shape most tests need.
-func ReadContract(tool ToolID, version Version, cap CapabilityID) Contract {
+func ReadContract(tool ToolID, version Version, capability CapabilityID) Contract {
 	return Contract{
 		Descriptor:   Descriptor{Tool: tool, Version: version},
-		Capabilities: []CapabilityID{cap},
+		Capabilities: []CapabilityID{capability},
 		Title:        string(tool),
 		Owner:        "test-team",
 		Effect:       EffectRead,
@@ -145,8 +145,8 @@ func ReadContract(tool ToolID, version Version, cap CapabilityID) Contract {
 }
 
 // WriteContract builds a mutating, compensable contract.
-func WriteContract(tool ToolID, version Version, cap CapabilityID) Contract {
-	c := ReadContract(tool, version, cap)
+func WriteContract(tool ToolID, version Version, capability CapabilityID) Contract {
+	c := ReadContract(tool, version, capability)
 	c.Effect = EffectWrite
 	c.Compensable = true
 	c.Input = []FieldSpec{{Name: "subject", Kind: ValueString, Required: true, MaxLen: 256}}
@@ -155,8 +155,8 @@ func WriteContract(tool ToolID, version Version, cap CapabilityID) Contract {
 }
 
 // IrreversibleContract builds a contract for an action that cannot be undone.
-func IrreversibleContract(tool ToolID, version Version, cap CapabilityID) Contract {
-	c := WriteContract(tool, version, cap)
+func IrreversibleContract(tool ToolID, version Version, capability CapabilityID) Contract {
+	c := WriteContract(tool, version, capability)
 	c.Effect = EffectIrreversible
 	c.Compensable = false
 	c.Retry = RetrySpec{MaxAttempts: 1}
@@ -231,7 +231,7 @@ func (f *FakeTool) Invoke(ctx context.Context, in Invocation) (Result, error) {
 		if f.IgnoreCancellation {
 			// Deliberately ignores the context: sleeps on a background context
 			// so cancellation cannot reach it.
-			_ = f.Clock.Sleep(context.Background(), f.Delay)
+			_ = f.Clock.Sleep(context.Background(), f.Delay) //nolint:errcheck,contextcheck // deliberately uncancellable, as explained above
 		} else if err := f.Clock.Sleep(ctx, f.Delay); err != nil {
 			return nil, err
 		}

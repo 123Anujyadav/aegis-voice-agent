@@ -1,0 +1,91 @@
+# =============================================================================
+# Workflow lint (actionlint).
+#
+# The workflows are code that runs with this repository's token. actionlint
+# checks every workflow for script injection (an untrusted expression such as
+# ${{ github.event.pull_request.title }} used directly in a `run:` script),
+# invalid expressions and contexts, unknown action inputs, invalid permission
+# scopes, bad cron syntax and similar mistakes, all of which otherwise surface
+# only when the workflow runs, or never.
+#
+# Delivery: the official release binary, its sha256 pinned below from the
+# release's actionlint_<version>_checksums.txt and verified before unpacking
+# (the same model as gitleaks in pr-security.yml).
+#
+# `run:` scripts are also checked with shellcheck, itself pinned: the official
+# release tarball, verified against the sha256 digest GitHub publishes for that
+# release asset (shellcheck ships no checksums file). It is passed to actionlint
+# by path, so the result never depends on whichever shellcheck the runner image
+# ships. -pyflakes= keeps the optional Python linter off: no workflow has a
+# Python `run:` script.
+# =============================================================================
+name: workflow-lint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  merge_group:
+
+concurrency:
+  group: workflow-lint-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ACTIONLINT_VERSION: "1.7.7"
+  # sha256 of actionlint_1.7.7_linux_amd64.tar.gz, from the official
+  # actionlint_1.7.7_checksums.txt of the v1.7.7 release.
+  ACTIONLINT_SHA256: "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+  SHELLCHECK_VERSION: "0.11.0"
+  # sha256 of shellcheck-v0.11.0.linux.x86_64.tar.gz: the digest GitHub
+  # publishes for that asset of the koalaman/shellcheck v0.11.0 release.
+  SHELLCHECK_SHA256: "b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6"
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install actionlint (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          curl --fail --silent --show-error --location --retry 3 -o "${archive}" "${url}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" > "${archive}.sha256"
+          if ! sha256sum --check --status "${archive}.sha256"; then
+            echo "::error::Checksum mismatch for ${archive}: the release artefact does not match the pinned hash."
+            exit 1
+          fi
+          tar -xzf "${archive}" actionlint
+          ./actionlint -version
+
+      - name: Install shellcheck (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          archive="shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.gz"
+          url="https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${archive}"
+          curl --fail --silent --show-error --location --retry 3 -o "${archive}" "${url}"
+          echo "${SHELLCHECK_SHA256}  ${archive}" > "${archive}.sha256"
+          if ! sha256sum --check --status "${archive}.sha256"; then
+            echo "::error::Checksum mismatch for ${archive}: the release artefact does not match the pinned hash."
+            exit 1
+          fi
+          tar -xzf "${archive}" "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+          "./shellcheck-v${SHELLCHECK_VERSION}/shellcheck" --version
+
+      - name: Lint every workflow
+        run: ./actionlint -color -shellcheck="./shellcheck-v${SHELLCHECK_VERSION}/shellcheck" -pyflakes=

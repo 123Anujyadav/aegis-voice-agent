@@ -63,26 +63,24 @@ func (e *EvaluationRuntime) CheckDeterminism(ctx context.Context, s Scenario, ru
 	result := DeterminismResult{Scenario: s.ID, Subject: s.SubjectName, Runs: runs}
 
 	var (
-		first        Observation
-		seen         = map[Fingerprint]bool{}
-		observations []Observation
+		first Observation
+		seen  = map[Fingerprint]bool{}
 	)
 	for i := 0; i < runs; i++ {
 		res := e.Execute(ctx, s)
 		obs := res.Observation
-		observations = append(observations, obs)
 		result.Timings = append(result.Timings, obs.TotalStepTime())
 
-		print := obs.BehaviourPrint()
-		if !seen[print] {
-			seen[print] = true
-			result.Behaviours = append(result.Behaviours, print)
+		behaviour := obs.BehaviourPrint()
+		if !seen[behaviour] {
+			seen[behaviour] = true
+			result.Behaviours = append(result.Behaviours, behaviour)
 		}
 		if i == 0 {
 			first = obs
 			continue
 		}
-		if print != first.BehaviourPrint() && result.FirstDivergentRun == 0 {
+		if behaviour != first.BehaviourPrint() && result.FirstDivergentRun == 0 {
 			result.FirstDivergentRun = i + 1
 			result.Divergences = behaviourDifferences(first, obs)
 			sortDifferences(result.Divergences)
@@ -329,11 +327,12 @@ func (r RegressionReport) Summary() string {
 // storage and no clock beyond the timestamp it stamps, so a regression report
 // can be recomputed from two stored runs years later and compared against the
 // one that was read at the time.
-// latencyFloor is the shortest duration a ratio may be computed from. Steps
+//
+// The latencyFloor argument is the shortest duration a ratio may be computed from. Steps
 // below it on either side are not compared, because a ratio between two
 // quantised samples measures the clock rather than the code. Supply the
 // runtime's resolution-adjusted floor; [Coordinator.CompareRuns] does.
-func DetectRegressions(baseline, current Run, latencyRatio float64,
+func DetectRegressions(baseline, current Run, latencyRatio float64, //nolint:gocyclo // one comparison per regression kind; FE-1 permits lint fixes, not restructuring the frozen evaluator
 	latencyFloor time.Duration,
 ) RegressionReport {
 	report := RegressionReport{
@@ -344,12 +343,14 @@ func DetectRegressions(baseline, current Run, latencyRatio float64,
 	}
 
 	base := make(map[ScenarioID]ScenarioResult, len(baseline.Results))
-	for _, r := range baseline.Results {
-		base[r.Scenario] = r
+	for i := range baseline.Results {
+		r := &baseline.Results[i]
+		base[r.Scenario] = *r
 	}
 	now := make(map[ScenarioID]ScenarioResult, len(current.Results))
-	for _, r := range current.Results {
-		now[r.Scenario] = r
+	for i := range current.Results {
+		r := &current.Results[i]
+		now[r.Scenario] = *r
 	}
 
 	for id := range now {
@@ -369,7 +370,8 @@ func DetectRegressions(baseline, current Run, latencyRatio float64,
 		return report.RemovedScenarios[i] < report.RemovedScenarios[j]
 	})
 
-	for _, cur := range current.Results {
+	for i := range current.Results {
+		cur := &current.Results[i]
 		was, ok := base[cur.Scenario]
 		if !ok {
 			continue
@@ -666,13 +668,14 @@ func (e *EvaluationRuntime) Benchmark(ctx context.Context, s Scenario, iteration
 	for i := 0; i < iterations; i++ {
 		obs := e.Execute(ctx, s).Observation
 		totals = append(totals, obs.TotalStepTime())
-		for _, step := range obs.Steps {
+		for i := range obs.Steps {
+			step := &obs.Steps[i]
 			perStep[step.Name] = append(perStep[step.Name], step.Duration)
 		}
-		print := obs.BehaviourPrint()
-		if !seen[print] {
-			seen[print] = true
-			result.Behaviours = append(result.Behaviours, print)
+		behaviour := obs.BehaviourPrint()
+		if !seen[behaviour] {
+			seen[behaviour] = true
+			result.Behaviours = append(result.Behaviours, behaviour)
 		}
 	}
 	elapsed := e.clock.Since(loopStart)
@@ -717,7 +720,7 @@ type BenchmarkComparison struct {
 // It compares p50, p95 AND p99. A change that moves only the tail is the most
 // dangerous kind — it is invisible in a mean, invisible in a p50, and it is
 // exactly what a queue starting to back up looks like.
-func CompareBenchmarks(baseline, current BenchmarkResult, tolerance float64) BenchmarkComparison {
+func CompareBenchmarks(baseline, current BenchmarkResult, tolerance float64) BenchmarkComparison { //nolint:gocyclo // one comparison per benchmark measure
 	c := BenchmarkComparison{Scenario: current.Scenario, Subject: current.Subject}
 
 	ratio := func(was, now time.Duration) float64 {

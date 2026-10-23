@@ -477,10 +477,10 @@ func TestConfig_FrozenBudgetsMatchTheADRs(t *testing.T) {
 	}
 }
 
-// detectorFiles are the implementation files that must contain no tunable
+// The detectorFiles list names the implementation files that must contain no tunable
 // numbers of their own.
 //
-// config.go and defaults.go are where numbers live. harness.go and fixtures.go
+// The files config.go and defaults.go are where numbers live; harness.go and fixtures.go
 // build test signals, which are data rather than policy. Everything that makes
 // a DECISION is listed here.
 var detectorFiles = []string{

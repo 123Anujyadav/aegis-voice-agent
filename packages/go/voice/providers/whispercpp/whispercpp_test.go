@@ -243,7 +243,7 @@ func TestAdapter_ParseSeparatesSpeechFromBanners(t *testing.T) {
 
 // TestAdapter_SegmentsCarryNoFabricatedConfidence guards a specific dishonesty.
 //
-// whisper.cpp emits no per-segment confidence. An adapter that reported 1.0, or
+// The whisper.cpp binary emits no per-segment confidence. An adapter that reported 1.0, or
 // 0.9, or anything at all would be inventing a number the model never produced
 // — and every downstream decision that reads confidence would then be resting
 // on it.

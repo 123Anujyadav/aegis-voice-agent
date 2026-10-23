@@ -282,12 +282,13 @@ func (s *ToolScheduler) nextWaiterLocked() *waiter {
 	}
 
 	pick := highest
-	if s.starvationRatio > 0 && lowestWaiting > highest && s.consecutive >= s.starvationRatio {
+	switch {
+	case s.starvationRatio > 0 && lowestWaiting > highest && s.consecutive >= s.starvationRatio:
 		pick = lowestWaiting
 		s.consecutive = 0
-	} else if lowestWaiting > highest {
+	case lowestWaiting > highest:
 		s.consecutive++
-	} else {
+	default:
 		s.consecutive = 0
 	}
 

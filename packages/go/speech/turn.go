@@ -267,7 +267,7 @@ func (m *SpeechTurnManager) Begin(role Role) (*SpeechTurn, error) {
 		Terminal:    []SpeechTurnState{TurnInterrupted, TurnCancelled, TurnFailed},
 	}, m.clock)
 	if err != nil {
-		return nil, fmt.Errorf("%w: turn fsm: %v", ErrInternalFailure, err)
+		return nil, fmt.Errorf("%w: turn fsm: %s", ErrInternalFailure, err.Error())
 	}
 
 	turn := &SpeechTurn{
@@ -308,8 +308,8 @@ func (m *SpeechTurnManager) Transition(id TurnID, to SpeechTurnState, reason str
 
 	from := turn.State()
 	if _, err := turn.fsm.To(to); err != nil {
-		return fmt.Errorf("%w: turn %s: %s -> %s: %v",
-			ErrInternalFailure, id, from, to, err)
+		return fmt.Errorf("%w: turn %s: %s -> %s: %s",
+			ErrInternalFailure, id, from, to, err.Error())
 	}
 
 	turn.mu.Lock()

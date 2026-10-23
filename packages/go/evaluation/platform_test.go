@@ -163,7 +163,7 @@ func TestObservation_CloneIsIndependent(t *testing.T) {
 		}},
 		Metrics: map[string]float64{"m": 1},
 	}
-	print := base.BehaviourPrint()
+	behaviour := base.BehaviourPrint()
 
 	c := base.Clone()
 	c.Steps[0].Output["x"] = N(99)
@@ -171,7 +171,7 @@ func TestObservation_CloneIsIndependent(t *testing.T) {
 	c.Steps[0].Events[0].Fields["k"] = S("hijacked")
 	c.Metrics["m"] = 99
 
-	if base.BehaviourPrint() != print {
+	if base.BehaviourPrint() != behaviour {
 		t.Fatal("mutating a clone changed the original; a report renderer could " +
 			"corrupt a golden")
 	}
@@ -461,14 +461,14 @@ func TestCompare_LatencyFloorSuppressesNoise(t *testing.T) {
 	}
 
 	// The same ratio above the floor is reported.
-	real := baseline.Clone()
-	real.Steps[0].Duration = 300 * time.Millisecond
+	measured := baseline.Clone()
+	measured.Steps[0].Duration = 300 * time.Millisecond
 	baseline.Steps[0].Duration = 100 * time.Millisecond
 	g.Observation = baseline
 	g.Behaviour = baseline.BehaviourPrint()
-	real.Steps[0].Duration = 300 * time.Millisecond
+	measured.Steps[0].Duration = 300 * time.Millisecond
 
-	c = Compare(g, real, Tolerances{LatencyRatio: 2, LatencyFloor: 50 * time.Microsecond})
+	c = Compare(g, measured, Tolerances{LatencyRatio: 2, LatencyFloor: 50 * time.Microsecond})
 	if c.Verdict != VerdictDrift || c.Reason != "measurement_changed" {
 		t.Fatalf("a real slowdown produced %s/%s", c.Verdict, c.Reason)
 	}

@@ -91,7 +91,8 @@ func (e Emergency) validate() []string {
 					"incident", e.Name, s))
 		}
 	}
-	for _, p := range e.Policies {
+	for i := range e.Policies {
+		p := &e.Policies[i]
 		if p.Scope != ScopeEmergency {
 			problems = append(problems, fmt.Sprintf(
 				"emergency %s: policy %s is in the %s scope; an emergency installs "+
@@ -222,8 +223,9 @@ func (e *EmergencyEngine) Deactivate(name, reason string) error {
 	count := len(e.active)
 	e.mu.Unlock()
 
-	for _, p := range em.Policies {
-		_ = e.registry.SetEnabled(p.ID, false)
+	for i := range em.Policies {
+		p := &em.Policies[i]
+		_ = e.registry.SetEnabled(p.ID, false) //nolint:errcheck // fails only with ErrNotRegistered: a policy already removed cannot stay enabled
 	}
 
 	if e.metrics != nil {
@@ -243,8 +245,8 @@ func (e *EmergencyEngine) Sweep() int {
 
 	e.mu.RLock()
 	var expired []string
-	for name, em := range e.active {
-		if !em.Active(now) {
+	for name := range e.active {
+		if !e.active[name].Active(now) {
 			expired = append(expired, name)
 		}
 	}
@@ -252,7 +254,7 @@ func (e *EmergencyEngine) Sweep() int {
 
 	sort.Strings(expired) // deterministic audit order
 	for _, name := range expired {
-		_ = e.Deactivate(name, "expired")
+		_ = e.Deactivate(name, "expired") //nolint:errcheck // fails only with ErrNotRegistered: deactivated concurrently, the intended end state
 	}
 	return len(expired)
 }
@@ -262,8 +264,8 @@ func (e *EmergencyEngine) Active() []Emergency {
 	now := e.clock.Now()
 	e.mu.RLock()
 	out := make([]Emergency, 0, len(e.active))
-	for _, em := range e.active {
-		if em.Active(now) {
+	for name := range e.active {
+		if em := e.active[name]; em.Active(now) {
 			out = append(out, em)
 		}
 	}
@@ -296,7 +298,7 @@ func (e *EmergencyEngine) NoteUse(name string, d Decision) {
 	if e.audit == nil {
 		return
 	}
-	_ = e.audit.Record(AuditEntry{
+	recordAudit(e.audit, e.metrics, AuditEntry{
 		At: e.clock.Now(), Kind: AuditEmergencyUsed, Decision: d.ID,
 		Correlation: d.Correlation, Actor: d.Actor, Subject: d.Subject,
 		Policy: d.DecidedBy, Scope: d.Scope, Outcome: d.Outcome,
@@ -313,8 +315,10 @@ func (e *EmergencyEngine) NoteUse(name string, d Decision) {
 func (e *EmergencyEngine) ActiveNameFor(p PolicyID) string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	for name, em := range e.active {
-		for _, policy := range em.Policies {
+	for name := range e.active {
+		policies := e.active[name].Policies
+		for i := range policies {
+			policy := &policies[i]
 			if policy.ID == p {
 				return name
 			}
@@ -327,7 +331,7 @@ func (e *EmergencyEngine) record(kind AuditKind, em Emergency, reason string) {
 	if e.audit == nil {
 		return
 	}
-	_ = e.audit.Record(AuditEntry{
+	recordAudit(e.audit, e.metrics, AuditEntry{
 		At: e.clock.Now(), Kind: kind, Actor: ActorID(em.AuthorisedBy),
 		Reason: reason,
 		Details: map[string]string{

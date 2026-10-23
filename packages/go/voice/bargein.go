@@ -88,7 +88,7 @@ var _ audiointel.SpeechController = (*interruptController)(nil)
 //
 // This is the seam the phase brief requires: detection reaches
 // speech.SpeechSession.Interrupt through packages/go/audiobridge, not through
-// anything invented here. audiobridge in turn carries its own compile-time
+// anything invented here. The audiobridge package in turn carries its own compile-time
 // assertion that *speech.SpeechSession satisfies its interface, so the chain
 // from this line to the frozen method is checked by the compiler end to end.
 var _ audiointel.SpeechController = (*audiobridge.Adapter)(nil)
@@ -223,7 +223,7 @@ func (p *Pipeline) abortActiveTurn() {
 		dispatcher.Abort()
 	}
 	if stream != nil {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck // a barge-in abandons this synthesis; a close failure has no remedy
 	}
 	if cancel != nil {
 		// Unblocks the turn goroutine's wait without ending the SESSION: a

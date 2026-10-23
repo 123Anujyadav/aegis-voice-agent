@@ -1,0 +1,106 @@
+# =============================================================================
+# Secret-scanning gate.
+#
+# WHY THIS EXISTS:
+#
+# SECURITY.md states that secrets are "Enforced by gitleaks in pre-commit and
+# CI". Until now the CI half did not exist: no workflow ran any secret scanner.
+# .pre-commit-config.yaml says plainly that hooks "are a convenience, not a gate
+# … any rule that only exists here effectively does not exist", and
+# CONTRIBUTING.md lists "Secret scan / SAST — zero findings" as a required gate.
+# This closes the gap those three documents describe.
+#
+# DELIVERY MECHANISM: pinned release binary with checksum verification, as
+# approved by the owner.
+#
+# Not `go install`: that path builds gitleaks from source, and the resulting
+# binary aborts at runtime with `panic: wasm error: invalid table access` from
+# its embedded WASM regex engine. It was tried and rejected on evidence.
+#
+# Not the official GitHub Action: it is third-party, and requires a licence key
+# for organisations. This repository installs its own pinned tooling everywhere
+# else for the same reason.
+#
+# The version matches .pre-commit-config.yaml exactly, so a developer's local
+# hook and this gate cannot disagree about what counts as a secret. Bump both
+# together or they will drift.
+#
+# THE CHECKSUM IS THE SUPPLY-CHAIN CONTROL. Without it this job would execute
+# whatever the release URL happens to serve. It is verified before the archive is
+# unpacked, and a mismatch fails the job rather than warning.
+# =============================================================================
+name: pr-security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: pr-security-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Keep in lockstep with .pre-commit-config.yaml.
+  GITLEAKS_VERSION: "8.23.1"
+  # sha256 of gitleaks_8.23.1_linux_x64.tar.gz, taken from the official
+  # gitleaks_8.23.1_checksums.txt and independently reproduced by downloading
+  # the archive and hashing it.
+  GITLEAKS_SHA256: "6fac0fe2602d8aeaf5135b7a957bbac27984b1ad14def0574be0e115e3d73252"
+
+jobs:
+  secret-scan:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # No path filter on this workflow, and full history here rather than a
+      # shallow clone: a secret committed earlier and deleted later is still a
+      # leaked secret, and a depth-1 checkout cannot see it.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+
+          curl --fail --silent --show-error --location --retry 3 -o "${archive}" "${url}"
+
+          echo "${GITLEAKS_SHA256}  ${archive}" > "${archive}.sha256"
+          if ! sha256sum --check --status "${archive}.sha256"; then
+            echo "::error::Checksum mismatch for ${archive}. The release artefact does not match the pinned hash — do NOT ignore this. Either the pin is stale or the artefact was replaced."
+            echo "expected: ${GITLEAKS_SHA256}"
+            echo "actual:   $(sha256sum "${archive}" | cut -d' ' -f1)"
+            exit 1
+          fi
+
+          tar -xzf "${archive}" gitleaks
+          chmod +x gitleaks
+          ./gitleaks version
+
+      # --redact keeps a discovered secret out of the CI log, which is itself a
+      # readable artefact. A scanner that prints the credential it just found has
+      # widened the leak rather than reported it.
+      - name: Scan repository history
+        run: |
+          set -euo pipefail
+          if ! ./gitleaks git . --redact --no-banner; then
+            echo "::error::gitleaks reported findings. Values are redacted above; see the reported file and commit. Rotate anything real before removing it — deleting a committed secret does not un-leak it."
+            exit 1
+          fi
+
+      - name: Scan the working tree
+        run: |
+          set -euo pipefail
+          if ! ./gitleaks dir . --redact --no-banner; then
+            echo "::error::gitleaks reported findings in the working tree. Values are redacted above."
+            exit 1
+          fi

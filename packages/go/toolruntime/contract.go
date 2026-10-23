@@ -150,7 +150,7 @@ func (f FieldSpec) validate() []string {
 }
 
 // check validates one present value against the spec.
-func (f FieldSpec) check(v Value) error {
+func (f FieldSpec) check(v Value) error { //nolint:gocyclo // one case per field kind and constraint; FE-1 permits lint fixes, not restructuring the frozen tool runtime
 	if v.IsNull() {
 		if f.Required {
 			return fmt.Errorf("%w: field %s is required and was null", ErrInvalidInput, f.Name)
@@ -352,14 +352,16 @@ func (c Contract) validate(maxTimeout time.Duration) []string {
 	}
 
 	seen := make(map[string]bool, len(c.Input)+len(c.Output))
-	for _, f := range c.Input {
+	for i := range c.Input {
+		f := &c.Input[i]
 		problems = append(problems, prefix(c.Descriptor, "input", f.validate())...)
 		if seen["in:"+f.Name] {
 			problems = append(problems, fmt.Sprintf("%s: duplicate input field %s", c.Descriptor, f.Name))
 		}
 		seen["in:"+f.Name] = true
 	}
-	for _, f := range c.Output {
+	for i := range c.Output {
+		f := &c.Output[i]
 		problems = append(problems, prefix(c.Descriptor, "output", f.validate())...)
 		if seen["out:"+f.Name] {
 			problems = append(problems, fmt.Sprintf("%s: duplicate output field %s", c.Descriptor, f.Name))
@@ -389,9 +391,9 @@ func prefix(d Descriptor, where string, problems []string) []string {
 }
 
 // Provides reports whether the contract offers a capability.
-func (c Contract) Provides(cap CapabilityID) bool {
+func (c Contract) Provides(want CapabilityID) bool {
 	for _, have := range c.Capabilities {
-		if have == cap {
+		if have == want {
 			return true
 		}
 	}
@@ -400,9 +402,10 @@ func (c Contract) Provides(cap CapabilityID) bool {
 
 // InputSpec returns the spec for a named input field.
 func (c Contract) InputSpec(name string) (FieldSpec, bool) {
-	for _, f := range c.Input {
+	for i := range c.Input {
+		f := &c.Input[i]
 		if f.Name == name {
-			return f, true
+			return *f, true
 		}
 	}
 	return FieldSpec{}, false
@@ -421,7 +424,8 @@ func (c Contract) ValidateInput(args Arguments) (Arguments, error) {
 	}
 
 	declared := make(map[string]bool, len(c.Input))
-	for _, f := range c.Input {
+	for i := range c.Input {
+		f := &c.Input[i]
 		declared[f.Name] = true
 		v, present := out[f.Name]
 		if !present {
@@ -460,7 +464,8 @@ func (c Contract) ValidateInput(args Arguments) (Arguments, error) {
 // runtime can still tell truth from garbage cheaply.
 func (c Contract) ValidateOutput(res Result) error {
 	declared := make(map[string]bool, len(c.Output))
-	for _, f := range c.Output {
+	for i := range c.Output {
+		f := &c.Output[i]
 		declared[f.Name] = true
 		v, present := res[f.Name]
 		if !present {
@@ -489,7 +494,8 @@ func (c Contract) ValidateOutput(res Result) error {
 // SensitiveFields returns the names of input fields marked sensitive, sorted.
 func (c Contract) SensitiveFields() []string {
 	var out []string
-	for _, f := range c.Input {
+	for i := range c.Input {
+		f := &c.Input[i]
 		if f.Sensitive {
 			out = append(out, f.Name)
 		}

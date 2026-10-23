@@ -294,7 +294,8 @@ func (i ToolIntent) Validate() error {
 	}
 
 	refs := make(map[string]bool, len(i.Requests))
-	for _, r := range i.Requests {
+	for k := range i.Requests {
+		r := &i.Requests[k]
 		if r.Ref == "" {
 			continue
 		}
@@ -305,7 +306,8 @@ func (i ToolIntent) Validate() error {
 	}
 
 	multi := len(i.Requests) > 1
-	for idx, r := range i.Requests {
+	for idx := range i.Requests {
+		r := &i.Requests[idx]
 		problems = append(problems, r.validate(idx, refs, multi)...)
 	}
 
@@ -328,7 +330,8 @@ func (i ToolIntent) Validate() error {
 // caught by a step waiting forever for a dependency that is waiting for it.
 func findCycle(reqs []CapabilityRequest) string {
 	deps := make(map[string][]string, len(reqs))
-	for _, r := range reqs {
+	for i := range reqs {
+		r := &reqs[i]
 		if r.Ref == "" {
 			continue
 		}
@@ -402,7 +405,8 @@ func (i ToolIntent) Fingerprint() Fingerprint {
 	})
 
 	var buf []byte
-	for _, r := range reqs {
+	for k := range reqs {
+		r := &reqs[k]
 		buf = append(buf, r.Ref...)
 		buf = append(buf, '|')
 		buf = append(buf, r.Capability...)

@@ -126,7 +126,7 @@ var idAlphabet = base32.NewEncoding("0123456789abcdefghjkmnpqrstvwxyz").
 func newID(prefix string) string {
 	var buf [16]byte
 
-	ms := uint64(time.Now().UnixMilli())
+	ms := uint64(time.Now().UnixMilli()) //nolint:gosec // non-negative for any clock set after 1970
 	for i := 5; i >= 0; i-- {
 		buf[i] = byte(ms)
 		ms >>= 8
@@ -258,9 +258,9 @@ func checkReasonCode(reason string) error {
 }
 
 func truncate(s string) string {
-	const max = 32
-	if len(s) <= max {
+	const maxLen = 32
+	if len(s) <= maxLen {
 		return s
 	}
-	return s[:max] + "…"
+	return s[:maxLen] + "…"
 }

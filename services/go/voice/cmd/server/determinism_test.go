@@ -515,7 +515,9 @@ func TestT9_FreshRunningServiceSignatureIsStable(t *testing.T) {
 // this test existed. The golden file is what closes that hole: it is checked in,
 // so a semantic change has to be justified as a diff rather than absorbed.
 //
-// To regenerate deliberately: go test -run TestT9_MatrixMatchesTheGolden -update
+// To regenerate it deliberately, run:
+//
+//	go test -run TestT9_MatrixMatchesTheGolden -update
 func TestT9_MatrixMatchesTheGoldenSignature(t *testing.T) {
 	const golden = "testdata/t9_service_signature.golden"
 
@@ -901,7 +903,7 @@ func TestT9_FailureSignatureIsTypedAndStable(t *testing.T) {
 			}
 			_, hErr := p.Handle(utter("say that again"))
 			if !errors.Is(hErr, conversation.ErrTerminal) {
-				return fmt.Errorf("terminal refusal was %v, want ErrTerminal", hErr)
+				return fmt.Errorf("terminal refusal was %w, want ErrTerminal", hErr)
 			}
 			fmt.Fprintf(&b, "terminal err=%s %s\n", errIdentity(hErr), convSignature(conv))
 			return nil
@@ -1123,7 +1125,7 @@ func TestT9_SignatureIsIndependentOfWallClock(t *testing.T) {
 // TestT9_TurnClassificationIsDeterministic covers the turn-classification limb
 // of the signature.
 //
-// intent.ClassifyTurn is NOT called by the Bridge — the Phase 13 T9 finding,
+// The intent.ClassifyTurn function is NOT called by the Bridge — the Phase 13 T9 finding,
 // re-verified below — so its inputs cannot be read off a running service.
 // Scraping approximate values out of the engine would be inventing them. The
 // inputs here are therefore declared frozen constants, and the test proves what

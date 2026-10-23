@@ -15,24 +15,30 @@ import ci_gate
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 # Lines in the exact shape GitHub Actions serves a golangci-lint job log:
-# timestamp, the ##[error] annotation, then the issue (ANSI colour included).
-MAIN_LOG = "\n".join([
-    "2026-10-18T03:44:29.6426658Z ##[error]outbox.go:1:1: package-comments: should have a package comment (revive)",
-    "2026-10-18T03:44:29.6430484Z ##[error]outbox.go:14:2: exported: exported var ErrOutboxClosed should have comment or be unexported (revive)",
-    "2026-10-18T03:44:29.6430490Z \x1b[1m##[error]outbox.go:70:4: Error return value of `p.store.MarkFailed` is not checked (errcheck)\x1b[0m",
-    "2026-10-18T03:44:29.6430500Z \t_ = p.store.MarkFailed(ctx, entry.ID, err.Error())",
-    "2026-10-18T03:44:29.6430600Z level=info msg=\"3 issues\"",
-])
+# timestamp, the ##[error] annotation, then the issue (ANSI colour included).  # noqa: ERA001 - prose, not code
+MAIN_LOG = "\n".join(
+    [
+        "2026-10-18T03:44:29.6426658Z ##[error]outbox.go:1:1: package-comments: should have a package comment (revive)",
+        "2026-10-18T03:44:29.6430484Z ##[error]outbox.go:14:2: exported: exported var ErrOutboxClosed should have comment or be unexported (revive)",
+        "2026-10-18T03:44:29.6430490Z \x1b[1m##[error]outbox.go:70:4: Error return value of `p.store.MarkFailed` is not checked (errcheck)\x1b[0m",
+        "2026-10-18T03:44:29.6430500Z \t_ = p.store.MarkFailed(ctx, entry.ID, err.Error())",
+        '2026-10-18T03:44:29.6430600Z level=info msg="3 issues"',
+    ]
+)
 
 
 class PatternTest(unittest.TestCase):
     """GitHub filter-pattern semantics for the subset the gate supports."""
 
     def test_double_star_crosses_directories(self) -> None:
-        self.assertTrue(ci_gate.matches(("services/go/**",), "services/go/voice/cmd/server/main.go"))
+        self.assertTrue(
+            ci_gate.matches(("services/go/**",), "services/go/voice/cmd/server/main.go")
+        )
 
     def test_single_star_stays_in_one_segment(self) -> None:
-        self.assertTrue(ci_gate.matches(("packages/*/contracts-*/**",), "packages/go/contracts-go/x.go"))
+        self.assertTrue(
+            ci_gate.matches(("packages/*/contracts-*/**",), "packages/go/contracts-go/x.go")
+        )
         self.assertFalse(ci_gate.matches(("packages/*/x",), "packages/go/deep/x"))
 
     def test_exact_file(self) -> None:
@@ -54,7 +60,9 @@ class TriggerParsingTest(unittest.TestCase):
 
     def parse(self, name: str) -> ci_gate.Trigger | None:
         path = WORKFLOWS / name
-        return ci_gate.parse_pull_request_trigger(f".github/workflows/{name}", path.read_text(encoding="utf-8"))
+        return ci_gate.parse_pull_request_trigger(
+            f".github/workflows/{name}", path.read_text(encoding="utf-8")
+        )
 
     def test_every_repository_workflow_parses(self) -> None:
         for path in sorted(WORKFLOWS.glob("*.y*ml")):
@@ -83,7 +91,9 @@ class TriggerParsingTest(unittest.TestCase):
         self.assertNotIn("go.work.sum", trigger.paths)
 
     def test_the_gate_itself_has_an_unfiltered_pull_request_trigger(self) -> None:
-        self.assertEqual(self.parse("ci-gate.yml"), ci_gate.Trigger(".github/workflows/ci-gate.yml", None, None))
+        self.assertEqual(
+            self.parse("ci-gate.yml"), ci_gate.Trigger(".github/workflows/ci-gate.yml", None, None)
+        )
 
     def test_inline_and_block_forms(self) -> None:
         self.assertEqual(
@@ -116,8 +126,22 @@ class ExpectedWorkflowsTest(unittest.TestCase):
     def expected(self, *changed: str, base: str = "main") -> list[str]:
         return ci_gate.expected_workflows(WORKFLOWS, base, list(changed))
 
-    def test_docs_only_pr_expects_only_backend_foundation(self) -> None:
-        self.assertEqual(self.expected("docs/phase15/READINESS_AUDIT.md"), [".github/workflows/ci.yml"])
+    def test_docs_only_pr_expects_backend_foundation_and_the_secret_scan(self) -> None:
+        self.assertEqual(
+            self.expected("docs/phase15/READINESS_AUDIT.md"),
+            [".github/workflows/ci.yml", ".github/workflows/pr-security.yml"],
+        )
+
+    def test_every_pr_expects_the_secret_scan(self) -> None:
+        # pr-security.yml has no path filter: a secret can be added in any file.
+        for changed in (
+            "docs/a.md",
+            "services/go/media-relay/internal/app/media_relay.go",
+            ".github/workflows/hardening.yml",
+            "go.work.sum",
+        ):
+            with self.subTest(changed=changed):
+                self.assertIn(".github/workflows/pr-security.yml", self.expected(changed))
 
     def test_go_change_expects_go_workflows(self) -> None:
         got = self.expected("services/go/media-relay/internal/app/media_relay.go")
@@ -143,7 +167,9 @@ class ExpectedWorkflowsTest(unittest.TestCase):
 
     def test_unparseable_workflow_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            Path(tmp, "x.yml").write_text("on:\n  pull_request:\n    paths-ignore: [a]\n", encoding="utf-8")
+            Path(tmp, "x.yml").write_text(
+                "on:\n  pull_request:\n    paths-ignore: [a]\n", encoding="utf-8"
+            )
             with self.assertRaises(ci_gate.UnsupportedTriggerError):
                 ci_gate.expected_workflows(Path(tmp), "main", ["a"])
 
@@ -165,21 +191,29 @@ class LintComparisonTest(unittest.TestCase):
         self.assertEqual(ci_gate.lint_regressions(pr, MAIN_LOG), [])
 
     def test_line_shifts_and_relabelled_messages_are_no_regression(self) -> None:
-        pr = MAIN_LOG.replace("outbox.go:14:2: exported: exported var", "outbox.go:19:2: var-naming: var")
+        pr = MAIN_LOG.replace(
+            "outbox.go:14:2: exported: exported var", "outbox.go:19:2: var-naming: var"
+        )
         self.assertEqual(ci_gate.lint_regressions(pr, MAIN_LOG), [])
 
     def test_an_extra_finding_in_an_already_failing_module_is_a_regression(self) -> None:
-        pr = MAIN_LOG + "\n2026-10-18T03:44:30.0Z ##[error]outbox.go:99:1: exported: exported func X should have comment (revive)"
+        pr = (
+            MAIN_LOG
+            + "\n2026-10-18T03:44:30.0Z ##[error]outbox.go:99:1: exported: exported func X should have comment (revive)"
+        )
         got = ci_gate.lint_regressions(pr, MAIN_LOG)
         self.assertEqual(len(got), 1)
         self.assertIn("outbox.go (revive): 3 finding(s), 2 on main", got[0])
 
     def test_a_new_file_or_linter_is_a_regression(self) -> None:
-        pr = MAIN_LOG + "\n2026-10-18T03:44:30.0Z ##[error]new.go:1:1: Sentence should start with a capital letter (godot)"
+        pr = (
+            MAIN_LOG
+            + "\n2026-10-18T03:44:30.0Z ##[error]new.go:1:1: Sentence should start with a capital letter (godot)"
+        )
         self.assertTrue(any("new.go (godot)" in r for r in ci_gate.lint_regressions(pr, MAIN_LOG)))
 
     def test_a_failed_job_with_no_parseable_finding_is_a_regression(self) -> None:
-        pr = "2026-10-18T03:44:29Z level=error msg=\"Running error: context loading failed\""
+        pr = '2026-10-18T03:44:29Z level=error msg="Running error: context loading failed"'
         self.assertEqual(len(ci_gate.lint_regressions(pr, MAIN_LOG)), 1)
 
 
@@ -192,39 +226,61 @@ class EvaluateRunTest(unittest.TestCase):
         self.assertTrue(ci_gate.evaluate_run("w", "success", [], None).ok)
 
     def test_baseline_lint_failure_without_new_findings_is_advisory(self) -> None:
-        jobs = [{"name": self.lint, "conclusion": "failure"}, {"name": "packages/go/voice", "conclusion": "success"}]
-        verdict = ci_gate.evaluate_run("pr-go", "failure", jobs, {self.lint: "failure"}, {self.lint: []})
+        jobs = [
+            {"name": self.lint, "conclusion": "failure"},
+            {"name": "packages/go/voice", "conclusion": "success"},
+        ]
+        verdict = ci_gate.evaluate_run(
+            "pr-go", "failure", jobs, {self.lint: "failure"}, {self.lint: []}
+        )
         self.assertTrue(verdict.ok, verdict.lines)
         self.assertIn("baseline", "\n".join(verdict.lines))
 
     def test_baseline_lint_failure_with_new_findings_blocks(self) -> None:
         jobs = [{"name": self.lint, "conclusion": "failure"}]
         verdict = ci_gate.evaluate_run(
-            "pr-go", "failure", jobs, {self.lint: "failure"}, {self.lint: ["x.go (godot): 2 finding(s), 1 on main"]}
+            "pr-go",
+            "failure",
+            jobs,
+            {self.lint: "failure"},
+            {self.lint: ["x.go (godot): 2 finding(s), 1 on main"]},
         )
         self.assertFalse(verdict.ok)
         self.assertIn("new lint finding", "\n".join(verdict.lines))
 
     def test_baseline_lint_failure_that_was_not_compared_blocks(self) -> None:
         jobs = [{"name": self.lint, "conclusion": "failure"}]
-        self.assertFalse(ci_gate.evaluate_run("pr-go", "failure", jobs, {self.lint: "failure"}, {}).ok)
+        self.assertFalse(
+            ci_gate.evaluate_run("pr-go", "failure", jobs, {self.lint: "failure"}, {}).ok
+        )
 
     def test_lint_failure_that_passes_on_main_blocks(self) -> None:
         jobs = [{"name": self.lint, "conclusion": "failure"}]
-        self.assertFalse(ci_gate.evaluate_run("pr-go", "failure", jobs, {self.lint: "success"}, {self.lint: []}).ok)
+        self.assertFalse(
+            ci_gate.evaluate_run(
+                "pr-go", "failure", jobs, {self.lint: "success"}, {self.lint: []}
+            ).ok
+        )
 
     def test_lint_failure_with_no_main_counterpart_blocks(self) -> None:
         jobs = [{"name": "golangci-lint (packages/go/new)", "conclusion": "failure"}]
-        self.assertFalse(ci_gate.evaluate_run("pr-go", "failure", jobs, {self.lint: "failure"}, {}).ok)
+        self.assertFalse(
+            ci_gate.evaluate_run("pr-go", "failure", jobs, {self.lint: "failure"}, {}).ok
+        )
 
     def test_lint_failure_with_no_main_run_blocks(self) -> None:
         jobs = [{"name": self.lint, "conclusion": "failure"}]
         self.assertFalse(ci_gate.evaluate_run("pr-go", "failure", jobs, None).ok)
 
     def test_non_lint_failure_blocks_even_with_lint_baseline(self) -> None:
-        jobs = [{"name": self.lint, "conclusion": "failure"}, {"name": "Race detector (repeated)", "conclusion": "failure"}]
+        jobs = [
+            {"name": self.lint, "conclusion": "failure"},
+            {"name": "Race detector (repeated)", "conclusion": "failure"},
+        ]
         self.assertFalse(
-            ci_gate.evaluate_run("hardening", "failure", jobs, {self.lint: "failure"}, {self.lint: []}).ok
+            ci_gate.evaluate_run(
+                "hardening", "failure", jobs, {self.lint: "failure"}, {self.lint: []}
+            ).ok
         )
 
     def test_cancelled_timed_out_and_unfinished_jobs_block(self) -> None:
@@ -235,7 +291,9 @@ class EvaluateRunTest(unittest.TestCase):
 
     def test_cancelled_lint_job_blocks_even_when_main_fails(self) -> None:
         jobs = [{"name": self.lint, "conclusion": "cancelled"}]
-        self.assertFalse(ci_gate.evaluate_run("pr-go", "cancelled", jobs, {self.lint: "failure"}, {}).ok)
+        self.assertFalse(
+            ci_gate.evaluate_run("pr-go", "cancelled", jobs, {self.lint: "failure"}, {}).ok
+        )
 
     def test_skipped_and_neutral_jobs_pass(self) -> None:
         jobs = [{"name": "a", "conclusion": "skipped"}, {"name": "b", "conclusion": "neutral"}]
@@ -265,7 +323,9 @@ class GateWorkflowTest(unittest.TestCase):
         verdict = next(i for i, s in enumerate(steps) if "ci_gate.py" in s and "--pr" in s)
         runs_pr_code = [i for i, s in enumerate(steps) if "unittest discover -s pr/" in s]
         self.assertTrue(runs_pr_code)
-        self.assertTrue(all(i > verdict for i in runs_pr_code), "PR code must run after the verdict")
+        self.assertTrue(
+            all(i > verdict for i in runs_pr_code), "PR code must run after the verdict"
+        )
         for step in steps[:verdict]:
             self.assertNotIn("run:", step, "only checkouts may precede the verdict")
 
@@ -293,6 +353,188 @@ class GateWorkflowTest(unittest.TestCase):
                 self.assertIn("persist-credentials: false", step)
 
 
+class LatestAttemptTest(unittest.TestCase):
+    """Jobs are listed with filter=all and reduced to each job's latest attempt."""
+
+    def test_same_attempt_duplicate_names_are_all_kept(self) -> None:
+        # Only earlier attempts are dropped: two jobs sharing a name in one
+        # attempt are both judged, so a failing one cannot be hidden.
+        rows = [
+            {
+                "id": 1,
+                "name": "build",
+                "status": "completed",
+                "conclusion": "failure",
+                "run_attempt": 1,
+            },
+            {
+                "id": 2,
+                "name": "build",
+                "status": "completed",
+                "conclusion": "success",
+                "run_attempt": 1,
+            },
+        ]
+        jobs = ci_gate._latest_attempt(rows)
+        self.assertEqual([j["id"] for j in jobs], [1, 2])
+        self.assertFalse(ci_gate.evaluate_run("pr-go.yml", "failure", jobs, None).ok)
+
+    def test_a_partially_rerun_job_is_taken_from_its_latest_attempt(self) -> None:
+        rows = [
+            {
+                "id": 10,
+                "name": "lint (a)",
+                "status": "completed",
+                "conclusion": "failure",
+                "run_attempt": 1,
+            },
+            {
+                "id": 11,
+                "name": "test (a)",
+                "status": "completed",
+                "conclusion": "success",
+                "run_attempt": 1,
+            },
+            {
+                "id": 20,
+                "name": "lint (a)",
+                "status": "completed",
+                "conclusion": "success",
+                "run_attempt": 2,
+            },
+        ]
+        self.assertEqual(
+            ci_gate._latest_attempt(rows),
+            [
+                {"id": 20, "name": "lint (a)", "status": "completed", "conclusion": "success"},
+                {"id": 11, "name": "test (a)", "status": "completed", "conclusion": "success"},
+            ],
+        )
+
+    def test_a_still_running_rerun_is_reported_as_running(self) -> None:
+        # The re-run attempt has not finished: the gate must see it as running,
+        # not the earlier attempt's completed failure.
+        rows = [
+            {
+                "id": 30,
+                "name": "lint (b)",
+                "status": "in_progress",
+                "conclusion": None,
+                "run_attempt": 2,
+            },
+            {
+                "id": 10,
+                "name": "lint (b)",
+                "status": "completed",
+                "conclusion": "failure",
+                "run_attempt": 1,
+            },
+        ]
+        self.assertEqual(
+            ci_gate._latest_attempt(rows),
+            [
+                {"id": 30, "name": "lint (b)", "status": "in_progress", "conclusion": None},
+            ],
+        )
+
+    def test_a_single_attempt_listing_is_unchanged(self) -> None:
+        rows = [
+            {
+                "id": 1,
+                "name": "x",
+                "status": "completed",
+                "conclusion": "success",
+                "run_attempt": 1,
+            },
+            {
+                "id": 2,
+                "name": "y",
+                "status": "completed",
+                "conclusion": "failure",
+                "run_attempt": 1,
+            },
+        ]
+        self.assertEqual(
+            ci_gate._latest_attempt(rows),
+            [{k: v for k, v in r.items() if k != "run_attempt"} for r in rows],
+        )
+
+    def test_jobs_lists_every_attempt_and_reduces_it(self) -> None:
+        from unittest import mock
+
+        calls: list[tuple[str, ...]] = []
+
+        def fake_lines(*args: str) -> list[dict]:
+            calls.append(args)
+            return [
+                {
+                    "id": 10,
+                    "name": "lint",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "run_attempt": 1,
+                },
+                {
+                    "id": 20,
+                    "name": "lint",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "run_attempt": 2,
+                },
+            ]
+
+        with mock.patch.object(ci_gate, "_gh_lines", side_effect=fake_lines):
+            got = ci_gate.GitHub("o/r").jobs(7)
+        self.assertEqual(
+            got, [{"id": 20, "name": "lint", "status": "completed", "conclusion": "success"}]
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertIn("actions/runs/7/jobs?filter=all&per_page=30", calls[0][0])
+        self.assertIn("--paginate", calls[0])
+        self.assertIn("run_attempt", calls[0][-1])
+
+    def test_main_jobs_uses_the_newest_completed_run_without_a_status_filter(self) -> None:
+        from unittest import mock
+
+        calls: list[tuple[str, ...]] = []
+
+        def fake_lines(*args: str) -> list[dict]:
+            calls.append(args)
+            if "/workflows/" in args[0]:
+                return [
+                    {"id": 3, "status": "in_progress"},
+                    {"id": 2, "status": "completed"},
+                    {"id": 1, "status": "completed"},
+                ]
+            return [
+                {
+                    "id": 9,
+                    "name": "lint",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "run_attempt": 1,
+                },
+            ]
+
+        with mock.patch.object(ci_gate, "_gh_lines", side_effect=fake_lines):
+            got = ci_gate.GitHub("o/r").main_jobs(".github/workflows/pr-go.yml")
+        self.assertEqual(
+            got, [{"id": 9, "name": "lint", "status": "completed", "conclusion": "failure"}]
+        )
+        self.assertNotIn("status=", calls[0][0])
+        self.assertIn("workflows/pr-go.yml/runs?branch=main&event=push", calls[0][0])
+        self.assertIn("actions/runs/2/jobs", calls[1][0])
+
+    def test_main_jobs_without_a_completed_run_is_none(self) -> None:
+        from unittest import mock
+
+        def fake_lines(*args: str) -> list[dict]:
+            return [{"id": 3, "status": "in_progress"}] if "/workflows/" in args[0] else []
+
+        with mock.patch.object(ci_gate, "_gh_lines", side_effect=fake_lines):
+            self.assertIsNone(ci_gate.GitHub("o/r").main_jobs(".github/workflows/pr-go.yml"))
+
+
 class OutputTest(unittest.TestCase):
     """The printed report cannot act as workflow commands."""
 
@@ -302,8 +544,11 @@ class OutputTest(unittest.TestCase):
         from unittest import mock
 
         out = io.StringIO()
-        with mock.patch.object(ci_gate, "run_gate", return_value=(True, ["::error::injected name"])), \
-                contextlib.redirect_stdout(out), mock.patch.dict("os.environ", {}, clear=False):
+        with (
+            mock.patch.object(ci_gate, "run_gate", return_value=(True, ["::error::injected name"])),
+            contextlib.redirect_stdout(out),
+            mock.patch.dict("os.environ", {}, clear=False),
+        ):
             ci_gate.main(["--repo", "o/r", "--pr", "1"])
         lines = out.getvalue().splitlines()
         self.assertTrue(lines[0].startswith("::stop-commands::"))
@@ -315,8 +560,14 @@ class OutputTest(unittest.TestCase):
 class FakeGitHub:
     """An in-memory stand-in for GitHub, for end-to-end gate simulations."""
 
-    def __init__(self, changed: list[str], runs: dict[str, dict], jobs: dict[int, list[dict]],
-                 logs: dict[int, str] | None = None, main: dict[str, list[dict]] | None = None) -> None:
+    def __init__(
+        self,
+        changed: list[str],
+        runs: dict[str, dict],
+        jobs: dict[int, list[dict]],
+        logs: dict[int, str] | None = None,
+        main: dict[str, list[dict]] | None = None,
+    ) -> None:
         self._changed, self._runs, self._jobs = changed, runs, jobs
         self._logs, self._main = logs or {}, main or {}
 
@@ -342,7 +593,9 @@ class FakeGitHub:
 class SequencedJobsGitHub(FakeGitHub):
     """A FakeGitHub whose job lists change between calls (a job finishing)."""
 
-    def __init__(self, changed: list[str], runs: dict[str, dict], sequences: dict[int, list[list[dict]]]) -> None:
+    def __init__(
+        self, changed: list[str], runs: dict[str, dict], sequences: dict[int, list[list[dict]]]
+    ) -> None:
         super().__init__(changed, runs, {})
         self._sequences = sequences
 
@@ -352,7 +605,14 @@ class SequencedJobsGitHub(FakeGitHub):
 
 
 def _run(run_id: int, path: str, conclusion: str, status: str = "completed") -> dict:
-    return {"id": run_id, "path": path, "status": status, "conclusion": conclusion, "created_at": "t", "run_attempt": 1}
+    return {
+        "id": run_id,
+        "path": path,
+        "status": status,
+        "conclusion": conclusion,
+        "created_at": "t",
+        "run_attempt": 1,
+    }
 
 
 class GateSimulationTest(unittest.TestCase):
@@ -361,30 +621,55 @@ class GateSimulationTest(unittest.TestCase):
     ci, pr_go = ".github/workflows/ci.yml", ".github/workflows/pr-go.yml"
     hardening = ".github/workflows/hardening.yml"
     lint = "golangci-lint (packages/go/outbox)"
+    security = ".github/workflows/pr-security.yml"
+
+    def scanned(self, runs: dict[str, dict]) -> dict[str, dict]:
+        """Add the secret-scan run every PR starts (pr-security.yml, no path filter)."""
+        return {**runs, self.security: _run(9, self.security, "success")}
 
     def gate(self, gh: FakeGitHub) -> tuple[bool, list[str]]:
-        return ci_gate.run_gate(gh, 1, WORKFLOWS, wait=False, interval=0, appear_timeout=0, total_timeout=0)
+        return ci_gate.run_gate(
+            gh, 1, WORKFLOWS, wait=False, interval=0, appear_timeout=0, total_timeout=0
+        )
 
     def go_pr(self, pr_log: str, ran_hardening: str = "success") -> FakeGitHub:
         return FakeGitHub(
             ["packages/go/outbox/outbox.go"],
-            {self.ci: _run(1, self.ci, "success"), self.pr_go: _run(2, self.pr_go, "failure"),
-             self.hardening: _run(3, self.hardening, ran_hardening)},
-            {2: [{"id": 20, "name": self.lint, "conclusion": "failure"},
-                 {"id": 21, "name": "packages/go/outbox", "conclusion": "success"}],
-             3: [{"id": 30, "name": "Race detector (repeated)", "conclusion": "failure"}]},
+            self.scanned(
+                {
+                    self.ci: _run(1, self.ci, "success"),
+                    self.pr_go: _run(2, self.pr_go, "failure"),
+                    self.hardening: _run(3, self.hardening, ran_hardening),
+                }
+            ),
+            {
+                2: [
+                    {"id": 20, "name": self.lint, "conclusion": "failure"},
+                    {"id": 21, "name": "packages/go/outbox", "conclusion": "success"},
+                ],
+                3: [{"id": 30, "name": "Race detector (repeated)", "conclusion": "failure"}],
+            },
             logs={20: pr_log, 90: MAIN_LOG},
             main={self.pr_go: [{"id": 90, "name": self.lint, "conclusion": "failure"}]},
         )
 
-    def test_docs_only_pr_passes_on_backend_foundation_alone(self) -> None:
-        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "success")}, {})
+    def test_docs_only_pr_passes_on_backend_foundation_and_the_secret_scan(self) -> None:
+        gh = FakeGitHub(["docs/a.md"], self.scanned({self.ci: _run(1, self.ci, "success")}), {})
         passed, report = self.gate(gh)
         self.assertTrue(passed, report)
 
+    def test_a_pr_without_the_secret_scan_fails(self) -> None:
+        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "success")}, {})
+        passed, report = self.gate(gh)
+        self.assertFalse(passed)
+        self.assertIn("never started", "\n".join(report))
+
     def test_docs_only_pr_fails_when_backend_foundation_fails(self) -> None:
-        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")},
-                        {1: [{"id": 10, "name": "Build & Test Backend Foundation", "conclusion": "failure"}]})
+        gh = FakeGitHub(
+            ["docs/a.md"],
+            {self.ci: _run(1, self.ci, "failure")},
+            {1: [{"id": 10, "name": "Build & Test Backend Foundation", "conclusion": "failure"}]},
+        )
         self.assertFalse(self.gate(gh)[0])
 
     def test_go_pr_with_only_baseline_lint_passes(self) -> None:
@@ -401,7 +686,9 @@ class GateSimulationTest(unittest.TestCase):
         self.assertFalse(self.gate(self.go_pr(MAIN_LOG, ran_hardening="failure"))[0])
 
     def test_expected_workflow_that_never_started_fails(self) -> None:
-        gh = FakeGitHub(["packages/go/outbox/outbox.go"], {self.ci: _run(1, self.ci, "success")}, {})
+        gh = FakeGitHub(
+            ["packages/go/outbox/outbox.go"], {self.ci: _run(1, self.ci, "success")}, {}
+        )
         passed, report = self.gate(gh)
         self.assertFalse(passed)
         self.assertIn("never started", "\n".join(report))
@@ -413,32 +700,74 @@ class GateSimulationTest(unittest.TestCase):
     def test_a_run_reported_completed_with_a_running_job_does_not_pass(self) -> None:
         # Seen on GitHub: pr-go reported completed/failure while a govulncheck
         # job was still in progress.
-        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")},
-                        {1: [{"id": 10, "name": "Build & Test Backend Foundation", "status": "in_progress", "conclusion": None}]})
+        gh = FakeGitHub(
+            ["docs/a.md"],
+            self.scanned({self.ci: _run(1, self.ci, "failure")}),
+            {
+                1: [
+                    {
+                        "id": 10,
+                        "name": "Build & Test Backend Foundation",
+                        "status": "in_progress",
+                        "conclusion": None,
+                    }
+                ]
+            },
+        )
         passed, report = self.gate(gh)
         self.assertFalse(passed)
         self.assertIn("a job is still running", "\n".join(report))
 
     def test_the_gate_waits_for_such_a_job_and_then_judges_it(self) -> None:
-        gh = SequencedJobsGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")}, {1: [
-            [{"id": 10, "name": "Build & Test Backend Foundation", "status": "in_progress", "conclusion": None}],
-            [{"id": 10, "name": "Build & Test Backend Foundation", "status": "completed", "conclusion": "failure"}],
-        ]})
-        passed, report = ci_gate.run_gate(gh, 1, WORKFLOWS, wait=True, interval=0, appear_timeout=5, total_timeout=5)
+        gh = SequencedJobsGitHub(
+            ["docs/a.md"],
+            self.scanned({self.ci: _run(1, self.ci, "failure")}),
+            {
+                1: [
+                    [
+                        {
+                            "id": 10,
+                            "name": "Build & Test Backend Foundation",
+                            "status": "in_progress",
+                            "conclusion": None,
+                        }
+                    ],
+                    [
+                        {
+                            "id": 10,
+                            "name": "Build & Test Backend Foundation",
+                            "status": "completed",
+                            "conclusion": "failure",
+                        }
+                    ],
+                ]
+            },
+        )
+        passed, report = ci_gate.run_gate(
+            gh, 1, WORKFLOWS, wait=True, interval=0, appear_timeout=5, total_timeout=5
+        )
         self.assertFalse(passed, "the finished job failed, so the gate must fail")
         self.assertIn("Build & Test Backend Foundation: failure", "\n".join(report))
 
     def test_a_job_that_never_finishes_times_out(self) -> None:
-        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "failure")},
-                        {1: [{"id": 10, "name": "x", "status": "in_progress", "conclusion": None}]})
-        passed, report = ci_gate.run_gate(gh, 1, WORKFLOWS, wait=True, interval=0, appear_timeout=0, total_timeout=0)
+        gh = FakeGitHub(
+            ["docs/a.md"],
+            self.scanned({self.ci: _run(1, self.ci, "failure")}),
+            {1: [{"id": 10, "name": "x", "status": "in_progress", "conclusion": None}]},
+        )
+        passed, report = ci_gate.run_gate(
+            gh, 1, WORKFLOWS, wait=True, interval=0, appear_timeout=0, total_timeout=0
+        )
         self.assertFalse(passed)
         self.assertIn("timed out waiting for", "\n".join(report))
 
     def test_an_unpredicted_run_is_judged_too(self) -> None:
         extra = ".github/workflows/new.yml"
-        gh = FakeGitHub(["docs/a.md"], {self.ci: _run(1, self.ci, "success"), extra: _run(5, extra, "failure")},
-                        {5: [{"id": 50, "name": "x", "conclusion": "failure"}]})
+        gh = FakeGitHub(
+            ["docs/a.md"],
+            {self.ci: _run(1, self.ci, "success"), extra: _run(5, extra, "failure")},
+            {5: [{"id": 50, "name": "x", "conclusion": "failure"}]},
+        )
         self.assertFalse(self.gate(gh)[0])
 
 

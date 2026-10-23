@@ -380,9 +380,11 @@ func (h *HumanRuntime) Pending() []Escalation {
 // PendingFor returns waiting escalations of one kind.
 func (h *HumanRuntime) PendingFor(k EscalationKind) []Escalation {
 	var out []Escalation
-	for _, esc := range h.Pending() {
+	escList := h.Pending()
+	for i := range escList {
+		esc := &escList[i]
 		if esc.Kind == k {
-			out = append(out, esc)
+			out = append(out, *esc)
 		}
 	}
 	return out
@@ -464,7 +466,7 @@ func (h *HumanRuntime) record(kind AuditKind, e Escalation, reason string) {
 	if e.Note != "" {
 		details["note"] = e.Note
 	}
-	_ = h.audit.Record(AuditEntry{
+	recordAudit(h.audit, h.metrics, AuditEntry{
 		At: h.clock.Now(), Kind: kind, Decision: e.Decision, Correlation: e.Correlation,
 		Session: e.Session, Actor: e.Actor, Subject: e.Subject, Policy: e.Policy,
 		Reason: reason, ActionLabel: e.ActionLabel, Risk: e.Risk, Details: details,

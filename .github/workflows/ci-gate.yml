@@ -59,7 +59,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Check out the base branch tip (trusted gate and workflow filters)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.base_ref }}
           path: trusted
@@ -69,7 +69,7 @@ jobs:
       # Only when the base has no gate yet. Checkout executes no PR code.
       - name: Check out the pull request (bootstrap only)
         if: ${{ hashFiles('trusted/tools/ci/ci_gate.py') == '' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: pr
           fetch-depth: 1
@@ -84,10 +84,10 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if [ -f trusted/tools/ci/ci_gate.py ]; then
-            gate=trusted
+            gate="trusted"
           else
             echo "::warning::bootstrap: the base branch has no ci-gate yet, so this run uses the pull request's copy"
-            gate=pr
+            gate="pr"
           fi
           python3 -I "$gate/tools/ci/ci_gate.py" \
             --repo "$REPO" \
@@ -97,7 +97,7 @@ jobs:
 
       - name: Check out the pull request (its own gate tests)
         if: ${{ hashFiles('pr/tools/ci/ci_gate.py') == '' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: pr
           fetch-depth: 1

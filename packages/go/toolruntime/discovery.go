@@ -93,7 +93,7 @@ const DefaultMaxCandidates = 3
 // Collapsing them into one error means an on-call engineer reads "tool not
 // available" and cannot tell whether to page the deploy owner or the
 // integration owner.
-func (d *Discovery) Resolve(req Request) ([]Candidate, error) {
+func (d *Discovery) Resolve(req Request) ([]Candidate, error) { //nolint:gocyclo // FE-1 permits lint fixes, not restructuring the frozen tool runtime
 	if problems := req.validate(); len(problems) > 0 {
 		return nil, &ConfigError{Problems: problems}
 	}
@@ -166,12 +166,12 @@ func (d *Discovery) Resolve(req Request) ([]Candidate, error) {
 		})
 	}
 
-	max := req.MaxCandidates
-	if max <= 0 {
-		max = DefaultMaxCandidates
+	limit := req.MaxCandidates
+	if limit <= 0 {
+		limit = DefaultMaxCandidates
 	}
-	if len(kept) > max {
-		kept = kept[:max]
+	if len(kept) > limit {
+		kept = kept[:limit]
 	}
 
 	out := make([]Candidate, 0, len(kept))

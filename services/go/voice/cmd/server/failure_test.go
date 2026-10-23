@@ -336,7 +336,8 @@ func TestT7_TerminalSessionRefusesFurtherWork(t *testing.T) {
 // Reachable only at the supported boundary: cancellation
 // ---------------------------------------------------------------------------
 
-// TestT7_CancellationIsObservedAtTheSupportedBoundary.
+// TestT7_CancellationIsObservedAtTheSupportedBoundary confirms a session driver
+// observes service cancellation between turns.
 //
 // T6 established that conversation.Handle takes NO context, so cancellation
 // cannot interrupt a turn mid-execution. This test asserts only what the
@@ -419,7 +420,8 @@ func TestT7_CancellationIsObservedAtTheSupportedBoundary(t *testing.T) {
 // NOT reachable: governance denial and tool failure
 // ---------------------------------------------------------------------------
 
-// TestT7_GovernanceAndToolVocabularyRemainDistinguishable.
+// TestT7_GovernanceAndToolVocabularyRemainDistinguishable confirms the frozen
+// governance and tool outcome vocabularies stay distinguishable.
 //
 // Neither governance denial nor tool failure is reachable from the Phase 14
 // service intelligence path: the path makes no governance decision and executes

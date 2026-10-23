@@ -18,7 +18,7 @@
 # rebuilding an old commit would not reproduce the artefact that was tested.
 #
 # DIGEST PINNING IS NOT YET APPLIED. The intended end state is
-# `golang:1.23.5-alpine3.21@sha256:<digest>`, which is what actually makes a
+# `golang:1.26.10-alpine3.23@sha256:<digest>`, which is what actually makes a
 # build forensically reconstructable — a patch tag is still mutable in principle.
 # The digests are deliberately absent rather than guessed: a wrong digest either
 # fails the pull or, worse, pins an image nobody verified.
@@ -26,7 +26,28 @@
 # Renovate populates them on its first run (`pinDigests: true` in
 # renovate.json5), which is the correct mechanism because it resolves the digest
 # against the registry and keeps it updated with the tag.
-FROM golang:1.23.5-alpine3.21 AS build
+#
+# The Go patch matches GO_VERSION in .github/workflows/pr-go.yml: the shipped
+# binary is built by the toolchain CI tested and scanned. go1.26.10 fixes
+# GO-2026-6809 (crypto/x509), and is at least every `go` directive in the
+# workspace (1.25.0); go1.23.5 was below them. Alpine 3.23 because that is the
+# variant published for this patch.
+FROM golang:1.26.10-alpine3.23 AS manifests
+
+# Every module go.work lists must be present, or the go command refuses the
+# whole workspace ("cannot load module ... listed in go.work") before it
+# downloads anything. Copying only the modules one service uses is therefore
+# not enough, and copying every module's source here would invalidate the
+# download layer on any edit. This throwaway stage keeps only each module's
+# go.mod and go.sum, so the layer copied from it changes only when a
+# dependency manifest changes.
+WORKDIR /src
+COPY go.work go.work.sum* ./
+COPY packages/go ./packages/go
+COPY services/go ./services/go
+RUN find packages services -type f ! -name go.mod ! -name go.sum -delete  && find packages services -depth -type d -empty -delete
+
+FROM golang:1.26.10-alpine3.23 AS build
 
 # git is needed for module resolution; ca-certificates for fetching over TLS.
 # --no-cache avoids leaving an apk index in the layer.
@@ -44,14 +65,11 @@ WORKDIR /src
 # layer is cached and only invalidated when dependencies actually change.
 # Copying source first would re-download every dependency on every source edit,
 # which on a constrained network is the difference between a 20-second and a
-# five-minute build.
-COPY go.work go.work.sum* ./
-COPY packages/go/platform/go.mod packages/go/platform/go.sum* ./packages/go/platform/
-COPY packages/go/eventbus/go.mod packages/go/eventbus/go.sum* ./packages/go/eventbus/
-COPY packages/go/contracts-go/go.mod packages/go/contracts-go/go.sum* ./packages/go/contracts-go/
+# five-minute build. All of the workspace's manifests come from the manifests
+# stage above: go.work, go.work.sum and every listed module's go.mod/go.sum.
+COPY --from=manifests /src ./
 
 ARG SERVICE
-COPY services/go/${SERVICE}/go.mod services/go/${SERVICE}/go.sum* ./services/go/${SERVICE}/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download all

@@ -162,7 +162,7 @@ Removed when the repository is published. No action.
 | Standard library CVE | present. `govulncheck` covers it, and it has never run — see [RACE_VERIFICATION_REPORT.md](RACE_VERIFICATION_REPORT.md) §2. |
 | Compromised CI action | present. `actions/checkout@v4`, `setup-go@v5`, `upload-artifact@v4` are referenced by tag, not by commit SHA. |
 
-### D3 — GitHub Actions are pinned by tag, not SHA *(medium, open)*
+### D3 — GitHub Actions are pinned by tag, not SHA *(medium; closed 2026-10-21, see §9)*
 
 A tag is mutable. `actions/checkout@v4` resolves to whatever the `v4` tag points
 at today, and an upstream compromise would execute in a workflow that has
@@ -183,8 +183,8 @@ trailing comment, and let Renovate manage the updates — it understands SHA pin
 |---|---|---|---|
 | D1 | No `go.sum`; CI cache key expects one | low | open, benign |
 | D2 | `replace` directives load-bearing until publication | info | no action |
-| D3 | GitHub Actions pinned by mutable tag | medium | open |
-| — | Third-party dependencies | — | **zero** |
+| D3 | GitHub Actions pinned by mutable tag | medium | **closed** 2026-10-21 (#51, §9) |
+| — | Third-party dependencies | — | zero at Phase 10.5; **now present**, see §9 |
 | — | License obligations | — | **none on the Go plane** |
 
 ---
@@ -193,3 +193,170 @@ trailing comment, and let Renovate manage the updates — it understands SHA pin
 
 - [SECURITY_HARDENING_REPORT.md](SECURITY_HARDENING_REPORT.md)
 - [CICD_READINESS_REPORT.md](CICD_READINESS_REPORT.md)
+
+---
+
+## 9. Status update (2026-10-21)
+
+Sections 1 to 8 are the Phase 10.5 audit and are kept as written. Two of its
+conclusions no longer hold.
+
+**D3 is closed.** Every `uses:` in `.github/workflows/` is pinned to a full
+commit SHA with its release as a trailing comment (#51). The commit for each was
+read from the action's own repository, not derived from the tag.
+`tools/ci/check_action_pins.py` rejects a tag, a branch, a short SHA or a SHA
+without a version comment. Its tests run in ci-gate's unittest step on every PR,
+including a check of this repository's own workflows.
+
+**The Go plane now has third-party dependencies.** As of `main` `64717b8`, the
+direct requirements outside this repository are:
+
+| Module | Direct third-party requirements |
+|---|---|
+| `packages/go/contracts-go` | `google.golang.org/protobuf` |
+| `packages/go/evalstore` | `github.com/jackc/pgx/v5` |
+| `services/go/telephony-gateway` | `github.com/aws/aws-sdk-go-v2` (core, `credentials`, `feature/rds/auth`, `service/sts`), `github.com/jackc/pgx/v5` |
+
+So the section 1 headline, the "none" rows for third-party and transitive
+packages in section 6, and the "no license obligation on the Go plane" in
+section 4 are out of date. `govulncheck` covers these modules on every Go PR
+(45 modules, passing on Go 1.26.10 since #48), and `go.sum` records their
+checksums. A license review of these dependencies has not been done: section
+4's advice to add license scanning with the first third-party dependency
+applies now and remains open.
+
+Related controls added on 2026-10-21: CI secret scanning (`pr-security.yml`,
+#50), Gradle wrapper verification (`pr-android-wrapper.yml`, #54), the Python
+lock audit (`python-deps-audit.yml`, #55) and workflow linting
+(`workflow-lint.yml`, #57).
+
+---
+
+## 10. Go licence inventory (2026-10-22)
+
+Section 9 left a licence review of the Go plane's new third-party dependencies
+open. This is that inventory. It records which licence text each shipped module
+carries; it is not legal advice, and it draws no conclusion about obligations
+beyond what the licence texts themselves say.
+
+**Scope.** The modules whose packages are compiled into the non-test build of
+the three modules that have third-party requirements (`main` `63cbed5`),
+excluding the standard library and this repository's own modules:
+
+```console
+GOWORK=off GOFLAGS=-mod=readonly go list -deps \
+  -f '{{with .Module}}{{if not .Main}}{{.Path}} {{.Version}}{{end}}{{end}}' ./...
+```
+
+run in `packages/go/contracts-go`, `packages/go/evalstore` and
+`services/go/telephony-gateway`. That is 18 module versions. Modules that appear
+only in `go list -m all` (test-only or unused requirements) are not shipped and
+are not listed.
+
+**Method.** Each module's licence file, read from the Go module cache at the
+exact version above, was identified by its standard text: "Apache License …
+Version 2.0", the MIT permission grant, or the BSD redistribution conditions
+(three-clause when it includes the "Neither the name…" clause). Nothing was
+inferred from repository metadata. The sha256 prefix identifies the exact file.
+
+| Module | Version | Licence file | Licence text | sha256 (prefix) |
+|---|---|---|---|---|
+| `github.com/aws/aws-sdk-go-v2` | v1.47.1 | `LICENSE.txt` (+ `NOTICE.txt`) | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/credentials` | v1.20.6 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/feature/rds/auth` | v1.7.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/internal/configsources` | v1.5.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/internal/endpoints/v2` | v2.8.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/internal/v4a` | v1.5.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding` | v1.13.19 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/service/internal/presigned-url` | v1.14.4 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/aws-sdk-go-v2/service/sts` | v1.51.1 | `LICENSE.txt` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `github.com/aws/smithy-go` | v1.28.1 | `LICENSE` (+ `NOTICE`) | Apache-2.0 | `09e8a9bcec806710` |
+| `github.com/jackc/pgpassfile` | v1.0.0 | `LICENSE` | MIT | `adb1663fda031df8` |
+| `github.com/jackc/pgservicefile` | v0.0.0-20240606120523-5a60cdf6a761 | `LICENSE` | MIT | `fc505773403fe869` |
+| `github.com/jackc/pgx/v5` | v5.10.0 | `LICENSE` | MIT | `467f95e074fe2307` |
+| `github.com/jackc/puddle/v2` | v2.2.2 | `LICENSE` | MIT | `2d50e98a4900b4d6` |
+| `golang.org/x/sync` | v0.21.0 | `LICENSE` | BSD-3-Clause | `911f8f5782931320` |
+| `golang.org/x/text` | v0.39.0 (evalstore), v0.41.0 (gateway) | `LICENSE` | BSD-3-Clause | `911f8f5782931320` |
+| `google.golang.org/protobuf` | v1.36.4 | `LICENSE` | BSD-3-Clause | `4835612df0098ca9` |
+
+**What the texts show.** Every shipped module carries a permissive licence:
+Apache-2.0 (10), MIT (4) or BSD-3-Clause (4 module versions). None carries a
+copyleft licence.
+
+**Open items, not resolved here:**
+- `aws-sdk-go-v2` and `smithy-go` ship NOTICE files. Apache-2.0 section 4(d)
+  asks that a redistributed work include the NOTICE text. Whether the service
+  images, or any other distribution, carry it has not been checked, and it
+  depends on the image strategy that is still undecided.
+- MIT and BSD licences ask that the copyright and permission notice accompany
+  copies; how this project reproduces third-party notices in its artefacts is
+  not defined yet.
+- This inventory is a point-in-time record. It is not enforced in CI; an
+  automated licence check would have to run whenever `go.mod` changes.
+- Python (`uv.lock`) and Android dependencies are not covered here.
+
+---
+
+## 11. Python licence inventory (2026-10-22)
+
+The Python counterpart of section 10, with the same limits: it records the
+licence text each locked package ships, it is not legal advice, and it draws no
+conclusion beyond what those texts say.
+
+**Scope.** Every third-party package `uv.lock` pins on `main` `9201a62` (25),
+split by what reaches an image. `docker/python/Dockerfile` installs with
+`uv sync --frozen --no-dev`, so only the runtime set is shipped:
+
+```console
+uv export --frozen --all-packages --no-emit-workspace [--no-dev]
+```
+
+**Method.** Each package was installed from the lock (`uv sync --frozen`,
+uv 0.5.14) and its licence file read from the installed `.dist-info`, identified
+by its standard text as in section 10. The `License-Expression` metadata, where
+the package declares one, agrees with the file in every case.
+
+**Runtime (shipped in images), 9 packages:**
+
+| Package | Version | Licence file | Licence text | sha256 (prefix) |
+|---|---|---|---|---|
+| `annotated-types` | 0.8.0 | `licenses/LICENSE` | MIT | `fe1049884b1a0d93` |
+| `protobuf` | 5.29.6 | `LICENSE` | BSD-3-Clause | `6e5e117324afd944` |
+| `pydantic` | 2.13.4 | `licenses/LICENSE` | MIT | `a9e186f3ca16b5ee` |
+| `pydantic-core` | 2.46.4 | `licenses/LICENSE` | MIT | `fbe7f615f18d135c` |
+| `pydantic-settings` | 2.14.2 | `licenses/LICENSE` | MIT | `eb355a753e020346` |
+| `python-dotenv` | 1.2.2 | `licenses/LICENSE` | BSD-3-Clause | `80619b7049f08c81` |
+| `structlog` | 25.5.0 | `licenses/LICENSE-MIT`, `LICENSE-APACHE` (+ `NOTICE`) | MIT OR Apache-2.0 | `2bc12bb94eec2cce` (MIT file) |
+| `typing-extensions` | 4.16.0 | `licenses/LICENSE` | PSF-2.0 | `3b2f81fe21d181c4` |
+| `typing-inspection` | 0.4.2 | `licenses/LICENSE` | MIT | `804b59b25f2c31bd` |
+
+**Development and test only (not installed in images), 16 packages:**
+
+| Package | Version | Licence text |
+|---|---|---|
+| `attrs` | 26.1.0 | MIT |
+| `colorama` | 0.4.6 | BSD-3-Clause |
+| `coverage` | 7.15.4 | Apache-2.0 |
+| `hypothesis` | 6.123.17 | **MPL-2.0** |
+| `iniconfig` | 2.3.0 | MIT |
+| `mypy` | 1.14.1 | MIT |
+| `mypy-extensions` | 1.1.0 | MIT |
+| `packaging` | 26.3 | Apache-2.0 OR BSD-2-Clause (its `LICENSE` points to `LICENSE.APACHE` and `LICENSE.BSD`) |
+| `pluggy` | 1.6.0 | MIT |
+| `pygments` | 2.21.0 | BSD-2-Clause |
+| `pytest` | 9.0.3 | MIT |
+| `pytest-asyncio` | 1.3.0 | Apache-2.0 |
+| `pytest-cov` | 6.0.0 | MIT |
+| `pytest-randomly` | 3.16.0 | MIT |
+| `ruff` | 0.9.2 | Apache-2.0 |
+| `sortedcontainers` | 2.4.0 | Apache-2.0 |
+
+**What the texts show.** Every runtime package carries a permissive licence.
+The one weak-copyleft licence, MPL-2.0 (`hypothesis`, a property-testing
+library), is in the development set only and is not installed in images.
+
+**Open items, not resolved here:**
+- `structlog` ships a `NOTICE` file with its Apache-2.0 option. As in section 10,
+  how third-party notices reach artefacts is not defined.
+- This is a point-in-time record and is not enforced in CI.
+- Android dependencies are not covered.

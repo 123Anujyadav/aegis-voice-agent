@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -32,8 +33,9 @@ func (i *Index) Touch(k Key, now time.Time) (*Record, bool) {
 
 // Mutate applies fn to a stored record under the shard write lock.
 //
-// The only path by which a stored record is modified in place. fn must not call
-// back into the index — it runs under the lock — and must not retain the
+// The only path by which a stored record is modified in place. The function fn
+// must not call back
+// into the index — it runs under the lock — and must not retain the
 // pointer it is given.
 func (i *Index) Mutate(k Key, fn func(*Record) error) error {
 	sh := i.shardFor(k)
@@ -156,7 +158,7 @@ func (s *Store) Store(r *Record) (*Record, error) {
 	defer func() { s.metrics.StoreLatency.Observe(s.clock.Since(start).Seconds()) }()
 
 	if err := s.policy.admit(r); err != nil {
-		if err == ErrConsentRequired {
+		if errors.Is(err, ErrConsentRequired) {
 			s.metrics.ConsentRefusals.Inc(r.Key.Kind.String())
 		}
 		return nil, err
@@ -307,12 +309,12 @@ func (s *Store) readable(r *Record, now time.Time) error {
 
 // errReason maps an error to a metric label.
 func errReason(err error) string {
-	switch err {
-	case ErrExpired:
+	switch {
+	case errors.Is(err, ErrExpired):
 		return "expired"
-	case ErrArchived:
+	case errors.Is(err, ErrArchived):
 		return "archived"
-	case ErrRedacted:
+	case errors.Is(err, ErrRedacted):
 		return "redacted"
 	default:
 		return "not_found"
@@ -346,7 +348,7 @@ func (s *Store) auditRead(r *Record, op, actor string, granted bool, reason stri
 
 // Update applies a mutation under an optimistic lock.
 //
-// expected is the version the caller believes current. A mismatch returns a
+// The expected argument is the version the caller believes current. A mismatch returns a
 // *ConflictError carrying both versions, so the caller can decide between
 // retry, merge and abandon rather than being told only that something changed.
 //
@@ -678,7 +680,7 @@ func (s *Store) Merge(target Key, sources []Key, m Merger, actor string) (*Recor
 		if k == target {
 			continue
 		}
-		_ = s.Delete(k, "merged")
+		_ = s.Delete(k, "merged") //nolint:errcheck // Delete fails only with ErrNotFound (already gone) or ErrLegalHold (must stay); both are the correct outcome here
 	}
 
 	s.metrics.Merges.Inc()
@@ -729,7 +731,7 @@ func (s *Store) Split(source Key, sp Splitter, actor string) ([]*Record, error) 
 		out = append(out, stored)
 	}
 
-	_ = s.Delete(source, "split")
+	_ = s.Delete(source, "split") //nolint:errcheck // Delete fails only with ErrNotFound (already gone) or ErrLegalHold (must stay); both are the correct outcome here
 	s.metrics.Splits.Inc()
 	return out, nil
 }
@@ -800,7 +802,7 @@ func (s *Store) Rollback(id SnapshotID) error {
 		if r, ok := s.index.Get(k); ok && r.Retention.SurvivesErasure() {
 			continue
 		}
-		_ = s.Delete(k, "rollback")
+		_ = s.Delete(k, "rollback") //nolint:errcheck // Delete fails only with ErrNotFound (already gone) or ErrLegalHold (must stay); both are the correct outcome here
 	}
 
 	keys := make([]Key, 0, len(snap.records))

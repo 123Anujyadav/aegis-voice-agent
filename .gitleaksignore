@@ -1,0 +1,25 @@
+# Reviewed gitleaks false positives. Read by gitleaks from the repository root,
+# in CI (.github/workflows/pr-security.yml) and in the pre-commit hook.
+#
+# Each line is one finding's exact fingerprint, never a path or a rule. Any new
+# finding, including a new token-shaped string in these same files, still fails
+# the scan.
+#
+# The three findings below are deliberate, fake, credential-shaped inputs to the
+# intent classifier's adversarial tests. Those tests prove such text never
+# escapes the classifier (into slots, logs, metrics or persisted state). They
+# are not credentials and grant access to nothing.
+#
+# Changing these lines moves the working-tree fingerprints (path:rule:line), and
+# the scan then fails until this file is updated. That is intended: each
+# exception is re-reviewed, not inherited.
+
+# History: the commit that introduced the fixtures.
+1b2fefadb8656f0463b51ecbeb1ab88dcaac9fde:packages/go/intent/slots_test.go:aws-access-token:398
+1b2fefadb8656f0463b51ecbeb1ab88dcaac9fde:packages/go/intent/slots_test.go:github-pat:399
+1b2fefadb8656f0463b51ecbeb1ab88dcaac9fde:packages/go/intent/security_test.go:github-pat:49
+
+# Working tree: the same fixtures at their current lines.
+packages/go/intent/slots_test.go:aws-access-token:399
+packages/go/intent/slots_test.go:github-pat:400
+packages/go/intent/security_test.go:github-pat:47

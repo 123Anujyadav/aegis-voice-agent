@@ -165,7 +165,7 @@ func (r *CallRegistry) Total() uint64 { return r.total.Load() }
 // is correct: acting on a call that just ended is a no-op, because the FSM
 // refuses transitions out of a terminal state.
 func (r *CallRegistry) Each(fn func(*CallSession) bool) {
-	for _, sh := range r.shards {
+	for _, sh := range &r.shards {
 		sh.mu.RLock()
 		batch := make([]*CallSession, 0, len(sh.calls))
 		for _, s := range sh.calls {
@@ -223,7 +223,7 @@ func (r *CallRegistry) ByState() map[CallState]int {
 
 // Find returns live sessions matching a predicate, up to limit.
 //
-// limit exists so a diagnostic query on a runtime holding fifty thousand calls
+// The limit exists so a diagnostic query on a runtime holding fifty thousand calls
 // cannot materialise fifty thousand pointers into an operator's terminal.
 func (r *CallRegistry) Find(match func(*CallSession) bool, limit int) []*CallSession {
 	var out []*CallSession
@@ -243,7 +243,7 @@ func (r *CallRegistry) Find(match func(*CallSession) bool, limit int) []*CallSes
 // otherwise very hard to attribute.
 func (r *CallRegistry) ShardDepths() []int {
 	out := make([]int, registryShards)
-	for i, sh := range r.shards {
+	for i, sh := range &r.shards {
 		sh.mu.RLock()
 		out[i] = len(sh.calls)
 		sh.mu.RUnlock()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -289,7 +290,7 @@ func BenchmarkT10_RebuildFrequencyControl(b *testing.B) {
 // ---------------------------------------------------------------------------
 
 // BenchmarkT10_MultiTurn measures one full callback -> transfer -> repeat cycle
-// per iteration on an ALREADY ESTABLISHED session. ns/op is therefore the cost
+// per iteration on an ALREADY ESTABLISHED session. The ns/op figure is therefore the cost
 // of three caller turns plus their three speech-complete events, not one turn.
 func BenchmarkT10_MultiTurn(b *testing.B) {
 	sequence := []string{
@@ -613,50 +614,56 @@ func BenchmarkT10_FailurePath(b *testing.B) {
 // timed region because RunParallel gives no per-worker timer control, and it is
 // reported as a known inclusion rather than hidden.
 func BenchmarkT10_ConcurrentClassification(b *testing.B) {
-	{
-		{
-			_, vi := benchBuild(b)
-			var seq atomic.Int64
+	_, vi := benchBuild(b)
+	var seq atomic.Int64
+	var publish sync.Mutex
 
-			b.ReportAllocs()
-			b.ResetTimer()
-			b.RunParallel(func(pb *testing.PB) {
-				id := seq.Add(1)
-				p, _ := benchSession(b, vi, fmt.Sprintf("bench-par-%d", id))
-				ev := utter("please call me back on 9876543210")
-				turns, gen := 0, 0
-				var local int64
-				for pb.Next() {
-					if turns >= turnsPerSession {
-						gen++
-						var err error
-						p, _, err = openPlanner(vi, conversation.ConversationID(
-							fmt.Sprintf("bench-par-%d-g%d", id, gen)))
-						if err != nil {
-							b.Errorf("rotate: %v", err)
-							return
-						}
-						turns = 0
-					}
-					plan, err := p.Handle(ev)
-					if err != nil {
-						b.Errorf("handle: %v", err)
-						return
-					}
-					if _, err := p.Handle(conversation.Event{
-						Kind: conversation.EventSpeechComplete,
-					}); err != nil {
-						b.Errorf("speech-complete: %v", err)
-						return
-					}
-					sinkPlan = plan
-					turns++
-					local++
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		id := seq.Add(1)
+		p, _ := benchSession(b, vi, fmt.Sprintf("bench-par-%d", id))
+		ev := utter("please call me back on 9876543210")
+		turns, gen := 0, 0
+		var local int64
+		var last conversation.Plan
+		for pb.Next() {
+			if turns >= turnsPerSession {
+				gen++
+				var err error
+				p, _, err = openPlanner(vi, conversation.ConversationID(
+					fmt.Sprintf("bench-par-%d-g%d", id, gen)))
+				if err != nil {
+					b.Errorf("rotate: %v", err)
+					return
 				}
-				benchOps.Add(local)
-			})
+				turns = 0
+			}
+			plan, err := p.Handle(ev)
+			if err != nil {
+				b.Errorf("handle: %v", err)
+				return
+			}
+			if _, err := p.Handle(conversation.Event{
+				Kind: conversation.EventSpeechComplete,
+			}); err != nil {
+				b.Errorf("speech-complete: %v", err)
+				return
+			}
+			last = plan
+			turns++
+			local++
 		}
-	}
+		benchOps.Add(local)
+		// Every worker writing the package-level sink on every
+		// iteration was a data race. Each worker keeps its own last
+		// plan and publishes it once, after its loop, under a lock:
+		// the sink still keeps the work observable, and the lock is
+		// taken once per worker, not once per operation.
+		publish.Lock()
+		sinkPlan = last
+		publish.Unlock()
+	})
 }
 
 // ---------------------------------------------------------------------------

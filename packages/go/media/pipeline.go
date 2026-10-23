@@ -308,7 +308,7 @@ func (p *Pipeline) Pump() int {
 		p.lastDelivered = f.Sequence
 		p.haveDelivered = true
 		p.nextExpected = f.Sequence + 1
-		p.gapFrames += uint64(gapFrames)
+		p.gapFrames += uint64(gapFrames) //nolint:gosec // fillGaps returns a count of frames written, never negative
 		p.mu.Unlock()
 
 		delivered += 1 + gapFrames
@@ -335,18 +335,22 @@ func (p *Pipeline) fillGaps(f Frame) int {
 		return 0
 	}
 
-	missing := f.Sequence - expected
 	frameDur := p.cfg.FrameInterval
 	maxFrames := int(p.cfg.MaxGapFill / frameDur)
 	if maxFrames < 0 {
 		maxFrames = 0
 	}
-	if int(missing) > maxFrames {
-		missing = uint64(maxFrames)
+	// Compared as unsigned. The gap is a uint64 sequence difference; converting
+	// it to int first wrapped a gap above 2^63 negative, which skipped this
+	// clamp, filled the output with silence and overflowed the timestamp below.
+	missing := f.Sequence - expected
+	if missing > uint64(maxFrames) { //nolint:gosec // maxFrames is zero or more, just above
+		missing = uint64(maxFrames) //nolint:gosec // as above
 	}
+	fill := int(missing) //nolint:gosec // at most maxFrames, an int, after the clamp
 
 	var written int
-	ts := f.Timestamp - time.Duration(missing)*frameDur
+	ts := f.Timestamp - time.Duration(fill)*frameDur
 	for i := uint64(0); i < missing; i++ {
 		silence := SilenceFrame(expected+i, ts, p.cfg.Format, frameDur)
 		if err := p.out.Write(silence); err != nil {

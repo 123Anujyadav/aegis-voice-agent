@@ -2,6 +2,7 @@ package audiointel
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	media "github.com/callscreen/callscreen-platform/packages/go/media"
@@ -104,7 +105,14 @@ func (c *ContinuityDetector) Observe(f FrameFeatures) ContinuityReport {
 	report := ContinuityReport{Fault: c.classify(f)}
 
 	if report.Fault == FaultMissing {
-		report.MissingBefore = int(f.Sequence - c.highestSeq - 1)
+		// The gap is a uint64 difference. Converted straight to int, a gap above
+		// 2^63 wrapped negative; it saturates at math.MaxInt instead.
+		gap := f.Sequence - c.highestSeq - 1
+		if gap > math.MaxInt {
+			report.MissingBefore = math.MaxInt
+		} else {
+			report.MissingBefore = int(gap) //nolint:gosec // at most math.MaxInt, checked just above
+		}
 	}
 
 	// Timestamp continuity is measured from the previous frame's END, so a
@@ -203,11 +211,12 @@ func (c *ContinuityDetector) classify(f FrameFeatures) ContinuityFault {
 
 // advance moves the sliding window and the timestamp reference.
 func (c *ContinuityDetector) advance(f FrameFeatures) {
-	if !c.haveSeq {
+	switch {
+	case !c.haveSeq:
 		c.highestSeq = f.Sequence
 		c.seenMask = 1
 		c.haveSeq = true
-	} else if f.Sequence > c.highestSeq {
+	case f.Sequence > c.highestSeq:
 		shift := f.Sequence - c.highestSeq
 		if shift >= 64 {
 			c.seenMask = 1
@@ -215,8 +224,10 @@ func (c *ContinuityDetector) advance(f FrameFeatures) {
 			c.seenMask = (c.seenMask << shift) | 1
 		}
 		c.highestSeq = f.Sequence
-	} else if delta := c.highestSeq - f.Sequence; delta < 64 {
-		c.seenMask |= 1 << delta
+	default:
+		if delta := c.highestSeq - f.Sequence; delta < 64 {
+			c.seenMask |= 1 << delta
+		}
 	}
 
 	// A frame that arrived out of order must not drag the timestamp reference
@@ -268,7 +279,7 @@ func (c *ContinuityDetector) ObserveDelivery(r media.PipelineResult) ContinuityF
 		return FaultNone
 	}
 
-	fault := FaultNone
+	var fault ContinuityFault
 	switch r.Reason {
 	case media.DropDuplicate:
 		fault = FaultDuplicate

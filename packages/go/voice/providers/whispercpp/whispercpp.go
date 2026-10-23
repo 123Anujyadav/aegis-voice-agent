@@ -33,6 +33,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -145,7 +146,7 @@ func (c Config) validate() error {
 
 // Provider is a whisper.cpp installation, exposed as a Phase 11C recogniser.
 //
-// Compile-time proof that the frozen port is satisfied:
+// Compile-time proof that the frozen port is satisfied.
 var _ speech.STTProvider = (*Provider)(nil)
 
 // Provider implements speech.STTProvider over whisper.cpp.
@@ -307,7 +308,8 @@ func (p *Provider) processConfig() process.Config {
 	if p.cfg.StepMillis > 0 {
 		args = append(args, "--step", strconv.Itoa(p.cfg.StepMillis))
 	}
-	cfg.Args = append(args, p.cfg.Process.Args...)
+	args = append(args, p.cfg.Process.Args...)
+	cfg.Args = args
 
 	return cfg
 }
@@ -327,7 +329,7 @@ type stream struct {
 	mu       sync.Mutex
 	closed   bool
 	sentSend bool
-	seq      int
+	seq      uint64
 }
 
 // Compile-time proof that the frozen stream port is satisfied.
@@ -454,15 +456,15 @@ func (s *stream) parse(line string) (speech.TranscriptSegment, bool) {
 
 	// Timestamped form: "[hh:mm:ss.mmm --> hh:mm:ss.mmm]   text"
 	if strings.HasPrefix(text, "[") {
-		close := strings.Index(text, "]")
-		if close < 0 {
+		end := strings.Index(text, "]")
+		if end < 0 {
 			return speech.TranscriptSegment{}, false
 		}
-		inner := text[1:close]
+		inner := text[1:end]
 		if !strings.Contains(inner, "-->") {
 			return speech.TranscriptSegment{}, false
 		}
-		text = strings.TrimSpace(text[close+1:])
+		text = strings.TrimSpace(text[end+1:])
 	}
 
 	if text == "" || isBanner(text) {
@@ -478,7 +480,7 @@ func (s *stream) parse(line string) (speech.TranscriptSegment, bool) {
 		Segment:  speech.NewSegmentID(),
 		Session:  s.session,
 		Turn:     s.turn,
-		Sequence: uint64(seq),
+		Sequence: seq,
 		Text:     text,
 		IsFinal:  true,
 		// whisper.cpp emits no per-segment confidence. Reporting a number it
@@ -541,8 +543,18 @@ func WriteWAVHeader(w *bufio.Writer, format media.AudioFormat, dataBytes int) er
 	byteRate := int(format.Rate) * channels * bitsPerSample / 8
 	blockAlign := channels * bitsPerSample / 8
 
-	put32 := func(v int) error { return binary.Write(w, binary.LittleEndian, uint32(v)) }
-	put16 := func(v int) error { return binary.Write(w, binary.LittleEndian, uint16(v)) }
+	put32 := func(v int) error {
+		if v < 0 || int64(v) > math.MaxUint32 {
+			return fmt.Errorf("%w: WAV field %d does not fit in 32 bits", ErrFormat, v)
+		}
+		return binary.Write(w, binary.LittleEndian, uint32(v)) //nolint:gosec // bounded to [0, MaxUint32] just above
+	}
+	put16 := func(v int) error {
+		if v < 0 || v > math.MaxUint16 {
+			return fmt.Errorf("%w: WAV field %d does not fit in 16 bits", ErrFormat, v)
+		}
+		return binary.Write(w, binary.LittleEndian, uint16(v))
+	}
 
 	for _, step := range []func() error{
 		func() error { _, err := w.WriteString("RIFF"); return err },

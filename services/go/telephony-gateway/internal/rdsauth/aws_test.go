@@ -124,6 +124,28 @@ func testCtx(t *testing.T, d time.Duration) context.Context {
 	return ctx
 }
 
+// liveness bounds a wait for something that must happen, where the bound only
+// stops a hang. It is the time left before the test's own deadline, never less
+// than floor: a fixed bound fails a test that is merely slow when the host
+// stalls (F-11: one stall of about 12 s failed 10 s and 20 s bounds across the
+// package at once), while the test deadline still ends a real hang. Bounds a
+// test is ABOUT (a deadline it expects to fire) stay on testCtx.
+func liveness(t *testing.T, floor time.Duration) time.Duration {
+	t.Helper()
+	if dl, ok := t.Deadline(); ok {
+		if left := time.Until(dl); left > floor {
+			return left
+		}
+	}
+	return floor
+}
+
+// liveCtx is a context for an operation that is expected to complete.
+func liveCtx(t *testing.T, floor time.Duration) context.Context {
+	t.Helper()
+	return testCtx(t, liveness(t, floor))
+}
+
 // parseToken checks the RDS token's shape and returns its query.
 func parseToken(t *testing.T, tok, wantHostPort, wantUser string) url.Values {
 	t.Helper()
@@ -161,7 +183,7 @@ func TestAWS_ExchangesTheWebIdentityAndSignsTheToken(t *testing.T) {
 	if f.requests.Load() != 0 {
 		t.Fatal("constructing the adapter contacted STS (R6)")
 	}
-	tok, err := s.Password(testCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
+	tok, err := s.Password(liveCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,12 +215,12 @@ func TestAWS_CachesSTSCredentialsButSignsANewTokenPerConnection(t *testing.T) {
 	t.Parallel()
 	f := newFakeSTS(t, reply(200, stsOK(time.Now().Add(time.Hour))))
 	s := f.source(t, identityWithTokenFile(t))
-	tok1, err := s.Password(testCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
+	tok1, err := s.Password(liveCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(1100 * time.Millisecond) // SigV4 dates have one-second resolution
-	tok2, err := s.Password(testCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
+	tok2, err := s.Password(liveCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +267,7 @@ func TestAWS_STSAndCredentialFailuresFailClosedWithoutLeaking(t *testing.T) {
 			f := newFakeSTS(t, c.respond)
 			id := identityWithTokenFile(t)
 			s := f.source(t, id)
-			tok, err := s.Password(testCtx(t, 20*time.Second), writerHost, 5432, "fence_iam")
+			tok, err := s.Password(liveCtx(t, 20*time.Second), writerHost, 5432, "fence_iam")
 			if !errors.Is(err, ErrTokenUnavailable) || tok != "" {
 				t.Fatalf("token length %d, err %v; want ErrTokenUnavailable", len(tok), err)
 			}
@@ -264,7 +286,7 @@ func TestAWS_STSAndCredentialFailuresFailClosedWithoutLeaking(t *testing.T) {
 			}
 			// Nothing bad was cached: the next connection asks STS again.
 			before := f.requests.Load()
-			_, _ = s.Password(testCtx(t, 20*time.Second), writerHost, 5432, "fence_iam")
+			_, _ = s.Password(liveCtx(t, 20*time.Second), writerHost, 5432, "fence_iam")
 			if f.requests.Load() == before {
 				t.Error("a failed or unusable credential was cached")
 			}
@@ -280,7 +302,7 @@ func TestAWS_AnUnreadableWebIdentityTokenFileFailsWithoutContactingSTS(t *testin
 	if err := os.Remove(id.WebIdentityTokenFile); err != nil {
 		t.Fatal(err)
 	}
-	_, err := s.Password(testCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
+	_, err := s.Password(liveCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
 	var te *TokenError
 	if !errors.As(err, &te) || te.Reason != ReasonWebIdentityToken || strings.Contains(err.Error(), id.WebIdentityTokenFile) {
 		t.Fatalf("err = %v", err)
@@ -289,7 +311,7 @@ func TestAWS_AnUnreadableWebIdentityTokenFileFailsWithoutContactingSTS(t *testin
 	if err := os.WriteFile(id.WebIdentityTokenFile, []byte(" \n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Password(testCtx(t, 10*time.Second), writerHost, 5432, "fence_iam"); !errors.As(err, &te) || te.Reason != ReasonWebIdentityToken {
+	if _, err := s.Password(liveCtx(t, 10*time.Second), writerHost, 5432, "fence_iam"); !errors.As(err, &te) || te.Reason != ReasonWebIdentityToken {
 		t.Fatalf("empty token file: %v", err)
 	}
 	if f.requests.Load() != 0 {
@@ -338,20 +360,26 @@ func (c *tripContext) trip() { c.once.Do(func() { close(c.done) }) }
 
 // hungSTS is a fake STS whose handler signals when a request has ARRIVED and
 // when that request's context was CANCELLED (the client abandoned it), and
-// otherwise hangs.
+// otherwise hangs until the test ends. It never answers on its own, so a
+// Password that returns while it hangs was ended by its own deadline, however
+// long the liveness bound waiting for that return is.
 func hungSTS(t *testing.T) (f *fakeSTS, arrived, abandoned <-chan struct{}) {
 	t.Helper()
 	arr := make(chan struct{})
 	abd := make(chan struct{})
+	release := make(chan struct{})
 	var arrOnce, abdOnce sync.Once
 	f = newFakeSTS(t, func(w http.ResponseWriter, r *http.Request) {
 		arrOnce.Do(func() { close(arr) })
 		select {
 		case <-r.Context().Done():
 			abdOnce.Do(func() { close(abd) })
-		case <-time.After(time.Minute):
+		case <-release:
 		}
 	})
+	// Registered after newFakeSTS, so it runs first: the handler is released
+	// before the server's Close waits for it.
+	t.Cleanup(func() { close(release) })
 	return f, arr, abd
 }
 
@@ -370,7 +398,7 @@ func awaitArrival(t *testing.T, arrived <-chan struct{}, res <-chan error) {
 	case <-arrived:
 	case err := <-res:
 		t.Fatalf("Password returned before the STS request arrived (dial still live): %v", err)
-	case <-time.After(30 * time.Second): // liveness bound for a loaded host, not a product timing
+	case <-time.After(liveness(t, 30*time.Second)):
 		t.Fatal("the STS request never reached the fake STS")
 	}
 }
@@ -400,12 +428,12 @@ func TestAWS_AHungSTSIsBoundedByTheDialAndDoesNotBlockTheNext(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("err = %v, want DeadlineExceeded", err)
 		}
-	case <-time.After(10 * time.Second): // liveness bound: Password selects on Done
+	case <-time.After(liveness(t, 10*time.Second)): // Password selects on Done; STS never answers
 		t.Fatal("Password did not return after the dial's deadline passed")
 	}
 	select {
 	case <-abandoned:
-	case <-time.After(10 * time.Second): // liveness bound for the cancellation to propagate
+	case <-time.After(liveness(t, 10*time.Second)): // for the cancellation to propagate
 		t.Fatal("the hung STS request was not abandoned when the dial ended")
 	}
 
@@ -415,7 +443,7 @@ func TestAWS_AHungSTSIsBoundedByTheDialAndDoesNotBlockTheNext(t *testing.T) {
 	// and one must succeed.
 	f.respond.Store(reply(200, stsOK(time.Now().Add(time.Hour))))
 	for attempt := 1; ; attempt++ {
-		_, err := s.Password(testCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
+		_, err := s.Password(liveCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
 		if err == nil {
 			break
 		}
@@ -440,7 +468,7 @@ func TestAWS_ATimerDeadlineEndsAPasswordOnAHungSTS(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("err = %v, want DeadlineExceeded", err)
 		}
-	case <-time.After(10 * time.Second): // liveness bound; the STS handler hangs for a minute
+	case <-time.After(liveness(t, 10*time.Second)): // the STS handler hangs until the test ends
 		t.Fatal("a hung STS held Password past its deadline")
 	}
 }
@@ -479,7 +507,7 @@ func TestAWS_UsesTheRegionalSTSEndpointAndIgnoresAWSEnvironmentOverrides(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	tok, err := s.Password(testCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
+	tok, err := s.Password(liveCtx(t, 10*time.Second), writerHost, 5432, "fence_iam")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -707,23 +735,41 @@ func TestAWS_TokensReachPostgresOnlyOverVerifiedTLS(t *testing.T) {
 	}
 }
 
-// STS unreachable (nothing listening): a network reason, nothing else.
+// STS unreachable (connections dropped, no response): a network reason,
+// nothing else.
 func TestAWS_AnUnreachableSTSIsClassifiedWithoutDetails(t *testing.T) {
 	t.Parallel()
+	// An STS endpoint that drops every connection before any response. The
+	// listener stays open for the whole test: a port freed by closing it could
+	// be handed to a parallel test's fake STS, which would then answer (F-12).
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = ln.Close() })
+	var conns atomic.Int64
+	go func() {
+		for {
+			c, aerr := ln.Accept()
+			if aerr != nil {
+				return // the listener was closed
+			}
+			conns.Add(1)
+			_ = c.Close()
+		}
+	}()
 	addr := ln.Addr().String()
-	_ = ln.Close()
 	s, err := newAWS(identityWithTokenFile(t), sts.Options{BaseEndpoint: aws.String("http://" + addr)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.Password(testCtx(t, 20*time.Second), writerHost, 5432, "fence_iam")
+	_, err = s.Password(liveCtx(t, 20*time.Second), writerHost, 5432, "fence_iam")
 	var te *TokenError
 	if !errors.As(err, &te) || te.Reason != ReasonSTSUnreachable || strings.Contains(err.Error(), addr) {
 		t.Fatalf("err = %v, want reason %s without the address", err, ReasonSTSUnreachable)
+	}
+	if conns.Load() == 0 {
+		t.Error("the unreachable STS endpoint was never contacted")
 	}
 }
 
@@ -738,7 +784,7 @@ func TestAWS_TheReasonReachesTheFenceDialer(t *testing.T) {
 		t.Fatal(err)
 	}
 	dial, _ := fence.PgxCredentialDialer(cfg, s)
-	_, err = dial(testCtx(t, 20*time.Second))
+	_, err = dial(liveCtx(t, 20*time.Second))
 	if !errors.Is(err, fence.ErrCredentialsUnavailable) || !strings.Contains(err.Error(), ReasonSTSAccessDenied) {
 		t.Fatalf("err = %v", err)
 	}
@@ -754,7 +800,7 @@ func TestAWS_TheReasonReachesTheFenceDialer(t *testing.T) {
 func timedCtx(t *testing.T, d time.Duration) (context.Context, *fence.Timings) {
 	t.Helper()
 	tm := fence.NewTimings()
-	return fence.WithTimings(testCtx(t, d), tm), tm
+	return fence.WithTimings(liveCtx(t, d), tm), tm // every use expects the call to complete
 }
 
 func delayed(d time.Duration, h func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
@@ -764,6 +810,12 @@ func delayed(d time.Duration, h func(http.ResponseWriter, *http.Request)) func(h
 // The first preparation runs the STS exchange (refreshed; its duration
 // includes the exchange); the second reuses the cached credentials (no STS
 // request); both sign a token.
+//
+// "A cache hit does not wait for STS" is shown by behaviour, not a duration
+// threshold (F-13: a host stall once made a cache hit measure 767 ms against a
+// 40 ms limit): before the second preparation, the fake STS is switched to one
+// that signals any request and never answers until the test ends. The second
+// preparation must then return, as "reused", without that signal.
 func TestAWS_SubPhasesDistinguishARefreshFromReuse(t *testing.T) {
 	t.Parallel()
 	const stsDelay = 40 * time.Millisecond
@@ -774,10 +826,30 @@ func TestAWS_SubPhasesDistinguishARefreshFromReuse(t *testing.T) {
 	if _, err := s.Password(ctx1, writerHost, 5432, "fence_iam"); err != nil {
 		t.Fatal(err)
 	}
+
+	contacted := make(chan struct{})
+	release := make(chan struct{})
+	var contactedOnce sync.Once
+	f.respond.Store(func(_ http.ResponseWriter, r *http.Request) {
+		contactedOnce.Do(func() { close(contacted) })
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	})
+	t.Cleanup(func() { close(release) }) // runs before the server's Close
 	ctx2, tm2 := timedCtx(t, 10*time.Second)
-	if _, err := s.Password(ctx2, writerHost, 5432, "fence_iam"); err != nil {
-		t.Fatal(err)
+	select {
+	case err := <-startPassword(ctx2, s):
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-contacted:
+		t.Fatal("the second preparation contacted STS; a cache hit must not")
+	case <-time.After(liveness(t, 10*time.Second)):
+		t.Fatal("the second preparation did not return")
 	}
+
 	d1, d2 := tm1.Durations(), tm2.Durations()
 	if tm1.STSCredentials() != fence.STSCredentialsRefreshed || tm2.STSCredentials() != fence.STSCredentialsReused {
 		t.Errorf("outcomes = %q, %q; want refreshed, reused", tm1.STSCredentials(), tm2.STSCredentials())
@@ -785,8 +857,8 @@ func TestAWS_SubPhasesDistinguishARefreshFromReuse(t *testing.T) {
 	if d1[fence.PhaseCredentialsSTS] < stsDelay {
 		t.Errorf("refresh login_prepare_sts = %v; it must include the STS exchange (at least %v)", d1[fence.PhaseCredentialsSTS], stsDelay)
 	}
-	if d2[fence.PhaseCredentialsSTS] >= stsDelay {
-		t.Errorf("reuse login_prepare_sts = %v; a cache hit must not wait for STS", d2[fence.PhaseCredentialsSTS])
+	if _, ok := d2[fence.PhaseCredentialsSTS]; !ok {
+		t.Error("reuse: login_prepare_sts missing")
 	}
 	for i, d := range []map[string]time.Duration{d1, d2} {
 		if _, ok := d[fence.PhaseCredentialsSign]; !ok {
@@ -863,12 +935,12 @@ func TestAWS_SubPhasesWhenTheDialTimesOutDuringARefresh(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("err = %v", err)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(liveness(t, 10*time.Second)):
 		t.Fatal("Password did not return after the dial's deadline passed")
 	}
 	// The outcome is recorded when the cache returns to this call, which it
 	// does on the dial's end; wait for that observable state (bounded).
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(liveness(t, 10*time.Second))
 	for tm.STSCredentials() == "" && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -1060,7 +1132,7 @@ func checkDialRecords(t *testing.T, phases []map[string]any) (credentialed []map
 // obtained credentials, checking every record, and returns them.
 func awaitCredentialedDials(t *testing.T, read func() string, n int) []map[string]any {
 	t.Helper()
-	deadline := time.Now().Add(60 * time.Second) // liveness bound for a loaded host, not a product timing
+	deadline := time.Now().Add(liveness(t, 60*time.Second))
 	for {
 		got := checkDialRecords(t, dialFailurePhases(t, read()))
 		if t.Failed() {

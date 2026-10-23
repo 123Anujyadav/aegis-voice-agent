@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sync"
@@ -29,8 +30,8 @@ func TestIntegration_PromotionLadder(t *testing.T) {
 	// Read it enough to earn promotion, past the minimum age.
 	h.Clock.Advance(6 * time.Second)
 	for i := 0; i < 3; i++ {
-		if _, err := b.Store.Retrieve(stored.Key, ""); err != nil {
-			t.Fatalf("Retrieve %d: %v", i, err)
+		if _, retrieveErr := b.Store.Retrieve(stored.Key, ""); retrieveErr != nil {
+			t.Fatalf("Retrieve %d: %v", i, retrieveErr)
 		}
 	}
 
@@ -524,7 +525,7 @@ func TestIntegration_NamespacesAreIsolated(t *testing.T) {
 
 	a, _ := h.Bundle(NamespaceAssistant).Store.Retrieve(key, "")
 	f, _ := h.Bundle(NamespaceFraud).Store.Retrieve(key, "")
-	if string(a.Value.Data) == string(f.Value.Data) {
+	if bytes.Equal(a.Value.Data, f.Value.Data) {
 		t.Fatal("identical keys in different namespaces must hold different values")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Chunk is one speakable unit of text.
@@ -233,7 +234,7 @@ func (c *Chunker) emitLocked(cut int, term rune, final bool) (Chunk, bool) {
 
 // boundaryLocked finds the next chunk boundary. Caller holds the lock.
 //
-// atEnd reports whether the buffer is known to be the end of the stream, which
+// The atEnd flag reports whether the buffer is known to be the end of the stream, which
 // only Flush can know. See periodTerminatesLocked for why it matters.
 //
 // Returns the cut index (exclusive), the terminator that caused it, and whether
@@ -266,7 +267,7 @@ func (c *Chunker) boundaryLocked(atEnd bool) (int, rune, bool) {
 // periodTerminatesLocked decides whether the period at index i ends a sentence.
 // Caller holds the lock.
 //
-// atEnd reports whether the buffer is the whole remaining stream.
+// The atEnd flag reports whether the buffer is the whole remaining stream.
 func (c *Chunker) periodTerminatesLocked(i int, atEnd bool) bool {
 	// Rule 1: the next rune must be whitespace, or genuine end of input.
 	//
@@ -301,7 +302,7 @@ func (c *Chunker) periodTerminatesLocked(i int, atEnd bool) bool {
 	}
 
 	// Rule 3: a single letter is an initial — "A. K. Sharma".
-	if len([]rune(tok)) == 1 && unicode.IsLetter([]rune(tok)[0]) {
+	if r, size := utf8.DecodeRuneInString(tok); size > 0 && size == len(tok) && unicode.IsLetter(r) {
 		return false
 	}
 

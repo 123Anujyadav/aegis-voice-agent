@@ -241,6 +241,7 @@ type fakeSession struct {
 	step    int
 }
 
+// Execute runs one scripted step.
 func (s *fakeSession) Execute(ctx context.Context, step Step) StepResult {
 	s.subject.executes.Add(1)
 	s.mu.Lock()
@@ -251,7 +252,7 @@ func (s *fakeSession) Execute(ctx context.Context, step Step) StepResult {
 		panic("fake subject scripted panic at " + step.Name)
 	}
 	if s.subject.Delay > 0 && s.subject.Clock != nil {
-		_ = s.subject.Clock.Sleep(ctx, s.subject.Delay)
+		_ = s.subject.Clock.Sleep(ctx, s.subject.Delay) //nolint:errcheck // a cancelled sleep simply ends the scripted delay early
 	}
 	if step.Name == s.subject.FailOnStep {
 		return StepResult{
@@ -304,12 +305,14 @@ func (s *fakeSession) applyState(step Step, result StepResult) {
 	}
 }
 
+// State returns a copy of the session's state.
 func (s *fakeSession) State() Values {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.state.Clone()
 }
 
+// Events returns and clears the events recorded since the last call.
 func (s *fakeSession) Events() []EventRecord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -318,6 +321,7 @@ func (s *fakeSession) Events() []EventRecord {
 	return out
 }
 
+// Close releases nothing; the fake session holds no resources.
 func (s *fakeSession) Close() error { return nil }
 
 // FailingSubject is a subject whose sessions cannot be opened, for testing the

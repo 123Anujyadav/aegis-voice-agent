@@ -233,7 +233,7 @@ func NewRetryEngine(clock rt.Clock, metrics *Metrics, cfg rt.BreakerConfig, seed
 		metrics:  metrics,
 		breakers: make(map[ToolID]*rt.Breaker),
 		cfg:      cfg,
-		rnd:      rand.New(rand.NewSource(seed)),
+		rnd:      rand.New(rand.NewSource(seed)), //nolint:gosec // seedable retry jitter for deterministic tests; not a security use
 		dead:     dead,
 	}
 }
@@ -263,7 +263,7 @@ func (e *RetryEngine) Breaker(t ToolID) *rt.Breaker {
 		// be reached with a validated config. Falling back to the default keeps
 		// a misconfiguration from disabling breakers entirely, which would be
 		// the worst possible response to a config error.
-		b, _ = rt.NewBreaker(string(t), rt.DefaultBreakerConfig(), e.clock)
+		b, _ = rt.NewBreaker(string(t), rt.DefaultBreakerConfig(), e.clock) //nolint:errcheck // the default configuration is valid by construction
 	}
 	e.breakers[t] = b
 	return b
@@ -341,11 +341,11 @@ type DeadLetter struct {
 }
 
 // NewDeadLetterQueue builds a bounded queue.
-func NewDeadLetterQueue(max int) *DeadLetterQueue {
-	if max <= 0 {
-		max = 256
+func NewDeadLetterQueue(limit int) *DeadLetterQueue {
+	if limit <= 0 {
+		limit = 256
 	}
-	return &DeadLetterQueue{max: max}
+	return &DeadLetterQueue{max: limit}
 }
 
 // Add records a permanently failed execution.

@@ -89,12 +89,3 @@ func (e *ConfigError) Error() string {
 	return fmt.Sprintf("%d configuration problems: %s",
 		len(e.Problems), strings.Join(e.Problems, "; "))
 }
-
-// invariant builds an internal-failure error naming the invariant that broke.
-//
-// Used where a condition should be impossible given the surrounding code. It
-// carries the identifier so a report names the invariant rather than a line
-// number that moves.
-func invariant(id, format string, args ...any) error {
-	return fmt.Errorf("%w: %s: %s", ErrInternalFailure, id, fmt.Sprintf(format, args...))
-}

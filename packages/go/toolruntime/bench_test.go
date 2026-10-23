@@ -28,12 +28,12 @@ func benchHarness(b *testing.B) *Harness {
 	return h
 }
 
-func benchIntent(cap CapabilityID) ToolIntent {
+func benchIntent(capability CapabilityID) ToolIntent {
 	return ToolIntent{
 		ID: NewIntentID(), Correlation: NewCorrelationID(), Session: "s", Actor: "a",
 		Grant: Grant{Actor: "a"},
 		Requests: []CapabilityRequest{{
-			Ref: "only", Capability: cap,
+			Ref: "only", Capability: capability,
 			Version: AnyVersion(), Args: Arguments{"query": String("benchmark query")},
 		}},
 	}

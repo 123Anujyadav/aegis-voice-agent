@@ -219,7 +219,7 @@ type Compressor struct {
 
 // NewCompressor constructs a compressor.
 //
-// summarizer may be nil. A nil summariser makes [Compress] a pruning operation:
+// The summarizer may be nil. A nil summariser makes [Compress] a pruning operation:
 // it selects and removes, but produces no summary. That is a legitimate mode —
 // and it is the only mode available until a deployment supplies a model.
 func NewCompressor(s *Store, policy CompressionPolicy, summarizer Summarizer) (*Compressor, error) {
@@ -336,7 +336,7 @@ func (c *Compressor) Compress(plan CompressionPlan, actor string) (*Record, erro
 
 	if c.summarizer == nil {
 		for _, r := range inputs {
-			_ = c.store.Delete(r.Key, "pruned")
+			_ = c.store.Delete(r.Key, "pruned") //nolint:errcheck // Delete fails only with ErrNotFound (already gone) or ErrLegalHold (must stay); both are the correct outcome here
 			c.metrics.Pruned.Inc(string(plan.Trigger))
 		}
 		c.metrics.Compressions.Inc(string(plan.Trigger))
@@ -380,7 +380,7 @@ func (c *Compressor) Compress(plan CompressionPlan, actor string) (*Record, erro
 		if in.Key == stored.Key {
 			continue
 		}
-		_ = c.store.Delete(in.Key, "compressed")
+		_ = c.store.Delete(in.Key, "compressed") //nolint:errcheck // Delete fails only with ErrNotFound (already gone) or ErrLegalHold (must stay); both are the correct outcome here
 	}
 
 	outputBytes := stored.Value.Size()

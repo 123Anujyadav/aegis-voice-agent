@@ -105,7 +105,7 @@ type PermissionEngine struct {
 // Override is an emergency grant.
 //
 // Emergency overrides exist because systems that cannot be overridden get
-// overridden anyway, by someone editing a database at 3 a.m. with no record of
+// overridden anyway, by someone editing a database at 3 in the morning with no record of
 // it. Making the path explicit means the override is bounded, attributed and
 // logged.
 type Override struct {
@@ -221,7 +221,7 @@ func (e *PermissionEngine) AddOverride(o Override) error {
 	e.mu.Unlock()
 
 	if e.audit != nil {
-		e.audit.Record(AuditEntry{
+		recordAudit(e.audit, e.metrics, AuditEntry{
 			At:      e.clock.Now(),
 			Kind:    AuditOverrideInstalled,
 			Actor:   ActorID(o.AuthorisedBy),
@@ -244,7 +244,8 @@ func (e *PermissionEngine) ActiveOverrides() []Override {
 	now := e.clock.Now()
 	e.mu.RLock()
 	out := make([]Override, 0, len(e.overrides))
-	for _, o := range e.overrides {
+	for name := range e.overrides {
+		o := e.overrides[name]
 		if now.Before(o.ExpiresAt) {
 			out = append(out, o)
 		}
@@ -385,7 +386,7 @@ func (e *PermissionEngine) record(c Contract, g Grant, d Decision) Decision {
 			}
 			details["missing"] = joinSorted(names)
 		}
-		e.audit.Record(AuditEntry{
+		recordAudit(e.audit, e.metrics, AuditEntry{
 			At: d.EvaluatedAt, Kind: kind, Actor: g.Actor,
 			Descriptor: c.Descriptor, Reason: d.Reason, Details: details,
 		})

@@ -150,8 +150,8 @@ func (s *Store) PutBatch(ctx context.Context, recs []ev.Record) error {
 	if err := s.guard(ctx); err != nil {
 		return err
 	}
-	for _, rec := range recs {
-		if err := validateForWrite(rec); err != nil {
+	for i := range recs {
+		if err := validateForWrite(recs[i]); err != nil {
 			return err
 		}
 	}
@@ -160,8 +160,8 @@ func (s *Store) PutBatch(ctx context.Context, recs []ev.Record) error {
 	}
 
 	return s.inTx(ctx, func(tx pgx.Tx) error {
-		for _, rec := range recs {
-			r := s.defaults(rec)
+		for i := range recs {
+			r := s.defaults(recs[i])
 			if _, err := tx.Exec(ctx, upsertSQL, upsertArgs(r)...); err != nil {
 				return wrap("storing "+r.Key().String(), err)
 			}
@@ -354,14 +354,14 @@ func (s *Store) Sweep(ctx context.Context, now time.Time) (ev.SweepReport, error
 		for heldRows.Next() {
 			var kind string
 			var n int
-			if err := heldRows.Scan(&kind, &n); err != nil {
+			if err = heldRows.Scan(&kind, &n); err != nil {
 				heldRows.Close()
 				return wrap("scanning held count", err)
 			}
 			report.Held[ev.RecordKind(kind)] = n
 		}
 		heldRows.Close()
-		if err := heldRows.Err(); err != nil {
+		if err = heldRows.Err(); err != nil {
 			return wrap("counting held records", err)
 		}
 
@@ -433,7 +433,8 @@ func (s *Store) Migrate(ctx context.Context, m ev.Migrator) (ev.MigrationReport,
 	}
 
 	steps := map[string]bool{}
-	for _, rec := range all {
+	for i := range all {
+		rec := &all[i]
 		if rec.Schema >= ev.CurrentSchema {
 			report.Skipped++
 			continue
@@ -446,7 +447,7 @@ func (s *Store) Migrate(ctx context.Context, m ev.Migrator) (ev.MigrationReport,
 			continue
 		}
 
-		migrated := rec
+		migrated := *rec
 		failed := false
 		for _, step := range path {
 			next, aerr := step.Apply(migrated)
@@ -513,8 +514,8 @@ func (s *Store) Restore(ctx context.Context, snap ev.StoreSnapshot) error {
 	if err := s.guard(ctx); err != nil {
 		return err
 	}
-	for _, rec := range snap.Records {
-		if err := validateForWrite(rec); err != nil {
+	for i := range snap.Records {
+		if err := validateForWrite(snap.Records[i]); err != nil {
 			return err
 		}
 	}
@@ -523,8 +524,8 @@ func (s *Store) Restore(ctx context.Context, snap ev.StoreSnapshot) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM eval_records`); err != nil {
 			return wrap("clearing store for restore", err)
 		}
-		for _, rec := range snap.Records {
-			r := s.defaults(rec)
+		for i := range snap.Records {
+			r := s.defaults(snap.Records[i])
 			// Restore must preserve holds exactly as captured, so it writes the
 			// snapshot's value rather than going through Put's carry-forward.
 			if _, err := tx.Exec(ctx, upsertSQL, upsertArgs(r)...); err != nil {
@@ -706,13 +707,19 @@ func buildQuery(q ev.Query, count bool) (string, []any) {
 }
 
 // inTx runs fn inside a transaction, rolling back on any error.
-func (s *Store) inTx(ctx context.Context, fn func(pgx.Tx) error) error {
+func (s *Store) inTx(ctx context.Context, fn func(pgx.Tx) error) (err error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return wrap("beginning transaction", err)
 	}
-	// Safe on every path: Rollback after a successful Commit is a no-op.
-	defer func() { _ = tx.Rollback(ctx) }()
+	// Safe on every path: Rollback after a successful Commit is a no-op that
+	// reports pgx.ErrTxClosed. Any other rollback failure is returned alongside
+	// the error that caused the rollback.
+	defer func() {
+		if rbErr := tx.Rollback(ctx); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
+			err = errors.Join(err, wrap("rolling back transaction", rbErr))
+		}
+	}()
 
 	if err := fn(tx); err != nil {
 		return err

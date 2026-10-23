@@ -251,6 +251,12 @@ type PipelineObserver interface {
 }
 
 func (c *PipelineConfig) validate() []string {
+	return append(c.validateRequired(), c.validateBounds()...)
+}
+
+// validateRequired reports a missing or invalid identity, format or
+// collaborator.
+func (c *PipelineConfig) validateRequired() []string {
 	var problems []string
 
 	if !c.Session.Valid() {
@@ -288,6 +294,12 @@ func (c *PipelineConfig) validate() []string {
 		problems = append(problems, "FSM is required: pipeline state and session state "+
 			"must not be able to disagree")
 	}
+	return problems
+}
+
+// validateBounds reports a non-positive bound, or a tier that invokes no model.
+func (c *PipelineConfig) validateBounds() []string {
+	var problems []string
 	if c.MaxPendingFrames <= 0 {
 		problems = append(problems, "MaxPendingFrames must be positive")
 	}
@@ -425,7 +437,7 @@ func (p *Pipeline) Start(ctx context.Context) error {
 		p.started = true
 		p.mu.Unlock()
 
-		if terr := p.cfg.FSM.To(p.ctx, StateListening, ReasonRequested); terr != nil {
+		if terr := p.cfg.FSM.To(p.ctx, StateListening, ReasonRequested); terr != nil { //nolint:contextcheck // p.ctx is derived from ctx just above; it is the session's lifetime
 			err = terr
 			p.cancel(terr)
 			close(p.done)
@@ -433,7 +445,7 @@ func (p *Pipeline) Start(ctx context.Context) error {
 		}
 
 		p.wg.Add(1)
-		go p.ingest()
+		go p.ingest() //nolint:contextcheck // ingest runs for the session's lifetime on p.ctx, derived from ctx above
 
 		go func() {
 			p.wg.Wait()
@@ -521,7 +533,7 @@ func (p *Pipeline) InvokeTool(ctx context.Context, intent ToolIntent) (ToolResul
 
 // mergeCancel returns a context cancelled when either parent is.
 //
-// context.WithCancel takes one parent, and the two here are genuinely
+// The context.WithCancel function takes one parent, and the two here are genuinely
 // independent: the caller's own deadline, and the session ending underneath it.
 func mergeCancel(a, b context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(a)
@@ -597,7 +609,7 @@ func (p *Pipeline) stop(end SessionState, reason string) error {
 		p.sttOpen = nil
 		p.mu.Unlock()
 		if stream != nil {
-			_ = stream.Close()
+			_ = stream.Close() //nolint:errcheck // teardown: the session is stopping, and a close failure has no remedy
 		}
 
 		p.m.SessionsClosed.Inc(reason)
@@ -681,7 +693,7 @@ func (p *Pipeline) ingest() {
 			}
 			if err := p.onFrame(f); err != nil {
 				p.note(err)
-				_ = p.stop(StateFailed, ReasonCrashed)
+				_ = p.stop(StateFailed, ReasonCrashed) //nolint:errcheck // the frame error just noted is the session's failure; stopping cannot change it
 				return
 			}
 		}
@@ -707,7 +719,7 @@ func (p *Pipeline) onFrame(f media.Frame) error {
 		if errors.Is(err, audiointel.ErrSessionClosed) {
 			return nil
 		}
-		return fmt.Errorf("%w: audio intelligence: %v", ErrProviderFailed, err)
+		return fmt.Errorf("%w: audio intelligence: %s", ErrProviderFailed, errText(err))
 	}
 
 	// A speech onset opens a turn.
@@ -754,13 +766,13 @@ func (p *Pipeline) onFrame(f media.Frame) error {
 			p.m.DroppedChunks.Inc(string(StageRecognise), ReasonStaleChunk)
 
 		default:
-			return fmt.Errorf("%w: writing audio: %v", ErrProviderFailed, err)
+			return fmt.Errorf("%w: writing audio: %s", ErrProviderFailed, errText(err))
 		}
 	}
 
 	// The end of the caller's turn is Phase 11D's call too.
 	if analysis.Endpoint.Confirmed && stream != nil {
-		_ = stream.CloseSend()
+		_ = stream.CloseSend() //nolint:errcheck // an end-of-audio signal; recognition's outcome is read from its results
 	}
 	return nil
 }
@@ -772,7 +784,7 @@ func (p *Pipeline) beginTurn() error {
 		// Unsupported language and no healthy provider are different facts and
 		// the router already distinguishes them; the error is forwarded rather
 		// than flattened.
-		return fmt.Errorf("%w: recognition: %v", ErrProviderUnavailable, err)
+		return fmt.Errorf("%w: recognition: %s", ErrProviderUnavailable, errText(err))
 	}
 
 	p.mu.Lock()
@@ -781,8 +793,8 @@ func (p *Pipeline) beginTurn() error {
 	p.mu.Unlock()
 
 	p.cfg.FSM.SetTurn(turn)
-	if err := p.cfg.FSM.To(p.ctx, StateSpeakingDetected, ReasonOK); err != nil {
-		return p.classifyTransitionRace(err, StateListening)
+	if terr := p.cfg.FSM.To(p.ctx, StateSpeakingDetected, ReasonOK); terr != nil {
+		return p.classifyTransitionRace(terr, StateListening)
 	}
 
 	stream, err := provider.OpenSTT(p.ctx, speech.STTConfig{
@@ -794,7 +806,7 @@ func (p *Pipeline) beginTurn() error {
 	if err != nil {
 		p.m.ProviderFailures.Inc(string(provider.ID()), string(KindSTT), ReasonStartFailed)
 		p.cfg.Registry.Report(ProviderID(provider.ID()), speech.OutcomeFailure)
-		return fmt.Errorf("%w: opening recognition: %v", ErrProviderUnavailable, err)
+		return fmt.Errorf("%w: opening recognition: %s", ErrProviderUnavailable, errText(err))
 	}
 
 	p.mu.Lock()
@@ -802,7 +814,7 @@ func (p *Pipeline) beginTurn() error {
 	p.mu.Unlock()
 
 	if err := p.cfg.FSM.To(p.ctx, StateTranscribing, ReasonOK); err != nil {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck // the refused transition is the error reported; this stream never carried audio
 		p.mu.Lock()
 		if p.sttOpen == stream {
 			p.sttOpen = nil
@@ -864,7 +876,7 @@ func (p *Pipeline) closeRecognition() {
 	p.mu.Unlock()
 
 	if stream != nil {
-		_ = stream.Close()
+		_ = stream.Close() //nolint:errcheck // the turn's transcript is already final; a close failure has no remedy
 	}
 }
 
@@ -895,7 +907,7 @@ func (p *Pipeline) recognize(turn TurnID, provider speech.ProviderID, stream spe
 	for {
 		select {
 		case <-p.ctx.Done():
-			_ = stream.Close()
+			_ = stream.Close() //nolint:errcheck // the session is ending; a close failure has no remedy
 			return
 
 		case seg, ok := <-stream.Results():
@@ -1008,7 +1020,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		Party:     conversation.PartyCaller,
 	})
 	if err != nil {
-		p.note(fmt.Errorf("%w: conversation: %v", ErrProviderFailed, err))
+		p.note(fmt.Errorf("%w: conversation: %s", ErrProviderFailed, errText(err)))
 		p.failTurn(ReasonInvalidOutput)
 		return
 	}
@@ -1051,8 +1063,8 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 			Reason: ReasonDenied,
 			At:     p.clock.Now(),
 		})
-		if err := p.cfg.FSM.To(p.ctx, StateListening, ReasonGovernanceDeny); err != nil {
-			p.noteTransition(err)
+		if terr := p.cfg.FSM.To(p.ctx, StateListening, ReasonGovernanceDeny); terr != nil {
+			p.noteTransition(terr)
 		}
 		p.m.TurnsCompleted.Inc(string(OutcomeDenied))
 		if p.observer != nil {
@@ -1068,7 +1080,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	// startup on the critical path of every response.
 	voice, err := p.cfg.Registry.PickTTS(p.cfg.Language)
 	if err != nil {
-		p.note(fmt.Errorf("%w: synthesis: %v", ErrProviderUnavailable, err))
+		p.note(fmt.Errorf("%w: synthesis: %s", ErrProviderUnavailable, errText(err)))
 		p.failTurn(ReasonUnavailable)
 		return
 	}
@@ -1096,7 +1108,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	if err != nil {
 		p.m.ProviderFailures.Inc(string(voice.ID()), string(KindTTS), ReasonStartFailed)
 		p.cfg.Registry.Report(ProviderID(voice.ID()), speech.OutcomeFailure)
-		p.note(fmt.Errorf("%w: opening synthesis: %v", ErrProviderUnavailable, err))
+		p.note(fmt.Errorf("%w: opening synthesis: %s", ErrProviderUnavailable, errText(err)))
 		p.failSynthesis(generation, ReasonStartFailed)
 		return
 	}
@@ -1118,7 +1130,7 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	chunker, err := speech.NewChunker(p.cfg.Chunking)
 	if err != nil {
 		p.note(err)
-		_ = ttsStream.Close()
+		_ = ttsStream.Close() //nolint:errcheck // the failure just noted is the one reported; closing only releases the stream
 		<-audioDone
 		p.failSynthesis(generation, ReasonInvalidOutput)
 		return
@@ -1140,8 +1152,8 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 		MaxOutputTokens: p.cfg.MaxOutputTokens,
 	}, sink)
 	if err != nil {
-		p.note(fmt.Errorf("%w: generation: %v", ErrProviderFailed, err))
-		_ = ttsStream.Close()
+		p.note(fmt.Errorf("%w: generation: %s", ErrProviderFailed, errText(err)))
+		_ = ttsStream.Close() //nolint:errcheck // the failure just noted is the one reported; closing only releases the stream
 		<-audioDone
 		p.failSynthesis(generation, ReasonUnavailable)
 		return
@@ -1164,6 +1176,13 @@ func (p *Pipeline) runTurn(turn TurnID, final speech.TranscriptSegment) {
 	// The sink closes the text side; audio may still be arriving.
 	<-audioDone
 
+	p.completeTurn(dispatcher, ttsStream, generation)
+}
+
+// completeTurn releases a finished turn's dispatcher and synthesis stream, then
+// moves the session on — unless the call is ending or a barge-in already ended
+// the turn.
+func (p *Pipeline) completeTurn(dispatcher *rt.Dispatcher, ttsStream speech.TTSStream, generation uint64) {
 	p.mu.Lock()
 	if p.activeDispatcher == dispatcher {
 		p.activeDispatcher = nil
@@ -1333,10 +1352,10 @@ func (s *synthesisSink) Close(err error) {
 		// The tail of the response is a real clause even though no terminator
 		// ended it. Dropping it would clip the last words off every answer.
 		if err == nil {
-			_ = s.submit(s.chunker.Flush())
+			_ = s.submit(s.chunker.Flush()) //nolint:errcheck // Close has no error result, and a sink failure must not fail the stream (see submit)
 		}
 	}
-	_ = s.stream.CloseSend()
+	_ = s.stream.CloseSend() //nolint:errcheck // as above: the end of text, with no caller to report to
 }
 
 // submit sends completed clauses to the synthesiser.
@@ -1350,7 +1369,7 @@ func (s *synthesisSink) submit(chunks []speech.Chunk) error {
 			}
 			// Detaching this sink does not fail the stream — one slow or broken
 			// consumer must not kill a live call for everything else.
-			return fmt.Errorf("%w: synthesising: %v", ErrProviderFailed, err)
+			return fmt.Errorf("%w: synthesising: %s", ErrProviderFailed, errText(err))
 		}
 
 		s.mu.Lock()
@@ -1403,7 +1422,7 @@ func (s *synthesisSink) Submitted() int {
 func (p *Pipeline) pumpAudio(
 	turnCtx context.Context, turn TurnID, stream speech.TTSStream, generation uint64,
 ) {
-	defer func() { _ = stream.Close() }()
+	defer func() { _ = stream.Close() }() //nolint:errcheck // the pump's outcome is decided by the frames it delivered; a close failure has no remedy
 
 	spoke := false
 
@@ -1467,7 +1486,7 @@ func (p *Pipeline) pumpAudio(
 					p.m.DroppedChunks.Inc(string(StageAudioOut), ReasonQueueFull)
 					continue
 				}
-				p.note(fmt.Errorf("%w: delivering audio: %v", ErrProviderFailed, err))
+				p.note(fmt.Errorf("%w: delivering audio: %s", ErrProviderFailed, errText(err)))
 				return
 			}
 		}
@@ -1485,7 +1504,7 @@ func (p *Pipeline) startSpeaking(turnCtx context.Context, generation uint64) (su
 	if p.generation.Load() != generation || turnCtx.Err() != nil {
 		return true, nil
 	}
-	return false, p.cfg.FSM.To(p.ctx, StateSpeaking, ReasonOK)
+	return false, p.cfg.FSM.To(p.ctx, StateSpeaking, ReasonOK) //nolint:contextcheck // the session state machine moves on the session's context; turnCtx is checked above only to detect supersession
 }
 
 // withhold records n synthesised frames that were never delivered because their
@@ -1544,5 +1563,5 @@ func (p *Pipeline) publish(e VoiceEvent) {
 	if p.cfg.Publisher == nil {
 		return
 	}
-	_ = p.cfg.Publisher.Publish(p.ctx, e)
+	_ = p.cfg.Publisher.Publish(p.ctx, e) //nolint:errcheck // EventPublisher: a publish error MUST NOT fail the operation that produced it
 }

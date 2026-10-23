@@ -54,6 +54,10 @@ GATE_WORKFLOW = ".github/workflows/ci-gate.yml"
 ADVISORY_JOB = re.compile(r"^golangci-lint \(")
 OK_CONCLUSIONS = frozenset({"success", "skipped", "neutral"})
 SUPPORTED_FILTERS = frozenset({"branches", "paths"})
+
+# How many of main's most recent push runs of a workflow are searched for the
+# latest completed one. Runs still in progress are skipped, not waited for.
+MAIN_RUN_WINDOW = 20
 # One golangci-lint issue line in a GitHub Actions job log, e.g.
 #   2026-10-18T03:21:10.1234567Z ##[error]internal/app/x.go:12:3: message (linter)
 LINT_FINDING = re.compile(
@@ -142,7 +146,7 @@ def _strip_comment(line: str) -> str:
 
 def _unquote(value: str) -> str:
     value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":  # noqa: PLR2004 - an opening and a closing quote
         return value[1:-1]
     return value
 
@@ -156,7 +160,7 @@ def _indent(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
-def parse_pull_request_trigger(workflow: str, text: str) -> Trigger | None:
+def parse_pull_request_trigger(workflow: str, text: str) -> Trigger | None:  # noqa: PLR0912 - one fail-closed parser; each branch is a YAML form
     """Return a workflow's ``pull_request`` trigger, or None if it has none.
 
     Raises UnsupportedTriggerError for any form this parser does not handle,
@@ -252,9 +256,7 @@ def _parse_filters(workflow: str, body: list[str]) -> Trigger:
     return Trigger(workflow, filters.get("branches"), filters.get("paths"))
 
 
-def expected_workflows(
-    workflows_dir: Path, base_ref: str, changed: list[str]
-) -> list[str]:
+def expected_workflows(workflows_dir: Path, base_ref: str, changed: list[str]) -> list[str]:
     """List the workflow files a PR into base_ref changing changed would start."""
     expected = []
     for path in sorted([*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")]):
@@ -376,7 +378,7 @@ def _gh_text(*args: str) -> str:
     """Run ``gh api`` with retries; a persistent failure raises (fail closed)."""
     cmd = ["gh", "api", *args]
     for attempt in range(1, GH_ATTEMPTS + 1):
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)  # noqa: S603 - fixed `gh api` argv, no shell
         if proc.returncode == 0:
             return proc.stdout
         if attempt == GH_ATTEMPTS:
@@ -390,6 +392,28 @@ def _gh_lines(*args: str) -> list[dict[str, Any]]:
     return [json.loads(line) for line in _gh_text(*args).splitlines() if line.strip()]
 
 
+def _latest_attempt(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep every row of each job name's highest run attempt, names in first-seen order.
+
+    After a single job of a large run is re-run, GitHub's jobs listing for
+    that run slows down with page depth; at 100 jobs per page, its "latest
+    attempt" listing returned HTTP 502 on every request, so the gate failed
+    closed on a run whose jobs had all completed (pr-go run 39363295786, 137
+    jobs). Every attempt is therefore listed (``filter=all``) in small pages
+    and reduced here to the same set of jobs, with the same fields, as the
+    latest-attempt listing. Small pages are a mitigation measured on that run,
+    not a guarantee; a persistent API failure still fails closed.
+    """
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_name.setdefault(row["name"], []).append(row)
+    kept = []
+    for group in by_name.values():
+        top = max(row.get("run_attempt", 1) for row in group)
+        kept += [row for row in group if row.get("run_attempt", 1) == top]
+    return [{k: v for k, v in row.items() if k != "run_attempt"} for row in kept]
+
+
 class GitHub:
     """The read-only GitHub queries the gate needs."""
 
@@ -401,14 +425,17 @@ class GitHub:
         """Return the pull request's head SHA and base ref."""
         return _gh_lines(
             f"repos/{self.repo}/pulls/{number}",
-            "--jq", "{sha: .head.sha, base: .base.ref}",
+            "--jq",
+            "{sha: .head.sha, base: .base.ref}",
         )[0]
 
     def changed_files(self, number: int) -> list[str]:
         """List the files the pull request changes (renames: both names)."""
         rows = _gh_lines(
             f"repos/{self.repo}/pulls/{number}/files?per_page=100",
-            "--paginate", "--jq", ".[] | {f: .filename, p: (.previous_filename // \"\")}",
+            "--paginate",
+            "--jq",
+            '.[] | {f: .filename, p: (.previous_filename // "")}',
         )
         names = [r["f"] for r in rows] + [r["p"] for r in rows if r["p"]]
         return sorted(set(names))
@@ -418,21 +445,29 @@ class GitHub:
         rows = _gh_lines(
             f"repos/{self.repo}/actions/runs?head_sha={sha}&event=pull_request&per_page=100",
             "--paginate",
-            "--jq", ".workflow_runs[] | {id, path, status, conclusion, created_at, run_attempt}",
+            "--jq",
+            ".workflow_runs[] | {id, path, status, conclusion, created_at, run_attempt}",
         )
         latest: dict[str, dict[str, Any]] = {}
         for row in rows:
             path = row["path"].split("@", 1)[0]
             key = (row["created_at"], row["run_attempt"])
-            if path not in latest or key > (latest[path]["created_at"], latest[path]["run_attempt"]):
+            if path not in latest or key > (
+                latest[path]["created_at"],
+                latest[path]["run_attempt"],
+            ):
                 latest[path] = row
         return latest
 
     def jobs(self, run_id: int) -> list[dict[str, Any]]:
         """Return the jobs of the latest attempt of one run."""
-        return _gh_lines(
-            f"repos/{self.repo}/actions/runs/{run_id}/jobs?per_page=100",
-            "--paginate", "--jq", ".jobs[] | {id, name, status, conclusion}",
+        return _latest_attempt(
+            _gh_lines(
+                f"repos/{self.repo}/actions/runs/{run_id}/jobs?filter=all&per_page=30",
+                "--paginate",
+                "--jq",
+                ".jobs[] | {id, name, status, conclusion, run_attempt}",
+            )
         )
 
     def job_log(self, job_id: int) -> str:
@@ -442,16 +477,27 @@ class GitHub:
         return _gh_text("--allow-escape-sequences", f"repos/{self.repo}/actions/jobs/{job_id}/logs")
 
     def main_jobs(self, workflow: str) -> list[dict[str, Any]] | None:
-        """Return the jobs of main's latest completed push run of workflow."""
+        """Return the jobs of main's latest completed push run of workflow.
+
+        Runs are listed newest first WITHOUT a ``status`` filter, and the first
+        completed one is chosen here. With ``status=completed&per_page=1`` the
+        listing intermittently returned no runs at all (measured: 1 call in 6
+        locally; every attempt of ci-gate on PRs #75 and #77), which the gate
+        read as "no counterpart on main" and so failed closed on a baseline lint
+        job. The same listing without the filter was consistent. A main with no
+        completed run among the most recent still yields None and fails closed.
+        """
         name = workflow.rsplit("/", 1)[-1]
         rows = _gh_lines(
             f"repos/{self.repo}/actions/workflows/{name}/runs"
-            "?branch=main&event=push&status=completed&per_page=1",
-            "--jq", ".workflow_runs[] | {id}",
+            f"?branch=main&event=push&per_page={MAIN_RUN_WINDOW}",
+            "--jq",
+            ".workflow_runs[] | {id, status}",
         )
-        if not rows:
+        completed = [r for r in rows if r.get("status") == "completed"]
+        if not completed:
             return None
-        return self.jobs(rows[0]["id"])
+        return self.jobs(completed[0]["id"])
 
 
 # --------------------------------------------------------------------------

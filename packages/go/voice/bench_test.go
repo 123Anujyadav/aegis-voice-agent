@@ -752,7 +752,7 @@ func BenchmarkGovernance_RequestValidation(b *testing.B) {
 
 // benchGovernor answers without remembering anything.
 //
-// recordingGovernor keeps every request it was asked about, which is right for
+// The recordingGovernor type keeps every request it was asked about, which is right for
 // a test and wrong for a benchmark: the slice grows for the length of the run,
 // and its reallocation is attributed to the gateway. That showed up as ~1.3 KB
 // per operation against ZERO allocations — a contradiction that is the

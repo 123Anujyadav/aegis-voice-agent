@@ -262,7 +262,7 @@ func (p *PolicyEngine) RuleCount() int {
 // Every rule here traces to a frozen invariant or a stated product commitment,
 // and each carries that trace in its name so a denial in a log says which rule
 // of the platform was being honoured.
-func BuiltinRules() []Rule {
+func BuiltinRules() []Rule { //nolint:gocyclo // one closure per built-in rule; a frozen decision table; FE-1 permits lint fixes, not restructuring it
 	return []Rule{
 		// ---- Safety. Never overridable. ----
 
@@ -310,12 +310,12 @@ func BuiltinRules() []Rule {
 		{
 			Name: "persona.capability_required", Class: ClassPersona, Priority: 0,
 			Eval: func(in PolicyInput) (Decision, string) {
-				cap := in.Action.RequiredCapability()
-				if cap == "" {
+				required := in.Action.RequiredCapability()
+				if required == "" {
 					return Allow, ""
 				}
-				if !in.Persona.Allows(cap) {
-					return Deny, "capability_" + string(cap)
+				if !in.Persona.Allows(required) {
+					return Deny, "capability_" + string(required)
 				}
 				return Allow, ""
 			},

@@ -211,7 +211,7 @@ func (r *storeRetriever) Between(subject SubjectID, from, to time.Time, q Query)
 // over four access paths would be more machinery than the choice deserves, and
 // a fixed order is reproducible — the same query always uses the same index,
 // which is what makes Result.Index useful in a diagnosis.
-func (r *storeRetriever) Search(q Query, actor string) (Result, error) {
+func (r *storeRetriever) Search(q Query, actor string) (Result, error) { //nolint:gocyclo // frozen retrieval: index choice, filters, budget and audit in one pass; FE-1 permits lint fixes, not restructuring it
 	start := r.store.clock.Now()
 	limit := q.Limit
 	if limit <= 0 {
@@ -303,8 +303,8 @@ func (r *storeRetriever) Search(q Query, actor string) (Result, error) {
 	}
 
 	matched := make([]*Record, 0, len(metas))
-	for _, m := range metas {
-		rec, ok := r.store.index.Get(m.Key)
+	for i := range metas {
+		rec, ok := r.store.index.Get(metas[i].Key)
 		if !ok {
 			continue // deleted between projection and materialisation
 		}
@@ -333,7 +333,7 @@ func (r *storeRetriever) Search(q Query, actor string) (Result, error) {
 
 // matchesMeta applies every filter a query carries, against a scalar
 // projection rather than a materialised record.
-func (r *storeRetriever) matchesMeta(m Meta, q Query, now time.Time) bool {
+func (r *storeRetriever) matchesMeta(m Meta, q Query, now time.Time) bool { //nolint:gocyclo // one check per query filter
 	if q.Subject != "" && m.Key.Subject != q.Subject {
 		return false
 	}
@@ -442,11 +442,4 @@ func indexLabel(index string) string {
 	default:
 		return "scan"
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
