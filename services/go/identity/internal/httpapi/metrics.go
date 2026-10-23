@@ -126,7 +126,8 @@ func (m *Metrics) Record(e app.SecurityEvent) error {
 		return nil
 	}
 	switch e.Type {
-	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused, app.EventDeviceEnrolled:
+	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused, app.EventDeviceEnrolled,
+		app.EventDeviceReenrolled:
 		m.security.Inc(string(e.Type))
 	default:
 		m.security.Inc(SecurityEventOther)

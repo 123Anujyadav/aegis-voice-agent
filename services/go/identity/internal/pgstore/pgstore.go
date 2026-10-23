@@ -525,6 +525,21 @@ func (r *Repository) ReplaceSession(ctx context.Context, s *app.UserSession, exp
 	})
 }
 
+// OtherDeviceKeyEnrolled is one indexed read (identity_sessions_subscriber).
+func (r *Repository) OtherDeviceKeyEnrolled(ctx context.Context, subscriberID, thumbprint, exceptSessionID string) (bool, error) {
+	var other bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM identity_sessions
+			WHERE subscriber_id = $1 AND session_id <> $3
+			  AND device_key_thumbprint <> '' AND device_key_thumbprint <> $2)`,
+		subscriberID, thumbprint, exceptSessionID).Scan(&other)
+	if err != nil {
+		return false, fmt.Errorf("pgstore: checking for another enrolled device: %w", Redact(err))
+	}
+	return other, nil
+}
+
 // RevokeSession is one UPDATE; a missing session is not an error.
 func (r *Repository) RevokeSession(ctx context.Context, sessionID string) error {
 	if _, err := r.pool.Exec(ctx, `UPDATE identity_sessions SET is_revoked = TRUE WHERE session_id = $1`, sessionID); err != nil {
