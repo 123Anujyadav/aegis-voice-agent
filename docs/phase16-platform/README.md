@@ -245,9 +245,9 @@ overwritten or reverted.
   - their P1-37 record says `deployment.yaml` "is never restored";
   - the manifest tree itself is PR #44's pending ADR.
 - **Mounting `/metrics` now would publish nothing.**
-  - No service exports a metric today. Fifteen of the 16 service binaries
-    import only `platform` (`identity` also imports `middleware`) and own no
-    instruments at all. The one instrument set reachable from a service
+  - No service exports a metric today. The 15 service binaries other than
+    `voice` import only `platform`, plus `middleware` in `identity`'s case, and
+    own no instruments at all. The one instrument set reachable from a service
     binary is `voice`'s `conversation` engine, described below.
   - The only mount points are the 15 `cmd/server/main.go` files, and the owner
     has uncommitted changes in all of them (build-info `version` subcommand).
