@@ -169,3 +169,153 @@ committed, or needs a decision. None has been started.
 **Credentials and cost.** None of the M2 changes needs an external credential
 or paid service. A tracing backend or hosted metrics service would; none is
 proposed.
+
+## Objective 3 — decision records (2026-10-23)
+
+Each task ran in its own worktree from `main` and landed as its own small PR.
+The owner's uncommitted work in the primary worktree was read, never copied,
+overwritten or reverted.
+
+### M3 — shutdown-test helper rename
+
+**Merged:** #80, as `fb40bc7`.
+
+- **Decision:** rename `recordingRunner` to `shutdownCtxRunner` in
+  `packages/go/platform/shutdown_test.go`; the type, its 3 methods and its 1
+  use. Logic is unchanged.
+- **Why:** the owner's untracked `server_test.go` declares its own, different
+  `recordingRunner`. That would redeclare the one on `main` and stop the
+  package's tests compiling once that work lands. Checked in a scratch copy,
+  that file and the owner's `httprunner_test.go` compile and pass beside the
+  renamed type. Neither file was copied into the branch.
+
+### M2 — correlation IDs
+
+**Merged:** #81, as `040cfba`.
+
+- **Decision:** `CorrelationIDMiddleware` mints with `runtime.NewCorrelationID`,
+  the single minter ADR-0014 requires. The old ID was `corr_` plus a
+  one-second timestamp, so every request in the same second shared one ID.
+- **Inbound values:** an inbound `X-Correlation-ID` is kept only if it has the
+  platform shape (`corr_` + 26 Crockford base32 characters). Any other value is
+  replaced, so arbitrary header text never reaches logs or the response.
+- **Dependencies:** `middleware` now imports `runtime`. `runtime` depends only
+  on `metrics`, so no cycle is possible, and importing a frozen module does not
+  edit it.
+- **Trade-off:** a client that sends its own ID in a foreign format receives a
+  platform ID instead. No HTTP caller uses the middleware today.
+- **Tests:** 1000 sequential requests yield distinct IDs; 32 concurrent
+  goroutines × 100 requests yield distinct IDs; valid inbound IDs propagate
+  unchanged; 8 invalid inbound forms are replaced; the validator accepts 1000
+  runtime mints.
+- **Overlap:** the owner's uncommitted `middleware.go` takes the same approach,
+  so a textual conflict is expected when that work is rebased.
+
+### M2 — auth stubs
+
+**Merged:** #83, as `af51394`.
+
+- **Decision:** delete `AuthMiddleware`, `RequireRole` and `UserContextKey`.
+  Keep `UserClaims`, because `services/go/identity` serialises it.
+- **Evidence it is safe:**
+  - **0 callers** on `main`, on every local and remote branch, in every
+    service, and in the owner's working tree.
+  - No contract, generated code or API depends on these symbols.
+  - The owner's untracked Phase 18 D11 record reaches the same conclusion
+    independently, with D11.1 authorising "Delete it, along with
+    `RequireRole`".
+- **Guard:** `no_auth_stub_test.go` reads declared identifiers and string
+  literals from the syntax tree. It caught all 5 mutations tried, including
+  reintroducing a stub.
+
+### M2 — `/metrics` and the probe port
+
+**Decision: no code change, deferred with evidence.**
+
+- **The port is 8081, set by the project's own contracts:**
+  - ADR-0013 mounts `GET /metrics` "on the existing `HealthPort` mux";
+  - `platform.ServiceConfig.HealthPort` defaults to 8081;
+  - `platform/metrics_route_test.go` asserts that `/metrics` shares the health
+    listener on `:8081`.
+- **The 9090 in `infra/k8s/base/deployment.yaml` is the stale side.** The
+  port question is therefore **decided, but not applied** to the tracked
+  manifest. That file is not changed here:
+  - the owner deliberately deleted it in their working tree, and their
+    untracked per-service manifests probe 8081;
+  - their P1-37 record says `deployment.yaml` "is never restored";
+  - the manifest tree itself is PR #44's pending ADR.
+- **Mounting `/metrics` now would publish nothing.**
+  - No service exports a metric today. The 15 service binaries other than
+    `voice` import only `platform`, plus `middleware` in `identity`'s case, and
+    own no instruments at all. The one instrument set reachable from a service
+    binary is `voice`'s `conversation` engine, described below.
+  - The only mount points are the 15 `cmd/server/main.go` files, and the owner
+    has uncommitted changes in all of them (build-info `version` subcommand).
+- **Not exposed publicly, now or when mounted.** The health listener has no
+  Kubernetes Service in the owner's manifests and no ingress, so it is
+  reachable only at the pod IP inside the cluster.
+- **First meaningful owner: `voice`.** It is the only service that registers a
+  runner. That runner owns a `voiceintel.Bridge`, whose
+  `Engine().Metrics().Registry()` is the `conversation` engine's real
+  instrument set, built on the production path.
+- **Not wired yet, for two reasons:**
+  - **No traffic source on `main`.** No call driver exists on `main`, and the
+    owner's untracked ADR-0022 records that "the production build registers
+    no driver".
+    The engine therefore never runs a conversation in production.
+    `metrics.Counter.samples` emits only label sets that have been observed,
+    so an unincremented counter, labelled or not, produces **no series at
+    all**. Only gauges would appear, each reading zero. That is an empty
+    endpoint in effect, and this phase does not ship one to claim
+    completion.
+  - **The owner's uncommitted work.** It rewrites `services/go/voice/go.mod`'s
+    require block, which is exactly where `metricsexport` would be added. It
+    also modifies `cmd/server/main.go` and 17 of its tests, and carries
+    `cmd/server/driver.go` and `internal/`, neither of which is on `main`. Landing a change there first would force the
+    owner into a merge in the middle of their work.
+- **Unblocks when** the owner's voice work, including its call driver, has
+  landed on `main`. Then mount `/metrics` in `voice`'s `buildService`, using
+  `SetMetricsHandler(metricsexport.New(...).Handler())` over the bridge
+  engine's registry. A test should assert that a driven turn moves a series.
+
+### M2 — tracing
+
+**Merged:** #82, as `c17177d`. ADR-0026 has status **Proposed**: merging it
+records the proposal and does not accept it.
+
+- **Recommendation:** W3C Trace Context, implementing the existing frozen
+  `runtime.Tracer` / `runtime.Span` port in the non-frozen `telemetry`, with a
+  log exporter first and the backend deferred.
+- **Reuse without a frozen edit:** a type in `telemetry` satisfies the exported
+  interfaces structurally, and `runtime.WithTracer` already exists to inject
+  it. No production code constructs a `runtime.Kernel` today, so no production
+  span exists yet.
+- **Status today:** the ADR exists. No tracing instrumentation exists, and no
+  backend is chosen.
+- **No tracing code is written** until the ADR is accepted.
+- **Numbering:** 0026 is the first number used or claimed nowhere:
+  - `main` has 0000–0017;
+  - the owner's tree has 0018–0025;
+  - #44 claims a second 0024;
+  - no file, branch, commit or open PR uses 0026 or above.
+
+### M2 — content redaction in logs
+
+**Merged:** #85, as `f6fdb46`.
+
+- **Decision:** `RedactingHandler` replaces values under conversation-content
+  keys with `[REDACTED]`. This enforces ADR-0006 §10: prompts and transcripts
+  are "never logged verbatim".
+- **Matching:**
+  - `transcript`, `utterance` and `prompt` match as substrings;
+  - `text`, `content` and `body` must be the key's last word, so `context`,
+    `content_type` and `body_size` are kept.
+- **Effect today:** no production log call uses a content key, so no current
+  log output changes.
+- **Tests:** 20 content-key spellings suppressed and 10 lookalikes preserved;
+  groups, `WithAttrs`, allow-list precedence and the tokeniser are covered.
+
+**Correction to the M2 table above:** it said "0026 is cited in the owner's
+untracked phase 18/19 documents". The only such citation,
+`PHASE18_FINAL_CLOSURE_AUDIT.md:225`, records "**no ADR-0026**", which states
+that the number is absent rather than claiming it.
