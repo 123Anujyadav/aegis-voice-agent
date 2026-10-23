@@ -48,6 +48,12 @@
 // URL; the request's Host and forwarding headers are never consulted. The
 // request body is validated BEFORE the proof is verified, because verifying a
 // proof spends its jti: a malformed body never costs the client its proof.
+//
+// Every response is counted once in identity_auth_requests_total{endpoint,
+// outcome} (metrics.go). The endpoint is one of the three routes or "unknown";
+// the outcome is "success" or the response's problem code. Nothing from the
+// request is a label. cmd/server exposes it at GET /metrics on the health
+// listener, never on this API's port.
 package httpapi
 
 import (
