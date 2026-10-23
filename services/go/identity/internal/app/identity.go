@@ -1439,7 +1439,7 @@ func (s *IdentityService) msisdnPseudonym(msisdn string) (string, error) {
 // first 32 hex characters of HMAC-SHA-256 over the canonical number. Unchanged
 // from before pseudonymisation, so existing subscriber ids stay the same.
 func (s *IdentityService) subscriberID(msisdn string) string {
-	return "usr_" + s.hashString(msisdn)[:32]
+	return LegacySubscriberID(s.secretKey, msisdn)
 }
 
 // refreshTokenHash is HashRefreshToken under this service's HMAC key.
