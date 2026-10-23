@@ -315,7 +315,11 @@ The real-PostgreSQL suites of both services run under `-race` in CI
 - **No OTP delivery provider exists.**
 - **Key provisioning and rotation as an operation** (Secret volumes, the order
   of rollout). This is SRE's, and needs authorisation for infrastructure
-  changes.
+  changes. The procedure is documented in
+  [`docs/runbooks/access-token-signing-key-rotation.md`](../runbooks/access-token-signing-key-rotation.md)
+  but has not been exercised: no environment provisions these keys yet. That
+  runbook also records a gap this ADR does not address: identity's HMAC secret,
+  which hashes refresh tokens and derives subscriber ids, has no rotation path.
 
 ## Revisit triggers
 
