@@ -101,12 +101,37 @@ Notation: `OLD` is the current key and kid; `NEW` is the replacement.
 - clocks on all nodes are NTP-synchronised. The 60-second skew is the only
   tolerance.
 
+**Verification commands.** Both binaries print public fingerprints only, and
+read nothing but their key variables: no database and no other secret.
+- `identity service signing-key-fingerprint` prints the kid and the
+  fingerprint of the signing key's public half:
+
+  ```
+  signing kid=<KID> sha256=<FINGERPRINT>
+  ```
+
+- `edge-api service trusted-keys` prints each key the verifier trusts:
+
+  ```
+  active kid=<KID> sha256=<FINGERPRINT>
+  previous kid=<KID> sha256=<FINGERPRINT>
+  ```
+
+A step is safe only if the kid **and** the fingerprint identity prints appear in
+edge-api's list. Run both commands with the configuration a step is about to
+roll out, for example in a one-off pod mounting the new Secrets, **before**
+rolling it out.
+
 **Step 1: edge-api trusts both keys, with NEW active.**
 - **Set:**
   - `CS_EDGE_API_ACCESS_TOKEN_PUBLIC_KEY_FILE` to NEW's public key file;
   - `CS_EDGE_API_ACCESS_TOKEN_KID` to `NEW`;
   - `CS_EDGE_API_ACCESS_TOKEN_PREVIOUS_PUBLIC_KEY_FILE` to OLD's public key file;
   - `CS_EDGE_API_ACCESS_TOKEN_PREVIOUS_KID` to `OLD`.
+- **Before rolling out:** `edge-api service trusted-keys` with the new
+  configuration shows `active kid=NEW` and `previous kid=OLD`. Each fingerprint
+  equals the one `identity service signing-key-fingerprint` prints for that
+  key's private file.
 - **Roll out edge-api** to every replica.
 - **Verify:**
   - the rollout completes;
@@ -119,6 +144,10 @@ Notation: `OLD` is the current key and kid; `NEW` is the replacement.
 **Step 2: identity signs with NEW.**
 - **Set:** `CS_IDENTITY_ACCESS_TOKEN_PRIVATE_KEY_FILE` to NEW's private key file,
   and `CS_IDENTITY_ACCESS_TOKEN_KID` to `NEW`.
+- **Before rolling out:** `identity service signing-key-fingerprint` with the new
+  configuration prints `kid=NEW` and the fingerprint edge-api lists as
+  `active`. If it does not, stop: rolling out would make every new token
+  untrusted.
 - **Roll out identity.** During the rollout some replicas sign with OLD and some
   with NEW. edge-api trusts both, so this is safe.
 - **Verify:**
@@ -131,8 +160,10 @@ Notation: `OLD` is the current key and kid; `NEW` is the replacement.
 (skew) after T. After that, no unexpired OLD-signed token can exist.
 
 **Step 4: edge-api trusts NEW only.**
-- **Unset** both `CS_EDGE_API_ACCESS_TOKEN_PREVIOUS_*` variables, and roll out
-  edge-api.
+- **Unset** both `CS_EDGE_API_ACCESS_TOKEN_PREVIOUS_*` variables.
+- **Before rolling out:** `edge-api service trusted-keys` shows only
+  `active kid=NEW`, with identity's fingerprint.
+- **Roll out edge-api.**
 - **Verify:** `invalid_token` shows no step change. A rise means step 3 was too
   short, or an identity replica was still signing with OLD.
 
@@ -252,4 +283,5 @@ does not cover it.
 | The verifier accepts both keys during the overlap and only NEW after it | `TestRotation_OverlapProcedureNeverRejectsAValidToken`, mutation-checked |
 | The previous-key configuration is validated | `TestRotation_PreviousKeyConfigurationIsValidated` |
 | The §4 commands produce accepted key files | checked against `accesstoken`'s PEM parsers when this was written |
+| The verification commands print matching fingerprints for one key pair | `TestSigningKeyFingerprint_*`, `TestTrustedKeyFingerprints_*`, the two command tests, and `accesstoken.TestFingerprint_*` (golden value computed independently). Mutation-checked. |
 | The rotation works in a real environment | **not yet shown**: no environment provisions these keys |
