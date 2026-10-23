@@ -299,7 +299,7 @@ func TestLifecycle_ActivatedHTTPEndToEndAndOrderlyShutdown(t *testing.T) {
 	}
 
 	// With the pool closed, the API fails closed and says nothing about why.
-	h := httpapi.New(rt.Service, quiet, nil)
+	h := httpapi.New(rt.Service, quiet, nil, nil)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", routes.Enrollment, strings.NewReader(fmt.Sprintf(`{"requestId":%q,"code":"123456"}`, reqID2)))
 	req.Header.Set("Content-Type", "application/json")
@@ -337,9 +337,9 @@ func TestLifecycle_TwoInstancesOverHTTP(t *testing.T) {
 	defer b.Close()
 	sender := &codeSender{codes: map[string]string{}}
 	a.Service.SetOtpSender(sender)
-	sa := httptest.NewServer(httpapi.New(a.Service, quiet, nil))
+	sa := httptest.NewServer(httpapi.New(a.Service, quiet, nil, nil))
 	defer sa.Close()
-	sb := httptest.NewServer(httpapi.New(b.Service, quiet, nil))
+	sb := httptest.NewServer(httpapi.New(b.Service, quiet, nil, nil))
 	defer sb.Close()
 
 	code, body := call(t, sa.URL, routes.OTPRequest, `{"msisdn":"`+testNumber+`"}`, "")

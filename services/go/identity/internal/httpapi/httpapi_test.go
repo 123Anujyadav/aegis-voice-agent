@@ -24,6 +24,7 @@ import (
 
 	"github.com/callscreen/callscreen-platform/packages/go/accesstoken"
 	"github.com/callscreen/callscreen-platform/packages/go/dpop"
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/routes"
 )
@@ -117,6 +118,7 @@ type rig struct {
 	logs     *syncBuf
 	bodies   []string // every response body, for leak checks
 	m        *Metrics
+	tracer   runtime.Tracer
 }
 
 func newRig(t *testing.T, withSender bool) *rig {
@@ -148,7 +150,7 @@ func newRig(t *testing.T, withSender bool) *rig {
 		Issuer: "urn:callscreen:identity:test", Audience: "urn:callscreen:edge-api:test", Keys: map[string]ed25519.PublicKey{"test-key-1": pub},
 	})
 	r.m = NewMetrics()
-	r.h = New(svc, slog.New(slog.NewTextHandler(r.logs, nil)), r.m)
+	r.h = New(svc, slog.New(slog.NewTextHandler(r.logs, nil)), r.m, r.tracer)
 	return r
 }
 

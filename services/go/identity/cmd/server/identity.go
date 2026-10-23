@@ -12,6 +12,8 @@ import (
 
 	"github.com/callscreen/callscreen-platform/packages/go/pgshared"
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
+	"github.com/callscreen/callscreen-platform/packages/go/telemetry"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/bootstrap"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/httpapi"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/pgstore"
@@ -40,6 +42,14 @@ type runnerRegistrar interface {
 
 type checkRegistrar interface {
 	Register(c platform.Checker, critical bool, timeout time.Duration)
+}
+
+// identityTracer builds the tracer for the API listener's edge spans
+// (ADR-0026). Spans are written through the service's redacting logger by
+// telemetry.LogExporter; no external exporter is configured (ADR-0028 is
+// conditional on SRE checks). Replaceable in tests.
+var identityTracer = func(log *slog.Logger) runtime.Tracer {
+	return telemetry.NewRecordingTracer(telemetry.NewLogExporter(log))
 }
 
 // openIdentity builds the activated runtime; replaceable in tests.
@@ -82,7 +92,7 @@ func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runne
 	// and before the pool the handlers use is closed. It exists only here — an
 	// inactive identity binds no application port.
 	apiMetrics := httpapi.NewMetrics()
-	runners.Register(platform.NewHTTPRunner("identity-http", svcCfg, httpapi.New(rt.Service, log, apiMetrics), log))
+	runners.Register(platform.NewHTTPRunner("identity-http", svcCfg, httpapi.New(rt.Service, log, apiMetrics, identityTracer(log)), log))
 	// GET /metrics on the health listener (ADR-0013): every response the API
 	// decides, by endpoint and outcome (httpapi.MetricRequests). It shares
 	// HealthPort and is never served on the application port.

@@ -20,9 +20,10 @@ proposal when accepting it, as PR #44 also allows.
 **What this ADR does not claim.** Tracing is not deployed in production
 today.
 - **Instrumentation:** a tracer and a `traceparent` codec exist and are tested
-  (#87, #89). The only production code path that emits a span is `edge-api`'s
-  application listener (a root span per request, to the log exporter; see
-  "Implementation status"). No service propagates `traceparent` onward.
+  (#87, #89). The only production code paths that emit spans are the
+  application listeners of `edge-api` and `identity`, the two public edges (a
+  root span per request, to the log exporter; see "Implementation status"). No
+  service propagates `traceparent` onward.
 - **Backend:** none is chosen, configured or credentialed.
 - **Status:** accepted as a decision and a plan. Acceptance deploys nothing.
 
@@ -259,6 +260,10 @@ implementation (#87, #89) already does, or what a later step must do.
   starts one new root span per request, inside correlation and outside
   authentication, and writes it through `telemetry.LogExporter`. No inbound
   `traceparent` is adopted (rule 2), and nothing yet propagates one onward.
+- **`identity`'s API listener** does the same: it is a public edge too (OTP
+  request, enrolment and refresh are called by clients directly). Its span is
+  inside correlation and outside the routes and their deadlines, so refusals
+  and timeouts are traced.
 - **Still absent:** no production code constructs a `runtime.Kernel` (step 3),
   and no backend exists (step 4, ADR-0028).
 
