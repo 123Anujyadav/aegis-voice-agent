@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/callscreen/callscreen-platform/packages/go/redis"
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
 )
 
 type contextKey string
@@ -77,18 +78,51 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 
 // CorrelationIDMiddleware propagates the inbound X-Correlation-ID header, or
 // mints one, and stores it in the request context and the response header.
-// Minted IDs have one-second resolution and no random part, so requests minted
-// in the same second share an ID.
+//
+// Minting is delegated to runtime.NewCorrelationID, as ADR-0014 requires: one
+// function mints every correlation identity. This used to mint "corr_" plus a
+// timestamp at one-second resolution, so every request arriving in the same
+// second shared one ID, which defeated the only thing it exists to do.
+//
+// An inbound value is propagated only when it has the platform's own shape
+// (see isCorrelationID); anything else — empty, foreign, oversized — is
+// replaced with a fresh ID, so an arbitrary header never reaches the logs or
+// the response.
 func CorrelationIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		correlationID := r.Header.Get("X-Correlation-ID")
-		if correlationID == "" {
-			correlationID = "corr_" + time.Now().Format("20060102150405")
+		if !isCorrelationID(correlationID) {
+			correlationID = runtime.NewCorrelationID().String()
 		}
 		w.Header().Set("X-Correlation-ID", correlationID)
 		ctx := context.WithValue(r.Context(), CorrelationContextKey, correlationID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// correlationIDPrefix and correlationIDLen describe the identifiers
+// runtime.NewCorrelationID mints: "corr_" and 16 bytes in runtime's unpadded
+// Crockford base32. The alphabet is unexported in runtime, so it is restated
+// here and pinned against the real minter by
+// TestCorrelationID_ValidatorAcceptsTheRuntimeMinter.
+const (
+	correlationIDPrefix   = "corr_"
+	correlationIDAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+	correlationIDLen      = len(correlationIDPrefix) + 26
+)
+
+// isCorrelationID reports whether s is exactly a platform correlation ID. The
+// length is checked first, so an oversized header costs one comparison.
+func isCorrelationID(s string) bool {
+	if len(s) != correlationIDLen || !strings.HasPrefix(s, correlationIDPrefix) {
+		return false
+	}
+	for i := len(correlationIDPrefix); i < len(s); i++ {
+		if strings.IndexByte(correlationIDAlphabet, s[i]) < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // AuthMiddleware performs NO authentication. It rejects requests without a
