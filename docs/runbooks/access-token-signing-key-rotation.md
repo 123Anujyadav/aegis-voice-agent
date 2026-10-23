@@ -124,8 +124,7 @@ Notation: `OLD` is the current key and kid; `NEW` is the replacement.
 - **Verify:**
   - `invalid_token` at edge-api stays flat;
   - identity's `identity_auth_requests_total{endpoint="token_refresh"}` and
-    `{endpoint="otp_validate"}` success rates are unchanged. That metric arrives
-    with #106; until it is merged, use the identity request logs for 5xx only.
+    `{endpoint="otp_validate"}` success rates are unchanged.
 - **Record the time T** at which the last identity pod running OLD terminated.
 
 **Step 3: wait.** Wait at least 15 minutes (token lifetime) plus 60 seconds
@@ -145,8 +144,9 @@ Notation: `OLD` is the current key and kid; `NEW` is the replacement.
 |---|---|---|
 | `edge_api_auth_requests_total{outcome="invalid_token"}` | edge-api `GET /metrics` (health port) | no step change at any step |
 | `edge_api_auth_requests_total{outcome="admitted"}` | edge-api | no drop |
-| `identity_auth_requests_total{endpoint="token_refresh",outcome="success"}` | identity `GET /metrics` (#106) | no drop after step 2 |
-| `identity_auth_requests_total{endpoint="token_refresh",outcome="invalid_token"}` | identity (#106) | flat. A signing-key change does not touch refresh tokens. |
+| `identity_auth_requests_total{endpoint="token_refresh",outcome="success"}` | identity `GET /metrics` (health port) | no drop after step 2 |
+| `identity_auth_requests_total{endpoint="token_refresh",outcome="invalid_token"}` | identity | flat. A signing-key change does not touch refresh tokens. |
+| `identity_security_events_total{type="identity.refresh.token_reused"}` | identity | flat. A rise is the exfiltration alarm (ADR-0010): investigate whatever the rotation's state. |
 | Pod startup and readiness | orchestrator | every rollout completes; a stall is a misconfiguration |
 | Startup errors | service logs | none. They name the variable at fault, never its value. |
 
@@ -183,10 +183,16 @@ refresh.
      be verified for each client release.
 5. **Destroy OLD** (§9) as soon as identity no longer uses it.
 6. **Review:**
-   - edge-api `admitted` traffic for subjects active between the last-known-safe
-     time and step 4;
-   - refresh-token reuse at identity
-     (`identity_auth_requests_total{endpoint="token_refresh",outcome="invalid_token"}`).
+   - refresh-token reuse detections at identity
+     (`identity_security_events_total{type="identity.refresh.token_reused"}`)
+     between the last-known-safe time and step 4;
+   - the edge-api `admitted` and `invalid_token` rates over the same period.
+
+   **Limitation:** these counters carry no subject or session, and edge-api
+   does not log admitted requests. A per-subject review of what a forged token
+   reached is therefore **not possible today**. Only the volume is visible.
+   Closing that gap needs an audit log of admissions, which is a privacy
+   decision (ADR-0012).
 
 If identity's **HMAC secret** may also be compromised, see §11.1: this runbook
 does not cover it.
