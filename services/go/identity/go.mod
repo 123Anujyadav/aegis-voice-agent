@@ -19,7 +19,8 @@ require (
 require github.com/callscreen/callscreen-platform/packages/go/telemetry v0.0.0 // indirect
 
 require (
-	github.com/callscreen/callscreen-platform/packages/go/metrics v0.0.0 // indirect
+	github.com/callscreen/callscreen-platform/packages/go/metrics v0.0.0
+	github.com/callscreen/callscreen-platform/packages/go/metricsexport v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/pgshared v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/redis v0.0.0 // indirect
 	github.com/callscreen/callscreen-platform/packages/go/runtime v0.0.0 // indirect
@@ -81,3 +82,5 @@ replace github.com/callscreen/callscreen-platform/packages/go/dpop => ../../../p
 replace github.com/callscreen/callscreen-platform/packages/go/pgshared => ../../../packages/go/pgshared
 
 replace github.com/callscreen/callscreen-platform/packages/go/telemetry => ../../../packages/go/telemetry
+
+replace github.com/callscreen/callscreen-platform/packages/go/metricsexport => ../../../packages/go/metricsexport
