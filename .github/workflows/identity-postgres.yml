@@ -6,7 +6,9 @@
 # migration, housekeeping and lifecycle suites, edge-api's shared replay store
 # and grants suites, and the end-to-end test in which a token identity issues
 # is admitted by edge-api. This job runs both suites against a THROWAWAY
-# PostgreSQL container started by tools/scripts/identity-postgres-tests.sh:
+# PostgreSQL container started by tools/scripts/identity-postgres-tests.sh,
+# plus pgshared's real verify-full TLS suite against a second, TLS-serving
+# throwaway container whose certificates the script generates for the run:
 #
 #   * one official image, pinned by immutable digest (below), pulled here; the
 #     script itself never pulls (--pull never);
