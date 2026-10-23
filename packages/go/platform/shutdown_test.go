@@ -11,22 +11,22 @@ import (
 
 type shutdownCtxKey struct{}
 
-// recordingRunner captures the context its Shutdown is given.
-type recordingRunner struct {
+// shutdownCtxRunner captures the context its Shutdown is given.
+type shutdownCtxRunner struct {
 	err         error
 	value       any
 	deadline    time.Time
 	hasDeadline bool
 }
 
-func (r *recordingRunner) Name() string { return "recording" }
+func (r *shutdownCtxRunner) Name() string { return "recording" }
 
-func (r *recordingRunner) Run(ctx context.Context) error {
+func (r *shutdownCtxRunner) Run(ctx context.Context) error {
 	<-ctx.Done()
 	return nil
 }
 
-func (r *recordingRunner) Shutdown(ctx context.Context) error {
+func (r *shutdownCtxRunner) Shutdown(ctx context.Context) error {
 	r.err = ctx.Err()
 	r.value = ctx.Value(shutdownCtxKey{})
 	r.deadline, r.hasDeadline = ctx.Deadline()
@@ -47,7 +47,7 @@ func TestShutdown_RunnersGetTheBudgetDespiteACancelledRunContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), shutdownCtxKey{}, "carried"))
 	cancel() // as after SIGTERM
 
-	runner := &recordingRunner{}
+	runner := &shutdownCtxRunner{}
 	start := time.Now()
 	if err := svc.shutdown(ctx, []Runner{runner}, &http.Server{}, nil); err != nil {
 		t.Fatalf("shutdown: %v", err)
