@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
 )
 
 // collector is an Exporter that keeps every record.
@@ -132,7 +134,7 @@ func TestRecordingSpan_AllowlistErrorsAndEndSemantics(t *testing.T) {
 	s.SetAttribute("caller_number", "+919800000000")
 	s.SetAttribute("transcript", "my account number is ...")
 	s.RecordError(nil)
-	s.RecordError(errors.New("upstream unavailable"))
+	s.RecordError(fmt.Errorf("calling provider for %q: %w", "my account number is 1234", runtime.ErrProviderUnavailable))
 	clock = start.Add(42 * time.Millisecond)
 	s.End()
 	s.End() // idempotent
@@ -150,8 +152,8 @@ func TestRecordingSpan_AllowlistErrorsAndEndSemantics(t *testing.T) {
 	if r.DroppedAttributes != 2 {
 		t.Errorf("dropped = %d, want 2 (caller_number, transcript)", r.DroppedAttributes)
 	}
-	if r.Err != "upstream unavailable" {
-		t.Errorf("err = %q", r.Err)
+	if r.Err != "runtime: provider unavailable" {
+		t.Errorf("err = %q, want the sentinel's category and none of the wrapping text", r.Err)
 	}
 	if got := r.End.Sub(r.Start); got != 42*time.Millisecond {
 		t.Errorf("duration = %s, want 42ms", got)
@@ -206,7 +208,7 @@ func TestLogExporter_WritesThroughThePlatformRedactingLogger(t *testing.T) {
 	s.SetAttribute("tier", "fast")
 	s.SetAttribute("session_id", "ses_01J")
 	s.SetAttribute("not_allowed", "x")
-	s.RecordError(errors.New("shed"))
+	s.RecordError(fmt.Errorf("admission for caller +919800000000: %w", runtime.ErrShed))
 	s.End()
 	parent.End()
 
@@ -240,7 +242,7 @@ func TestLogExporter_WritesThroughThePlatformRedactingLogger(t *testing.T) {
 	if _, ok := attrs["not_allowed"]; ok || rec["dropped_attributes"] != float64(1) {
 		t.Errorf("allowlist not applied: attrs=%v dropped=%v", attrs, rec["dropped_attributes"])
 	}
-	if rec["error"] != "shed" {
+	if rec["error"] != "runtime: shed at admission" {
 		t.Errorf("error = %v", rec["error"])
 	}
 }
