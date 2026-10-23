@@ -42,6 +42,7 @@ What exists today:
 
 | Piece | State on `main` |
 |---|---|
+| `runtime.Tracer` / `runtime.Span` (frozen `runtime`, `kernel.go`) | **The platform's tracing port.** Documented as *"the subset of OpenTelemetry the runtime actually uses. An adapter in a sibling module implements it over the real SDK."* `Span` has `SetAttribute`, `RecordError` and `End`, and its doc forbids `PERSONAL`/`SENSITIVE` attributes. The kernel opens one span, `runtime.generate`, with `request_id`, `session_id`, `tier`, `class` and `model` attributes. The only implementation is `NoopTracer`, and `runtime.WithTracer` has **0 callers**. |
 | `packages/go/telemetry` | A stub with **zero importers**. `InitializeOpenTelemetry` prints a line and returns no-ops; `Tracer.StartSpan(ctx, name) (ctx, func())` carries no attributes, status or parent. |
 | `platform.WithTraceID` / `TraceIDFrom`, `AttrTraceID = "trace_id"` | Logging plumbing that adds `trace_id` to every log record when the context carries one. **0 callers** set it. |
 | `middleware.WriteProblemDetails(…, traceID)` | Echoes a caller-supplied string into problem details; no trace exists to supply. |
@@ -90,13 +91,22 @@ Two constraints carry over unchanged:
   Datadog, so choosing it now forecloses no backend. Inbound values are
   validated strictly and replaced when invalid. This is the same rule the
   correlation-ID middleware applies.
-- **Span model in `packages/go/telemetry`, which is not frozen.** Each span has
-  a name, trace-id, span-id, parent, start and end times, a status and an
-  allowlisted set of attributes. IDs come from `crypto/rand`. The stub's
-  `Tracer` interface, `NoopMetricsExporter` and `InitializeOpenTelemetry` have
-  zero importers. They are replaced rather than extended: ADR-0013 left the
-  stub's fate to this decision, and its metrics half is already superseded by
-  `metricsexport`.
+- **The port is `runtime.Tracer`. The implementation lives in
+  `packages/go/telemetry`, which is not frozen.** Frozen `runtime` already
+  defines the port and expects "an adapter in a sibling module". Implementing
+  an interface does not edit the module that declares it. The kernel's
+  existing `runtime.generate` span (ADR-0011 hop 6) therefore becomes real
+  through `runtime.WithTracer`, with no frozen change.
+  - Each span records a name, trace-id, span-id, parent, start and end times,
+    a status, and an allowlisted set of attributes. IDs come from
+    `crypto/rand`.
+  - The stub's own `Tracer` interface, a second and incompatible port,
+    together with `NoopMetricsExporter` and `InitializeOpenTelemetry`, has zero
+    importers. These are replaced rather than extended. ADR-0013 left the
+    stub's fate to this decision, and `metricsexport` already supersedes its
+    metrics half.
+  - `telemetry` will import `runtime`. That cannot form a cycle, because
+    `runtime` depends only on `metrics`.
 - **One exporter interface, one implementation first: structured log
   records** through `platform`'s logger. Every span then passes the existing
   redaction handler (D4) and lands wherever logs already go, with no new
@@ -125,8 +135,11 @@ it fails D2 on both counts.
 - ADR-0011 §9 becomes implementable, and per-hop latency becomes attributable.
 - No dependency, no credential and no backend are introduced. No frozen module
   changes.
+- The kernel's existing `runtime.generate` span starts recording, with no
+  change to `runtime`.
 - The misleading `InitializeOpenTelemetry` stub, which reports configuring
-  OpenTelemetry and configures nothing, goes away.
+  OpenTelemetry and configures nothing, goes away. With it goes the second,
+  incompatible `Tracer` port.
 - Every span is redacted by construction, through the same handler as logs.
 
 **Negative**
@@ -168,9 +181,9 @@ be settled hop by hop in step 3 of the plan.
 
 | Step | Scope | Acceptance criteria | Blocked on |
 |---|---|---|---|
-| 1 | `packages/go/telemetry`: span model, `traceparent` parse and format, `crypto/rand` IDs, `Exporter` interface, log exporter. Replace the stub's zero-importer declarations. | W3C test vectors pass. Malformed, all-zero, upper-case and oversized `traceparent` values are rejected. IDs are unique under concurrency (`-race` in CI). Attributes outside the allowlist are dropped. golangci-lint is clean. | Owner acceptance |
+| 1 | `packages/go/telemetry`: a `runtime.Tracer` and `runtime.Span` implementation, `traceparent` parse and format, `crypto/rand` IDs, an `Exporter` interface and a log exporter. Replace the stub's zero-importer declarations. | A compile-time assertion shows the type satisfies `runtime.Tracer`. W3C test vectors pass. Malformed, all-zero, upper-case and oversized `traceparent` values are rejected. IDs are unique under concurrency (`-race` in CI). Attributes outside the allowlist are dropped. golangci-lint is clean. | Owner acceptance |
 | 2 | `platform` and `middleware`: inbound `traceparent` extraction, or a new root span; outbound injection helper; `WithTraceID` set. | Valid inbound context propagates unchanged and invalid context is replaced. `trace_id` appears on log records. The health listener is unaffected. | Step 1 |
-| 3 | `voice` and `voiceintel` seams: one span per ADR-0011 hop that a non-frozen seam can time, named for the §5.2 hop number. | A table maps every §5.2 hop to "instrumented at `<seam>`" or "uninstrumented: no non-frozen seam". Tests assert span names and parentage for a simulated turn. | Step 2; per-hop seam inventory |
+| 3 | Inject the tracer with `runtime.WithTracer` where a kernel is built. In the `voice` and `voiceintel` seams, add one span per ADR-0011 hop that a non-frozen seam can time, named for the §5.2 hop number. | `runtime.generate` spans appear as children of the turn's span. A table maps every §5.2 hop to "instrumented at `<seam>`" or "uninstrumented: no non-frozen seam". Tests assert span names and parentage for a simulated turn. | Step 2; per-hop seam inventory |
 | 4 | Backend adapter, for example OTLP via the OpenTelemetry SDK. | The adapter's own ADR, covering dependency, endpoint, credential handling and ADR-0012 egress and retention. | **Owner and SRE backend choice; credential provisioning** |
 
 Out of scope for every step: alert rules and dashboards (operator artefacts,
@@ -222,6 +235,8 @@ change to a frozen module.
 - ADR-0013: metrics exposition; tracing deferred; the `telemetry` stub's fate
   left to this decision
 - ADR-0014: correlation identity, the stated prerequisite for tracing
+- `packages/go/runtime/kernel.go`: the `Tracer` and `Span` port,
+  `NoopTracer`, `WithTracer`, and the `runtime.generate` span
 - `packages/go/telemetry/telemetry.go`: the stub
 - `packages/go/platform/logging.go`: `WithTraceID`, `TraceIDFrom`,
   `AttrTraceID`
