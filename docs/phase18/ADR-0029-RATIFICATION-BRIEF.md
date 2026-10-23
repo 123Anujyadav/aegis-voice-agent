@@ -31,10 +31,11 @@ spending. Those stay gated as before.
 | Deviation | Where it stands | Owner action |
 |---|---|---|
 | **Session lifetime is 24 h, not 90 days** | Stricter than ADR-0010. Subscribers re-verify daily. | A product decision: keep or extend. |
-| **Play Integrity is not verified against Google** | The fabricating stub is replaced by a fail-closed boundary and an offline-tested verdict policy (#108, open at the time of writing). It is not wired into issuance. | Provide a Google Cloud project, credentials and egress. Decide what the restricted tier may do. |
-| **No OTP delivery provider** | A failover sender boundary exists (#109, open at the time of writing). No provider; requests are refused truthfully. | Choose a provider (and a secondary). In India this needs DLT registration. |
+| **Play Integrity is not verified against Google** | The fabricating stub is replaced by a fail-closed boundary and an offline-tested verdict policy (#108, merged). It is not wired into issuance. | Provide a Google Cloud project, credentials and egress. Decide what the restricted tier may do. |
+| **No OTP delivery provider** | A failover sender boundary exists (#109, merged). No provider; requests are refused truthfully. | Choose a provider (and a secondary). In India this needs DLT registration. |
 | **A mounted key set instead of a JWKS** | §1, D11.3 | Ratify or reject. |
 | **DPoP on every request** | §1, D11.4 | Ratify or reject. |
+| **No exponential backoff, no per-device OTP limit** (ADR-0010 §5(a)) | Fixed 15-minute lockout after 5 wrong codes in 15 minutes. A per-device limit cannot exist before enrolment: there is no device identity yet. | Decide the trade-off in §3a. |
 
 ## 3. A security finding outside ADR-0029's decisions
 
@@ -48,15 +49,41 @@ runbook (#107) and in ADR-0029's open items.
 - **Recommendation:** decide before production. Until then, a suspected HMAC
   compromise has no clean recovery.
 
+## 3a. An OTP backoff trade-off for the owner
+
+ADR-0010 §5(a) asks for exponential backoff on OTP verification. It was **not
+implemented**, because it trades one risk for another.
+
+- **For:** escalating lockouts (15 minutes, doubling up to a cap) cut targeted
+  code guessing several-fold. With a 4-hour cap, guesses fall from about 240 a
+  day to about 30 per number.
+- **Against:** anyone who knows a phone number can request a code for it and
+  submit wrong guesses, **locking the real subscriber out**. Today that takes
+  a burst every 15 minutes. With escalation, one burst every few hours keeps
+  the victim locked out.
+- **Context:** at 240 guesses a day, finding a 6-digit code already takes years
+  per number.
+
+**Options:**
+1. Implement backoff with a low cap (about 1–4 hours) and accept the cheaper
+   lockout denial of service.
+2. Keep the fixed lockout, and record this as a deviation from ADR-0010.
+3. Escalate only on the device side once a device identity exists.
+
+**Recommendation:** option 2 until abuse data says otherwise. It is a choice
+about subscriber availability, so it is the owner's.
+
 ## 4. Observability now in place (supports the ADR-0010 §9 alerts)
 
 - `edge_api_auth_requests_total{outcome}` (#105, merged): every edge
   authentication decision.
-- `identity_auth_requests_total{endpoint,outcome}` (#106, open at the time of
-  writing): every identity response, including OTP failures and refresh-token
-  reuse.
-- Both are counters under a closed label vocabulary. No identifier is a label,
-  and both are served only on the health port.
+- `identity_auth_requests_total{endpoint,outcome}` (#106, merged): every
+  identity response, including OTP failures and refused refreshes.
+- `identity_security_events_total{type}` (#113, merged): wrong codes,
+  lockouts, and **refresh-token reuse detections**, which ADR-0010 calls the
+  exfiltration alarm. Reuse was previously recorded nowhere.
+- All three are counters under a closed label vocabulary. No identifier is a
+  label, and all are served only on the health port.
 
 ## 5. Options
 
