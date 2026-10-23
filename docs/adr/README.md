@@ -34,6 +34,7 @@ at all.
 | [0026](0026-distributed-tracing.md) | Distributed tracing | Accepted | **W3C Trace Context with a stdlib implementation of the existing `runtime.Tracer` port in `packages/go/telemetry`**, log exporter first; backend deferred to owner and SRE. Adapter implemented (#87); no production span and no backend yet |
 | [0027](0027-kubernetes-manifest-tree.md) | One Kubernetes manifest tree | Accepted | **`infra/k8s` is the single manifest tree**, with the P1-37/P1-39 staging path amended to `infra/k8s/overlays/staging/`; Helm (A2), the kubeconform policy and A5 remain open |
 | [0028](0028-tracing-backend-xray.md) | Tracing backend | Proposed (owner-selected, conditional) | **OpenTelemetry Collector to AWS X-Ray in `ap-south-1`**, over a VPC endpoint, IRSA for the Collector only; Accepted only when SRE records P1 (trace-id compatibility) and P2 (cost and budget) as met. Nothing provisioned |
+| [0029](0029-access-token-and-proof-of-possession.md) | Access-token and proof-of-possession profile | Proposed (decided under owner delegation) | **EdDSA `at+jwt` access tokens, opaque rotating refresh tokens, RFC 9449 DPoP on every protected request**; stdlib fixed profile (no JWT library) with strict-JSON, RFC-vector and fuzz conditions; key-set rotation gates production issuance; DB TLS verify-full; amends ADR-0010 §5(c) |
 
 ---
 
