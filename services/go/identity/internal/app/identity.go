@@ -873,6 +873,9 @@ type IdentityService struct {
 	// otpSender delivers one-time codes. Nil — the default, and the only value
 	// production code sets today — means no delivery exists; see SetOtpSender.
 	otpSender OtpSender
+	// integrity is Play Integrity verification (integrity.go); nil means
+	// unavailable, and VerifyPlayIntegrity then fails closed.
+	integrity *integrityCheck
 
 	// newCode mints the one-time code. Injected rather than called directly so
 	// a test can make the value predictable WITHOUT the production path ever
@@ -1422,39 +1425,6 @@ func (s *IdentityService) subscriberID(msisdn string) string {
 // refreshTokenHash is HashRefreshToken under this service's HMAC key.
 func (s *IdentityService) refreshTokenHash(raw string) string {
 	return HashRefreshToken(s.secretKey, raw)
-}
-
-// VerifyPlayIntegrity is a STUB. It verifies nothing.
-//
-// It accepts any token of ten or more characters and returns a FABRICATED
-// attestation, including IsPlayCertified: true and a hardcoded device model.
-// ADR-0010 §5(b) requires the verdict be "verified server-side against Google",
-// checking app recognition, device integrity and licensing. None of that
-// happens here.
-//
-// Recorded by Phase 18 D11. It is unreachable in a running process — nothing
-// constructs IdentityService outside tests — so this is a latent trap, not a
-// live vulnerability. It must not be wired to anything until the ADR-0010
-// verification inputs exist.
-func (s *IdentityService) VerifyPlayIntegrity(ctx context.Context, token string) (*DeviceAttestation, error) {
-	if token == "" || len(token) < 10 {
-		return nil, ErrPlayIntegrityFailed
-	}
-
-	attestation := &DeviceAttestation{
-		DeviceID:        "dev_" + token[:8],
-		Model:           "Pixel 9 Pro",
-		OsVersion:       "Android 15",
-		IntegrityToken:  token,
-		AttestedAt:      time.Now(),
-		IsPlayCertified: true,
-	}
-
-	if err := s.repo.SaveDevice(ctx, attestation); err != nil {
-		return nil, err
-	}
-
-	return attestation, nil
 }
 
 // RefreshToken rotates the refresh token of a session that is NOT bound to a

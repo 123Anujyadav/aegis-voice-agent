@@ -311,7 +311,22 @@ The real-PostgreSQL suites of both services run under `-race` in CI
 
 **Still open:**
 - **Owner ratification** of this ADR.
-- **Play Integrity is a stub**, which blocks production on its own.
+- **Play Integrity is not verified against Google**, which blocks production on
+  its own.
+  - **Fixed:** the fabricating stub is gone. Without a configured
+    `IntegrityVerifier`, `VerifyPlayIntegrity` fails closed and certifies
+    nothing.
+  - **Implemented and tested offline:** the ADR-0010 §5(b) verdict policy (app
+    recognition, signing certificate, device integrity, licensing, request
+    binding, freshness), with the restricted tier on failure.
+  - **Live verification needs:**
+    - a Google Cloud project linked to the app in Play Console, with the Play
+      Integrity API enabled;
+    - a credential for `decodeIntegrityToken`, provisioned by SRE;
+    - egress to Google;
+    - the client binding its standard request to a server-chosen hash.
+  - **Wiring the tier into issuance and refresh** is a product decision. No
+    restricted-tier model exists yet.
 - **No OTP delivery provider exists.**
 - **Key provisioning and rotation as an operation** (Secret volumes, the order
   of rollout). This is SRE's, and needs authorisation for infrastructure
