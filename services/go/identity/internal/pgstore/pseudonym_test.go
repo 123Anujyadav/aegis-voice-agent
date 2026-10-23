@@ -234,7 +234,7 @@ func TestPostgres_Migration0004(t *testing.T) {
 		mustExec(t, p, `INSERT INTO identity_sessions (session_id, subscriber_id, msisdn, refresh_token_hash, created_at, expires_at)
 			VALUES ('s1', 'usr_1', '+14155550321', $1, now(), now() + interval '1 day')`, th("rt_s1"))
 		res, err := Migrate(ctx, p)
-		if err != nil || res.Version != 4 || len(res.Applied) != 1 || res.Applied[0] != "0004_msisdn_pseudonyms.sql" {
+		if latest := latestVersion(t); err != nil || res.Version != latest || len(res.Applied) != latest-3 || res.Applied[0] != "0004_msisdn_pseudonyms.sql" {
 			t.Fatalf("(%+v, %v)", res, err)
 		}
 		if hasColumn(t, p, "identity_sessions", "msisdn") {
@@ -247,14 +247,14 @@ func TestPostgres_Migration0004(t *testing.T) {
 		if err != nil || got.SubscriberID != "usr_1" || got.RefreshTokenHash != th("rt_s1") {
 			t.Errorf("the session did not survive intact: (%+v, %v)", got, err)
 		}
-		if res, err := Migrate(ctx, p); err != nil || len(res.Applied) != 0 || res.Version != 4 {
+		if res, err := Migrate(ctx, p); err != nil || len(res.Applied) != 0 || res.Version != latestVersion(t) {
 			t.Errorf("re-run: (%+v, %v)", res, err)
 		}
 	})
 
 	t.Run("empty: migrated", func(t *testing.T) {
 		p := schemaAt(t, 3)
-		if res, err := Migrate(ctx, p); err != nil || res.Version != 4 {
+		if res, err := Migrate(ctx, p); err != nil || res.Version != latestVersion(t) {
 			t.Fatalf("(%+v, %v)", res, err)
 		}
 		if !hasColumn(t, p, "identity_otp_challenges", "subscriber_id") || !hasColumn(t, p, "identity_otp_rate_state", "msisdn_pseudonym") {

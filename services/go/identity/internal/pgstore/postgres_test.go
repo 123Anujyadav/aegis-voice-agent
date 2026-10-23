@@ -265,8 +265,8 @@ func TestPostgres_PruneIsBoundedAndSafe(t *testing.T) {
 func TestPostgres_Migrations(t *testing.T) {
 	env := requirePostgres(t)
 	res, err := Migrate(ctx, env.poolB)
-	if err != nil || len(res.Applied) != 0 || res.Version != 4 || len(res.AlreadyApplied) != 4 {
-		t.Fatalf("re-run: (%+v, %v), want nothing applied at v4", res, err)
+	if err != nil || len(res.Applied) != 0 || res.Version != 5 || len(res.AlreadyApplied) != 5 {
+		t.Fatalf("re-run: (%+v, %v), want nothing applied at v5", res, err)
 	}
 
 	fresh := requirePostgres(t) // already migrated once; drop and race instead
@@ -308,7 +308,7 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 4 || chain[0].Version != 1 || chain[1].Version != 2 || chain[2].Version != 3 || chain[3].Version != 4 {
+	if len(chain) != 5 || chain[0].Version != 1 || chain[1].Version != 2 || chain[2].Version != 3 || chain[3].Version != 4 || chain[4].Version != 5 {
 		t.Fatalf("chain has %d steps", len(chain))
 	}
 
