@@ -1,0 +1,258 @@
+package app
+
+import (
+	"context"
+	"crypto/subtle"
+	"errors"
+	"fmt"
+	"regexp"
+	"slices"
+	"time"
+)
+
+// Play Integrity verification (ADR-0010 §5(b)): the boundary, and the policy
+// applied to a decoded verdict.
+//
+// WHAT THIS IS, AND WHAT IT IS NOT. Decoding a Play Integrity token is a call
+// to Google (decodeIntegrityToken) with credentials for the Google Cloud
+// project linked to the app in Play Console. No such implementation exists in
+// this repository, and none can be written or tested without those credentials.
+// IntegrityVerifier is the port it will implement. Until one is configured,
+// VerifyPlayIntegrity fails closed with ErrPlayIntegrityUnavailable: it never
+// certifies a device, and stores nothing.
+//
+// What CAN be decided and tested offline is the policy: given a decoded
+// verdict, is this the genuine app, on a device with integrity, licensed, and
+// is the verdict bound to this request and fresh? IntegrityPolicy.Assess
+// answers that, purely.
+//
+// A failed verdict is NOT an error. ADR-0010 §5(b): "A failed verdict does not
+// necessarily reject — it downgrades the session to a restricted tier and
+// raises a signal." Assess returns TierRestricted with the reasons. A token
+// that does not decode at all (forged, malformed, wrong app) IS an error:
+// there is no verdict to downgrade.
+
+// ErrPlayIntegrityUnavailable is a verdict that could not be obtained: no
+// verifier is configured, or the verifier could not answer. Nothing is
+// certified or stored. Callers must not treat it as a pass.
+var ErrPlayIntegrityUnavailable = errors.New("identity: Play Integrity verification is unavailable")
+
+// ErrInvalidIntegrityPolicy is a policy SetIntegrityVerifier refuses.
+var ErrInvalidIntegrityPolicy = errors.New("identity: invalid Play Integrity policy")
+
+// ErrIntegrityTokenInvalid is what an IntegrityVerifier returns for a token
+// that the decoding service rejects: forged, malformed, expired at the
+// source, or issued for another app. Any other verifier error is treated as
+// unavailability.
+var ErrIntegrityTokenInvalid = errors.New("identity: the Play Integrity token was rejected")
+
+// IntegrityVerifier decodes a Play Integrity token into its verdict. The
+// production implementation calls Google's decodeIntegrityToken; it must
+// return ErrIntegrityTokenInvalid (possibly wrapped) for a rejected token, and
+// any other error for an outage.
+type IntegrityVerifier interface {
+	Decode(ctx context.Context, token string) (IntegrityVerdict, error)
+}
+
+// IntegrityVerdict is the subset of a decoded Play Integrity payload the
+// policy reads. Field values are Google's, unmodified.
+type IntegrityVerdict struct {
+	// RequestPackageName is requestDetails.requestPackageName.
+	RequestPackageName string
+	// RequestHash is requestDetails.requestHash (standard requests): the
+	// value the app bound the verdict to.
+	RequestHash string
+	// Timestamp is requestDetails.timestampMillis.
+	Timestamp time.Time
+	// AppRecognition is appIntegrity.appRecognitionVerdict.
+	AppRecognition string
+	// AppPackageName is appIntegrity.packageName.
+	AppPackageName string
+	// CertificateDigests is appIntegrity.certificateSha256Digest.
+	CertificateDigests []string
+	// DeviceRecognition is deviceIntegrity.deviceRecognitionVerdict.
+	DeviceRecognition []string
+	// AppLicensing is accountDetails.appLicensingVerdict.
+	AppLicensing string
+}
+
+// The verdict values the policy requires (Google Play Integrity API).
+const (
+	AppPlayRecognized     = "PLAY_RECOGNIZED"
+	DeviceMeetsIntegrity  = "MEETS_DEVICE_INTEGRITY"
+	AppLicensingLicensed  = "LICENSED"
+	maxIntegrityTokenSize = 16 << 10
+)
+
+// IntegrityTier is the outcome of an assessment.
+type IntegrityTier string
+
+const (
+	// TierCertified is a verdict that passed every check.
+	TierCertified IntegrityTier = "certified"
+	// TierRestricted is a verdict that failed at least one check (ADR-0010's
+	// restricted tier). The reasons say which.
+	TierRestricted IntegrityTier = "restricted"
+)
+
+// IntegrityReason is why a verdict was restricted. The vocabulary is closed,
+// so it can be counted and alerted on without carrying verdict data.
+type IntegrityReason string
+
+// The reasons, in the order Assess checks them.
+const (
+	ReasonPackageMismatch     IntegrityReason = "package_mismatch"
+	ReasonRequestHashMismatch IntegrityReason = "request_hash_mismatch"
+	ReasonStaleVerdict        IntegrityReason = "stale_verdict"
+	ReasonFutureVerdict       IntegrityReason = "future_verdict"
+	ReasonAppNotRecognized    IntegrityReason = "app_not_recognized"
+	ReasonCertificateMismatch IntegrityReason = "certificate_mismatch"
+	ReasonDeviceIntegrity     IntegrityReason = "device_integrity_missing"
+	ReasonUnlicensed          IntegrityReason = "unlicensed"
+)
+
+// IntegrityAssessment is the policy's answer for one verdict.
+type IntegrityAssessment struct {
+	Tier    IntegrityTier
+	Reasons []IntegrityReason
+}
+
+// IntegrityPolicy is what a genuine verdict must show.
+type IntegrityPolicy struct {
+	// PackageName is the Android application id (for example
+	// com.example.app): the request's and the app's package must both equal it.
+	PackageName string
+	// CertificateDigests are the accepted base64url SHA-256 digests of the
+	// app's signing certificate. The verdict must carry at least one.
+	CertificateDigests []string
+	// MaxAge bounds how old a verdict may be.
+	MaxAge time.Duration
+	// FutureSkew bounds how far in the future a verdict timestamp may be.
+	FutureSkew time.Duration
+}
+
+var (
+	packageNamePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$`)
+	digestPattern      = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+)
+
+// Validate refuses a policy that could not tell a genuine verdict from a
+// forged one.
+func (p IntegrityPolicy) Validate() error {
+	switch {
+	case !packageNamePattern.MatchString(p.PackageName):
+		return fmt.Errorf("%w: Play Integrity package name must be an Android application id", ErrInvalidIntegrityPolicy)
+	case len(p.CertificateDigests) == 0:
+		return fmt.Errorf("%w: Play Integrity needs at least one signing-certificate digest", ErrInvalidIntegrityPolicy)
+	case p.MaxAge <= 0 || p.MaxAge > 10*time.Minute:
+		return fmt.Errorf("%w: Play Integrity verdict max age must be in (0, 10m]", ErrInvalidIntegrityPolicy)
+	case p.FutureSkew < 0 || p.FutureSkew > time.Minute:
+		return fmt.Errorf("%w: Play Integrity future skew must be in [0, 1m]", ErrInvalidIntegrityPolicy)
+	}
+	for _, d := range p.CertificateDigests {
+		if !digestPattern.MatchString(d) {
+			return fmt.Errorf("%w: a Play Integrity certificate digest is not a base64url SHA-256", ErrInvalidIntegrityPolicy)
+		}
+	}
+	return nil
+}
+
+// Assess applies the policy to a decoded verdict bound to requestHash. It is
+// pure: no I/O, no clock but now. Every failed check is reported.
+func (p IntegrityPolicy) Assess(v IntegrityVerdict, requestHash string, now time.Time) IntegrityAssessment {
+	var reasons []IntegrityReason
+	if v.RequestPackageName != p.PackageName || v.AppPackageName != p.PackageName {
+		reasons = append(reasons, ReasonPackageMismatch)
+	}
+	if requestHash == "" || subtle.ConstantTimeCompare([]byte(v.RequestHash), []byte(requestHash)) != 1 {
+		reasons = append(reasons, ReasonRequestHashMismatch)
+	}
+	switch {
+	case v.Timestamp.IsZero() || now.Sub(v.Timestamp) > p.MaxAge:
+		reasons = append(reasons, ReasonStaleVerdict)
+	case v.Timestamp.Sub(now) > p.FutureSkew:
+		reasons = append(reasons, ReasonFutureVerdict)
+	}
+	if v.AppRecognition != AppPlayRecognized {
+		reasons = append(reasons, ReasonAppNotRecognized)
+	}
+	if !slices.ContainsFunc(v.CertificateDigests, func(d string) bool { return slices.Contains(p.CertificateDigests, d) }) {
+		reasons = append(reasons, ReasonCertificateMismatch)
+	}
+	if !slices.Contains(v.DeviceRecognition, DeviceMeetsIntegrity) {
+		reasons = append(reasons, ReasonDeviceIntegrity)
+	}
+	if v.AppLicensing != AppLicensingLicensed {
+		reasons = append(reasons, ReasonUnlicensed)
+	}
+	if len(reasons) > 0 {
+		return IntegrityAssessment{Tier: TierRestricted, Reasons: reasons}
+	}
+	return IntegrityAssessment{Tier: TierCertified}
+}
+
+// IntegrityBinding is what a verdict must be bound to.
+type IntegrityBinding struct {
+	// DeviceKeyThumbprint is the RFC 7638 thumbprint of the device's enrolled
+	// key (ADR-0010 §5(c)). The attestation is recorded against it.
+	DeviceKeyThumbprint string
+	// RequestHash is the value the app was told to bind the verdict to.
+	RequestHash string
+}
+
+var thumbprintPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+
+// SetIntegrityVerifier configures Play Integrity verification. It is
+// construction-time configuration, like SetOtpSender. The policy is
+// validated; nil v leaves verification unavailable.
+func (s *IdentityService) SetIntegrityVerifier(v IntegrityVerifier, p IntegrityPolicy) error {
+	if v == nil {
+		s.integrity = nil
+		return nil
+	}
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	s.integrity = &integrityCheck{verifier: v, policy: p}
+	return nil
+}
+
+type integrityCheck struct {
+	verifier IntegrityVerifier
+	policy   IntegrityPolicy
+}
+
+// VerifyPlayIntegrity decodes token, assesses it against the configured
+// policy and binding, and records the outcome against the device key.
+//
+// Without a verifier, or when the verifier cannot answer, it returns
+// ErrPlayIntegrityUnavailable and records nothing. A token the verifier
+// rejects returns ErrPlayIntegrityFailed and records nothing. Otherwise it
+// returns the assessment, certified or restricted, and records it: the
+// attestation never holds the raw token, and nothing is invented about the
+// device.
+func (s *IdentityService) VerifyPlayIntegrity(ctx context.Context, token string, b IntegrityBinding) (IntegrityAssessment, error) {
+	if s.integrity == nil {
+		return IntegrityAssessment{}, ErrPlayIntegrityUnavailable
+	}
+	if token == "" || len(token) > maxIntegrityTokenSize || !thumbprintPattern.MatchString(b.DeviceKeyThumbprint) || b.RequestHash == "" {
+		return IntegrityAssessment{}, ErrPlayIntegrityFailed
+	}
+	verdict, err := s.integrity.verifier.Decode(ctx, token)
+	switch {
+	case errors.Is(err, ErrIntegrityTokenInvalid):
+		return IntegrityAssessment{}, ErrPlayIntegrityFailed
+	case err != nil:
+		return IntegrityAssessment{}, fmt.Errorf("%w: the verifier could not answer", ErrPlayIntegrityUnavailable)
+	}
+	now := s.now()
+	a := s.integrity.policy.Assess(verdict, b.RequestHash, now)
+	if err := s.repo.SaveDevice(ctx, &DeviceAttestation{
+		DeviceID:        "dev_" + b.DeviceKeyThumbprint,
+		AttestedAt:      now,
+		IsPlayCertified: a.Tier == TierCertified,
+	}); err != nil {
+		return IntegrityAssessment{}, err
+	}
+	return a, nil
+}

@@ -116,6 +116,7 @@ type rig struct {
 	verifier *accesstoken.Verifier
 	logs     *syncBuf
 	bodies   []string // every response body, for leak checks
+	m        *Metrics
 }
 
 func newRig(t *testing.T, withSender bool) *rig {
@@ -146,7 +147,8 @@ func newRig(t *testing.T, withSender bool) *rig {
 	r.verifier, _ = accesstoken.NewVerifier(accesstoken.VerifierConfig{
 		Issuer: "urn:callscreen:identity:test", Audience: "urn:callscreen:edge-api:test", Keys: map[string]ed25519.PublicKey{"test-key-1": pub},
 	})
-	r.h = New(svc, slog.New(slog.NewTextHandler(r.logs, nil)))
+	r.m = NewMetrics()
+	r.h = New(svc, slog.New(slog.NewTextHandler(r.logs, nil)), r.m)
 	return r
 }
 

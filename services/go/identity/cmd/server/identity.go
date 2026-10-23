@@ -31,7 +31,12 @@ var errIdentityInactive = errors.New("identity inactive: no CS_IDENTITY_* securi
 // dbCheckTimeout bounds the readiness ping; well inside a typical 1s probe.
 const dbCheckTimeout = 800 * time.Millisecond
 
-type runnerRegistrar interface{ Register(platform.Runner) }
+// runnerRegistrar is what configureIdentity needs of *platform.Service:
+// runner registration, and the GET /metrics handler on the health listener.
+type runnerRegistrar interface {
+	Register(platform.Runner)
+	httpapi.MetricsMount
+}
 
 type checkRegistrar interface {
 	Register(c platform.Checker, critical bool, timeout time.Duration)
@@ -76,7 +81,15 @@ func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runne
 	// stops, and every request in progress finishes, before housekeeping stops
 	// and before the pool the handlers use is closed. It exists only here — an
 	// inactive identity binds no application port.
-	runners.Register(platform.NewHTTPRunner("identity-http", svcCfg, httpapi.New(rt.Service, log), log))
+	apiMetrics := httpapi.NewMetrics()
+	runners.Register(platform.NewHTTPRunner("identity-http", svcCfg, httpapi.New(rt.Service, log, apiMetrics), log))
+	// GET /metrics on the health listener (ADR-0013): every response the API
+	// decides, by endpoint and outcome (httpapi.MetricRequests). It shares
+	// HealthPort and is never served on the application port.
+	apiMetrics.MountOn(runners, serviceName)
+	// Security audit events (wrong codes, lockouts, refresh-token reuse) are
+	// counted in the same registry (httpapi.MetricSecurityEvents).
+	apiMetrics.Instrument(rt.Service)
 	log.Info("identity service constructed on PostgreSQL; HTTP API registered",
 		slog.Int("http_port", svcCfg.HTTPPort))
 	return nil
