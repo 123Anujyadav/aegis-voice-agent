@@ -17,11 +17,12 @@ twice. No file, branch, commit or open PR uses 0026 or any higher number. The
 owner's own closure audit records "no ADR-0026". The owner may renumber this
 proposal when accepting it, as PR #44 also allows.
 
-**What this ADR does not claim.** Tracing does not run anywhere in production
+**What this ADR does not claim.** Tracing is not deployed in production
 today.
 - **Instrumentation:** a tracer and a `traceparent` codec exist and are tested
-  (#87, #89). No production code path emits a span, and no service edge parses
-  or propagates `traceparent`.
+  (#87, #89). The only production code path that emits a span is `edge-api`'s
+  application listener (a root span per request, to the log exporter; see
+  "Implementation status"). No service propagates `traceparent` onward.
 - **Backend:** none is chosen, configured or credentialed.
 - **Status:** accepted as a decision and a plan. Acceptance deploys nothing.
 
@@ -250,11 +251,16 @@ implementation (#87, #89) already does, or what a later step must do.
    log exporter's output, which errs on the safe side.
 
 **Implementation status:**
-- **Step 1 is implemented and tested** (#87, #89, #92), except for replacing
-  the stub declarations in `telemetry.go`, which waits for acceptance.
-- **No production span exists:** no production code constructs a
-  `runtime.Kernel`, and no service on `main` binds an application HTTP
-  listener.
+- **Step 1 is implemented and tested** (#87, #89, #92); the stub declarations
+  were removed in #95.
+- **Step 2's edge half is implemented** (#97): `middleware.EdgeTraceMiddleware`
+  and `telemetry.InjectTraceparent`.
+- **The first production span** is `edge-api`'s: its application listener
+  starts one new root span per request, inside correlation and outside
+  authentication, and writes it through `telemetry.LogExporter`. No inbound
+  `traceparent` is adopted (rule 2), and nothing yet propagates one onward.
+- **Still absent:** no production code constructs a `runtime.Kernel` (step 3),
+  and no backend exists (step 4, ADR-0028).
 
 ## Implementation plan (only after acceptance; one small PR per step)
 

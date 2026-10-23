@@ -9,6 +9,8 @@ import (
 
 	"github.com/callscreen/callscreen-platform/packages/go/middleware"
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
+	"github.com/callscreen/callscreen-platform/packages/go/runtime"
+	"github.com/callscreen/callscreen-platform/packages/go/telemetry"
 	"github.com/callscreen/callscreen-platform/services/go/edge-api/internal/auth"
 	"github.com/callscreen/callscreen-platform/services/go/edge-api/internal/httpapi"
 )
@@ -54,6 +56,14 @@ var openAuth = func(ctx context.Context, cfg auth.Config, log *slog.Logger) (aut
 	return rt, nil
 }
 
+// edgeTracer builds the tracer for the application listener's edge spans
+// (ADR-0026). Spans are written through the service's redacting logger by
+// telemetry.LogExporter; no external exporter is configured (ADR-0028 is
+// conditional on SRE checks). Replaceable in tests.
+var edgeTracer = func(log *slog.Logger) runtime.Tracer {
+	return telemetry.NewRecordingTracer(telemetry.NewLogExporter(log))
+}
+
 // configureAuth applies the authentication activation policy (auth package):
 // no variable set means the skeleton's behaviour; any set means all are
 // required, and the authenticator is built — key file read, verifiers
@@ -90,7 +100,7 @@ func configureAuth(ctx context.Context, cfg platform.ServiceConfig, runners runn
 	// check uses is closed.
 	runners.Register(&authRunner{rt: rt})
 	health.Register(platform.CheckerFunc{CheckName: "edge-replay-store", Fn: rt.CheckDatabase}, true, replayCheckTimeout)
-	runners.Register(platform.NewHTTPRunner("edge-api-http", cfg, applicationHandler(rt.Authenticator(), routes), log))
+	runners.Register(platform.NewHTTPRunner("edge-api-http", cfg, applicationHandler(rt.Authenticator(), routes, edgeTracer(log)), log))
 	log.Info("edge application listener registered; every route requires a DPoP-bound access token, replay-checked in PostgreSQL",
 		slog.Int("routes", len(routes)), slog.Int("http_port", cfg.HTTPPort))
 	return nil
@@ -116,12 +126,18 @@ func (r *authRunner) Shutdown(context.Context) error {
 }
 
 // applicationHandler is the application listener's handler: correlation and
-// security headers outermost, then authentication, then the routes. Nothing
-// reaches a route without passing auth.Middleware.
-func applicationHandler(a *auth.Authenticator, routes map[string]http.Handler) http.Handler {
+// security headers outermost, then the edge span, then authentication, then
+// the routes. Nothing reaches a route without passing auth.Middleware.
+//
+// The edge span (middleware.EdgeTraceMiddleware) sits inside correlation, so
+// it carries the request's correlation ID, and outside authentication, so
+// refused requests are traced too. It starts a new root for every request and
+// never adopts a caller's traceparent (ADR-0026 rule 2). A nil tracer leaves
+// the chain exactly as it was.
+func applicationHandler(a *auth.Authenticator, routes map[string]http.Handler, tracer runtime.Tracer) http.Handler {
 	mux := http.NewServeMux()
 	for pattern, h := range routes {
 		mux.Handle(pattern, h)
 	}
-	return middleware.SecurityHeadersMiddleware(middleware.CorrelationIDMiddleware(a.Middleware(mux)))
+	return middleware.SecurityHeadersMiddleware(middleware.CorrelationIDMiddleware(middleware.EdgeTraceMiddleware(tracer)(a.Middleware(mux))))
 }
