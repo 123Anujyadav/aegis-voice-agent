@@ -574,3 +574,76 @@ No service needs a credential, and none is ever pasted into chat or committed.
 - **When both are met:** mount `voice`'s
   `Bridge.Engine().Metrics().Registry()` the same way as #86, with a test that
   a driven turn moves a series.
+
+## Objective 3 — owner decisions and their execution (2026-10-23)
+
+### Decision 1: ADR-0026 accepted
+
+- **Accepted by:** #94, as `ef5edbc`.
+- **The owner's condition** was that the #90 amendment define:
+  - `tracestate` handling;
+  - public-edge distrust of inbound `traceparent`;
+  - what an unsampled flag means;
+  - error-text allowlisting;
+  - exporter blocking, drop and flush behaviour;
+  - the attribute-allowlist process.
+- **The gap found:** rule 4, as first drafted, deferred to the logging policy.
+  That policy redacts by key, so it does **not** sanitise values.
+  - #92 (`6694376`) implemented a real allowlist: a `SafeError`'s vetted
+    text, otherwise a fixed sentinel category, otherwise the Go type only.
+  - #90 (`c0b9e23`) states that rule.
+- **Step 1 completed:** #95 (`e84ff9e`) removed the zero-importer
+  `telemetry` stub, as the acceptance authorised.
+- **Production status:**
+  - **The tracer:** implemented and tested, including inside a real kernel.
+  - **Production spans:** **none**. No production code constructs a
+    `runtime.Kernel`, and no service on `main` binds an application HTTP
+    listener.
+  - **Backend:** **none is deployed.**
+
+### Decision 2: backend option A, conditional (ADR-0028)
+
+- **Recorded by:** #93, as `ed12a5d`. ADR-0028 is **Proposed: owner-selected
+  and conditional**.
+- **Prerequisites before it can be Accepted, both pending with SRE:**
+  - **P1:** X-Ray accepts this implementation's random W3C trace ids.
+  - **P2:** volume and cost are estimated, and the budget is confirmed.
+  - The ADR gives the verification procedure for each.
+- **SRE infrastructure steps, after P1 and P2:**
+  1. the Collector's IRSA role, with `xray:PutTraceSegments` and
+     `xray:PutTelemetryRecords` only;
+  2. the X-Ray VPC interface endpoint, in `ap-south-1` and `ap-south-2`;
+  3. SCPs that allow X-Ray in those regions;
+  4. the Collector manifests under `infra/k8s`: image pinned by digest, at
+     least 2 replicas, a PodDisruptionBudget, a ClusterIP Service and a
+     NetworkPolicy;
+  5. a Budgets alarm.
+- **Nothing is provisioned.**
+
+### Decision 3: ADR-0027 accepted, scoped
+
+- **Accepted by:** #44, as `a85a62f`.
+- **Accepted:** the single `infra/k8s` tree, and the documented amendment of
+  the P1-37/P1-39 staging path to `infra/k8s/overlays/staging/`. A1 is
+  confirmed by that.
+- **Unchanged:** P1-37's other rules. `infra/k8s/base/services/` stays
+  untouched, and `deployment.yaml` is never restored.
+- **Still open:** A2 (Helm), the kubeconform policy, the enforcement checks,
+  and A5 and every later gate.
+- **The PR changed only the ADR and its index row.** There is no port, probe,
+  exposure or deployment change.
+- **Owner actions:**
+  - record the P1-37/P1-39 amendment in the untracked originals, using the
+    ADR's appendix text;
+  - commit the deletion of the tracked `infra/k8s/base/deployment.yaml`
+    template, the only 9090 reference left, together with the per-service
+    manifests.
+
+### Still not done, and why
+
+- **Production tracing:** it waits for the first real HTTP edge to land. That
+  edge is `edge-api` in the owner's uncommitted work; the hook goes between
+  `CorrelationID` and `auth`, and starts a new root. A first kernel
+  construction would also enable it. The backend waits for P1 and P2.
+- **`voice` metrics:** they wait for a production call driver and providers
+  (ADR-0018's trigger, and ADR-0022 §6).
