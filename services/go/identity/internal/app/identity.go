@@ -768,6 +768,11 @@ const (
 	// a lockout.
 	// Emitted once per lockout, not for each request refused during it.
 	EventOtpLockout SecurityEventType = "identity.otp.lockout"
+	// EventRefreshTokenReused records a refresh token presented after it was
+	// rotated away: the exfiltration alarm (ADR-0010 §6, §9). The session
+	// family is revoked; the event is emitted whether or not the revocation
+	// succeeded, because the reuse happened either way.
+	EventRefreshTokenReused SecurityEventType = "identity.refresh.token_reused"
 )
 
 // SecurityEvent is one identity security audit record, as required by
@@ -789,6 +794,9 @@ type SecurityEvent struct {
 	RequestID string
 	// LockedUntil is set on EventOtpLockout only.
 	LockedUntil time.Time
+	// SessionID is set on EventRefreshTokenReused only: the revoked session's
+	// own random identifier (sess_…), which references nobody.
+	SessionID string
 }
 
 // SecurityAuditor receives identity security audit events.
@@ -979,6 +987,16 @@ func (s *IdentityService) SetOtpSender(o OtpSender) { s.otpSender = o }
 // RequestOtp still creates a challenge, but nothing can deliver its code — so
 // a caller that would tell a user "a code is on its way" must check this first.
 func (s *IdentityService) CanDeliverOtp() bool { return s.otpSender != nil }
+
+// SetSecurityAuditor configures where security audit events go. It is
+// construction-time configuration, not safe to change while requests are
+// being served. Nil restores the default, which discards events.
+func (s *IdentityService) SetSecurityAuditor(a SecurityAuditor) {
+	if a == nil {
+		a = NoopSecurityAuditor{}
+	}
+	s.auditor = a
+}
 
 // AuditFailures reports how many security audit events the auditor refused.
 func (s *IdentityService) AuditFailures() uint64 { return s.auditFailures.Load() }
@@ -1457,8 +1475,10 @@ func (s *IdentityService) RefreshToken(ctx context.Context, sessionID, oldRefres
 		// stay matchable with errors.Is: the reuse is still a reuse, and the
 		// failure is not hidden behind it. A successful revocation still
 		// returns the sentinel itself.
-		if err := s.repo.RevokeSession(ctx, sessionID); err != nil {
-			return "", "", fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, err)
+		revokeErr := s.repo.RevokeSession(ctx, sessionID)
+		s.audit(SecurityEvent{Type: EventRefreshTokenReused, At: time.Now(), SessionID: sessionID})
+		if revokeErr != nil {
+			return "", "", fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, revokeErr)
 		}
 		return "", "", ErrTokenReused
 	}
@@ -1563,7 +1583,9 @@ func (s *IdentityService) RefreshTokenWithDeviceProof(ctx context.Context, sessi
 	// token to compare against.
 	presentedHash := s.refreshTokenHash(oldRefreshToken)
 	if !equalHash(session.RefreshTokenHash, presentedHash) {
-		if revokeSessionErr := s.repo.RevokeSession(ctx, sessionID); revokeSessionErr != nil {
+		revokeSessionErr := s.repo.RevokeSession(ctx, sessionID)
+		s.audit(SecurityEvent{Type: EventRefreshTokenReused, At: time.Now(), SessionID: sessionID})
+		if revokeSessionErr != nil {
 			return "", "", fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, revokeSessionErr)
 		}
 		return "", "", ErrTokenReused

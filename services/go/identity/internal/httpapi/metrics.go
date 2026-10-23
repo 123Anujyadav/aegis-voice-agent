@@ -8,6 +8,7 @@ import (
 
 	"github.com/callscreen/callscreen-platform/packages/go/metrics"
 	"github.com/callscreen/callscreen-platform/packages/go/metricsexport"
+	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/routes"
 )
 
@@ -21,6 +22,17 @@ import (
 // turn request volume into log volume; a counter costs the same at any rate
 // and needs no request detail.
 const MetricRequests = "identity_auth_requests_total"
+
+// MetricSecurityEvents counts identity security audit events by type: wrong
+// OTP codes, lockouts, and refresh-token reuse (the exfiltration alarm,
+// ADR-0010 §9). Metrics implements app.SecurityAuditor, so these are the same
+// events the audit records, counted once each; the label is the event type and
+// nothing else (no session, request or subscriber id).
+const MetricSecurityEvents = "identity_security_events_total"
+
+// SecurityEventOther is the label for an event type this counter does not
+// know, so a new type can never add an unbounded label value.
+const SecurityEventOther = "other"
 
 // Endpoint label values. The vocabulary is closed: the three routes, and
 // EndpointUnknown for any other path, which is never itself used as a label
@@ -42,12 +54,17 @@ const OutcomeSuccess = "success"
 type Metrics struct {
 	reg      *metrics.Registry
 	requests *metrics.Counter
+	security *metrics.Counter
 }
 
 // NewMetrics registers the API's instruments in a fresh registry.
 func NewMetrics() *Metrics {
 	reg := metrics.NewRegistry()
-	return &Metrics{reg: reg, requests: reg.Counter(MetricRequests, "endpoint", "outcome")}
+	return &Metrics{
+		reg:      reg,
+		requests: reg.Counter(MetricRequests, "endpoint", "outcome"),
+		security: reg.Counter(MetricSecurityEvents, "type"),
+	}
 }
 
 // Registry returns the registry to expose, for example through
@@ -69,6 +86,29 @@ func (m *Metrics) MountOn(target MetricsMount, subsystem string) {
 		Registry:  m.reg,
 	}).Handler())
 }
+
+var _ app.SecurityAuditor = (*Metrics)(nil)
+
+// Record implements app.SecurityAuditor: it counts e under its type. It never
+// fails, so it never adds to the service's audit-failure count. A nil m
+// counts nothing.
+func (m *Metrics) Record(e app.SecurityEvent) error {
+	if m == nil {
+		return nil
+	}
+	switch e.Type {
+	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused:
+		m.security.Inc(string(e.Type))
+	default:
+		m.security.Inc(SecurityEventOther)
+	}
+	return nil
+}
+
+// Instrument makes m the service's security auditor, so its audit events are
+// counted (MetricSecurityEvents). Keeping this here keeps internal/app out of
+// cmd/server, whose only route to the service is through this package.
+func (m *Metrics) Instrument(svc *app.IdentityService) { svc.SetSecurityAuditor(m) }
 
 // endpointFor maps a request path to its endpoint label.
 func endpointFor(path string) string {
