@@ -301,7 +301,7 @@ records the proposal and does not accept it.
 
 ### M2 — content redaction in logs
 
-**PR:** #85.
+**Merged:** #85, as `f6fdb46`.
 
 - **Decision:** `RedactingHandler` replaces values under conversation-content
   keys with `[REDACTED]`. This enforces ADR-0006 §10: prompts and transcripts
