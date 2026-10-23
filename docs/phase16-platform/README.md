@@ -365,7 +365,7 @@ that the number is absent rather than claiming it.
 
 ### M2 — tracing: implemented adapter, decision still open
 
-**Merged:** #87, as `TRSHA`. ADR-0026 stays **Proposed**.
+**Merged:** #87, as `c9c2e65`. ADR-0026 stays **Proposed**.
 
 - **What exists now:** `packages/go/telemetry` implements the frozen
   `runtime.Tracer` / `runtime.Span` port with:
