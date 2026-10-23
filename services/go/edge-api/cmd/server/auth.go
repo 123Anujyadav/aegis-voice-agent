@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/callscreen/callscreen-platform/packages/go/metricsexport"
 	"github.com/callscreen/callscreen-platform/packages/go/middleware"
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 	"github.com/callscreen/callscreen-platform/packages/go/runtime"
@@ -26,7 +27,12 @@ import (
 // rather than serve these routes open or silently drop them.
 func protectedRoutes(log *slog.Logger) map[string]http.Handler { return httpapi.Routes(log) }
 
-type runnerRegistrar interface{ Register(platform.Runner) }
+// runnerRegistrar is what configureAuth needs of *platform.Service: runner
+// registration, and the GET /metrics handler on the health listener.
+type runnerRegistrar interface {
+	Register(platform.Runner)
+	SetMetricsHandler(http.Handler)
+}
 
 type checkRegistrar interface {
 	Register(c platform.Checker, critical bool, timeout time.Duration)
@@ -101,6 +107,13 @@ func configureAuth(ctx context.Context, cfg platform.ServiceConfig, runners runn
 	runners.Register(&authRunner{rt: rt})
 	health.Register(platform.CheckerFunc{CheckName: "edge-replay-store", Fn: rt.CheckDatabase}, true, replayCheckTimeout)
 	runners.Register(platform.NewHTTPRunner("edge-api-http", cfg, applicationHandler(rt.Authenticator(), routes, edgeTracer(log)), log))
+	// GET /metrics on the health listener (ADR-0013): every authentication
+	// decision, by outcome (auth.MetricAuthRequests). It shares HealthPort and
+	// is never served on the application port.
+	runners.SetMetricsHandler(metricsexport.New(metricsexport.Source{
+		Subsystem: serviceName,
+		Registry:  rt.Authenticator().Registry(),
+	}).Handler())
 	log.Info("edge application listener registered; every route requires a DPoP-bound access token, replay-checked in PostgreSQL",
 		slog.Int("routes", len(routes)), slog.Int("http_port", cfg.HTTPPort))
 	return nil

@@ -55,6 +55,7 @@ import (
 
 	"github.com/callscreen/callscreen-platform/packages/go/accesstoken"
 	"github.com/callscreen/callscreen-platform/packages/go/dpop"
+	"github.com/callscreen/callscreen-platform/packages/go/metrics"
 	"github.com/callscreen/callscreen-platform/packages/go/middleware"
 	"github.com/callscreen/callscreen-platform/packages/go/pgshared"
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
@@ -256,10 +257,12 @@ func PrincipalFrom(ctx context.Context) (Principal, bool) {
 
 // Authenticator verifies requests.
 type Authenticator struct {
-	tokens *accesstoken.Verifier
-	proofs *dpop.RequestVerifier
-	origin string
-	log    *slog.Logger
+	tokens   *accesstoken.Verifier
+	proofs   *dpop.RequestVerifier
+	origin   string
+	log      *slog.Logger
+	reg      *metrics.Registry
+	outcomes *metrics.Counter
 }
 
 // New builds an authenticator from cfg, the trusted key it names, and a replay
@@ -291,7 +294,11 @@ func New(cfg Config, replay dpop.ReplayStore, now func() time.Time, log *slog.Lo
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Authenticator{tokens: tokens, proofs: proofs, origin: cfg.PublicOrigin, log: log}, nil
+	reg := metrics.NewRegistry()
+	return &Authenticator{
+		tokens: tokens, proofs: proofs, origin: cfg.PublicOrigin, log: log,
+		reg: reg, outcomes: reg.Counter(MetricAuthRequests, "outcome"),
+	}, nil
 }
 
 func readPublicKey(path string) (ed25519.PublicKey, error) {
@@ -365,6 +372,7 @@ func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 			Subject: claims.Subject, Roles: append([]string(nil), claims.Roles...),
 			DeviceKeyThumbprint: claims.Confirmation.JKT, TokenID: claims.ID,
 		})
+		a.outcomes.Inc(OutcomeAdmitted)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -408,6 +416,7 @@ var problems = map[string]struct{ title, detail string }{
 }
 
 func (a *Authenticator) refuse(w http.ResponseWriter, r *http.Request, status int, dpopError, code string) {
+	a.outcomes.Inc(outcomeForCode(code))
 	if status == http.StatusUnauthorized {
 		challenge := `DPoP algs="ES256"`
 		if dpopError != "" {

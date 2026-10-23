@@ -242,6 +242,9 @@ An independent read-only review found **no critical or high issues**.
   "Keys and rotation".
 - **Low:** the replay reservation had no deadline.
 - **Low:** a NUL byte in `jti` produced a 503. Restricted under D11.4.
+- **Low:** a refused request (401) was not recorded anywhere; only 503s were
+  logged. This finding was omitted from the first version of this summary and
+  is added here.
 - **Info:** a JSON parser differential. Condition (a).
 
 ## Implementation status (2026-10-23)
@@ -303,6 +306,7 @@ The real-PostgreSQL suites of both services run under `-race` in CI
 | Medium: single trusted `kid` | #100 (key-set verifier and rotation test) |
 | Low: replay reservation without a deadline | #99 (`pgshared.ReserveTimeout`, 2 s) |
 | Low: NUL in `jti` gave a 503 | #99 (`jti` restricted to printable ASCII, 1–128 bytes) |
+| Low: 401 refusals unrecorded | #105: `edge_api_auth_requests_total{outcome}` at `GET /metrics` on the health listener. Every decision is counted under a closed outcome vocabulary. It is a counter, not a per-request log, so request volume cannot become log volume. |
 | Info: JSON parser differential | #99 (condition (a)) |
 
 **Still open:**
