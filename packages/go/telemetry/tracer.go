@@ -43,7 +43,8 @@ type SpanRecord struct {
 	Attributes []Attribute
 	// DroppedAttributes counts attributes refused by the allowlist.
 	DroppedAttributes int
-	// Err is the text of the last error recorded, empty when none was.
+	// Err describes the last error recorded, empty when none was. It is the
+	// allowlisted description from spanErrorText, never raw err.Error().
 	Err string
 }
 
@@ -206,7 +207,8 @@ func (s *recordingSpan) SetAttribute(key string, value any) {
 	s.rec.Attributes = append(s.rec.Attributes, Attribute{Key: key, Value: value})
 }
 
-// RecordError implements runtime.Span. A nil error is ignored.
+// RecordError implements runtime.Span. A nil error is ignored. The error's
+// text is not recorded as-is; see spanErrorText.
 func (s *recordingSpan) RecordError(err error) {
 	if err == nil {
 		return
@@ -214,7 +216,7 @@ func (s *recordingSpan) RecordError(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.ended {
-		s.rec.Err = err.Error()
+		s.rec.Err = spanErrorText(err)
 	}
 }
 
