@@ -431,6 +431,27 @@ func TestOpen_Postgres_EnrolAndRefreshAcrossRuntimes(t *testing.T) {
 		t.Fatalf("B's token: (%+v, %v)", cl, err)
 	}
 
+	// The durable audit log (migration 0005), installed by Open on both
+	// runtimes: the enrolment on A and a refresh-token reuse on A (the token B
+	// rotated away) are both appended, naming the session and nothing else.
+	if _, _, reuseErr := a.Service.RefreshTokenWithDeviceProof(ctx, sess.SessionID, sess.RefreshToken, "POST", proof(t, device, "r2", testRefresh, clock)); !errors.Is(reuseErr, app.ErrTokenReused) {
+		t.Fatalf("reuse on A: %v", reuseErr)
+	}
+	auditPool, poolErr := pgstore.OpenPool(ctx, dsn, pgshared.AllowPlaintextForDevelopment)
+	if poolErr != nil {
+		t.Fatal(poolErr)
+	}
+	defer auditPool.Close()
+	for _, typ := range []string{string(app.EventDeviceEnrolled), string(app.EventRefreshTokenReused)} {
+		var n int
+		if qErr := auditPool.QueryRow(ctx, `SELECT count(*) FROM identity_security_audit WHERE event_type = $1 AND session_id = $2`, typ, sess.SessionID).Scan(&n); qErr != nil || n != 1 {
+			t.Errorf("audit rows for %s = (%d, %v), want 1", typ, n, qErr)
+		}
+	}
+	if a.Service.AuditFailures() != 0 || b.Service.AuditFailures() != 0 {
+		t.Errorf("audit failures: A %d, B %d", a.Service.AuditFailures(), b.Service.AuditFailures())
+	}
+
 	b.Close()
 	if err := b.CheckDatabase(ctx); err == nil {
 		t.Error("readiness still passes after Close")

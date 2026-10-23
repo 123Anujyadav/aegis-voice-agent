@@ -773,6 +773,10 @@ const (
 	// family is revoked; the event is emitted whether or not the revocation
 	// succeeded, because the reuse happened either way.
 	EventRefreshTokenReused SecurityEventType = "identity.refresh.token_reused"
+	// EventDeviceEnrolled records a device-key enrolment: a verified code
+	// that created a device-bound session (ADR-0010 §10 "audit logging for
+	// enrolment").
+	EventDeviceEnrolled SecurityEventType = "identity.device.enrolled"
 )
 
 // SecurityEvent is one identity security audit record, as required by
@@ -1012,6 +1016,46 @@ func (s *IdentityService) SetSecurityAuditor(a SecurityAuditor) {
 	s.auditor = a
 }
 
+// AddSecurityAuditor adds a destination for security audit events, keeping
+// the ones already configured: every event goes to each. A failure of any one
+// is an audit failure (AuditFailures) and changes no outcome. Construction-time
+// configuration, like SetSecurityAuditor. Nil is ignored.
+func (s *IdentityService) AddSecurityAuditor(a SecurityAuditor) {
+	switch cur := s.auditor.(type) {
+	case nil, NoopSecurityAuditor:
+		if a != nil {
+			s.auditor = a
+		}
+	case fanOutAuditor:
+		if a != nil {
+			next := make(fanOutAuditor, 0, len(cur)+1)
+			next = append(next, cur...)
+			next = append(next, a)
+			s.auditor = next
+		}
+	default:
+		if a != nil {
+			s.auditor = fanOutAuditor{cur, a}
+		}
+	}
+}
+
+// fanOutAuditor records each event to every auditor, all of them even when
+// one fails.
+type fanOutAuditor []SecurityAuditor
+
+// Record implements SecurityAuditor: e goes to every destination, and the
+// failures, if any, are joined.
+func (f fanOutAuditor) Record(e SecurityEvent) error {
+	var errs []error
+	for _, a := range f {
+		if err := a.Record(e); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // AuditFailures reports how many security audit events the auditor refused.
 func (s *IdentityService) AuditFailures() uint64 { return s.auditFailures.Load() }
 
@@ -1199,6 +1243,7 @@ func (s *IdentityService) ValidateOtpWithDeviceProof(ctx context.Context, reques
 		}
 		return nil, "", fmt.Errorf("%w: %w", ErrAccessTokenIssuance, err)
 	}
+	s.audit(SecurityEvent{Type: EventDeviceEnrolled, At: s.now(), SessionID: session.SessionID})
 	return session, token, nil
 }
 

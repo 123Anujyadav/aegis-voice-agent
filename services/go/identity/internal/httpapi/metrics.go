@@ -126,7 +126,7 @@ func (m *Metrics) Record(e app.SecurityEvent) error {
 		return nil
 	}
 	switch e.Type {
-	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused:
+	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused, app.EventDeviceEnrolled:
 		m.security.Inc(string(e.Type))
 	default:
 		m.security.Inc(SecurityEventOther)
@@ -134,11 +134,12 @@ func (m *Metrics) Record(e app.SecurityEvent) error {
 	return nil
 }
 
-// Instrument makes m the service's security auditor, so its audit events are
+// Instrument adds m as a security auditor, alongside any already configured
+// (the durable audit log bootstrap.Open installs), so audit events are also
 // counted (MetricSecurityEvents). Keeping this here keeps internal/app out of
 // cmd/server, whose only route to the service is through this package.
 func (m *Metrics) Instrument(svc *app.IdentityService) {
-	svc.SetSecurityAuditor(m)
+	svc.AddSecurityAuditor(m)
 	svc.SetIntegrityObserver(m.ObserveIntegrity)
 }
 

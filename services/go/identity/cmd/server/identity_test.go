@@ -387,7 +387,7 @@ func TestRunMigrate_Postgres(t *testing.T) {
 	if !strings.Contains(out.String(), "applied: 0001_identity_security_state.sql") ||
 		!strings.Contains(out.String(), "applied: 0002_refresh_token_hash.sql") ||
 		!strings.Contains(out.String(), "applied: 0003_housekeeping_indexes.sql") ||
-		!strings.Contains(out.String(), "applied: 0004_msisdn_pseudonyms.sql") || !strings.Contains(out.String(), "version 4") {
+		!strings.Contains(out.String(), "applied: 0004_msisdn_pseudonyms.sql") || !strings.Contains(out.String(), "applied: 0005_security_audit.sql") || !strings.Contains(out.String(), "version 5") {
 		t.Errorf("output = %q", out.String())
 	}
 	out.Reset()

@@ -107,14 +107,14 @@ func TestPostgres_Migration0002RefusesExistingRowsAtomically(t *testing.T) {
 		t.Fatal(execErr)
 	}
 	res, err = Migrate(ctx, p)
-	if err != nil || len(res.Applied) != 3 || res.Applied[0] != "0002_refresh_token_hash.sql" || res.Version != 4 {
+	if latest := latestVersion(t); err != nil || len(res.Applied) != latest-1 || res.Applied[0] != "0002_refresh_token_hash.sql" || res.Version != latest {
 		t.Fatalf("after clearing: (%+v, %v)", res, err)
 	}
 	if columnExists(t, p, "refresh_token") || !columnExists(t, p, "refresh_token_hash") {
 		t.Error("0002 did not rename the column")
 	}
 	res, err = Migrate(ctx, p)
-	if err != nil || len(res.Applied) != 0 || res.Version != 4 {
+	if err != nil || len(res.Applied) != 0 || res.Version != latestVersion(t) {
 		t.Errorf("re-run: (%+v, %v), want nothing applied", res, err)
 	}
 	// And the upgraded table works through the repository.
