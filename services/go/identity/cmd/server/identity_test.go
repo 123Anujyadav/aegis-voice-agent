@@ -387,7 +387,7 @@ func TestRunMigrate_Postgres(t *testing.T) {
 	if !strings.Contains(out.String(), "applied: 0001_identity_security_state.sql") ||
 		!strings.Contains(out.String(), "applied: 0002_refresh_token_hash.sql") ||
 		!strings.Contains(out.String(), "applied: 0003_housekeeping_indexes.sql") ||
-		!strings.Contains(out.String(), "applied: 0004_msisdn_pseudonyms.sql") || !strings.Contains(out.String(), "version 4") {
+		!strings.Contains(out.String(), "applied: 0004_msisdn_pseudonyms.sql") || !strings.Contains(out.String(), "applied: 0005_security_audit.sql") || !strings.Contains(out.String(), "version 5") {
 		t.Errorf("output = %q", out.String())
 	}
 	out.Reset()
@@ -466,5 +466,13 @@ func TestConfigureIdentity_Postgres(t *testing.T) {
 	}
 	if err := health.got[0].c.Check(context.Background()); err == nil || err.Error() != "identity database unreachable" {
 		t.Errorf("after shutdown: %v, want the pool closed and the fixed message", err)
+	}
+}
+
+// The production tracer is the log-exporter one, never nil: identity's
+// listener always emits edge spans (ADR-0026 step 2).
+func TestIdentityTracer_ProductionDefaultIsReal(t *testing.T) {
+	if identityTracer(quiet) == nil {
+		t.Fatal("the production tracer is nil, so no edge span would be emitted")
 	}
 }

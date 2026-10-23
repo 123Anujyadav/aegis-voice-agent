@@ -773,6 +773,10 @@ const (
 	// family is revoked; the event is emitted whether or not the revocation
 	// succeeded, because the reuse happened either way.
 	EventRefreshTokenReused SecurityEventType = "identity.refresh.token_reused"
+	// EventDeviceEnrolled records a device-key enrolment: a verified code
+	// that created a device-bound session (ADR-0010 §10 "audit logging for
+	// enrolment").
+	EventDeviceEnrolled SecurityEventType = "identity.device.enrolled"
 )
 
 // SecurityEvent is one identity security audit record, as required by
@@ -831,8 +835,20 @@ type OtpRatePolicy struct {
 
 // defaultOtpRatePolicy is the selected INITIAL policy: three requests and five
 // failed verifications per number in any 15 minutes, then a 15-minute lockout.
-// These are starting defaults, not production-tuned values. ADR-0010 (a) asks
-// for exponential backoff and a per-device limit as well; neither is here.
+// These are starting defaults, not production-tuned values.
+//
+// THE LOCKOUT IS DELIBERATELY FIXED, NOT ESCALATING, though ADR-0010 §5(a)
+// asks for exponential backoff. Anyone who knows a number can request a code
+// for it and guess wrong, so every lockout is also a way to deny the real
+// subscriber service. Escalation would make keeping a victim locked out much
+// cheaper, while guessing a 6-digit code at this rate already takes years per
+// number. Refused guesses during a lockout neither count nor extend it. The
+// trade-off is the owner's to revisit (ADR-0029 ratification brief §3a), and
+// lockout_policy_test.go pins it.
+//
+// Limitations: the limit is per number only. There is no per-device limit
+// (no device identity exists before enrolment) and no per-source-address limit
+// (ADR-0010 §10), so a distributed attacker is bounded only per number.
 var defaultOtpRatePolicy = OtpRatePolicy{
 	MaxRequests: 3,
 	MaxFailures: 5,
@@ -884,6 +900,8 @@ type IdentityService struct {
 	// integrity is Play Integrity verification (integrity.go); nil means
 	// unavailable, and VerifyPlayIntegrity then fails closed.
 	integrity *integrityCheck
+	// integrityObserver is told every VerifyPlayIntegrity outcome; nil is none.
+	integrityObserver func(IntegrityOutcome, []IntegrityReason)
 
 	// newCode mints the one-time code. Injected rather than called directly so
 	// a test can make the value predictable WITHOUT the production path ever
@@ -996,6 +1014,46 @@ func (s *IdentityService) SetSecurityAuditor(a SecurityAuditor) {
 		a = NoopSecurityAuditor{}
 	}
 	s.auditor = a
+}
+
+// AddSecurityAuditor adds a destination for security audit events, keeping
+// the ones already configured: every event goes to each. A failure of any one
+// is an audit failure (AuditFailures) and changes no outcome. Construction-time
+// configuration, like SetSecurityAuditor. Nil is ignored.
+func (s *IdentityService) AddSecurityAuditor(a SecurityAuditor) {
+	switch cur := s.auditor.(type) {
+	case nil, NoopSecurityAuditor:
+		if a != nil {
+			s.auditor = a
+		}
+	case fanOutAuditor:
+		if a != nil {
+			next := make(fanOutAuditor, 0, len(cur)+1)
+			next = append(next, cur...)
+			next = append(next, a)
+			s.auditor = next
+		}
+	default:
+		if a != nil {
+			s.auditor = fanOutAuditor{cur, a}
+		}
+	}
+}
+
+// fanOutAuditor records each event to every auditor, all of them even when
+// one fails.
+type fanOutAuditor []SecurityAuditor
+
+// Record implements SecurityAuditor: e goes to every destination, and the
+// failures, if any, are joined.
+func (f fanOutAuditor) Record(e SecurityEvent) error {
+	var errs []error
+	for _, a := range f {
+		if err := a.Record(e); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // AuditFailures reports how many security audit events the auditor refused.
@@ -1185,6 +1243,7 @@ func (s *IdentityService) ValidateOtpWithDeviceProof(ctx context.Context, reques
 		}
 		return nil, "", fmt.Errorf("%w: %w", ErrAccessTokenIssuance, err)
 	}
+	s.audit(SecurityEvent{Type: EventDeviceEnrolled, At: s.now(), SessionID: session.SessionID})
 	return session, token, nil
 }
 
@@ -1437,7 +1496,7 @@ func (s *IdentityService) msisdnPseudonym(msisdn string) (string, error) {
 // first 32 hex characters of HMAC-SHA-256 over the canonical number. Unchanged
 // from before pseudonymisation, so existing subscriber ids stay the same.
 func (s *IdentityService) subscriberID(msisdn string) string {
-	return "usr_" + s.hashString(msisdn)[:32]
+	return LegacySubscriberID(s.secretKey, msisdn)
 }
 
 // refreshTokenHash is HashRefreshToken under this service's HMAC key.

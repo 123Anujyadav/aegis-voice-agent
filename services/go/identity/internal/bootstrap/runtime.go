@@ -320,6 +320,10 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 		pool.Close()
 		return nil, err
 	}
+	// Every security audit event is appended to the durable, append-only log
+	// (migration 0005; ADR-0010 §10, ADR-0012 LEGAL_HOLD). Other auditors, such
+	// as the metrics counter, are added alongside it.
+	svc.AddSecurityAuditor(pgstore.NewSecurityAuditLog(pool))
 	hk, err := pgstore.NewHousekeeper(pool, pgstore.HousekeepingConfig{
 		BatchSize:        pgstore.DefaultHousekeepingBatchSize,
 		Margin:           pgstore.DefaultHousekeepingMargin,

@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
+	"github.com/callscreen/callscreen-platform/services/go/identity/internal/otpdelivery"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/routes"
 )
 
@@ -210,4 +213,73 @@ func TestMetrics_InstrumentCountsReuseOverHTTP(t *testing.T) {
 	if r.svc.AuditFailures() != 0 {
 		t.Fatalf("audit failures = %d", r.svc.AuditFailures())
 	}
+}
+
+// Instrument makes Play Integrity outcomes observable: with no verifier
+// configured (production today) every call is "unavailable".
+func TestMetrics_IntegrityOutcomesAreCounted(t *testing.T) {
+	r := newRig(t, true)
+	r.m.Instrument(r.svc)
+	jkt := strings.Repeat("k", 43)
+	for i := 0; i < 2; i++ {
+		_, _ = r.svc.VerifyPlayIntegrity(context.Background(), "tok", app.IntegrityBinding{DeviceKeyThumbprint: jkt, RequestHash: "h"})
+	}
+	if got := r.m.integrity.Value(string(app.IntegrityUnavailable)); got != 2 {
+		t.Fatalf("unavailable = %d, want 2", got)
+	}
+	r.m.ObserveIntegrity(app.IntegrityRestricted, []app.IntegrityReason{app.ReasonUnlicensed, app.ReasonDeviceIntegrity})
+	if r.m.integrity.Value(string(app.IntegrityRestricted)) != 1 ||
+		r.m.restrictions.Value(string(app.ReasonUnlicensed)) != 1 || r.m.restrictions.Value(string(app.ReasonDeviceIntegrity)) != 1 {
+		t.Fatal("a restricted outcome and its reasons were not counted")
+	}
+	var none *Metrics
+	none.ObserveIntegrity(app.IntegrityCertified, nil)
+}
+
+type okProvider struct{ name string }
+
+func (p okProvider) Name() string                                { return p.name }
+func (okProvider) SendOtp(context.Context, string, string) error { return nil }
+
+type downProvider struct{ name string }
+
+func (p downProvider) Name() string { return p.name }
+func (downProvider) SendOtp(context.Context, string, string) error {
+	return errors.New("down")
+}
+
+// A Sender configured with Observe: m.ObserveOtpDelivery reports every
+// attempt by provider and outcome, and the scrape shows it. Invalid provider
+// labels can never reach the exposition.
+func TestMetrics_OtpDeliveriesAreCountedByProvider(t *testing.T) {
+	m := NewMetrics()
+	s, err := otpdelivery.New(otpdelivery.Config{
+		Providers:      []otpdelivery.Provider{downProvider{"primary-sms"}, okProvider{"secondary-sms"}},
+		AttemptTimeout: otpdelivery.MinAttemptTimeout,
+		Observe:        m.ObserveOtpDelivery,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SendOtp(context.Background(), msisdn, "123456"); err != nil {
+		t.Fatal(err)
+	}
+	if m.deliveries.Value("primary-sms", string(otpdelivery.OutcomeFailed)) != 1 ||
+		m.deliveries.Value("secondary-sms", string(otpdelivery.OutcomeDelivered)) != 1 {
+		t.Fatalf("series %v", m.deliveries.Series())
+	}
+	m.ObserveOtpDelivery("+919876543210", otpdelivery.OutcomeFailed)
+	if m.deliveries.Value(ProviderOther, string(otpdelivery.OutcomeFailed)) != 1 {
+		t.Fatal("an invalid provider label was not mapped to other")
+	}
+	mount := &fakeMount{}
+	m.MountOn(mount, "identity")
+	rec := httptest.NewRecorder()
+	mount.h.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", http.NoBody))
+	body := rec.Body.String()
+	if !strings.Contains(body, MetricOtpDeliveries+`{outcome="delivered",provider="secondary-sms"} 1`) || strings.Contains(body, "+91") {
+		t.Fatalf("scrape:\n%s", body)
+	}
+	var none *Metrics
+	none.ObserveOtpDelivery("primary-sms", otpdelivery.OutcomeDelivered)
 }

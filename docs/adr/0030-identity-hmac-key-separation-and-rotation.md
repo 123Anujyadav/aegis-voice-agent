@@ -121,6 +121,99 @@ database. A lost table means new ids, exactly as a lost key does today.
    subscriber's next enrolment. Pre-production there is nothing to backfill.
 4. **Retire the single key** once every ring's previous-key window has passed.
 
+### D30.5: the subscriber-id migration in detail (design for D30.3)
+
+This expands D30.3 and D30.4 into an executable design. **Nothing here has
+been executed.** It describes what an implementation must do and prove.
+
+**Where the id is decided.**
+- **Today:** `RequestOtp` derives the subscriber id **when the code is
+  requested** and stores it on the unverified challenge.
+- **Why that must change:** with stored ids, resolving at request time would
+  let anyone create subscriber rows for arbitrary numbers.
+- **Design:**
+  - The challenge stores a *subscriber pseudonym* (HMAC under the subscriber
+    key) instead of an id.
+  - The id is resolved, and created if absent, only **after the code is
+    verified**, inside the same flow that creates the session.
+
+**Mapping.** A new table:
+
+```
+identity_subscribers(subscriber_pseudonym PK, key_id, subscriber_id UNIQUE, created_at)
+```
+
+It is the only place an id is chosen. It holds no MSISDN and nothing reversible
+to one.
+
+**Keeping existing subscribers' ids (legacy-preserving adoption).**
+- **The rule:** when a number is verified and has no mapping row, the id stored
+  is the **legacy derived id** (`usr_` + the current HMAC), not a fresh random
+  one. A random id is used only once the legacy key is retired.
+- **The effect:** every existing subscriber keeps their id. No bulk backfill is
+  needed, which matters because the raw number is never stored and so could not
+  be backfilled anyway.
+
+**Collisions and concurrency.**
+- **Random ids:** a random id is 128 bits. A collision is refused by the UNIQUE
+  constraint, and the insert is retried with a new value (bounded, then fails
+  closed).
+- **Concurrent first enrolments of one number:** both race to insert the same
+  pseudonym. One insert wins, and the other reads the winner's row
+  (`INSERT … ON CONFLICT DO NOTHING`, then `SELECT`). Both sessions get the same
+  id.
+
+**Referential integrity.**
+- **New sessions:** these reference `identity_subscribers(subscriber_id)`.
+- **Legacy sessions:** existing session rows predate the table, so the foreign
+  key is added `NOT VALID` first. It is validated once every session older than
+  the rollout has expired (the session lifetime, 24 h today).
+- **Other dependents:** guardian delegations keyed by subscriber id gain the same
+  constraint. No service outside identity stores subscriber ids today.
+
+**Staged rollout, with rollback at every stage.**
+
+| Stage | Reads | Writes | Rollback |
+|---|---|---|---|
+| 0 (today) | derived | — | — |
+| 1 | the mapping if present, else derived | nothing | Stage 0. No row exists, so nothing differs. |
+| 2 | the mapping if present, else derived | mapping rows (legacy-preserving) | **Stage 1, never stage 0:** stage 1 still reads the rows, so ids created in stage 2 survive. Stage 0 is safe only while every row holds a legacy id, which is true until the legacy key is retired. |
+| 3 | the mapping only | mapping rows; random ids for new numbers | Stage 2, as long as the legacy key still exists |
+| 4 | the mapping only | as stage 3; legacy key retired | **None.** Retirement is the irreversible step, and needs the owner. |
+
+**Key rotation and retirement.**
+- **The subscriber-pseudonym key:** rotated with the D30.2 keyring and re-keyed
+  lazily on each verification.
+- **The legacy key's two roles:**
+  - computing legacy ids for adoption;
+  - verifying hashes from before the split.
+- **The cost of retiring it:** a subscriber who has never re-verified since
+  stage 2 cannot have their legacy id recomputed. They would receive a new id.
+- **Retirement condition:**
+  - at least one full session lifetime after stage 3;
+  - **and** an owner decision accepting that dormant subscribers will get new
+    ids.
+
+  This is the product consequence that makes D30.3 the owner's.
+
+**Privacy and audit.**
+- **What the mapping stores:** a keyed pseudonym and an opaque id. No number,
+  and nothing that reveals whether a number is registered before it is verified.
+- **Audit event:** creating a mapping emits a security event that carries no
+  identifier: `identity.subscriber.created`, counted like the others.
+
+**What an implementation must test:**
+- the legacy-adoption id equals today's derived id **exactly** (a compatibility
+  pin);
+- concurrent first enrolments of one number yield one id;
+- a collision retries, and then fails closed;
+- stage 1 reads no row and changes nothing;
+- the stage 2 → 1 rollback preserves ids;
+- the stage 2 → 0 rollback is refused once a non-legacy id exists;
+- requesting a code creates no row;
+- the foreign key is added `NOT VALID`, then validated after expiry;
+- no number, MSISDN or code reaches the table, a log or a metric.
+
 ## Consequences
 
 - **Positive:**
