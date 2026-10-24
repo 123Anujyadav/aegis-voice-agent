@@ -68,6 +68,21 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
 
+      - name: Build-logic unit tests
+        working-directory: android
+        run: ./gradlew --no-daemon --stacktrace -p build-logic :convention:test
+
+      # The release version comes from CS_VERSION_CODE. A value that is set but
+      # invalid must stop the build, not quietly ship the developer default 1.
+      - name: An invalid CS_VERSION_CODE fails the build
+        working-directory: android
+        run: |
+          log="$RUNNER_TEMP/invalid-version.log"
+          if CS_VERSION_CODE=not-a-number ./gradlew --no-daemon :app:help > "$log" 2>&1; then
+            echo "::error::the build accepted CS_VERSION_CODE=not-a-number"; exit 1
+          fi
+          grep -q "CS_VERSION_CODE must be a whole number" "$log" || { cat "$log"; echo "::error::the build failed, but not on CS_VERSION_CODE"; exit 1; }
+
       # staging inherits release's R8 minification and resource shrinking but
       # is signed with the debug key, so it needs no release secrets. Building
       # it is what catches R8-only defects (missing keep rules, stripped
