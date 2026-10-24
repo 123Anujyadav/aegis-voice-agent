@@ -5,6 +5,7 @@ import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.getByType
+import java.io.File
 
 /**
  * Configures the application module: SDK levels, build variants, signing and
@@ -60,6 +61,23 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     buildConfig = true
                 }
 
+                // The upload key exists only in the release workflow's
+                // environment (ReleaseSigning). Everywhere else none of its
+                // variables is set, no "upload" config is created, and release
+                // builds stay unsigned.
+                val uploadKey = ReleaseSigning.uploadKey(
+                    { providers.environmentVariable(it).orNull },
+                    { File(it).let { file -> file.isAbsolute && file.isFile } },
+                )
+                if (uploadKey != null) {
+                    signingConfigs.create("upload") {
+                        storeFile = File(uploadKey.storeFile)
+                        storePassword = uploadKey.storePassword
+                        keyAlias = uploadKey.keyAlias
+                        keyPassword = uploadKey.keyPassword
+                    }
+                }
+
                 // -------------------------------------------------------------
                 // BUILD VARIANTS
                 //
@@ -87,11 +105,12 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                             getDefaultProguardFile("proguard-android-optimize.txt"),
                             "proguard-rules.pro",
                         )
-                        // Signing config is injected by the release workflow from
-                        // the secret manager. It is deliberately absent here:
-                        // a keystore path or password in a build file is a
+                        // Signed with the upload key only when the release
+                        // workflow supplies it through CS_UPLOAD_* (above). A
+                        // keystore path or password in a build file is a
                         // Phase 1 §12 violation, and one that is easy to commit
                         // by accident.
+                        signingConfigs.findByName("upload")?.let { signingConfig = it }
                     }
 
                     // release is configured BEFORE staging is created: initWith copies
