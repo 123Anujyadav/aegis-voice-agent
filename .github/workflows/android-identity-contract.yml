@@ -1,13 +1,14 @@
 # =============================================================================
-# The Android identity client against the REAL identity service.
+# The Android identity and edge-api clients against the REAL services.
 #
 # pr-android tests the client against MockWebServer, and identity-postgres
 # tests identity with Go clients. Neither proves that the Kotlin client and the
 # Go server agree on the contract: routes, bodies, problem codes, DPoP proofs
 # (htu, ath, jkt binding) and refresh-token rotation and reuse. This runs
-# identity as a process on a throwaway PostgreSQL and drives it with the
-# Android client (IdentityLiveContractTest), through
-# tools/scripts/android-identity-contract.sh.
+# identity and edge-api as processes on a throwaway PostgreSQL, each behind a
+# loopback TLS proxy, and drives them with the Android clients
+# (IdentityLiveContractTest, then EdgeLiveContractTest: sign in, GET /v1/me),
+# through tools/scripts/android-identity-contract.sh.
 #
 # It needs no credential, account or external service: every key, the database
 # and the OTP "delivery" (stdout, test-only) are generated or faked for the run.
@@ -21,10 +22,13 @@ on:
     branches: [main]
     paths:
       - "android/core/network/**"
+      - "android/core/auth/**"
+      - "android/core/datastore/**"
       - "android/core/security/**"
       - "android/build-logic/**"
       - "android/gradle/**"
       - "services/go/identity/**"
+      - "services/go/edge-api/**"
       - "packages/go/accesstoken/**"
       - "packages/go/dpop/**"
       - "packages/go/pgshared/**"
@@ -36,10 +40,13 @@ on:
   pull_request:
     paths:
       - "android/core/network/**"
+      - "android/core/auth/**"
+      - "android/core/datastore/**"
       - "android/core/security/**"
       - "android/build-logic/**"
       - "android/gradle/**"
       - "services/go/identity/**"
+      - "services/go/edge-api/**"
       - "packages/go/accesstoken/**"
       - "packages/go/dpop/**"
       - "packages/go/pgshared/**"
@@ -65,7 +72,7 @@ env:
 
 jobs:
   contract:
-    name: Android identity client against the real identity service
+    name: Android clients against the real identity and edge-api services
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -79,7 +86,9 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: services/go/identity/go.sum
+          cache-dependency-path: |
+            services/go/identity/go.sum
+            services/go/edge-api/go.sum
 
       - name: Use the runner's JDK 17 and Android SDK
         run: |
@@ -90,7 +99,7 @@ jobs:
       - name: Pull the pinned PostgreSQL image
         run: docker pull --platform linux/amd64 "$POSTGRES_IMAGE"
 
-      - name: Android client against identity on throwaway PostgreSQL
+      - name: Android clients against identity and edge-api on throwaway PostgreSQL
         run: bash tools/scripts/android-identity-contract.sh
 
       - name: Verify container cleanup

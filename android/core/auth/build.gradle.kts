@@ -31,4 +31,7 @@ dependencies {
     // EdgeApiClient parses edge-api's JSON.
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.okhttp.mockwebserver)
+    // Test only: EdgeLiveContractTest signs real proofs with the app's own
+    // DpopProofFactory. core:security does not depend on this module.
+    testImplementation(projects.core.security)
 }

@@ -50,8 +50,9 @@ class IdentityLiveContractTest {
         val device = DpopProofFactory(SoftwareProofKey())
         val client = IdentityClient(baseUrl, DeviceProofs { method, htu -> device.proof(method, htu) }, httpClient = http)
 
+        val before = otpCodes().size
         val challenge = success(client.requestOtp(MSISDN))
-        val code = otpFromServer()
+        val code = otpFromServer(after = before)
 
         // A wrong code is refused without spending the challenge (3 attempts).
         assertEquals(IdentityResult.Failure(IdentityError.InvalidOtp), client.enrol(challenge.requestId, wrong(code)))
@@ -76,13 +77,19 @@ class IdentityLiveContractTest {
         assertEquals(IdentityResult.Failure(IdentityError.SessionEnded), client.refresh(sessionId, refreshed.refreshToken))
     }
 
-    /** The code the server's test OTP sender wrote, waiting up to 30 seconds. */
-    private fun otpFromServer(): String {
+    /** Every code the server's test OTP sender has written so far, in order. */
+    private fun otpCodes(): List<String> =
+        otpFile.takeIf { it.isFile }?.readLines()?.filter { it.startsWith(OTP_PREFIX) }?.map { it.removePrefix(OTP_PREFIX).trim() }
+            ?: emptyList()
+
+    /**
+     * The first code written after the first [after] codes, which is this
+     * test's own (other suites share the file), waiting up to 30 seconds.
+     */
+    private fun otpFromServer(after: Int): String {
         val deadline = System.nanoTime() + 30_000_000_000L
         while (System.nanoTime() < deadline) {
-            val code = otpFile.takeIf { it.isFile }?.readLines()
-                ?.lastOrNull { it.startsWith(OTP_PREFIX) }?.removePrefix(OTP_PREFIX)?.trim()
-            if (code != null) return code
+            otpCodes().getOrNull(after)?.let { return it }
             Thread.sleep(100)
         }
         error("the server wrote no OTP within 30 seconds")
