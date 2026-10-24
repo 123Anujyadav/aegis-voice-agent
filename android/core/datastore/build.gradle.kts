@@ -12,6 +12,7 @@
 plugins {
     id("callscreen.android.library")
     id("callscreen.android.hilt")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -19,4 +20,11 @@ android {
 }
 
 dependencies {
+    // The encrypted session store (com.callscreen.core.datastore.session):
+    // a Keystore AES-GCM key seals the record, DataStore holds the ciphertext.
+    // androidx.security-crypto is NOT used: Google deprecated all of its APIs
+    // (1.1.0-alpha07, 2025-04-09) "in favour of existing platform APIs and
+    // direct use of Android Keystore".
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.serialization.json)
 }
