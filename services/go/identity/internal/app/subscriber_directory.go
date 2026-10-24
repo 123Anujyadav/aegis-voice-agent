@@ -86,8 +86,8 @@ type MemorySubscriberDirectory struct {
 	mint func() (string, error)
 
 	mu    sync.Mutex
-	byKey map[string]string   // pseudonym -> id
-	ids   map[string]struct{} // every id in use (the UNIQUE constraint)
+	byKey map[string]SubscriberMapping // pseudonym -> mapping
+	ids   map[string]struct{}          // every id in use (the UNIQUE constraint)
 }
 
 // NewMemorySubscriberDirectory returns an empty directory in mode. The mint
@@ -100,7 +100,7 @@ func NewMemorySubscriberDirectory(mode SubscriberIDMode, mint func() (string, er
 	if mint == nil {
 		mint = NewRandomSubscriberID
 	}
-	return &MemorySubscriberDirectory{mode: mode, mint: mint, byKey: map[string]string{}, ids: map[string]struct{}{}}, nil
+	return &MemorySubscriberDirectory{mode: mode, mint: mint, byKey: map[string]SubscriberMapping{}, ids: map[string]struct{}{}}, nil
 }
 
 // NewRandomSubscriberID returns "usr_" and 32 hex characters of crypto/rand:
@@ -123,22 +123,23 @@ func (d *MemorySubscriberDirectory) Resolve(_ context.Context, pseudonym, legacy
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if id, ok := d.byKey[pseudonym]; ok {
-		return id, false, nil
+	if m, ok := d.byKey[pseudonym]; ok {
+		return m.SubscriberID, false, nil
 	}
-	id := legacyID
+	id, origin := legacyID, OriginLegacy
 	if d.mode == MintRandomIDs {
 		var err error
 		if id, err = d.freshID(); err != nil {
 			return "", false, err
 		}
+		origin = OriginRandom
 	} else if _, taken := d.ids[id]; taken {
 		// A legacy id already mapped to a DIFFERENT pseudonym means two numbers
 		// derived the same id: impossible for distinct numbers under one key,
 		// so it is refused rather than shared.
 		return "", false, ErrSubscriberIDCollision
 	}
-	d.byKey[pseudonym] = id
+	d.byKey[pseudonym] = SubscriberMapping{Pseudonym: pseudonym, SubscriberID: id, Origin: origin}
 	d.ids[id] = struct{}{}
 	return id, true, nil
 }
