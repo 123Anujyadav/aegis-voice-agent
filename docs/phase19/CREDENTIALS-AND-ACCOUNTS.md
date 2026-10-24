@@ -1,6 +1,6 @@
 # Credentials, external accounts and costs: register
 
-- **As of:** 2026-10-24, `main` at `ae094ef`.
+- **As of:** 2026-10-24, `main` at `0208a88`.
 - **What this lists:** every credential, external account or paid service the
   code needs, with:
   - the exact names the code reads, or names marked **proposed** where
@@ -30,6 +30,7 @@
 | **Identifier** | A public or project identifier (a package name, project number, certificate digest) |
 | **Proposed** | A name documented for future code. Nothing reads it yet. |
 | **Not integrated** | The service is not used by any code yet, only by an interface or a mock |
+| **Implemented, not configured** | The code exists and is tested, but the configuration that turns it on is unset, so it does nothing yet |
 
 ## 1. Self-generated keys and secrets (no external account)
 
@@ -49,17 +50,31 @@ CI generate test keys inside the tests.
 | `CS_EDGE_API_ACCESS_TOKEN_KID`, `…_ISSUER`, `…_AUDIENCE`, `CS_EDGE_API_PUBLIC_ORIGIN`, `CS_EDGE_API_ENVIRONMENT` | Config | edge-api | Configuration |
 | `CS_EDGE_API_DATABASE_DSN_FILE` | Secret | edge-api | The PostgreSQL DSN for the replay store |
 
+## 1a. Android build configuration (public, never secret)
+
+These are read at build time. They are **not secrets**, and all default to empty or a developer value.
+- No build or workflow sets them yet.
+- The one exception is `pr-android`, which sets an *invalid* `CS_VERSION_CODE` only to prove that the build fails.
+
+| Name | Read by | Purpose | Default and validation |
+|---|---|---|---|
+| `callscreen.identityBaseUrl` (Gradle property) | `android/app/build.gradle.kts` → `BuildConfig.IDENTITY_BASE_URL` | identity's https origin | Empty, so sign-in is unavailable. It must be an https origin (`EndpointConfig`). |
+| `callscreen.edgeApiBaseUrl` (Gradle property) | `android/app/build.gradle.kts` → `BuildConfig.EDGE_API_BASE_URL` | edge-api's origin. It must equal `CS_EDGE_API_PUBLIC_ORIGIN`. | Empty, so protected calls are unavailable. It must be an https origin. |
+| `callscreen.playIntegrityCloudProjectNumber` (Gradle property) | `android/app/build.gradle.kts` → `BuildConfig.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER` | Play Integrity standard requests (see §2) | Empty, so no integrity token is requested. Digits only. |
+| `CS_VERSION_CODE` (environment) | `ReleaseVersion` (`android/build-logic/convention/src/main/kotlin/ReleaseVersion.kt`, #148) | versionCode | Unset gives `1` (developer build). If set, it must be 1–2,100,000,000, or the build fails. |
+| `CS_VERSION_NAME` (environment) | `ReleaseVersion` (#148) | versionName | Unset gives `0.1.0-dev`. If set, it must be 1–64 characters of `[0-9A-Za-z.+_-]`, starting with a letter or digit, or the build fails. |
+
 ## 2. External accounts and credentials
 
 | Service | Kind | Why | Names | Cost | Configure | Blocks | Continues without it |
 |---|---|---|---|---|---|---|---|
-| **Google Play Integrity**, server side | Proposed | Genuine-app verdicts at issuance (ADR-0010 §5(b), ADR-0031). The adapter exists (#134), unwired. | `CS_IDENTITY_PLAY_INTEGRITY_PACKAGE_NAME` (Identifier), `…_CERT_DIGESTS` (Identifier), `…_CREDENTIALS_FILE` (Secret) | **Default quota verified: 10,000 requests a day**; increases are requested from Google. **Price unverified.** | A Google Cloud project linked in Play Console. Prefer workload identity federation (ADR-0008: no static cloud keys on AWS); otherwise a service-account key as a mounted Secret. SRE's choice. | Real verdicts in staging and production. Sessions stay `unverified`. | All code and tests, against the local fake |
-| **Google Play Integrity**, Android client | Not integrated | The client must request a *standard* token bound to `integrityRequestHash(proof)` (#137) and send `Integrity-Token` | No library in the app yet. It will need the Google Cloud **project number** (Identifier). | As above | Build configuration | Real tokens from devices | The proof and hash code (#137) |
+| **Google Play Integrity**, server side | Proposed | Genuine-app verdicts at issuance (ADR-0010 §5(b), ADR-0031). The adapter exists (#134). It is tested only against a local fake and is **not wired** into identity (nothing calls `SetIntegrityVerifier`). | `CS_IDENTITY_PLAY_INTEGRITY_PACKAGE_NAME` (Identifier), `…_CERT_DIGESTS` (Identifier), `…_CREDENTIALS_FILE` (Secret). All are **proposed**: no code reads them yet. | **Default quota verified: 10,000 requests a day**; increases are requested from Google. **Price unverified.** | A Google Cloud project linked in Play Console. **Undecided (owner/SRE):** workload identity federation, preferred because ADR-0008 allows no static cloud keys on AWS, or a service-account key as a mounted Secret. | Real verdicts in staging and production. Wiring also waits on **ADR-0031 ratification and the verdict thresholds** (owner). Sessions stay `unverified`. | All code and tests, against the local fake |
+| **Google Play Integrity**, Android client | Implemented, not configured | The client requests a *standard* token bound to `integrityRequestHash(proof)` (#137) and sends `Integrity-Token` | `com.google.android.play:integrity` 1.6.0 in `core:security` (#143), wired into the app in #146. `callscreen.playIntegrityCloudProjectNumber` (Gradle property, **public** Identifier) becomes `BuildConfig.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER`. Unset (the default) means no token is ever requested. | As above | The linked project's number, passed at build time (`-Pcallscreen.playIntegrityCloudProjectNumber=<digits>`) | Real tokens from devices. **Never yet run on a device.** | Everything: requests carry no `Integrity-Token`, and sessions are `unverified` |
 | **OTP SMS provider** (primary and secondary) | Not integrated | Delivering codes; nobody can enrol without one | None yet: no provider or adapter. The failover sender (`internal/otpdelivery`) is ready. | **Requires billing** (per-message SMS). Exact costs unverified. | Provider credentials as mounted Secrets, named when the adapter is written | Any real enrolment, in staging and production | Everything, using the fake sender |
 | **India DLT registration** (TRAI) | Not integrated | Commercial SMS in India requires a registered entity, sender header and templates | Template and header ids (Identifier), once a provider is chosen | **Unverified** | The owner's business registration, through an operator's DLT portal | Sending SMS in India | As above |
 | **Firebase Cloud Messaging** | Not integrated | Notifying the prior device on re-enrolment (SIM-swap review §4), and app notifications | None yet. `FcmPushDispatcher` is an interface with a mock. | **Unverified** | A Firebase project. Prefer workload identity; otherwise a service-account key as a Secret. | Push notifications | Everything except real pushes |
 | **AWS** (telephony-gateway RDS IAM auth; X-Ray) | Secret (workload identity) | Database auth and tracing | `AWS_WEB_IDENTITY_TOKEN_FILE` (IRSA; **no static keys**, ADR-0008) | **Billable AWS resources.** Budget confirmation pending (ADR-0028 P2). | An IRSA role per service, by SRE | Staging and production | Local and CI, using fakes and throwaway PostgreSQL |
-| **Google Play Console** (publishing, app signing) | Not integrated | Release builds and publishing | **No release workflow exists**, although the Android convention plugin's comments say release signing "is injected by the release workflow" | **Unverified** | Owner | Any release build | Debug builds and CI (`pr-android`, #136) |
+| **Google Play Console** (publishing, app signing) | Not integrated | Release builds and publishing. Play App Signing keeps the app-signing key at Google; we hold only the **upload key**. | None read yet, because **no release workflow exists**. **Proposed**, not created (readiness assessment §6), as GitHub Environment secrets: `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_KEYSTORE_PASSWORD` and `ANDROID_UPLOAD_KEY_PASSWORD` (Secrets), and `ANDROID_UPLOAD_KEY_ALIAS` (not sensitive). The names become final only when the workflow is written and run. | Registration fee **unverified** | Owner: the account and the app, and an upload key generated offline. **No key is generated by automation.** | Any release build | Debug builds, the debug-signed R8 `staging` build, and CI (`pr-android`) |
 
 ## 3. Not needed today
 
@@ -70,7 +85,8 @@ A hosted speech or LLM provider needs its own row here when one is chosen.
 ## 4. How to keep this current
 
 Add a row the moment code starts to depend on a new credential, in the same
-PR. Then:
+PR. (#143 and #146 added the Play Integrity library and the Android
+configuration without updating this register; their rows were added afterwards.) Then:
 - **Proposed** becomes a real name when the code that reads it merges.
 - **A cost** leaves "unverified" only with a reference to the provider's
   current pricing page.
