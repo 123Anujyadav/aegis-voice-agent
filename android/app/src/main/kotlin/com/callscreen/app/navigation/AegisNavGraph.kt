@@ -16,7 +16,7 @@ import com.callscreen.feature.family.FamilyShieldScreen
 import com.callscreen.feature.onboarding.AiScreeningSetupScreen
 import com.callscreen.feature.onboarding.CallForwardingSetupScreen
 import com.callscreen.feature.onboarding.PermissionsEducationScreen
-import com.callscreen.feature.onboarding.PhoneVerificationScreen
+import com.callscreen.feature.onboarding.PhoneVerificationRoute
 import com.callscreen.feature.onboarding.SetupCompleteScreen
 import com.callscreen.feature.onboarding.SimDetectionScreen
 import com.callscreen.feature.onboarding.SplashScreen
@@ -95,7 +95,7 @@ public fun AegisNavGraph(
             SimDetectionScreen(onContinueClick = { navController.navigate(AegisDestinations.PHONE_VERIFICATION) })
         }
         composable(AegisDestinations.PHONE_VERIFICATION) {
-            PhoneVerificationScreen(onSendOtpClick = { navController.navigate(AegisDestinations.PERMISSIONS) })
+            PhoneVerificationRoute(onVerified = { navController.navigate(AegisDestinations.PERMISSIONS) })
         }
         composable(AegisDestinations.PERMISSIONS) {
             PermissionsEducationScreen(onGrantPermissionsClick = { navController.navigate(AegisDestinations.AI_SETUP) })

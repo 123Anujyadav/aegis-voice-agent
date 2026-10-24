@@ -18,6 +18,18 @@ plugins {
 
 android {
     namespace = "com.callscreen"
+
+    defaultConfig {
+        // identity's public origin (configuration, NOT a secret). Device proofs
+        // sign <origin>/v1/otp/validate and <origin>/v1/token/refresh, which
+        // must equal identity's CS_IDENTITY_ENROLLMENT_CANONICAL_URL and
+        // CS_IDENTITY_REFRESH_CANONICAL_URL exactly. Unset (the default), the
+        // build has no identity server and sign-in reports itself unavailable;
+        // no host is assumed. Set it with -Pcallscreen.identityBaseUrl=https://...
+        val identityBaseUrl = providers.gradleProperty("callscreen.identityBaseUrl").getOrElse("")
+        require(Regex("^[A-Za-z0-9:/._-]*$").matches(identityBaseUrl)) { "callscreen.identityBaseUrl must be a plain URL" }
+        buildConfigField("String", "IDENTITY_BASE_URL", "\"$identityBaseUrl\"")
+    }
 }
 
 dependencies {
@@ -30,6 +42,10 @@ dependencies {
     implementation(projects.core.ui)
     implementation(projects.core.shared)
     implementation(projects.core.logging)
+    // The identity flow: orchestration, its HTTP client and session store
+    // (api from core:auth), and the device-key proofs.
+    implementation(projects.core.auth)
+    implementation(projects.core.security)
 
     implementation(projects.feature.onboarding)
     implementation(projects.feature.calls)
