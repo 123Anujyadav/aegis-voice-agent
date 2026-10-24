@@ -8,11 +8,18 @@
 // signing and verification core of that: standard library only, no JWT
 // dependency.
 //
-// It is NOT the ADR-0010 authentication flow. A `cnf.jkt` claim names a device
-// key; it does not prove the presenter holds it. That proof — a per-request
-// signature made with the device key (ADR-0010 §5(c)) — and the enrolment that
-// registers the device key do not exist yet. Until they do, a token verified
-// here is a bearer token, and must not be treated as device-bound.
+// It is the token core of the ADR-0010 flow, not the whole flow. A `cnf.jkt`
+// claim names a device key; it does not prove the presenter holds it. That
+// proof is a DPoP proof made with the device key on every request (ADR-0029
+// D11.4), verified by packages/go/dpop: edge-api's auth.Middleware checks it
+// after this package verifies the token, and identity's enrolment binds the
+// key in the first place. A token verified here WITHOUT that proof check is a
+// bearer token, and must not be treated as device-bound.
+//
+// An access token can never pass as a DPoP proof, nor a proof as an access
+// token (RFC 8725 §3.12): typ, alg and key source differ, and
+// dpop/crosstype_test.go presents genuine tokens of each kind to the other's
+// verifier.
 //
 // # The accepted profile, exactly
 //
