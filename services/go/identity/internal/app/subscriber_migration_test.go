@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -340,5 +341,118 @@ func TestMigration_DroppingAnOldSubscriberKeyStrandsRows(t *testing.T) {
 	_, _, err := d.Resolve(context.Background(), newP, LegacySubscriberID(oldKey, dirNumber))
 	if !errors.Is(err, ErrSubscriberIDCollision) {
 		t.Fatalf("a stranded subscriber returning: err = %v, want the fail-closed collision", err)
+	}
+}
+
+// The plan's §5 mitigation, checked: while the lookup ring keeps every key a
+// row still uses, a dormant subscriber who returns after one or more
+// rotations keeps their id, and their row moves to the active key. The same
+// return with the old key dropped is the fail-closed lockout above.
+func TestMigration_KeyringLookupKeepsDormantSubscribersAcrossRotations(t *testing.T) {
+	ctx := context.Background()
+	k1, k2, k3 := dirKey, []byte("the_next_subscriber_key_long_enough!"), []byte("and_the_one_after_that_long_enough!!")
+	ring := func(keys ...[]byte) []string {
+		var out []string
+		for _, k := range keys {
+			p, err := SubscriberPseudonym(k, dirNumber)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, p)
+		}
+		return out
+	}
+	legacy := LegacySubscriberID(k1, dirNumber)
+
+	d, _ := NewMemorySubscriberDirectory(AdoptLegacyIDs, nil)
+	id, created, err := d.ResolveWithKeyring(ctx, ring(k1), legacy)
+	if err != nil || !created || id != legacy {
+		t.Fatalf("first resolution: (%s, %v, %v)", id, created, err)
+	}
+	// Two rotations pass while the subscriber is dormant; the ring keeps all
+	// three keys, active first.
+	got, created, err := d.ResolveWithKeyring(ctx, ring(k3, k2, k1), legacy)
+	if err != nil || created || got != id {
+		t.Fatalf("after two rotations: (%s, created=%v, %v), want (%s, false)", got, created, err, id)
+	}
+	rows := d.Snapshot()
+	if len(rows) != 1 || rows[0].Pseudonym != ring(k3)[0] || rows[0].SubscriberID != id || rows[0].Origin != OriginLegacy {
+		t.Fatalf("the row was not moved to the active key unchanged: %+v", rows)
+	}
+	if got, created, _ := d.ResolveWithKeyring(ctx, ring(k3, k2, k1), legacy); got != id || created {
+		t.Fatal("a second resolution after re-keying changed something")
+	}
+
+	// The contrast: the same dormant return with the old keys dropped.
+	stranded, _ := NewMemorySubscriberDirectory(AdoptLegacyIDs, nil)
+	_, _, _ = stranded.ResolveWithKeyring(ctx, ring(k1), legacy)
+	if _, _, err := stranded.ResolveWithKeyring(ctx, ring(k3), legacy); !errors.Is(err, ErrSubscriberIDCollision) {
+		t.Fatalf("with the old keys dropped: err = %v, want the fail-closed lockout", err)
+	}
+}
+
+// A number no key has seen is created under the active pseudonym; in random
+// mode it gets a random id.
+func TestMigration_KeyringLookupCreatesUnderTheActiveKey(t *testing.T) {
+	ctx := context.Background()
+	oldP, _ := SubscriberPseudonym(dirKey, dirNumber)
+	newP, _ := SubscriberPseudonym([]byte("the_next_subscriber_key_long_enough!"), dirNumber)
+	d, _ := NewMemorySubscriberDirectory(MintRandomIDs, nil)
+	id, created, err := d.ResolveWithKeyring(ctx, []string{newP, oldP}, LegacySubscriberID(dirKey, dirNumber))
+	if err != nil || !created || id == LegacySubscriberID(dirKey, dirNumber) {
+		t.Fatalf("(%s, %v, %v), want a new random id", id, created, err)
+	}
+	if rows := d.Snapshot(); len(rows) != 1 || rows[0].Pseudonym != newP || rows[0].Origin != OriginRandom {
+		t.Fatalf("rows %+v, want one random row under the active pseudonym", rows)
+	}
+}
+
+// Concurrent returns of one dormant subscriber through the ring agree on one
+// id and leave exactly one row, under the active key.
+func TestMigration_KeyringLookupConcurrentReturnsAgree(t *testing.T) {
+	ctx := context.Background()
+	oldP, _ := SubscriberPseudonym(dirKey, dirNumber)
+	newP, _ := SubscriberPseudonym([]byte("the_next_subscriber_key_long_enough!"), dirNumber)
+	legacy := LegacySubscriberID(dirKey, dirNumber)
+	d, _ := NewMemorySubscriberDirectory(AdoptLegacyIDs, nil)
+	want, _, _ := d.Resolve(ctx, oldP, legacy)
+
+	const n = 16
+	var wg sync.WaitGroup
+	ids := make([]string, n)
+	errs := make([]error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			ids[i], _, errs[i] = d.ResolveWithKeyring(ctx, []string{newP, oldP}, legacy)
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < n; i++ {
+		if errs[i] != nil || ids[i] != want {
+			t.Fatalf("resolution %d: (%s, %v), want %s", i, ids[i], errs[i], want)
+		}
+	}
+	if rows := d.Snapshot(); len(rows) != 1 || rows[0].Pseudonym != newP {
+		t.Fatalf("rows %+v, want one under the active pseudonym", rows)
+	}
+}
+
+func TestMigration_KeyringLookupRefusesMalformedRings(t *testing.T) {
+	ctx := context.Background()
+	d, _ := NewMemorySubscriberDirectory(AdoptLegacyIDs, nil)
+	p := strings.Repeat("a", 64)
+	for name, ring := range map[string][]string{
+		"empty":     nil,
+		"malformed": {p, "not-hex"},
+		"duplicate": {p, p},
+	} {
+		if _, _, err := d.ResolveWithKeyring(ctx, ring, goldenLegacyID); !errors.Is(err, ErrInvalidToken) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+	if rows := d.Snapshot(); len(rows) != 0 {
+		t.Fatalf("a refused ring created rows: %+v", rows)
 	}
 }
