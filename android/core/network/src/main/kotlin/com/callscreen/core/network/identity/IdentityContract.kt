@@ -115,8 +115,9 @@ public fun interface DeviceProofs {
 /**
  * Supplies a Play Integrity token bound to [proof] (ADR-0031), or null when
  * none is available; the request then carries no Integrity-Token and the
- * session is recorded as unverified. No implementation exists yet: it needs
- * the Play Integrity library and the Google Cloud project number.
+ * session is recorded as unverified. On Android, core:security's
+ * PlayIntegrityTokens implements it (#143); the app uses it only when the
+ * Google Cloud project number is configured (#146).
  */
 public fun interface IntegrityTokens {
     public fun tokenFor(proof: String): String?
