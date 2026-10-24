@@ -42,13 +42,16 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                         .orNull ?: "0.1.0-dev"
 
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+                }
 
+                androidResources {
                     // Restrict packaged resources to the languages the product
                     // actually ships. Every unshipped locale in a dependency
                     // otherwise adds resources to the APK, and Phase 1 §17 gates
                     // APK growth at 2% — a threshold that stray locales alone
-                    // can breach.
-                    resourceConfigurations += setOf("en", "hi", "bn", "ta", "te", "mr")
+                    // can breach. localeFilters replaces the deprecated
+                    // defaultConfig.resourceConfigurations, deprecated in AGP 8.9.
+                    localeFilters += setOf("en", "hi", "bn", "ta", "te", "mr")
                 }
 
                 buildFeatures {
@@ -76,6 +79,25 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                         isShrinkResources = false
                     }
 
+                    release {
+                        isDebuggable = false
+                        isMinifyEnabled = true
+                        isShrinkResources = true
+                        proguardFiles(
+                            getDefaultProguardFile("proguard-android-optimize.txt"),
+                            "proguard-rules.pro",
+                        )
+                        // Signing config is injected by the release workflow from
+                        // the secret manager. It is deliberately absent here:
+                        // a keystore path or password in a build file is a
+                        // Phase 1 §12 violation, and one that is easy to commit
+                        // by accident.
+                    }
+
+                    // release is configured BEFORE staging is created: initWith copies
+                    // the configuration as it stands at the call. When staging was
+                    // created first it copied release's defaults, so it was neither
+                    // minified nor shrunk, and the R8 check it exists for never ran.
                     create("staging") {
                         // initWith(release) inherits the release configuration,
                         // so staging exercises the SAME minification and
@@ -92,21 +114,6 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                         // installed without release credentials. It never
                         // reaches the Play Store.
                         signingConfig = signingConfigs.getByName("debug")
-                    }
-
-                    release {
-                        isDebuggable = false
-                        isMinifyEnabled = true
-                        isShrinkResources = true
-                        proguardFiles(
-                            getDefaultProguardFile("proguard-android-optimize.txt"),
-                            "proguard-rules.pro",
-                        )
-                        // Signing config is injected by the release workflow from
-                        // the secret manager. It is deliberately absent here:
-                        // a keystore path or password in a build file is a
-                        // Phase 1 §12 violation, and one that is easy to commit
-                        // by accident.
                     }
                 }
 
