@@ -22,7 +22,9 @@ android {
 dependencies {
     // The identity HTTP client (com.callscreen.core.network.identity): plain
     // JSON over HTTPS, as identity serves it (services/go/identity/internal/httpapi).
-    implementation(libs.okhttp)
+    // api: OkHttpClient is part of IdentityClient's public API (its constructor
+    // and defaultHttpClient()), so consumers must see it.
+    api(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.okhttp.mockwebserver)
 }
