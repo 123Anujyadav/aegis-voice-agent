@@ -32,6 +32,13 @@ const MetricRequests = "identity_auth_requests_total"
 // nothing else (no session, request or subscriber id).
 const MetricSecurityEvents = "identity_security_events_total"
 
+// MetricSecurityAuditFailures counts security audit events that were NOT
+// recorded, by type: the durable audit log (or another destination) refused
+// them, or the re-enrolment lookup failed. Any non-zero rate means audit
+// records are being lost and should page (ADR-0010 §10 requires these
+// records). Same closed label vocabulary as MetricSecurityEvents.
+const MetricSecurityAuditFailures = "identity_security_audit_failures_total"
+
 // SecurityEventOther is the label for an event type this counter does not
 // know, so a new type can never add an unbounded label value.
 const SecurityEventOther = "other"
@@ -78,6 +85,7 @@ type Metrics struct {
 	reg          *metrics.Registry
 	requests     *metrics.Counter
 	security     *metrics.Counter
+	auditFails   *metrics.Counter
 	integrity    *metrics.Counter
 	restrictions *metrics.Counter
 	deliveries   *metrics.Counter
@@ -90,6 +98,7 @@ func NewMetrics() *Metrics {
 		reg:          reg,
 		requests:     reg.Counter(MetricRequests, "endpoint", "outcome"),
 		security:     reg.Counter(MetricSecurityEvents, "type"),
+		auditFails:   reg.Counter(MetricSecurityAuditFailures, "type"),
 		integrity:    reg.Counter(MetricIntegrityOutcomes, "outcome"),
 		restrictions: reg.Counter(MetricIntegrityRestrictions, "reason"),
 		deliveries:   reg.Counter(MetricOtpDeliveries, "provider", "outcome"),
@@ -125,23 +134,41 @@ func (m *Metrics) Record(e app.SecurityEvent) error {
 	if m == nil {
 		return nil
 	}
-	switch e.Type {
+	m.security.Inc(securityEventLabel(e.Type))
+	return nil
+}
+
+// ObserveAuditFailure counts one security audit event that was not recorded.
+// A nil m counts nothing.
+func (m *Metrics) ObserveAuditFailure(t app.SecurityEventType) {
+	if m == nil {
+		return
+	}
+	m.auditFails.Inc(securityEventLabel(t))
+}
+
+// securityEventLabel is t's label: a known type, or SecurityEventOther, so no
+// new type can add an unbounded label value.
+func securityEventLabel(t app.SecurityEventType) string {
+	switch t {
 	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused, app.EventDeviceEnrolled,
 		app.EventDeviceReenrolled:
-		m.security.Inc(string(e.Type))
+		return string(t)
 	default:
-		m.security.Inc(SecurityEventOther)
+		return SecurityEventOther
 	}
-	return nil
 }
 
 // Instrument adds m as a security auditor, alongside any already configured
 // (the durable audit log bootstrap.Open installs), so audit events are also
-// counted (MetricSecurityEvents). Keeping this here keeps internal/app out of
-// cmd/server, whose only route to the service is through this package.
+// counted (MetricSecurityEvents), and observes audit failures, so events that
+// were NOT recorded are counted too (MetricSecurityAuditFailures). Keeping
+// this here keeps internal/app out of cmd/server, whose only route to the
+// service is through this package.
 func (m *Metrics) Instrument(svc *app.IdentityService) {
 	svc.AddSecurityAuditor(m)
 	svc.SetIntegrityObserver(m.ObserveIntegrity)
+	svc.SetAuditFailureObserver(m.ObserveAuditFailure)
 }
 
 // ObserveIntegrity counts one Play Integrity outcome and, for a restricted
