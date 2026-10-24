@@ -138,7 +138,7 @@ Re-verified against the repository on 2026-10-24.
 | FCM | **External setup**, then **code** | No Firebase SDK in any `go.mod` or Android build file. `notification-fanout` is a Phase 2 shell (`cmd/server/main.go`). |
 | Play Console account, upload key, privacy policy, Data safety form | **External setup (owner)** | Not represented in the repository. |
 | Real-device Play Integrity, sign-in and calling | **Device and release-environment validation** | Never run on a device. It needs a Play-installed build and live hosts. |
-| ADR-0029, ADR-0030 D30.3 (with amendments), ADR-0031; session permissions; SIM-swap policy and device-history retention; OTP backoff and session lifetime | **Owner decision** | §3 |
+| ADR-0029, ADR-0030 D30.3 (with amendments), ADR-0031; session permissions; SIM-swap policy and device-history retention; OTP backoff and session lifetime; the frontend stack | **Owner decision** | §3, §4 |
 | Cryptographic review; privacy (DPDP) review | **Independent review** | §3 |
 | `ReleaseVersionTest` has no test accepting an exactly-64-character `CS_VERSION_NAME` | **Code (test)** | The limit is enforced in `ReleaseVersion.name`; only 65 characters (rejected) is tested. |
 | Stale `android.suppressUnsupportedCompileSdk=35` in `android/gradle.properties` | **Code (cleanup)** | AGP 8.9.1 supports `compileSdk` 36, so the property no longer suppresses anything. It is harmless. |
