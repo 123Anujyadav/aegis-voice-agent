@@ -60,6 +60,13 @@ class DpopProofsTest {
     }
 
     @Test
+    @DisplayName("a key on any curve other than P-256 is refused")
+    fun refusesOtherCurves() {
+        val p384 = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp384r1")) }.generateKeyPair()
+        assertThrows<IllegalArgumentException> { P256Jwk.of(p384.public as ECPublicKey) }
+    }
+
+    @Test
     @DisplayName("a proof has exactly the server's header and claims, and a raw R||S signature that verifies")
     fun proofShapeAndSignature() {
         val key = JvmKey()

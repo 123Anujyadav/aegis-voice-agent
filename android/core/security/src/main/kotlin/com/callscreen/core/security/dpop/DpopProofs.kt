@@ -46,9 +46,14 @@ public data class P256Jwk(val x: String, val y: String) {
     public companion object {
         /** The jwk of [key], which must be a P-256 key. */
         public fun of(key: ECPublicKey): P256Jwk {
-            require(key.params.curve.field.fieldSize == 256) { "the device key must be P-256" }
+            // The field size alone would admit other 256-bit curves
+            // (secp256k1); the group order identifies P-256 exactly.
+            require(key.params.order == P256_ORDER && key.params.cofactor == 1) { "the device key must be P-256" }
             return P256Jwk(b64u(fixed32(key.w.affineX)), b64u(fixed32(key.w.affineY)))
         }
+
+        /** The order n of the P-256 group (FIPS 186-4 D.1.2.3). */
+        private val P256_ORDER = BigInteger("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551", 16)
     }
 }
 
