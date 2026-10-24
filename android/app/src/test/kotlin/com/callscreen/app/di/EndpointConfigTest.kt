@@ -40,9 +40,10 @@ class EndpointConfigTest {
         assertEquals(0, created, "Play Integrity was set up without a project")
 
         var boundTo: String? = null
+        val failedAcquisition: (String) -> String? = { proof -> boundTo = proof; null } // still no token
         val tokens = EndpointConfig.integrityTokens("123456789012") { project ->
             assertEquals(123456789012L, project)
-            { proof -> boundTo = proof; null } // a failed acquisition: still no token
+            failedAcquisition
         }
         assertNull(tokens.tokenFor("the-proof"))
         assertEquals("the-proof", boundTo, "the token must be requested for the proof it accompanies")
