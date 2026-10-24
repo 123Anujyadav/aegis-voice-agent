@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"regexp"
@@ -83,6 +85,10 @@ const (
 	AppLicensingLicensed  = "LICENSED"
 	maxIntegrityTokenSize = 16 << 10
 )
+
+// MaxIntegrityTokenBytes bounds a Play Integrity token as presented (the
+// Integrity-Token header, ADR-0031 D31.2).
+const MaxIntegrityTokenBytes = maxIntegrityTokenSize
 
 // IntegrityTier is the outcome of an assessment.
 type IntegrityTier string
@@ -249,7 +255,95 @@ const (
 	// IntegrityInvalidRequest is a missing or malformed token or binding,
 	// refused before the verifier is called.
 	IntegrityInvalidRequest IntegrityOutcome = "invalid_request"
+	// IntegrityNotPresented is an issuance or refresh request that carried no
+	// integrity token (ADR-0031 D31.3). It is counted apart from
+	// invalid_request so a client that does not attest is visible as such.
+	IntegrityNotPresented IntegrityOutcome = "not_presented"
 )
+
+// SessionIntegrityTier is the Play Integrity tier a session records
+// (ADR-0031 D31.4). It is a signal, not an authorisation (D31.5).
+type SessionIntegrityTier string
+
+const (
+	// SessionCertified is a session whose latest verdict passed every check.
+	SessionCertified SessionIntegrityTier = "certified"
+	// SessionRestricted is a session whose latest verdict failed a check.
+	SessionRestricted SessionIntegrityTier = "restricted"
+	// SessionUnverified is a session with no verdict: no token was presented,
+	// or no verifier could answer. When the restricted tier gets permissions
+	// it is to be treated as restricted (ADR-0031 D31.3); it is recorded
+	// apart so outages never inflate the failed-verdict signal.
+	SessionUnverified SessionIntegrityTier = "unverified"
+)
+
+// valid reports whether t is a tier a repository may store; the zero value is
+// stored as SessionUnverified.
+func (t SessionIntegrityTier) valid() bool {
+	switch t {
+	case "", SessionCertified, SessionRestricted, SessionUnverified:
+		return true
+	}
+	return false
+}
+
+// ErrInvalidIntegrityTier is a session carrying an unknown integrity tier.
+var ErrInvalidIntegrityTier = errors.New("identity: unknown session integrity tier")
+
+// IntegrityRequestHash is the requestHash a verdict presented with proof must
+// carry (ADR-0031 D31.1): base64url, unpadded, of SHA-256 over the DPoP proof
+// exactly as it appears in the request's DPoP header. The proof binds the
+// device key, the request and single use; through this, so does the verdict.
+func IntegrityRequestHash(proof string) string {
+	sum := sha256.Sum256([]byte(proof))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// reassessIntegrity is D31.4 at refresh: with a token, the session's tier is
+// re-assessed and set on session, for the caller's compare-and-swap to write.
+// Without one, the tier is kept. A rejected token is ErrPlayIntegrityFailed.
+func (s *IdentityService) reassessIntegrity(ctx context.Context, session *UserSession, token, proof, jkt string) error {
+	if token == "" {
+		return nil
+	}
+	tier, err := s.assessIntegrity(ctx, token, proof, jkt, SecurityEvent{SessionID: session.SessionID})
+	if err != nil {
+		return err
+	}
+	session.IntegrityTier = tier
+	return nil
+}
+
+// integrityAssessor decides a new session's tier, after the OTP is verified
+// and before the session is created.
+type integrityAssessor func(context.Context) (SessionIntegrityTier, error)
+
+// assessIntegrity is ADR-0031 D31.3's table for one issuance or refresh. The
+// audit events it emits name the request or session that who carries.
+func (s *IdentityService) assessIntegrity(ctx context.Context, token, proof, jkt string, who SecurityEvent) (SessionIntegrityTier, error) {
+	if token == "" {
+		s.observeIntegrity(IntegrityNotPresented, nil)
+		return SessionUnverified, nil
+	}
+	a, err := s.VerifyPlayIntegrity(ctx, token, IntegrityBinding{DeviceKeyThumbprint: jkt, RequestHash: IntegrityRequestHash(proof)})
+	switch {
+	case errors.Is(err, ErrPlayIntegrityUnavailable):
+		return SessionUnverified, nil
+	case errors.Is(err, ErrPlayIntegrityFailed):
+		who.Type, who.At = EventIntegrityRejected, s.now()
+		s.audit(who)
+		return "", err
+	case err != nil:
+		// Recording the attestation failed: fail closed.
+		return "", err
+	case a.Tier == TierCertified:
+		return SessionCertified, nil
+	default:
+		who.Type, who.At = EventIntegrityRestricted, s.now()
+		s.audit(who)
+		return SessionRestricted, nil
+	}
+}
 
 // SetIntegrityObserver sets the function told the outcome of every
 // VerifyPlayIntegrity call, and the restriction reasons of a restricted one.

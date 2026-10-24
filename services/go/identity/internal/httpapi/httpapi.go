@@ -30,12 +30,15 @@
 //	       "refreshToken": "...", "sessionId": "sess_<64 hex>"}
 //	  400 ERR_INVALID_DPOP_PROOF (missing, repeated, oversized, invalid, stale,
 //	      replayed, wrong htm/htu), 401 ERR_INVALID_OTP, 401 ERR_OTP_EXPIRED,
+//	  400 ERR_INVALID_INTEGRITY_TOKEN (a repeated, empty or oversized
+//	      Integrity-Token header, or a token the verifier rejected),
 //	  429 ERR_RATE_LIMITED (+ Retry-After)
 //
 //	POST /v1/token/refresh    DPoP: <proof>   {"sessionId": "...", "refreshToken": "..."}
 //	  200 {"accessToken": "...", "tokenType": "DPoP", "expiresIn": 900,
 //	       "refreshToken": "..."}
 //	  400 ERR_INVALID_DPOP_PROOF (as above, and a proof by another key),
+//	  400 ERR_INVALID_INTEGRITY_TOKEN (as above; nothing rotates),
 //	  401 ERR_INVALID_TOKEN (unknown, expired, revoked or reused refresh token
 //	      — reuse also revokes the session — or a session with no device key)
 //
@@ -193,7 +196,11 @@ func (h *handler) enroll(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	sess, token, err := h.svc.ValidateOtpWithDeviceProof(r.Context(), body.RequestID, body.Code, r.Method, proof)
+	integrity, ok := h.integrityToken(w, r)
+	if !ok {
+		return
+	}
+	sess, token, err := h.svc.ValidateOtpWithDeviceProofAndIntegrity(r.Context(), body.RequestID, body.Code, r.Method, proof, integrity)
 	if err != nil || token == "" || sess == nil || sess.RefreshToken == "" {
 		h.fail(w, r, err)
 		return
@@ -223,7 +230,11 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	access, refresh, err := h.svc.RefreshTokenWithDeviceProof(r.Context(), body.SessionID, body.RefreshToken, r.Method, proof)
+	integrity, ok := h.integrityToken(w, r)
+	if !ok {
+		return
+	}
+	access, refresh, err := h.svc.RefreshTokenWithDeviceProofAndIntegrity(r.Context(), body.SessionID, body.RefreshToken, r.Method, proof, integrity)
 	if err != nil || access == "" || refresh == "" {
 		h.fail(w, r, err)
 		return
@@ -295,6 +306,26 @@ func (h *handler) proof(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return vals[0], true
 }
 
+// IntegrityTokenHeader carries an optional Play Integrity token (ADR-0031
+// D31.2). Its verdict must be bound to the same request's DPoP proof.
+const IntegrityTokenHeader = "Integrity-Token"
+
+// integrityToken returns the optional Integrity-Token header: absent is "",
+// which the service records as unverified. Repeated, empty or oversized is
+// refused here, before anything is spent. The token is never logged or
+// echoed.
+func (h *handler) integrityToken(w http.ResponseWriter, r *http.Request) (string, bool) {
+	vals := r.Header.Values(IntegrityTokenHeader)
+	switch {
+	case len(vals) == 0:
+		return "", true
+	case len(vals) != 1 || vals[0] == "" || len(vals[0]) > app.MaxIntegrityTokenBytes:
+		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_INTEGRITY_TOKEN")
+		return "", false
+	}
+	return vals[0], true
+}
+
 // ---------------------------------------------------------------------------
 // Responses
 // ---------------------------------------------------------------------------
@@ -309,6 +340,7 @@ var problems = map[string]struct{ title, detail string }{
 	"ERR_INVALID_INPUT":            {"Bad Request", "A field has an invalid value."},
 	"ERR_INVALID_MSISDN":           {"Bad Request", "The phone number must be in E.164 format."},
 	"ERR_INVALID_DPOP_PROOF":       {"Bad Request", "A valid DPoP proof for this request is required."},
+	"ERR_INVALID_INTEGRITY_TOKEN":  {"Bad Request", "The integrity token is not valid for this request."},
 	"ERR_INVALID_OTP":              {"Unauthorized", "The code is not valid for this request."},
 	"ERR_OTP_EXPIRED":              {"Unauthorized", "The code has expired. Request a new one."},
 	"ERR_INVALID_TOKEN":            {"Unauthorized", "The session cannot be refreshed. Sign in again."},
@@ -353,6 +385,8 @@ func (h *handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_MSISDN")
 	case errors.Is(err, app.ErrInvalidDeviceProof):
 		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_DPOP_PROOF")
+	case errors.Is(err, app.ErrPlayIntegrityFailed):
+		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_INTEGRITY_TOKEN")
 	case errors.Is(err, app.ErrExpiredOtp):
 		h.problem(w, r, http.StatusUnauthorized, "ERR_OTP_EXPIRED")
 	case errors.Is(err, app.ErrInvalidOtp):

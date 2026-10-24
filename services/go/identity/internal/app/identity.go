@@ -154,6 +154,12 @@ type UserSession struct {
 	// (ValidateOtpWithDeviceProof). Empty means not enrolled. Once set it never
 	// changes: the repository refuses a write that would replace it.
 	DeviceKeyThumbprint string `json:"deviceKeyThumbprint,omitempty"`
+	// IntegrityTier is the session's Play Integrity tier (ADR-0031 D31.4):
+	// certified, restricted or unverified. Repositories store the zero value
+	// as SessionUnverified, which is what it means: never assessed. It is
+	// RECORDED, NOT ENFORCED (D31.5): nothing reads it to authorise anything
+	// until the owner sets the restricted tier's permissions.
+	IntegrityTier SessionIntegrityTier `json:"integrityTier,omitempty"`
 }
 
 // refreshTokenDomain separates refresh-token hashes from everything else the
@@ -220,7 +226,20 @@ func CheckStorableSession(s *UserSession) error {
 	if s.RefreshToken != "" || !ValidRefreshTokenHash(s.RefreshTokenHash) {
 		return ErrRefreshTokenNotHashed
 	}
+	if !s.IntegrityTier.valid() {
+		return ErrInvalidIntegrityTier
+	}
 	return nil
+}
+
+// storedSession is the copy a repository stores: the zero integrity tier is
+// stored as SessionUnverified.
+func storedSession(s *UserSession) *UserSession {
+	cp := cloneSession(s)
+	if cp.IntegrityTier == "" {
+		cp.IntegrityTier = SessionUnverified
+	}
+	return cp
 }
 
 // equalHash compares two hashes in constant time.
@@ -686,7 +705,7 @@ func (m *MemoryIdentityRepository) SaveSession(ctx context.Context, session *Use
 	if replacesEnrolledKey(stored, session) {
 		return ErrDeviceKeyAlreadyEnrolled
 	}
-	cp := cloneSession(session)
+	cp := storedSession(session)
 	// REVOCATION IS ONE-WAY. A blind overwrite from a copy read before the
 	// revocation must not un-revoke the session; the PostgreSQL repository
 	// keeps the same rule (is_revoked = old OR new).
@@ -724,7 +743,7 @@ func (m *MemoryIdentityRepository) ReplaceSession(ctx context.Context, session *
 	if replacesEnrolledKey(stored, session) {
 		return ErrDeviceKeyAlreadyEnrolled
 	}
-	m.sessions[session.SessionID] = cloneSession(session)
+	m.sessions[session.SessionID] = storedSession(session)
 	return nil
 }
 
@@ -800,6 +819,15 @@ const (
 	// re-enrolment, which ADR-0010 §10 treats as the SIM-swap signal. It is
 	// emitted in addition to EventDeviceEnrolled, naming the new session.
 	EventDeviceReenrolled SecurityEventType = "identity.device.reenrolled"
+	// EventIntegrityRestricted records a Play Integrity verdict that failed a
+	// policy check at issuance or refresh: the session was downgraded to the
+	// restricted tier (ADR-0010 §5(b), ADR-0031 D31.3). It names the OTP
+	// request (enrolment) or the session (refresh).
+	EventIntegrityRestricted SecurityEventType = "identity.integrity.restricted"
+	// EventIntegrityRejected records an integrity token the verifier rejected
+	// (forged, malformed, another app) at issuance or refresh: the request was
+	// refused.
+	EventIntegrityRejected SecurityEventType = "identity.integrity.rejected"
 )
 
 // SecurityEvent is one identity security audit record, as required by
@@ -1222,7 +1250,7 @@ const maxOtpAttempts = 3
 // so it gets no token rather than a weaker one. The return value is kept so
 // existing callers compile; an empty string is not a credential.
 func (s *IdentityService) ValidateOtp(ctx context.Context, requestID, code string) (*UserSession, string, error) {
-	session, err := s.validateOtp(ctx, requestID, code, "")
+	session, err := s.validateOtp(ctx, requestID, code, "", nil)
 	if err != nil {
 		return nil, "", err
 	}
@@ -1249,6 +1277,17 @@ func (s *IdentityService) ValidateOtp(ctx context.Context, requestID, code strin
 // session is revoked and neither it nor a token is returned: the OTP and the
 // proof are both spent, so the client starts again with a new OTP.
 func (s *IdentityService) ValidateOtpWithDeviceProof(ctx context.Context, requestID, code, method, proof string) (*UserSession, string, error) {
+	return s.ValidateOtpWithDeviceProofAndIntegrity(ctx, requestID, code, method, proof, "")
+}
+
+// ValidateOtpWithDeviceProofAndIntegrity is ValidateOtpWithDeviceProof with a
+// Play Integrity token (ADR-0031), which may be empty. The token's verdict
+// must be bound to proof (IntegrityRequestHash). It is assessed after the code
+// and the proof are verified and before the session is created; the session
+// records the tier. A token the verifier rejects is ErrPlayIntegrityFailed
+// with no session; a missing token or an unavailable verifier is
+// SessionUnverified, and enrolment proceeds. The tier authorises nothing yet.
+func (s *IdentityService) ValidateOtpWithDeviceProofAndIntegrity(ctx context.Context, requestID, code, method, proof, integrityToken string) (*UserSession, string, error) {
 	if s.deviceProof == nil {
 		return nil, "", ErrEnrollmentUnavailable
 	}
@@ -1264,7 +1303,9 @@ func (s *IdentityService) ValidateOtpWithDeviceProof(ctx context.Context, reques
 		// error rather than as a rejected proof.
 		return nil, "", err
 	}
-	session, err := s.validateOtp(ctx, requestID, code, verified.JKT)
+	session, err := s.validateOtp(ctx, requestID, code, verified.JKT, func(ctx context.Context) (SessionIntegrityTier, error) {
+		return s.assessIntegrity(ctx, integrityToken, proof, verified.JKT, SecurityEvent{RequestID: requestID})
+	})
 	if err != nil {
 		return nil, "", err
 	}
@@ -1284,6 +1325,16 @@ func (s *IdentityService) ValidateOtpWithDeviceProof(ctx context.Context, reques
 	s.audit(SecurityEvent{Type: EventDeviceEnrolled, At: at, SessionID: session.SessionID})
 	s.auditReenrolment(ctx, session, at)
 	return session, token, nil
+}
+
+// acceptRefreshProof is step 5's tail: the verified proof's key must be the
+// session's enrolled key, and then, with a token, integrity is re-assessed
+// (ADR-0031 D31.4) onto session for the compare-and-swap to write.
+func (s *IdentityService) acceptRefreshProof(ctx context.Context, session *UserSession, verified *dpop.Verified, integrityToken, proof string) error {
+	if verified.JKT != session.DeviceKeyThumbprint {
+		return fmt.Errorf("%w: proof key is not the enrolled key", ErrInvalidDeviceProof)
+	}
+	return s.reassessIntegrity(ctx, session, integrityToken, proof, verified.JKT)
 }
 
 // issueBoundAccessToken signs an access token for the STORED session. Subject,
@@ -1352,7 +1403,7 @@ func (s *IdentityService) wrongCode(ctx context.Context, challenge *OtpChallenge
 	return ErrInvalidOtp
 }
 
-func (s *IdentityService) validateOtp(ctx context.Context, requestID, code, deviceKeyThumbprint string) (*UserSession, error) {
+func (s *IdentityService) validateOtp(ctx context.Context, requestID, code, deviceKeyThumbprint string, assess integrityAssessor) (*UserSession, error) {
 	challenge, err := s.repo.GetOtp(ctx, requestID)
 	if err != nil {
 		return nil, err
@@ -1474,6 +1525,19 @@ func (s *IdentityService) validateOtp(ctx context.Context, requestID, code, devi
 		return nil, err
 	}
 
+	// Play Integrity runs HERE (ADR-0031 D31.3): after the number and the key
+	// are proved, so Google quota is spent only on requests that got this far,
+	// and before the session exists, so a rejected token leaves none. The code
+	// is spent either way.
+	tier := SessionUnverified
+	if assess != nil {
+		assessed, aerr := assess(ctx)
+		if aerr != nil {
+			return nil, aerr
+		}
+		tier = assessed
+	}
+
 	// Same defect as RequestID above, on the identifier of an AUTHENTICATED
 	// session: two concurrent logins shared one SessionID.
 	sessionID := "sess_" + s.generateSecureToken()
@@ -1516,6 +1580,7 @@ func (s *IdentityService) validateOtp(ctx context.Context, requestID, code, devi
 		IsRevoked:        false,
 		// Only ever a thumbprint the proof verifier produced, or empty.
 		DeviceKeyThumbprint: deviceKeyThumbprint,
+		IntegrityTier:       tier,
 	}
 
 	if err := s.repo.SaveSession(ctx, session); err != nil {
@@ -1663,6 +1728,17 @@ func (s *IdentityService) RefreshToken(ctx context.Context, sessionID, oldRefres
 //     is ErrInvalidToken with no revocation, as in RefreshToken, and the
 //     signed token is discarded.
 func (s *IdentityService) RefreshTokenWithDeviceProof(ctx context.Context, sessionID, oldRefreshToken, method, proof string) (string, string, error) {
+	return s.RefreshTokenWithDeviceProofAndIntegrity(ctx, sessionID, oldRefreshToken, method, proof, "")
+}
+
+// RefreshTokenWithDeviceProofAndIntegrity is RefreshTokenWithDeviceProof with
+// an optional Play Integrity token (ADR-0031 D31.4). With a token, it is
+// assessed after the proof (step 5) and before signing; the new tier is
+// written by the same compare-and-swap that rotates the refresh token, so it
+// is recorded only if the refresh commits. A rejected token is
+// ErrPlayIntegrityFailed, and nothing rotates. Without a token the session
+// keeps its tier.
+func (s *IdentityService) RefreshTokenWithDeviceProofAndIntegrity(ctx context.Context, sessionID, oldRefreshToken, method, proof, integrityToken string) (string, string, error) {
 	if s.refreshProof == nil {
 		return "", "", ErrDeviceRefreshUnavailable
 	}
@@ -1700,8 +1776,8 @@ func (s *IdentityService) RefreshTokenWithDeviceProof(ctx context.Context, sessi
 		// The replay store could not answer: fail closed.
 		return "", "", err
 	}
-	if verified.JKT != session.DeviceKeyThumbprint {
-		return "", "", fmt.Errorf("%w: proof key is not the enrolled key", ErrInvalidDeviceProof)
+	if perr := s.acceptRefreshProof(ctx, session, verified, integrityToken, proof); perr != nil {
+		return "", "", perr
 	}
 
 	accessToken, err := s.issueBoundAccessToken(ctx, sessionID)

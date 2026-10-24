@@ -369,7 +369,8 @@ func sameSession(t *testing.T, got, want *app.UserSession) {
 	if got.SessionID != want.SessionID || got.SubscriberID != want.SubscriberID ||
 		got.RefreshTokenHash != want.RefreshTokenHash || got.DeviceID != want.DeviceID || !reflect.DeepEqual(got.Roles, want.Roles) ||
 		!got.CreatedAt.Equal(want.CreatedAt) || !got.ExpiresAt.Equal(want.ExpiresAt) ||
-		got.IsRevoked != want.IsRevoked || got.DeviceKeyThumbprint != want.DeviceKeyThumbprint {
+		got.IsRevoked != want.IsRevoked || got.DeviceKeyThumbprint != want.DeviceKeyThumbprint ||
+		storedTier(got.IntegrityTier) != storedTier(want.IntegrityTier) {
 		t.Errorf("session = %+v\n      want %+v", got, want)
 	}
 }
@@ -377,6 +378,7 @@ func sameSession(t *testing.T, got, want *app.UserSession) {
 func testSessionRoundTrip(t *testing.T, be backend) {
 	s := session("s1")
 	s.DeviceKeyThumbprint = "jkt_1"
+	s.IntegrityTier = app.SessionRestricted
 	if err := be.a.SaveSession(ctx, s); err != nil {
 		t.Fatal(err)
 	}

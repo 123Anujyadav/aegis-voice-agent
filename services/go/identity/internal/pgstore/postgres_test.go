@@ -308,8 +308,13 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 5 || chain[0].Version != 1 || chain[1].Version != 2 || chain[2].Version != 3 || chain[3].Version != 4 || chain[4].Version != 5 {
-		t.Fatalf("chain has %d steps", len(chain))
+	if len(chain) != 6 {
+		t.Fatalf("chain has %d steps, want 6", len(chain))
+	}
+	for i, step := range chain {
+		if step.Version != i+1 {
+			t.Fatalf("step %d is version %d: the chain is not contiguous", i, step.Version)
+		}
 	}
 
 	// 0004 renames to pseudonyms, refuses populated OTP/rate tables, adds the
