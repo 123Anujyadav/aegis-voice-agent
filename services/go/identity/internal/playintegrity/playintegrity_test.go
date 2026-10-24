@@ -223,3 +223,25 @@ func TestNew_RefusesUnsafeConfiguration(t *testing.T) {
 		t.Fatalf("default endpoint: (%v, %v)", d, err)
 	}
 }
+
+// A redirect is never followed: the tokens go nowhere but the configured
+// endpoint, and a 3xx is unavailability.
+func TestDecode_RedirectsAreNeverFollowed(t *testing.T) {
+	elsewhere := &fakeAPI{status: 200, body: payload("h", time.Now())}
+	other := httptest.NewServer(elsewhere)
+	t.Cleanup(other.Close)
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(redirect.Close)
+	d, err := New(Config{PackageName: pkg, Tokens: &staticTokens{tok: accessSecret}, Endpoint: redirect.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Decode(context.Background(), tokenSecret); err == nil || errors.Is(err, app.ErrIntegrityTokenInvalid) {
+		t.Fatalf("err = %v, want unavailable", err)
+	}
+	if elsewhere.calls.Load() != 0 {
+		t.Fatal("the redirect was followed: the tokens reached another server")
+	}
+}

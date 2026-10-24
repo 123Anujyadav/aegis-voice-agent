@@ -74,7 +74,8 @@ type Config struct {
 	// Endpoint is the API base URL; empty is DefaultEndpoint. It must be
 	// https, except a loopback http URL, which only tests use.
 	Endpoint string
-	// HTTPClient is the client used; nil is a client with DefaultTimeout.
+	// HTTPClient is the client used; nil is a client with DefaultTimeout that
+	// never follows redirects. A supplied client must not follow them either.
 	HTTPClient *http.Client
 	// MaxResponseBytes bounds the response read; zero is
 	// DefaultMaxResponseBytes.
@@ -118,7 +119,13 @@ func New(cfg Config) (*Decoder, error) {
 	}
 	client := cfg.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: DefaultTimeout}
+		// Redirects are never followed: the API does not redirect, and a
+		// redirect must not carry the access token or the integrity token
+		// anywhere else. A 3xx is answered as unavailability.
+		client = &http.Client{
+			Timeout:       DefaultTimeout,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		}
 	}
 	maxBytes := cfg.MaxResponseBytes
 	if maxBytes == 0 {
