@@ -1,5 +1,6 @@
 package com.callscreen.app.di
 
+import com.callscreen.core.network.identity.IntegrityTokens
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
@@ -19,6 +20,18 @@ internal object EndpointConfig {
             return null
         }
         return url.toString().trimEnd('/')
+    }
+
+    /**
+     * The integrity tokens for a configured project, or none. With no valid
+     * project number, every request carries no Integrity-Token and identity
+     * records the session as unverified. [create] is never called then, so no
+     * Play Integrity work happens at all.
+     */
+    fun integrityTokens(rawProjectNumber: String, create: (Long) -> (String) -> String?): IntegrityTokens {
+        val project = cloudProjectNumber(rawProjectNumber) ?: return IntegrityTokens { null }
+        val tokenFor = create(project)
+        return IntegrityTokens { proof -> tokenFor(proof) }
     }
 
     /** [raw] as a Google Cloud project number (a positive decimal identifier), or null. */

@@ -98,11 +98,11 @@ internal object IdentityModule {
      * session as unverified. A missing or failed token is never treated as a
      * verified device.
      */
-    private fun integrityTokens(context: Context): IntegrityTokens {
-        val project = EndpointConfig.cloudProjectNumber(BuildConfig.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER) ?: return IntegrityTokens { null }
-        val tokens = PlayIntegrityTokens(GooglePlayIntegritySource(context, project))
-        return IntegrityTokens { proof -> tokens.tokenFor(proof) }
-    }
+    private fun integrityTokens(context: Context): IntegrityTokens =
+        EndpointConfig.integrityTokens(BuildConfig.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER) { project ->
+            val tokens = PlayIntegrityTokens(GooglePlayIntegritySource(context, project))
+            tokens::tokenFor
+        }
 
     /** Sign-in in a build with no identity server: nothing is ever sent. */
     private object NotConfigured : PhoneVerificationService {

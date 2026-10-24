@@ -30,6 +30,25 @@ class EndpointConfigTest {
     }
 
     @Test
+    @DisplayName("with no valid project number no integrity work happens and no token is ever sent")
+    fun integrityTokensOnlyWithAProject() {
+        var created = 0
+        for (bad in listOf("", "0", "abc")) {
+            val tokens = EndpointConfig.integrityTokens(bad) { created++; { "token" } }
+            assertNull(tokens.tokenFor("proof"), bad)
+        }
+        assertEquals(0, created, "Play Integrity was set up without a project")
+
+        var boundTo: String? = null
+        val tokens = EndpointConfig.integrityTokens("123456789012") { project ->
+            assertEquals(123456789012L, project)
+            { proof -> boundTo = proof; null } // a failed acquisition: still no token
+        }
+        assertNull(tokens.tokenFor("the-proof"))
+        assertEquals("the-proof", boundTo, "the token must be requested for the proof it accompanies")
+    }
+
+    @Test
     @DisplayName("a Cloud project number must be a positive decimal; anything else means no integrity tokens")
     fun cloudProjectNumber() {
         assertEquals(123456789012L, EndpointConfig.cloudProjectNumber("123456789012"))
