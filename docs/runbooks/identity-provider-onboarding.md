@@ -69,6 +69,18 @@ real handset on each provider, including the failover path.
 - `identity_play_integrity_outcomes_total{outcome}` and
   `identity_play_integrity_restrictions_total{reason}`, via
   `metrics.Instrument`.
+- **Issuance wiring (ADR-0031):** the `Integrity-Token` header at enrolment
+  and refresh, the verdict bound to the request's DPoP proof, and the tier
+  recorded on the session. The tier is not enforced.
+- **The Google adapter, `internal/playintegrity`:** a `Decoder` that calls
+  `POST {endpoint}/v1/{package}:decodeIntegrityToken` and maps
+  `tokenPayloadExternal` into a verdict.
+  - Only HTTP 400 is a rejected token. Our own 401/403, 429, 5xx, timeouts
+    and malformed or oversized responses count as unavailable.
+  - It never puts a token or response text in an error.
+  - It is tested against a local fake only. **It has never called Google,
+    and identity is not configured with it.** The OAuth access token comes
+    from an injected `TokenSource`, which this repository does not implement.
 
 **What a live verifier needs:**
 1. **Accounts:** the Android app published in Play Console, and **linked to a
@@ -80,23 +92,23 @@ real handset on each provider, including the failover path.
      SRE's.
 3. **Egress** from identity to Google's API: a network-policy change.
 4. **The client:**
-   - requests a *standard* integrity token;
-   - binds it to a server-chosen request hash, which identity must issue and
-     check;
-   - sends it at enrolment and refresh.
+   - requests a *standard* integrity token with
+     `requestHash = base64url(SHA-256(DPoP proof))` (ADR-0031 D31.1);
+   - sends it in `Integrity-Token` at enrolment, and at refresh at most once
+     every 6 hours (quota).
+5. **Quota:** Google's default is 10,000 requests per day. Request an
+   increase before launch.
+6. **The product decision:** what a **restricted** or **unverified** session
+   may do (ADR-0031 D31.5). Until it is made, the tier is recorded and
+   audited, never enforced.
 
-   The protocol for that hash is not yet designed.
-5. **The product decision:** what a **restricted** session may do (ADR-0010:
-   a failed verdict downgrades rather than rejects). Until it is made, the
-   verifier must not be wired into issuance.
-
-**The code change:**
-- **Implement `IntegrityVerifier.Decode`** against `decodeIntegrityToken`:
-  - return `ErrIntegrityTokenInvalid` for a token Google rejects;
-  - return any other error for an outage;
-  - honour `ctx`.
-- **Configure** with `SetIntegrityVerifier(v, policy)`. The policy's package name
-  and certificate digests come from the release signing configuration.
+**The remaining code change:**
+- **A `TokenSource`** for the chosen credential (workload identity, or a
+  service-account key from a Secret), with the Play Integrity OAuth scope.
+  Confirm the scope against Google's documentation.
+- **Configuration and wiring:** `playintegrity.New(...)` plus
+  `SetIntegrityVerifier(decoder, policy)` in bootstrap. The policy's package
+  name and certificate digests come from the release signing configuration.
 
 **Before claiming verification works:** an integration test against Google with
 a real device token, both certified and restricted.
