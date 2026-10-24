@@ -131,6 +131,19 @@ class PhoneVerificationViewModelTest {
     }
 
     @Test
+    @DisplayName("verification is handed off once: after it is handled, it is never re-signalled")
+    fun verifiedOnce() = runTest(dispatcher) {
+        val vm = atCodeStep(FakeService())
+        vm.onCodeChange("123456")
+        vm.submitCode()
+        advanceUntilIdle()
+        assertEquals(VerificationStep.VERIFIED, vm.state.value.step)
+        assertFalse(vm.state.value.verifiedHandled)
+        vm.onVerifiedHandled()
+        assertTrue(vm.state.value.verifiedHandled, "a recreated screen would navigate again")
+    }
+
+    @Test
     @DisplayName("an incomplete code is not sent")
     fun incompleteCode() = runTest(dispatcher) {
         val service = FakeService()

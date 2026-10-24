@@ -38,8 +38,11 @@ public fun PhoneVerificationRoute(
     viewModel: PhoneVerificationViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(state.step) {
-        if (state.step == VerificationStep.VERIFIED) onVerified()
+    LaunchedEffect(state.step, state.verifiedHandled) {
+        if (state.step == VerificationStep.VERIFIED && !state.verifiedHandled) {
+            viewModel.onVerifiedHandled()
+            onVerified()
+        }
     }
     PhoneVerificationScreen(
         state = state,

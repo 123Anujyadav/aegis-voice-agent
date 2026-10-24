@@ -51,6 +51,8 @@ public data class PhoneVerificationState(
     val message: VerificationMessage? = null,
     /** Seconds to wait before retrying, when the server said so. */
     val retryAfterSeconds: Long? = null,
+    /** True once the screen has navigated on after VERIFIED, so it never navigates twice. */
+    val verifiedHandled: Boolean = false,
 ) {
     /** The code is never shown in logs or diagnostics. */
     override fun toString(): String =
@@ -102,6 +104,15 @@ public class PhoneVerificationViewModel @Inject constructor(
         val current = mutable.value
         if (current.submitting || !service.isConfigured) return
         normalised(current.number)?.let(::send)
+    }
+
+    /**
+     * Records that the screen navigated on after [VerificationStep.VERIFIED].
+     * The ViewModel outlives a rotation or a return to this destination, and
+     * this keeps either from navigating a second time.
+     */
+    public fun onVerifiedHandled() {
+        mutable.update { it.copy(verifiedHandled = true) }
     }
 
     /** Goes back to change the number. */
