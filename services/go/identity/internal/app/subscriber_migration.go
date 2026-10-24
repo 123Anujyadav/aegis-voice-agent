@@ -291,3 +291,46 @@ func (d *MemorySubscriberDirectory) Rekey(_ context.Context, oldPseudonym, newPs
 	d.byKey[newPseudonym] = m
 	return nil
 }
+
+// ResolveWithKeyring resolves a verified number given its pseudonym under every
+// subscriber key still in the lookup ring, the active key first. This is the
+// migration plan's §5 rule, which D30.3 does not state:
+//   - a mapping found under the active pseudonym is returned;
+//   - a mapping found under an older key is moved to the active pseudonym
+//     (Rekey), and its id is returned unchanged;
+//   - only when no key finds a mapping is one created, under the active
+//     pseudonym.
+//
+// This is what keeps a dormant subscriber's id, and keeps them able to enrol,
+// across key rotations. It is also why a subscriber key may leave the ring
+// only once no row still uses it (TestMigration_DroppingAnOldSubscriberKeyStrandsRows).
+func (d *MemorySubscriberDirectory) ResolveWithKeyring(ctx context.Context, ring []string, legacyID string) (string, bool, error) {
+	if len(ring) == 0 {
+		return "", false, ErrInvalidToken
+	}
+	seen := make(map[string]struct{}, len(ring))
+	for _, p := range ring {
+		if !isLowerHex64(p) {
+			return "", false, ErrInvalidToken
+		}
+		if _, dup := seen[p]; dup {
+			return "", false, ErrInvalidToken
+		}
+		seen[p] = struct{}{}
+	}
+	active := ring[0]
+	if id, ok := d.Lookup(ctx, active); ok {
+		return id, false, nil
+	}
+	for _, older := range ring[1:] {
+		id, ok := d.Lookup(ctx, older)
+		if !ok {
+			continue
+		}
+		if err := d.Rekey(ctx, older, active); err != nil {
+			return "", false, err
+		}
+		return id, false, nil
+	}
+	return d.Resolve(ctx, active, legacyID)
+}
