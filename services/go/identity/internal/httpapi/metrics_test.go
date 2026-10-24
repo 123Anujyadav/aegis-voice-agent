@@ -283,3 +283,47 @@ func TestMetrics_OtpDeliveriesAreCountedByProvider(t *testing.T) {
 	var none *Metrics
 	none.ObserveOtpDelivery("primary-sms", otpdelivery.OutcomeDelivered)
 }
+
+// refusingAuditor is a durable audit log that is down.
+type refusingAuditor struct{}
+
+func (refusingAuditor) Record(app.SecurityEvent) error { return errors.New("audit store down") }
+
+// Through the API: when the durable audit log refuses an event, Instrument
+// makes the loss visible as identity_security_audit_failures_total under the
+// event's type, while the event is still counted as a security event and the
+// response is unchanged.
+func TestMetrics_AuditFailuresAreCountedByType(t *testing.T) {
+	r := newRig(t, true)
+	r.svc.AddSecurityAuditor(refusingAuditor{}) // as bootstrap.Open installs the durable log
+	r.m.Instrument(r.svc)
+	k := deviceKey(t)
+	sid, rt := r.enrol(t, k)
+	if got := r.post(t, routes.Refresh, refreshBody(sid, rt), proof(t, k, k, "s1", "POST", refreshURL, time.Now())); got.code != 200 {
+		t.Fatalf("refresh: %d %s", got.code, got.raw)
+	}
+	if got := r.post(t, routes.Refresh, refreshBody(sid, rt), proof(t, k, k, "s2", "POST", refreshURL, time.Now())); got.code != 401 {
+		t.Fatalf("reuse with the audit log down: %d %s", got.code, got.raw)
+	}
+	reuse := string(app.EventRefreshTokenReused)
+	if got := r.m.auditFails.Value(reuse); got != 1 {
+		t.Fatalf("audit failures for %s = %d, want 1", reuse, got)
+	}
+	if got := r.m.auditFails.Value(string(app.EventDeviceEnrolled)); got != 1 {
+		t.Fatalf("audit failures for the enrolment = %d, want 1", got)
+	}
+	if got := r.m.security.Value(reuse); got != 1 {
+		t.Fatalf("reuse events = %d, want 1", got)
+	}
+	if want := uint64(2); r.svc.AuditFailures() != want {
+		t.Fatalf("service audit failures = %d, want %d", r.svc.AuditFailures(), want)
+	}
+
+	m := NewMetrics()
+	m.ObserveAuditFailure("identity.something.new")
+	if m.auditFails.Value(SecurityEventOther) != 1 {
+		t.Fatal("an unknown type was not counted as other")
+	}
+	var none *Metrics
+	none.ObserveAuditFailure(app.EventOtpLockout)
+}
