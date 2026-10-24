@@ -35,11 +35,11 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     // (Phase 1 §14). The local default of 1 exists so that a
                     // developer build works without CI environment variables; it
                     // is never what ships, because the release workflow always
-                    // provides the real value.
-                    versionCode = providers.environmentVariable("CS_VERSION_CODE")
-                        .orNull?.toIntOrNull() ?: 1
-                    versionName = providers.environmentVariable("CS_VERSION_NAME")
-                        .orNull ?: "0.1.0-dev"
+                    // provides the real value. A value that is set but invalid
+                    // fails the build rather than falling back to the default
+                    // (ReleaseVersion).
+                    versionCode = ReleaseVersion.code(providers.environmentVariable("CS_VERSION_CODE").orNull)
+                    versionName = ReleaseVersion.name(providers.environmentVariable("CS_VERSION_NAME").orNull)
 
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
                 }
