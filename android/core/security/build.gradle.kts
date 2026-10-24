@@ -19,4 +19,7 @@ android {
 }
 
 dependencies {
+    // Standard Play Integrity requests (ADR-0031). Resolved from Google's Maven
+    // repository, which the settings content filter admits for com.google.*.
+    implementation(libs.play.integrity)
 }
