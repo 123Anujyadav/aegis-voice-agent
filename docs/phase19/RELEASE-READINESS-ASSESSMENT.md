@@ -127,18 +127,24 @@ The decision is the owner's.
 
 ## 7. Remaining blockers by kind
 
-Re-verified against the repository on 2026-10-24.
+Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 
 | Blocker | Kind | Repository evidence |
 |---|---|---|
 | Release workflow (`bundleRelease`, upload-key signing) | **Code, ready to implement once an upload key exists** | No `release*` workflow in `.github/workflows/`. The design is §6. |
 | Identity and edge-api hosts | **External setup (owner)** | `callscreen.identityBaseUrl` and `callscreen.edgeApiBaseUrl` default to empty (`android/app/build.gradle.kts`). These are public configuration, not secrets. |
-| Play Integrity: Cloud project link and the server verifier credential | **External setup**, then **code** | `callscreen.playIntegrityCloudProjectNumber` is unset (public). identity's `internal/playintegrity` is not referenced outside its package, so the verifier is **unwired**. Its credential would be a secret. |
+| Server-side Play Integrity verifier: integration into identity | **Owner decision**, then **external setup**, then **code** | The adapter `services/go/identity/internal/playintegrity/playintegrity.go` exists; its tests run only against a local fake of `decodeIntegrityToken` (`playintegrity_test.go`), and it has **never called Google**. It is **not wired** into identity's authentication flow: nothing outside the package imports it, and `SetIntegrityVerifier` (`internal/app/integrity.go`) is never called, so every session is recorded `unverified`. Wiring a real verifier would switch on ADR-0031 D31.3, which refuses a token Google rejects with 400 `ERR_INVALID_INTEGRITY_TOKEN`. ADR-0031 is **Proposed, owner ratification pending**, and the verdict thresholds (`IntegrityPolicy`) are security policy, so both are the owner's. Then external setup: the Google Cloud project linked in Play Console, and a credential for the verifier. The mechanism (workload identity federation or a service-account key) is undecided, and the credential would be a secret. |
+| Play Integrity on the client: Cloud project number | **External setup (owner)** | `callscreen.playIntegrityCloudProjectNumber` (public) is unset, so the app requests no integrity token (#146). |
 | OTP provider and India DLT | **External setup (owner)**, then **code** | `services/go/identity/internal/otpdelivery/otpdelivery.go`: "No SMS provider is implemented in this repository." |
 | FCM | **External setup**, then **code** | No Firebase SDK in any `go.mod` or Android build file. `notification-fanout` is a Phase 2 shell (`cmd/server/main.go`). |
 | Play Console account, upload key, privacy policy, Data safety form | **External setup (owner)** | Not represented in the repository. |
 | Real-device Play Integrity, sign-in and calling | **Device and release-environment validation** | Never run on a device. It needs a Play-installed build and live hosts. |
 | ADR-0029, ADR-0030 D30.3 (with amendments), ADR-0031; session permissions; SIM-swap policy and device-history retention; OTP backoff and session lifetime; the frontend stack | **Owner decision** | §3, §4 |
 | Cryptographic review; privacy (DPDP) review | **Independent review** | §3 |
-| `ReleaseVersionTest` has no test accepting an exactly-64-character `CS_VERSION_NAME` | **Code (test)** | The limit is enforced in `ReleaseVersion.name`; only 65 characters (rejected) is tested. |
-| Stale `android.suppressUnsupportedCompileSdk=35` in `android/gradle.properties` | **Code (cleanup)** | AGP 8.9.1 supports `compileSdk` 36, so the property no longer suppresses anything. It is harmless. |
+
+**Resolved since this table was first written:**
+
+| Former blocker | Resolution | Evidence |
+|---|---|---|
+| No test accepted an exactly-64-character `CS_VERSION_NAME` | **Resolved** by #150 (squash `ee08c0a`, head `feb45d9`) | `nameLengthBoundsAreInclusive()` accepts names of exactly 1 and 64 characters, and the 0- and 65-character rejections are unchanged. The `pr-android` job 120907314040 log lists `ReleaseVersionTest > nameLengthBoundsAreInclusive() PASSED`. Post-merge `main` `ee08c0a`: 9/9 green. |
+| Stale `android.suppressUnsupportedCompileSdk=35` in `android/gradle.properties` | **Resolved** by #151 (squash `0208a88`, head `e4f2c49`) | The block is removed, and nothing else references the property. The `pr-android` job 120915500024 log has no compileSdk warning, and `:app:minifyStagingWithR8` ran. |
