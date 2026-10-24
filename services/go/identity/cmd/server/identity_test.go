@@ -384,11 +384,20 @@ func TestRunMigrate_Postgres(t *testing.T) {
 	if err := runMigrate(context.Background(), &out); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if !strings.Contains(out.String(), "applied: 0001_identity_security_state.sql") ||
-		!strings.Contains(out.String(), "applied: 0002_refresh_token_hash.sql") ||
-		!strings.Contains(out.String(), "applied: 0003_housekeeping_indexes.sql") ||
-		!strings.Contains(out.String(), "applied: 0004_msisdn_pseudonyms.sql") || !strings.Contains(out.String(), "applied: 0005_security_audit.sql") || !strings.Contains(out.String(), "version 5") {
-		t.Errorf("output = %q", out.String())
+	// Every embedded migration is reported applied, and the schema reaches
+	// the newest: derived from the chain, so the next migration cannot make
+	// this stale.
+	chain, err := pgstore.Migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range chain {
+		if !strings.Contains(out.String(), "applied: "+m.Name) {
+			t.Errorf("%s not reported applied", m.Name)
+		}
+	}
+	if want := fmt.Sprintf("identity schema at version %d", chain[len(chain)-1].Version); !strings.Contains(out.String(), want) {
+		t.Errorf("output = %q, want %q", out.String(), want)
 	}
 	out.Reset()
 	if err := runMigrate(context.Background(), &out); err != nil || !strings.Contains(out.String(), "already applied: 0001") {
