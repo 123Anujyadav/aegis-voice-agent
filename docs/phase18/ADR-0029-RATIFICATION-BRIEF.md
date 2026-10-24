@@ -10,6 +10,16 @@ which Claude made under the owner's standing delegation on 2026-10-23.
 - Its decisions bind the implementation until the owner amends or rejects them.
   They are **not** an owner-accepted ADR, and this brief does not make them one.
 
+**Read with:** the per-deviation analysis in
+[../phase19/ADR-0029-DEVIATION-ANALYSIS.md](../phase19/ADR-0029-DEVIATION-ANALYSIS.md).
+It covers the threat model, RFCs, tests, operations and rollback for each of
+the four deviations. It also records two findings that are not in this brief:
+- the `at+jwt` access token has no RFC 9068 `client_id` (§5 there);
+- edge-api's availability depends on PostgreSQL (§3 there).
+
+Neither finding is a defect today. **No external review has been done;**
+passing tests are not proof that the design is secure.
+
 **What ratification does NOT do:** it does not authorise a production
 deployment, key or secret provisioning, infrastructure or network changes, or
 spending. Those stay gated as before.
@@ -82,7 +92,12 @@ about subscriber availability, so it is the owner's.
 - `identity_security_events_total{type}` (#113, merged): wrong codes,
   lockouts, and **refresh-token reuse detections**, which ADR-0010 calls the
   exfiltration alarm. Reuse was previously recorded nowhere.
-- All three are counters under a closed label vocabulary. No identifier is a
+- `identity_security_audit_failures_total{type}`: audit events that were
+  **not** recorded, because the durable audit log refused them or the
+  re-enrolment lookup failed. **Any non-zero rate means audit records are
+  being lost, and it should page.** Before this counter, the loss was visible
+  only inside the process.
+- All are counters under a closed label vocabulary. No identifier is a
   label, and all are served only on the health port.
 
 ## 5. Options
@@ -93,7 +108,9 @@ about subscriber availability, so it is the owner's.
    - restore the 90-day session lifetime;
    - require server nonces for DPoP;
    - add a JWKS alongside the mounted key set;
-   - narrow DPoP to ADR-0010 §5(c)'s original scope.
+   - narrow DPoP to ADR-0010 §5(c)'s original scope;
+   - record the token profile as "RFC 9068-derived", or add `client_id`
+     through the two-step rollout (deviation analysis §5).
 
    Each is a focused follow-up, and none is needed for correctness.
 3. **Reject a specific decision.** Name it. The implementation then follows the
