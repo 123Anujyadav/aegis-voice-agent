@@ -265,8 +265,8 @@ func TestPostgres_PruneIsBoundedAndSafe(t *testing.T) {
 func TestPostgres_Migrations(t *testing.T) {
 	env := requirePostgres(t)
 	res, err := Migrate(ctx, env.poolB)
-	if err != nil || len(res.Applied) != 0 || res.Version != 5 || len(res.AlreadyApplied) != 5 {
-		t.Fatalf("re-run: (%+v, %v), want nothing applied at v5", res, err)
+	if latest := latestVersion(t); err != nil || len(res.Applied) != 0 || res.Version != latest || len(res.AlreadyApplied) != latest {
+		t.Fatalf("re-run: (%+v, %v), want nothing applied at v%d", res, err, latest)
 	}
 
 	fresh := requirePostgres(t) // already migrated once; drop and race instead
