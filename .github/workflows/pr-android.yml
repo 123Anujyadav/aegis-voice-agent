@@ -1,0 +1,68 @@
+# =============================================================================
+# Android build and unit tests.
+#
+# Nothing built or tested the Android app on a pull request: only the Gradle
+# wrapper was verified (pr-android-wrapper.yml). The app has not changed since
+# the repository was initialised, so this workflow is the evidence the next
+# Android milestone (the client's auth and network layers) needs before any of
+# it is written.
+#
+# What it runs: the debug build of every module and the JVM unit tests. Release
+# builds need signing material that only the release workflow has, and
+# instrumented tests need a device; neither runs here.
+#
+# Toolchain: the JDK and the Android SDK preinstalled on the runner image. No
+# setup action is used, so no third-party action runs with the checkout.
+# Gradle executes the committed wrapper, whose jar and distribution
+# pr-android-wrapper.yml verifies against Gradle's published checksums whenever
+# they change.
+# =============================================================================
+name: pr-android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "design/tokens/**"
+      - ".github/workflows/pr-android.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - "design/tokens/**"
+      - ".github/workflows/pr-android.yml"
+  merge_group:
+
+concurrency:
+  group: pr-android-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Android debug build and unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use the runner's JDK 17 and Android SDK
+        run: |
+          test -n "${JAVA_HOME_17_X64:-}" || { echo "::error::JDK 17 is not preinstalled on this image"; exit 1; }
+          test -d "${ANDROID_HOME:-}" || { echo "::error::the Android SDK is not preinstalled on this image"; exit 1; }
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+
+      - name: Build every module (debug)
+        working-directory: android
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: JVM unit tests (debug)
+        working-directory: android
+        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
