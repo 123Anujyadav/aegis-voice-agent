@@ -152,7 +152,7 @@ func (m *Metrics) ObserveAuditFailure(t app.SecurityEventType) {
 func securityEventLabel(t app.SecurityEventType) string {
 	switch t {
 	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused, app.EventDeviceEnrolled,
-		app.EventDeviceReenrolled:
+		app.EventDeviceReenrolled, app.EventIntegrityRestricted, app.EventIntegrityRejected:
 		return string(t)
 	default:
 		return SecurityEventOther
