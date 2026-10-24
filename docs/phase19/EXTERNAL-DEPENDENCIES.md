@@ -1,6 +1,6 @@
 # External dependencies and owner decisions: tracker
 
-- **As of:** 2026-10-24, `main` at `c6cecf9`.
+- **As of:** 2026-10-25, `main` at `e89ae2d`.
 - **Credentials and costs, per service:** [CREDENTIALS-AND-ACCOUNTS.md](CREDENTIALS-AND-ACCOUNTS.md).
 - **What it lists:** everything authentication and identity work is waiting
   on that the repository cannot supply itself. None of it blocks the other
@@ -14,7 +14,7 @@
 
 | # | Dependency | Owner | Blocks | What exists today | Next step for the owner or SRE |
 |---|---|---|---|---|---|
-| E1 | **Google Play Integrity:** a Google Cloud project, credentials, and egress to Google | Owner | ADR-0010 §5(b): integrity at issuance and refresh; the restricted tier | A fail-closed verifier port, an offline-tested verdict policy, a decode timeout and outcome metrics (#108, #118). **Wired into issuance since #131** ([ADR-0031](../adr/0031-play-integrity-at-issuance.md)): the verdict is bound to the DPoP proof, sent in an `Integrity-Token` header, and the tier recorded but not enforced. No Google verifier is configured, so every session is `unverified`. Nothing produces a real verdict without E1. | Create the project and link the Play Console. Provision credentials as a Kubernetes Secret (never in the repository). Decide the restricted tier. |
+| E1 | **Google Play Integrity:** a Google Cloud project, credentials, and egress to Google | Owner | ADR-0010 §5(b): integrity at issuance and refresh; the restricted tier | A fail-closed verifier port, an offline-tested verdict policy, a decode timeout and outcome metrics (#108, #118). **Wired into issuance since #131** ([ADR-0031](../adr/0031-play-integrity-at-issuance.md)): the verdict is bound to the DPoP proof, sent in an `Integrity-Token` header, and the tier recorded but not enforced. The Google adapter exists but is unwired (#134; nothing calls `SetIntegrityVerifier`). On Android, the client requests standard tokens (#143), but only when `callscreen.playIntegrityCloudProjectNumber` is set (#146), and it is unset. No Google verifier is configured, so every session is `unverified`. Nothing produces a real verdict without E1. | Create the project and link the Play Console. Provision credentials as a Kubernetes Secret (never in the repository). Decide the restricted tier. |
 | E2 | **OTP delivery provider, plus India DLT** (entity, sender header, templates) and a secondary provider | Owner | Any real enrolment | A failover sender, health checks and delivery metrics (#109, #118); `docs/runbooks/identity-provider-onboarding.md` | Choose the providers, register with DLT, then provision credentials as a Secret |
 | E3 | **Signing-key operations:** generating Ed25519 keys and holding them in Kubernetes Secrets for identity (private) and edge-api (public set) | SRE | Production issuance | The key-set verifier, rotation tests, fingerprint commands (#119) and the runbook (#107, #114) | Generate and provision keys in staging. **Run the rotation runbook once in staging** (ADR-0029 analysis §2). |
 | E4 | **Database:** `verify-full` CA bundle, multi-AZ, point-in-time recovery | SRE | Running edge-api and identity outside development; ADR-0030 stage 2 → 3 | TLS policy enforced and tested (#99, #104) | Provide the CA bundle and DSNs. Confirm PITR before D30.3 stage 3 (migration plan §4). Alert on the edge-api 503 rate (ADR-0029 analysis §3). |
@@ -41,9 +41,10 @@
 
 | When this lands | Work that becomes possible |
 |---|---|
-| E1 | A Google `IntegrityVerifier` (`decodeIntegrityToken`) behind the existing port. With ADR-0031 implemented, this is the only missing piece for real verdicts. |
+| E1 | Wiring the **existing** Google adapter (`internal/playintegrity`, #134: `decodeIntegrityToken`, tested only against a local fake) into identity through `SetIntegrityVerifier`, which nothing calls yet. With ADR-0031 implemented, this is the only missing piece for real verdicts. It also needs O7 (ratification, including D31.3's refusal of tokens Google rejects) and the verdict thresholds, and a choice of how identity authenticates to Google (workload identity federation or a service-account key). |
 | O2 | The `pgstore` subscriber directory, real-PostgreSQL tests, and wiring at stage 0 → 1 (migration plan §7) |
 | O6 / E9 | The device-history table, and re-enrolment detection that survives housekeeping |
 | E6 | The design for per-source rate limiting |
-| D30.2 keyrings | Per-session issued-hash history for refresh reuse (refresh analysis §3) |
 | O1 (if `client_id` is chosen) | The two-step `client_id` rollout (ADR-0029 analysis §5) |
+
+**No longer waiting:** per-session issued-hash history for refresh reuse was listed here behind D30.2. It is **implemented**: migration `0007_superseded_refresh_tokens`, refresh analysis §3. It did not need D30.2, because a history row never outlives its 24-hour session. It is tested in `services/go/identity/internal/app/refresh_reuse_test.go`, including `TestRefreshReuse_ATokenNeverHeldRevokesNothing`.
