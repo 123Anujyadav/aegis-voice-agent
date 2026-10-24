@@ -24,6 +24,17 @@ var testRefreshKey = []byte("test_secret_key")
 // rth is the stored form of raw under the tests' key.
 func rth(raw string) string { return HashRefreshToken(testRefreshKey, raw) }
 
+// markSuperseded records raw as a refresh token sessionID once held and has
+// rotated away from, as a real rotation would: presenting it again is reuse.
+func markSuperseded(m *MemoryIdentityRepository, sessionID, raw string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.superseded[sessionID] == nil {
+		m.superseded[sessionID] = map[string]struct{}{}
+	}
+	m.superseded[sessionID][rth(raw)] = struct{}{}
+}
+
 func TestHashRefreshToken_IsKeyedCanonicalAndDomainSeparated(t *testing.T) {
 	const raw = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
 	h := HashRefreshToken(testRefreshKey, raw)
@@ -200,28 +211,31 @@ func TestRefreshHash_OnlyTheCurrentRawTokenRefreshes(t *testing.T) {
 		return svc, m, sess
 	}
 
-	t.Run("a wrong token", func(t *testing.T) {
-		svc, m, sess := newSvc(t)
-		if _, _, err := svc.RefreshToken(ctx, sess.SessionID, "not-the-token"); !errors.Is(err, ErrTokenReused) {
-			t.Fatalf("err = %v, want ErrTokenReused", err)
-		}
-		if s, _ := m.GetSession(ctx, sess.SessionID); !s.IsRevoked {
-			t.Error("not revoked")
-		}
-	})
-	t.Run("the stored hash, as read from a leaked database", func(t *testing.T) {
-		svc, m, sess := newSvc(t)
+	// A token the session never held is refused and revokes NOTHING: revoking
+	// on any mismatch let anyone who knew a session id revoke it with any
+	// string. The current token still refreshes afterwards.
+	notHeld := func(t *testing.T, name string, token func(svc *IdentityService, m *MemoryIdentityRepository, sess *UserSession) string) {
+		t.Run(name, func(t *testing.T) {
+			svc, m, sess := newSvc(t)
+			if _, _, err := svc.RefreshToken(ctx, sess.SessionID, token(svc, m, sess)); !errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrTokenReused) {
+				t.Fatalf("err = %v, want ErrInvalidToken and no reuse", err)
+			}
+			if s, _ := m.GetSession(ctx, sess.SessionID); s.IsRevoked {
+				t.Fatal("a token the session never held revoked it")
+			}
+			if _, _, err := svc.RefreshToken(ctx, sess.SessionID, sess.RefreshToken); err != nil {
+				t.Fatalf("the current token no longer refreshes: %v", err)
+			}
+		})
+	}
+	notHeld(t, "a wrong token", func(*IdentityService, *MemoryIdentityRepository, *UserSession) string { return "not-the-token" })
+	notHeld(t, "the stored hash, as read from a leaked database", func(_ *IdentityService, m *MemoryIdentityRepository, sess *UserSession) string {
 		stored, _ := m.GetSession(ctx, sess.SessionID)
-		if _, _, err := svc.RefreshToken(ctx, sess.SessionID, stored.RefreshTokenHash); !errors.Is(err, ErrTokenReused) {
-			t.Fatalf("presenting the stored hash: err = %v, want ErrTokenReused", err)
-		}
+		return stored.RefreshTokenHash
 	})
-	t.Run("a hash computed under another key", func(t *testing.T) {
-		svc, _, sess := newSvc(t)
+	notHeld(t, "a hash computed under another key", func(_ *IdentityService, _ *MemoryIdentityRepository, sess *UserSession) string {
 		other := NewIdentityService(NewMemoryIdentityRepository(), []byte("another_key"))
-		if _, _, err := svc.RefreshToken(ctx, sess.SessionID, other.refreshTokenHash(sess.RefreshToken)); !errors.Is(err, ErrTokenReused) {
-			t.Fatalf("err = %v", err)
-		}
+		return other.refreshTokenHash(sess.RefreshToken)
 	})
 	t.Run("rotation invalidates the previous token", func(t *testing.T) {
 		svc, m, sess := newSvc(t)

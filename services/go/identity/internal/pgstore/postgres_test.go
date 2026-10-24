@@ -308,8 +308,8 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 6 {
-		t.Fatalf("chain has %d steps, want 6", len(chain))
+	if len(chain) != 7 {
+		t.Fatalf("chain has %d steps, want 7", len(chain))
 	}
 	for i, step := range chain {
 		if step.Version != i+1 {

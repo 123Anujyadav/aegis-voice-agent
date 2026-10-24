@@ -537,8 +537,32 @@ func (r *Repository) ReplaceSession(ctx context.Context, s *app.UserSession, exp
 			}
 			return fmt.Errorf("pgstore: replacing session: %w", err)
 		}
+		// The replaced token is recorded in the same transaction, so a
+		// rotation that commits always leaves its predecessor recognisable as
+		// reuse (SupersededRefreshToken), and one that rolls back leaves none.
+		if s.RefreshTokenHash != expectedRefreshTokenHash {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO identity_refresh_tokens_superseded (session_id, refresh_token_hash, superseded_at)
+				VALUES ($1, $2, now()) ON CONFLICT DO NOTHING`,
+				s.SessionID, expectedRefreshTokenHash); err != nil {
+				return fmt.Errorf("pgstore: recording the superseded refresh token: %w", err)
+			}
+		}
 		return nil
 	})
+}
+
+// SupersededRefreshToken is one primary-key lookup.
+func (r *Repository) SupersededRefreshToken(ctx context.Context, sessionID, refreshTokenHash string) (bool, error) {
+	var superseded bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM identity_refresh_tokens_superseded
+			WHERE session_id = $1 AND refresh_token_hash = $2)`,
+		sessionID, refreshTokenHash).Scan(&superseded)
+	if err != nil {
+		return false, fmt.Errorf("pgstore: checking for a superseded refresh token: %w", Redact(err))
+	}
+	return superseded, nil
 }
 
 // OtherDeviceKeyEnrolled is one indexed read (identity_sessions_subscriber).
