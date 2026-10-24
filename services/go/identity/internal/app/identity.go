@@ -899,6 +899,9 @@ type IdentityService struct {
 	// it refused, so a failing sink is visible rather than silent.
 	auditor       SecurityAuditor
 	auditFailures atomic.Uint64
+	// auditFailureObserver is told the type of every audit failure; nil is
+	// none.
+	auditFailureObserver func(SecurityEventType)
 
 	// deviceProof verifies device-key enrolment proofs. Nil — the default —
 	// means enrolment is not configured, and ValidateOtpWithDeviceProof
@@ -1085,7 +1088,7 @@ func (f fanOutAuditor) Record(e SecurityEvent) error {
 func (s *IdentityService) auditReenrolment(ctx context.Context, session *UserSession, at time.Time) {
 	other, err := s.repo.OtherDeviceKeyEnrolled(ctx, session.SubscriberID, session.DeviceKeyThumbprint, session.SessionID)
 	if err != nil {
-		s.auditFailures.Add(1)
+		s.auditFailed(EventDeviceReenrolled)
 		return
 	}
 	if other {
@@ -1096,9 +1099,27 @@ func (s *IdentityService) auditReenrolment(ctx context.Context, session *UserSes
 // AuditFailures reports how many security audit events the auditor refused.
 func (s *IdentityService) AuditFailures() uint64 { return s.auditFailures.Load() }
 
+// SetAuditFailureObserver sets the function told the type of every audit
+// failure: an event an auditor refused, or a re-enrolment lookup that failed
+// (reported as EventDeviceReenrolled, the event that may have been missed). It
+// is how a failing durable audit log becomes visible to operators instead of
+// silently losing records. It receives only the type. It must be safe for
+// concurrent use. Construction-time configuration; nil removes it.
+func (s *IdentityService) SetAuditFailureObserver(observe func(SecurityEventType)) {
+	s.auditFailureObserver = observe
+}
+
+// auditFailed counts one audit failure and reports its type.
+func (s *IdentityService) auditFailed(t SecurityEventType) {
+	s.auditFailures.Add(1)
+	if s.auditFailureObserver != nil {
+		s.auditFailureObserver(t)
+	}
+}
+
 func (s *IdentityService) audit(e SecurityEvent) {
 	if err := s.auditor.Record(e); err != nil {
-		s.auditFailures.Add(1)
+		s.auditFailed(e.Type)
 	}
 }
 

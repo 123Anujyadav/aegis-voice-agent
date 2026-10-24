@@ -92,7 +92,12 @@ about subscriber availability, so it is the owner's.
 - `identity_security_events_total{type}` (#113, merged): wrong codes,
   lockouts, and **refresh-token reuse detections**, which ADR-0010 calls the
   exfiltration alarm. Reuse was previously recorded nowhere.
-- All three are counters under a closed label vocabulary. No identifier is a
+- `identity_security_audit_failures_total{type}`: audit events that were
+  **not** recorded, because the durable audit log refused them or the
+  re-enrolment lookup failed. **Any non-zero rate means audit records are
+  being lost, and it should page.** Before this counter, the loss was visible
+  only inside the process.
+- All are counters under a closed label vocabulary. No identifier is a
   label, and all are served only on the health port.
 
 ## 5. Options
