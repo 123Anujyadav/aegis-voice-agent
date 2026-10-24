@@ -75,3 +75,12 @@ jobs:
       - name: Minified staging build (R8, debug-signed)
         working-directory: android
         run: ./gradlew --no-daemon --stacktrace assembleStaging
+
+      # A green staging build alone does not prove R8 ran: when the staging
+      # build type silently lost release's minification, assembleStaging still
+      # passed. R8 writes the mapping file; its absence fails the job.
+      - name: R8 actually minified the staging build
+        working-directory: android
+        run: |
+          mapping=app/build/outputs/mapping/staging/mapping.txt
+          test -s "$mapping" || { echo "::error::$mapping is missing or empty: the staging build was not minified by R8"; exit 1; }
