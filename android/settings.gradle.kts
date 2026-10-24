@@ -91,7 +91,7 @@ include(":core:datastore")
 include(":core:telephony")
 include(":core:security")
 // Identity orchestration: enrolment, single-flight refresh and the stored
-// session, over core:network, core:datastore and core:security.
+// session, over core:network and core:datastore.
 include(":core:auth")
 include(":core:analytics")
 include(":core:logging")
