@@ -14,6 +14,7 @@
 plugins {
     id("callscreen.android.library")
     id("callscreen.android.hilt")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -27,5 +28,7 @@ dependencies {
     api(projects.core.network)
     api(projects.core.datastore)
     implementation(libs.kotlinx.coroutines.core)
+    // EdgeApiClient parses edge-api's JSON.
+    implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.okhttp.mockwebserver)
 }
