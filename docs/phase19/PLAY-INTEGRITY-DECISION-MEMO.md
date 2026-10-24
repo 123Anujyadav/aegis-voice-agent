@@ -1,6 +1,6 @@
 # Play Integrity: integration and Google authentication, decision memo
 
-- **As of:** 2026-10-25, `main` at `d121c5f`.
+- **As of:** 2026-10-25, `main` at `97ee159`.
 - **What this is:** an engineering recommendation for the owner. **It decides
   nothing.**
   - Every policy value below is marked **PROPOSED, awaiting owner
@@ -29,7 +29,7 @@
    Removing the verifier configuration returns identity to today's behaviour:
    every session `unverified`, nothing refused.
 4. **Fix the client's quota defect first.** This is the one safe code task
-   available now, and it is done in #158 (§6).
+   available now, and it is done in #158, merged as `97ee159` (§6).
 
 ## 2. What exists, what is approved, what is proposed
 
@@ -209,7 +209,7 @@ without granting broad roles.
 
 ## 9. What can be done safely now, and what cannot
 
-- **Done:** #158, the client's quota rule.
+- **Done:** #158, the client's quota rule, merged as `97ee159` with post-merge CI 10/10 green.
 - **Cannot be done yet:**
   - wiring the verifier into `cmd/server`;
   - adding the OAuth dependency;
