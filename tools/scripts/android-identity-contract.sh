@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # =============================================================================
-# android-identity-contract.sh — the Android identity client (Kotlin, JVM)
-# against the REAL identity service (Go), end to end.
+# android-identity-contract.sh — the Android identity and edge-api clients
+# (Kotlin, JVM) against the REAL identity and edge-api services (Go), end to
+# end.
 #
 # The Android client's own tests use MockWebServer, and identity's tests use
 # Go clients. Neither proves that the two agree. This runs identity as a real
 # process, on a real PostgreSQL, with its real HTTP API and DPoP verifier, and
 # runs IdentityLiveContractTest (android/core/network) against it:
-# enrolment, refresh, device binding and refresh-token reuse.
+# enrolment, refresh, device binding and refresh-token reuse. It then runs the
+# real edge-api binary on the same database (identity's migrations create its
+# DPoP replay table) and EdgeLiveContractTest (android/core/auth): the app's
+# authenticator signs in, and EdgeApiClient calls GET /v1/me with the
+# identity-issued token and this device's proof; another key's proof is
+# refused.
 #
 # What is test-only:
 #   * identity runs as its TestE2EIdentityProcess helper
@@ -40,9 +46,13 @@ work="$(mktemp -d)"
 started=0
 identity_pid=""
 proxy_pid=""
+edge_pid=""
+edge_proxy_pid=""
 
 cleanup() {
-  if [ -n "$proxy_pid" ]; then kill "$proxy_pid" 2>/dev/null || true; fi
+  for pid in "$proxy_pid" "$edge_proxy_pid" "$edge_pid"; do
+    if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; fi
+  done
   # Closing identity's stdin begins its graceful shutdown (the helper's
   # portable stand-in for SIGTERM); wait briefly, then make sure.
   exec 3>&- || true
@@ -170,30 +180,95 @@ if [ "$ready" != "1" ]; then
 fi
 echo "== identity reachable on $origin"
 
-# --- The Android client against it ------------------------------------------
-# --rerun: the result depends on the live server, never on Gradle's cache.
-suite=com.callscreen.core.network.identity.IdentityLiveContractTest
-status=0
-(cd "$repo_root/android" && \
-  AEGIS_IDENTITY_E2E_BASE_URL="$origin" AEGIS_IDENTITY_E2E_OTP_FILE="$work/otp.log" \
-  AEGIS_IDENTITY_E2E_CA_FILE="$work/ca.crt" \
-  ./gradlew --no-daemon --stacktrace :core:network:testDebugUnitTest --tests "$suite" --rerun) || status=$?
-
-if [ "$status" != "0" ]; then
-  echo "== identity's log (the run failed):" >&2
-  cat "$work/identity.log" >&2
-  exit "$status"
-fi
-
-report="$repo_root/android/core/network/build/test-results/testDebugUnitTest/TEST-$suite.xml"
-grep -Eq '<testsuite [^>]*tests="[1-9][0-9]*"' "$report" || { echo "IdentityLiveContractTest did not run ($report)" >&2; exit 1; }
-grep -Eq '<testsuite [^>]*skipped="0"' "$report" || { echo "IdentityLiveContractTest was skipped ($report)" >&2; exit 1; }
-grep -Eq '<testsuite [^>]*failures="0"[^>]*errors="0"' "$report" || { echo "IdentityLiveContractTest failed ($report)" >&2; exit 1; }
-# The evidence, from the JUnit report itself: the counts and each test case.
-echo "== JUnit report: $(grep -oE '<testsuite [^>]*(tests|skipped|failures|errors)="[0-9]+"[^>]*' "$report" | grep -oE '(tests|skipped|failures|errors)="[0-9]+"' | tr '\n' ' ')"
-grep -oE '<testcase name="[^"]*"' "$report" | sed 's/<testcase name=/== test case: /'
-if grep -q "$pass" "$report" "$work/identity.log"; then
-  echo "the database password appeared in the output" >&2
+# --- edge-api: the real binary, on identity's database, behind TLS ------------
+# It trusts identity's signing key (the public half of this run's key), and
+# its replay table is created by identity's migrations, which ran above.
+echo "== building edge-api"
+(cd "$repo_root/services/go/edge-api" && go build -o "$work/edge-api" ./cmd/server)
+openssl pkey -in "$work/signing.pem" -pubout -out "$work/signing.pub.pem" 2>/dev/null
+edge_http="$(free_port)"
+edge_health="$(free_port)"
+edge_tls="$(free_port)"
+edge_origin="https://127.0.0.1:$edge_tls"
+env CS_EDGE_API_ENVIRONMENT=development \
+  CS_EDGE_API_HTTP_PORT="$edge_http" \
+  CS_EDGE_API_HEALTH_PORT="$edge_health" \
+  CS_EDGE_API_SHUTDOWN_TIMEOUT=3s \
+  CS_EDGE_API_ACCESS_TOKEN_PUBLIC_KEY_FILE="$work/signing.pub.pem" \
+  CS_EDGE_API_ACCESS_TOKEN_KID=android-contract \
+  CS_EDGE_API_ACCESS_TOKEN_ISSUER=urn:callscreen:identity:android-contract \
+  CS_EDGE_API_ACCESS_TOKEN_AUDIENCE=urn:callscreen:edge-api:android-contract \
+  CS_EDGE_API_PUBLIC_ORIGIN="$edge_origin" \
+  CS_EDGE_API_DATABASE_DSN_FILE="$work/dsn" \
+  "$work/edge-api" > "$work/edge-api.log" 2>&1 &
+edge_pid=$!
+ready=0
+for _ in $(seq 1 120); do
+  if curl -fsS -o /dev/null "http://127.0.0.1:$edge_health/readyz" 2>/dev/null; then ready=1; break; fi
+  kill -0 "$edge_pid" 2>/dev/null || break
+  sleep 0.5
+done
+if [ "$ready" != "1" ]; then
+  echo "edge-api did not become ready; its log:" >&2
+  cat "$work/edge-api.log" >&2
   exit 1
 fi
-echo "== IdentityLiveContractTest passed against the real identity service"
+"$work/tlsproxy" -listen "127.0.0.1:$edge_tls" -upstream "http://127.0.0.1:$edge_http" \
+  -cert "$work/tls.crt" -key "$work/tls.key" 2> "$work/tlsproxy-edge.log" &
+edge_proxy_pid=$!
+ready=0
+for _ in $(seq 1 60); do
+  if curl -sS --cacert "$work/ca.crt" -o /dev/null "$edge_origin/healthz" 2>/dev/null; then ready=1; break; fi
+  kill -0 "$edge_proxy_pid" 2>/dev/null || break
+  sleep 0.5
+done
+if [ "$ready" != "1" ]; then
+  echo "edge-api's TLS proxy did not come up; its log:" >&2
+  cat "$work/tlsproxy-edge.log" >&2
+  exit 1
+fi
+echo "== edge-api reachable on $edge_origin"
+
+# --- The Android client against them ----------------------------------------
+# One suite per Gradle run (the build runs projects in parallel, and both
+# suites read the same OTP file). --rerun: the result depends on the live
+# servers, never on Gradle's cache.
+run_suite() {
+  local task="$1" suite="$2" report="$3" status=0
+  (cd "$repo_root/android" && \
+    AEGIS_IDENTITY_E2E_BASE_URL="$origin" AEGIS_IDENTITY_E2E_OTP_FILE="$work/otp.log" \
+    AEGIS_IDENTITY_E2E_CA_FILE="$work/ca.crt" AEGIS_EDGE_E2E_ORIGIN="$edge_origin" \
+    ./gradlew --no-daemon --stacktrace "$task" --tests "$suite" --rerun) || status=$?
+  if [ "$status" != "0" ]; then
+    echo "== identity's log (the run failed):" >&2
+    cat "$work/identity.log" >&2
+    echo "== edge-api's log:" >&2
+    cat "$work/edge-api.log" >&2
+    exit "$status"
+  fi
+  local name="${suite##*.}"
+  grep -Eq '<testsuite [^>]*tests="[1-9][0-9]*"' "$report" || { echo "$name did not run ($report)" >&2; exit 1; }
+  grep -Eq '<testsuite [^>]*skipped="0"' "$report" || { echo "$name was skipped ($report)" >&2; exit 1; }
+  grep -Eq '<testsuite [^>]*failures="0"[^>]*errors="0"' "$report" || { echo "$name failed ($report)" >&2; exit 1; }
+  # The evidence, from the JUnit report itself: the counts and each test case.
+  echo "== $name JUnit report: $(grep -oE '<testsuite [^>]*(tests|skipped|failures|errors)="[0-9]+"[^>]*' "$report" | grep -oE '(tests|skipped|failures|errors)="[0-9]+"' | tr '\n' ' ')"
+  grep -oE '<testcase name="[^"]*"' "$report" | sed "s/<testcase name=/== $name test case: /"
+  if grep -q "$pass" "$report"; then
+    echo "the database password appeared in the output" >&2
+    exit 1
+  fi
+  echo "== $name passed"
+}
+
+results="$repo_root/android/core/%s/build/test-results/testDebugUnitTest/TEST-%s.xml"
+identity_suite=com.callscreen.core.network.identity.IdentityLiveContractTest
+edge_suite=com.callscreen.core.auth.EdgeLiveContractTest
+# shellcheck disable=SC2059 # results is this script's own format string
+run_suite :core:network:testDebugUnitTest "$identity_suite" "$(printf "$results" network "$identity_suite")"
+# shellcheck disable=SC2059
+run_suite :core:auth:testDebugUnitTest "$edge_suite" "$(printf "$results" auth "$edge_suite")"
+if grep -q "$pass" "$work/identity.log" "$work/edge-api.log"; then
+  echo "the database password appeared in a service log" >&2
+  exit 1
+fi
+echo "== the Android client passed against the real identity and edge-api services"
