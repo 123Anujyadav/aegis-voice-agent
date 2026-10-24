@@ -4,9 +4,10 @@
   (rate limiting, changes to reuse handling) reduce real risk?
 - **Base:** checked against the code on `main` at `c6cecf9`.
 - **Outcome:**
-  - **no code change now;**
-  - one improvement is recorded for later (§3);
-  - rate limiting on refresh is **not** recommended (§2).
+  - rate limiting on refresh is **not** recommended (§2);
+  - the reuse-handling improvement in §3, first recorded for later, is
+    **implemented** (2026-10-24, after `18d0112`): only a token the session
+    actually held is reuse.
 
 ## 1. What a refresh needs today
 
@@ -46,7 +47,7 @@ limits.**
 until the trusted-proxy model is verified: how the ALB sets `X-Forwarded-For`
 must be confirmed by SRE. Until then, forwarding headers are not trusted.
 
-## 3. Reuse handling: one recorded improvement, not implemented now
+## 3. Reuse handling: the garbage-token revocation (implemented)
 
 **Current behaviour, deliberate and documented in step 3 of
 `RefreshTokenWithDeviceProof`:**
@@ -85,13 +86,20 @@ must be confirmed by SRE. Until then, forwarding headers are not trusted.
 - **Effect:** the RFC 9700 signal is kept exactly, and the garbage-token
   revocation goes away.
 
-**Why it is not implemented now:**
-1. It is a schema migration plus a change to a documented security ordering.
-   The risk it removes is a narrow denial of service that needs a leaked
-   session id.
-2. It interacts with ADR-0030 D30.2, which adds the refresh-hash keyring and
-   key ids, and should land after that so the history rows carry key ids
-   from the start.
+**Implemented (2026-10-24).** This was first deferred until after ADR-0030
+D30.2, so that history rows would carry key ids. On review that dependency
+does not hold: a superseded-token row never outlives its session, the session
+lifetime is 24 h, and the rows are deleted with the session. So no row ever
+needs re-keying, and there was no reason to wait.
+- **Storage:** migration `0007_superseded_refresh_tokens`. The rotation's
+  compare-and-swap records the hash it replaces, in the same transaction.
+- **Rule:** `refreshMismatch` revokes only for a recorded hash. A hash never
+  held is 401 and revokes nothing.
+- **When the store cannot answer:** the mismatch is treated as reuse
+  (revoking is the safe failure).
+- **During rollout:** a token superseded *before* the migration was never
+  recorded, so for at most one session lifetime it is refused without
+  revoking. That is the old garbage case, not a security regression.
 
 **Revisit trigger:** session ids are found in any client log or telemetry, or
 reuse-revocation counts (`identity_security_events_total{type="identity.refresh.token_reused"}`)

@@ -186,6 +186,7 @@ func TestRefreshToken_ReuseWithFailedRevocationReportsBoth(t *testing.T) {
 	repo := &revokeRepo{MemoryIdentityRepository: NewMemoryIdentityRepository(), revokeErr: errRevokeStore}
 	svc := NewIdentityService(repo, []byte("test_secret_key"))
 	seedLiveSession(t, repo, "sess_reuse_fail")
+	markSuperseded(repo.MemoryIdentityRepository, "sess_reuse_fail", "rt_stolen")
 
 	access, refresh, err := svc.RefreshToken(context.Background(), "sess_reuse_fail", "rt_stolen")
 
@@ -211,6 +212,7 @@ func TestRefreshToken_ReuseStillRevokes(t *testing.T) {
 	repo := &revokeRepo{MemoryIdentityRepository: NewMemoryIdentityRepository()}
 	svc := NewIdentityService(repo, []byte("test_secret_key"))
 	seedLiveSession(t, repo, "sess_reuse")
+	markSuperseded(repo.MemoryIdentityRepository, "sess_reuse", "rt_stolen")
 
 	access, refresh, err := svc.RefreshToken(context.Background(), "sess_reuse", "rt_stolen")
 

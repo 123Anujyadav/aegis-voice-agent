@@ -89,6 +89,7 @@ var contract = []struct {
 	{"VerificationReservationsAndLockout", testVerificationLock},
 	{"SessionRoundTripExpiryAndRevocation", testSessionRoundTrip},
 	{"ReplaceSessionIsACompareAndSwap", testReplaceCAS},
+	{"SupersededTokensAreRecordedByTheSwapOnly", testSupersededTokens},
 	{"RevocationCannotBeUndone", testRevocationSticky},
 	{"EnrolledKeyIsImmutable", testKeyImmutable},
 	{"OtherDeviceKeyEnrolledFindsOnlyOtherKeys", testOtherDeviceKey},
@@ -677,5 +678,60 @@ func testOtherDeviceKey(t *testing.T, be backend) {
 	}
 	if got, err := be.b.OtherDeviceKeyEnrolled(ctx, "usr_A", "jkt_Z", "od_new"); err != nil || !got {
 		t.Errorf("a revoked session's device no longer counts: (%v, %v)", got, err)
+	}
+}
+
+// Only a committed swap records the token it replaced; a refused swap, the
+// current token and another session's tokens are never superseded; of racing
+// swaps, only the winner's predecessor is recorded, once.
+func testSupersededTokens(t *testing.T, be backend) {
+	sup := func(b app.IdentityRepository, id, tok string) bool {
+		t.Helper()
+		ok, err := b.SupersededRefreshToken(ctx, id, tok)
+		if err != nil {
+			t.Fatalf("SupersededRefreshToken: %v", err)
+		}
+		return ok
+	}
+	_ = be.a.SaveSession(ctx, session("sup"))
+	_ = be.a.SaveSession(ctx, session("sup_other"))
+	next := func(token string) *app.UserSession { n := session("sup"); n.RefreshTokenHash = token; return n }
+
+	if sup(be.b, "sup", th("rt_0")) {
+		t.Error("the current token reads as superseded")
+	}
+	if err := be.a.ReplaceSession(ctx, next(th("rt_1")), th("rt_wrong")); !errors.Is(err, app.ErrSessionConflict) {
+		t.Fatalf("refused swap: %v", err)
+	}
+	if sup(be.b, "sup", th("rt_wrong")) || sup(be.b, "sup", th("rt_0")) {
+		t.Error("a refused swap recorded a token")
+	}
+	if err := be.a.ReplaceSession(ctx, next(th("rt_1")), th("rt_0")); err != nil {
+		t.Fatal(err)
+	}
+	if !sup(be.b, "sup", th("rt_0")) || sup(be.b, "sup", th("rt_1")) || sup(be.b, "sup_other", th("rt_0")) {
+		t.Error("the swap did not record exactly its predecessor, for this session only")
+	}
+
+	var mu sync.Mutex
+	var winners []string
+	race(8, func(i int) {
+		tok := th(fmt.Sprintf("rt_2_%d", i))
+		err := be.pick(i).ReplaceSession(ctx, next(tok), th("rt_1"))
+		mu.Lock()
+		defer mu.Unlock()
+		if err == nil {
+			winners = append(winners, tok)
+		} else if !errors.Is(err, app.ErrSessionConflict) {
+			t.Errorf("swap: %v", err)
+		}
+	})
+	if len(winners) != 1 || !sup(be.b, "sup", th("rt_1")) || sup(be.b, "sup", winners[0]) {
+		t.Fatalf("winners %d; the winner's predecessor must be superseded and the winner current", len(winners))
+	}
+	for i := 0; i < 8; i++ {
+		if tok := th(fmt.Sprintf("rt_2_%d", i)); tok != winners[0] && sup(be.b, "sup", tok) {
+			t.Error("a losing swap's token was recorded")
+		}
 	}
 }
