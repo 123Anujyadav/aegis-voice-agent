@@ -19,7 +19,9 @@
 
 [versions]
 # --- Build toolchain --------------------------------------------------------
-agp = "8.7.3"
+# AGP 8.9.1 is the minimum for API 36, and needs Gradle 8.11.1 or later (the
+# wrapper is 8.12): https://developer.android.com/build/releases/about-agp
+agp = "8.9.1"
 kotlin = "2.1.0"
 ksp = "2.1.0-1.0.29"
 # Java 17 is the toolchain target. AGP 8.x requires 17 to run, and Android
@@ -28,11 +30,12 @@ ksp = "2.1.0-1.0.29"
 javaToolchain = "17"
 
 # --- SDK levels -------------------------------------------------------------
-# compileSdk 35 (Android 15) — always compile against the newest stable SDK so
+# compileSdk 36 (Android 16) — always compile against the newest stable SDK so
 # that deprecations and behaviour changes surface at build time, not in the
-# field.
-compileSdk = "35"
-targetSdk = "35"
+# field. targetSdk 36: Google Play requires new apps and updates to target
+# API 36 from 2026-08-31 (https://developer.android.com/google/play/requirements/target-sdk).
+compileSdk = "36"
+targetSdk = "36"
 # minSdk 26 (Android 8.0). Chosen deliberately, not by default:
 #   - CallScreeningService, the API this product depends on, arrived in API 24
 #     but only became reliable and OEM-consistent from 26.
