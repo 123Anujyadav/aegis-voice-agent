@@ -339,6 +339,12 @@ type IdentityRepository interface {
 	// SaveSession sequence let two refreshes of one token both succeed, and
 	// let a rotation overwrite a revocation that landed after the read.
 	ReplaceSession(ctx context.Context, session *UserSession, expectedRefreshTokenHash string) error
+	// SupersededRefreshToken reports whether refreshTokenHash is a refresh
+	// token the session once held and has rotated away from: the evidence
+	// reuse detection needs (RFC 9700 §4.14.2). A hash the session never held
+	// is not reuse. ReplaceSession records the hash it replaces, atomically
+	// with the swap, and the record lives exactly as long as the session.
+	SupersededRefreshToken(ctx context.Context, sessionID, refreshTokenHash string) (bool, error)
 	RevokeSession(ctx context.Context, sessionID string) error
 	// OtherDeviceKeyEnrolled reports whether subscriberID has a session on
 	// record, other than exceptSessionID, bound to a device key different from
@@ -373,9 +379,12 @@ type IdentityRepository interface {
 // UserSession.Roles and GuardianDelegation.Permissions are slices, and a
 // struct copy alone would still share their backing arrays.
 type MemoryIdentityRepository struct {
-	mu          sync.RWMutex
-	otps        map[string]*OtpChallenge
-	sessions    map[string]*UserSession
+	mu       sync.RWMutex
+	otps     map[string]*OtpChallenge
+	sessions map[string]*UserSession
+	// superseded holds, per session, the hashes of the refresh tokens it has
+	// rotated away from (SupersededRefreshToken).
+	superseded  map[string]map[string]struct{}
 	devices     map[string]*DeviceAttestation
 	delegations map[string]*GuardianDelegation
 	otpRates    map[string]*otpRateState
@@ -520,6 +529,7 @@ func NewMemoryIdentityRepository() *MemoryIdentityRepository {
 	return &MemoryIdentityRepository{
 		otps:        make(map[string]*OtpChallenge),
 		sessions:    make(map[string]*UserSession),
+		superseded:  make(map[string]map[string]struct{}),
 		devices:     make(map[string]*DeviceAttestation),
 		delegations: make(map[string]*GuardianDelegation),
 		otpRates:    make(map[string]*otpRateState),
@@ -744,7 +754,21 @@ func (m *MemoryIdentityRepository) ReplaceSession(ctx context.Context, session *
 		return ErrDeviceKeyAlreadyEnrolled
 	}
 	m.sessions[session.SessionID] = storedSession(session)
+	if session.RefreshTokenHash != expectedRefreshTokenHash {
+		if m.superseded[session.SessionID] == nil {
+			m.superseded[session.SessionID] = map[string]struct{}{}
+		}
+		m.superseded[session.SessionID][expectedRefreshTokenHash] = struct{}{}
+	}
 	return nil
+}
+
+// SupersededRefreshToken implements IdentityRepository.
+func (m *MemoryIdentityRepository) SupersededRefreshToken(_ context.Context, sessionID, refreshTokenHash string) (bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, ok := m.superseded[sessionID][refreshTokenHash]
+	return ok, nil
 }
 
 // RevokeSession mutates the repository's OWN stored value, under the write lock.
@@ -1358,6 +1382,36 @@ func (s *IdentityService) acceptRefreshProof(ctx context.Context, session *UserS
 	return s.reassessIntegrity(ctx, session, integrityToken, proof, verified.JKT)
 }
 
+// refreshMismatch answers a refresh token that is not the session's current
+// one.
+//
+// ONLY A TOKEN THE SESSION ACTUALLY HELD IS REUSE (RFC 9700 §4.14.2). A token
+// it rotated away from, presented again, means two parties hold the token
+// family: the session is revoked and the reuse audited, as before. A token it
+// never held is refused with ErrInvalidToken and revokes nothing. Revoking on
+// any mismatch let anyone who knew a session id revoke it by sending any string
+// (docs/phase19/REFRESH-TOKEN-THREAT-ANALYSIS.md §3).
+//
+// If the store cannot say, the mismatch is treated as reuse: revoking is the
+// safe failure, and an attacker cannot make the store fail.
+//
+// ErrTokenReused says the family was revoked. When the store refused the
+// revocation that is untrue (the session is still live for whoever holds its
+// current token), so the store's error travels with it. Both stay matchable
+// with errors.Is; a successful revocation returns the sentinel itself.
+func (s *IdentityService) refreshMismatch(ctx context.Context, sessionID, presentedHash string) error {
+	superseded, err := s.repo.SupersededRefreshToken(ctx, sessionID, presentedHash)
+	if err == nil && !superseded {
+		return ErrInvalidToken
+	}
+	revokeErr := s.repo.RevokeSession(ctx, sessionID)
+	s.audit(SecurityEvent{Type: EventRefreshTokenReused, At: time.Now(), SessionID: sessionID})
+	if revokeErr != nil {
+		return fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, revokeErr)
+	}
+	return ErrTokenReused
+}
+
 // issueBoundAccessToken signs an access token for the STORED session. Subject,
 // roles and cnf.jkt are read from the repository, never from a caller: there is
 // no parameter through which a thumbprint could arrive, and a session object a
@@ -1653,18 +1707,7 @@ func (s *IdentityService) RefreshToken(ctx context.Context, sessionID, oldRefres
 	// token to compare against.
 	presentedHash := s.refreshTokenHash(oldRefreshToken)
 	if !equalHash(session.RefreshTokenHash, presentedHash) {
-		// ErrTokenReused says the family was revoked. When the store refused the
-		// revocation that is untrue — the session is still live for whoever
-		// holds its current token — so the store's error travels with it. Both
-		// stay matchable with errors.Is: the reuse is still a reuse, and the
-		// failure is not hidden behind it. A successful revocation still
-		// returns the sentinel itself.
-		revokeErr := s.repo.RevokeSession(ctx, sessionID)
-		s.audit(SecurityEvent{Type: EventRefreshTokenReused, At: time.Now(), SessionID: sessionID})
-		if revokeErr != nil {
-			return "", "", fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, revokeErr)
-		}
-		return "", "", ErrTokenReused
+		return "", "", s.refreshMismatch(ctx, sessionID, presentedHash)
 	}
 
 	// A DEVICE-BOUND SESSION IS NOT REFRESHED ON THE REFRESH TOKEN ALONE. Its
@@ -1731,9 +1774,11 @@ func (s *IdentityService) RefreshToken(ctx context.Context, sessionID, oldRefres
 //  1. Verifier and signer configured, else refused before anything is read.
 //  2. Session missing, revoked or expired: ErrInvalidToken, exactly as
 //     RefreshToken answers.
-//  3. A refresh token that is not the current one is reuse: the session is
-//     revoked, exactly as RefreshToken does. This runs BEFORE the proof, so a
-//     stale token revokes whatever proof accompanies it.
+//  3. A refresh token that is not the current one is answered by
+//     refreshMismatch, exactly as RefreshToken does: a token the session once
+//     held is reuse and revokes it; one it never held is refused without
+//     revoking. This runs BEFORE the proof, so a superseded token revokes
+//     whatever proof accompanies it.
 //  4. An unenrolled session is refused: there is no key to prove.
 //  5. The proof is verified and its jti reserved; then its key must be the
 //     enrolled one. Any failure here returns without rotating or revoking, so
@@ -1778,12 +1823,7 @@ func (s *IdentityService) RefreshTokenWithDeviceProofAndIntegrity(ctx context.Co
 	// token to compare against.
 	presentedHash := s.refreshTokenHash(oldRefreshToken)
 	if !equalHash(session.RefreshTokenHash, presentedHash) {
-		revokeSessionErr := s.repo.RevokeSession(ctx, sessionID)
-		s.audit(SecurityEvent{Type: EventRefreshTokenReused, At: time.Now(), SessionID: sessionID})
-		if revokeSessionErr != nil {
-			return "", "", fmt.Errorf("%w: revoking the session failed: %w", ErrTokenReused, revokeSessionErr)
-		}
-		return "", "", ErrTokenReused
+		return "", "", s.refreshMismatch(ctx, sessionID, presentedHash)
 	}
 	if session.DeviceKeyThumbprint == "" {
 		return "", "", ErrSessionNotDeviceBound

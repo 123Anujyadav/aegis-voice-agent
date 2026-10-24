@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/callscreen/callscreen-platform/packages/go/accesstoken"
+
+	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
 
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/routes"
 )
@@ -112,5 +115,34 @@ func TestIssuance_RefreshWithoutASignerRotatesNothing(t *testing.T) {
 	r.svc.SetAccessTokenSigner(signer)
 	if again := r.post(t, routes.Refresh, refreshBody(sid, rt), proof(t, k, k, "r-ok", "POST", refreshURL, time.Now())); again.code != 200 {
 		t.Fatalf("the refused refresh rotated or revoked the session: %d %s", again.code, again.raw)
+	}
+}
+
+// A well-formed refresh token the session never held is refused with 401 and
+// revokes nothing, so knowing a session id is not enough to sign its holder
+// out. A superseded token, presented again, still revokes (reuse).
+func TestIssuance_ATokenNeverHeldCannotRevokeTheSession(t *testing.T) {
+	r := newRig(t, true)
+	r.m.Instrument(r.svc)
+	k := deviceKey(t)
+	sid, rt := r.enrol(t, k)
+	guess := strings.Repeat("ab", 32)
+	got := r.post(t, routes.Refresh, refreshBody(sid, guess), proof(t, k, k, "g1", "POST", refreshURL, time.Now()))
+	wantProblem(t, got, 401, "ERR_INVALID_TOKEN")
+	noCredentials(t, got)
+	if n := r.m.security.Value(string(app.EventRefreshTokenReused)); n != 0 {
+		t.Fatalf("a guess was counted as reuse (%d)", n)
+	}
+	next := r.post(t, routes.Refresh, refreshBody(sid, rt), proof(t, k, k, "r1", "POST", refreshURL, time.Now()))
+	if next.code != 200 {
+		t.Fatalf("the session was revoked by a guess: %d %s", next.code, next.raw)
+	}
+	reuse := r.post(t, routes.Refresh, refreshBody(sid, rt), proof(t, k, k, "r2", "POST", refreshURL, time.Now()))
+	wantProblem(t, reuse, 401, "ERR_INVALID_TOKEN")
+	if n := r.m.security.Value(string(app.EventRefreshTokenReused)); n != 1 {
+		t.Fatalf("reuse events = %d, want 1 for the superseded token", n)
+	}
+	if after := r.post(t, routes.Refresh, refreshBody(sid, next.body["refreshToken"].(string)), proof(t, k, k, "r3", "POST", refreshURL, time.Now())); after.code != 401 {
+		t.Fatalf("reuse did not revoke the session: %d %s", after.code, after.raw)
 	}
 }

@@ -253,6 +253,7 @@ func TestToken_EnrolledRefreshWithoutProofFailsClosed(t *testing.T) {
 	t.Run("reuse still revokes", func(t *testing.T) {
 		r := newMemEnrollRig(t)
 		sess, _, _ := r.enrolOK(ctx, t, "req_a", "j1")
+		markSuperseded(r.repo, sess.SessionID, "rt_stolen")
 		if _, _, err := r.svc.RefreshToken(ctx, sess.SessionID, "rt_stolen"); !errors.Is(err, ErrTokenReused) {
 			t.Fatalf("stale token on an enrolled session: err = %v, want ErrTokenReused", err)
 		}

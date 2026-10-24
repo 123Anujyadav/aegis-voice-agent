@@ -232,6 +232,7 @@ func TestRefreshProof_SessionStateChecksPrecedeTheProof(t *testing.T) {
 
 	t.Run("reuse with a garbage proof still revokes", func(t *testing.T) {
 		r, _, sess := newRefreshRig(ctx, t)
+		markSuperseded(r.repo, sess.SessionID, "rt_stolen")
 		if _, _, err := r.svc.RefreshTokenWithDeviceProof(ctx, sess.SessionID, "rt_stolen", "POST", "garbage"); !errors.Is(err, ErrTokenReused) {
 			t.Fatalf("err = %v, want ErrTokenReused", err)
 		}
@@ -245,6 +246,7 @@ func TestRefreshProof_SessionStateChecksPrecedeTheProof(t *testing.T) {
 		repo := &revokeRepo{MemoryIdentityRepository: NewMemoryIdentityRepository()}
 		r := newEnrollRig(t, repo, repo.MemoryIdentityRepository, dpop.NewMemoryReplayStore()).withRefresh(t, dpop.NewMemoryReplayStore())
 		sess := r.enrolKey(ctx, t, "req_a", deviceKey(t))
+		markSuperseded(repo.MemoryIdentityRepository, sess.SessionID, "rt_stolen")
 		repo.revokeErr = errRevoke
 		_, _, err := r.svc.RefreshTokenWithDeviceProof(ctx, sess.SessionID, "rt_stolen", "POST", "garbage")
 		if !errors.Is(err, ErrTokenReused) || !errors.Is(err, errRevoke) {
