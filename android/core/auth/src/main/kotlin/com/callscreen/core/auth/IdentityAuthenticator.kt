@@ -115,6 +115,26 @@ public class IdentityAuthenticator(
         }
     }
 
+    /**
+     * The access token after a resource server refused [rejectedAccessToken]
+     * as invalid. Under the same lock as [accessToken]:
+     * - if the stored token is still the rejected one, it is refreshed now,
+     *   whatever its reported expiry;
+     * - if another caller already rotated it, the current token is returned
+     *   without refreshing again.
+     * A caller retries its request at most once with the result.
+     */
+    public suspend fun refreshAfterRejection(rejectedAccessToken: String): AuthState = lock.withLock {
+        withContext(io) {
+            when (val read = store.read()) {
+                StoredSessionResult.Absent -> AuthState.SignedOut(SignedOutReason.NOT_SIGNED_IN)
+                StoredSessionResult.Unrecoverable -> AuthState.SignedOut(SignedOutReason.STORED_SESSION_UNRECOVERABLE)
+                is StoredSessionResult.Present ->
+                    if (read.session.accessToken == rejectedAccessToken) refresh(read.session) else AuthState.Authenticated(read.session.accessToken)
+            }
+        }
+    }
+
     /** Signs out on this device: the stored session is removed. (Identity has no sign-out endpoint.) */
     public suspend fun signOut() {
         lock.withLock { withContext(io) { store.clear() } }
