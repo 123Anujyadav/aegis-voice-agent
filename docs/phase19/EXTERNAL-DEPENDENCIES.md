@@ -13,7 +13,7 @@
 
 | # | Dependency | Owner | Blocks | What exists today | Next step for the owner or SRE |
 |---|---|---|---|---|---|
-| E1 | **Google Play Integrity:** a Google Cloud project, credentials, and egress to Google | Owner | ADR-0010 §5(b): integrity at issuance and refresh; the restricted tier | A fail-closed verifier port, an offline-tested verdict policy, a decode timeout and outcome metrics (#108, #118). **Not called on the issuance path.** | Create the project and link the Play Console. Provision credentials as a Kubernetes Secret (never in the repository). Decide the restricted tier. |
+| E1 | **Google Play Integrity:** a Google Cloud project, credentials, and egress to Google | Owner | ADR-0010 §5(b): integrity at issuance and refresh; the restricted tier | A fail-closed verifier port, an offline-tested verdict policy, a decode timeout and outcome metrics (#108, #118). **Not called on the issuance path on `main`.** [ADR-0031](../adr/0031-play-integrity-at-issuance.md) (proposed, #130) decides the wiring: verdict bound to the DPoP proof, an `Integrity-Token` header, and the tier recorded but not enforced. Its implementation follows. Neither can produce a real verdict without E1. | Create the project and link the Play Console. Provision credentials as a Kubernetes Secret (never in the repository). Decide the restricted tier. |
 | E2 | **OTP delivery provider, plus India DLT** (entity, sender header, templates) and a secondary provider | Owner | Any real enrolment | A failover sender, health checks and delivery metrics (#109, #118); `docs/runbooks/identity-provider-onboarding.md` | Choose the providers, register with DLT, then provision credentials as a Secret |
 | E3 | **Signing-key operations:** generating Ed25519 keys and holding them in Kubernetes Secrets for identity (private) and edge-api (public set) | SRE | Production issuance | The key-set verifier, rotation tests, fingerprint commands (#119) and the runbook (#107, #114) | Generate and provision keys in staging. **Run the rotation runbook once in staging** (ADR-0029 analysis §2). |
 | E4 | **Database:** `verify-full` CA bundle, multi-AZ, point-in-time recovery | SRE | Running edge-api and identity outside development; ADR-0030 stage 2 → 3 | TLS policy enforced and tested (#99, #104) | Provide the CA bundle and DSNs. Confirm PITR before D30.3 stage 3 (migration plan §4). Alert on the edge-api 503 rate (ADR-0029 analysis §3). |
@@ -33,12 +33,14 @@
 | O4 | Session lifetime (24 h, or ADR-0010's 90 days) | Ratification brief §2 | A product decision. Note that it changes the SIM-swap memory window (SIM-swap review §2). |
 | O5 | SIM-swap policies: cooling-off length and scope; prior-device notification; old-session handling; re-verification | `docs/phase19/SIM-SWAP-CONTROLS-REVIEW.md` §4 | 72 h cooling-off on history and configuration changes; keep old sessions; FCM "this wasn't me" |
 | O6 | Device-history retention R | SIM-swap review §2 | Choose after the privacy review (E9) |
+| O7 | Ratify ADR-0031 (Play Integrity at issuance: request binding, header, tier recording) | `docs/adr/0031-play-integrity-at-issuance.md` | Ratify. It carries out the accepted ADR-0010 §5(b) and changes no permission. |
+| O8 | What a `restricted` (and `unverified`) session may do | ADR-0010 §5(b); ADR-0031 D31.5 | A product decision. Until it is made, the tier is recorded and audited, never enforced. |
 
 ## 3. Engineering work that is ready once each item lands
 
 | When this lands | Work that becomes possible |
 |---|---|
-| E1 | Wire integrity into enrolment and refresh, with negative tests for invalid verdicts. They cannot exist today, and #124 says so. |
+| E1 | A Google `IntegrityVerifier` (`decodeIntegrityToken`) behind the existing port. With ADR-0031 implemented, this is the only missing piece for real verdicts. |
 | O2 | The `pgstore` subscriber directory, real-PostgreSQL tests, and wiring at stage 0 → 1 (migration plan §7) |
 | O6 / E9 | The device-history table, and re-enrolment detection that survives housekeeping |
 | E6 | The design for per-source rate limiting |
