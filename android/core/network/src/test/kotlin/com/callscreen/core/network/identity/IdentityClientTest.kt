@@ -99,6 +99,63 @@ class IdentityClientTest {
         assertNull(server.takeRequest().getHeader("Integrity-Token"))
     }
 
+    private val refreshed = """{"accessToken":"a.b.c","tokenType":"DPoP","expiresIn":900,"refreshToken":"${"d".repeat(64)}"}"""
+
+    /** One refresh through [client]; the Integrity-Token header it sent, if any. */
+    private fun refreshSends(client: IdentityClient): String? {
+        server.enqueue(json(200, refreshed))
+        client.refresh(sessionId, refreshToken)
+        return server.takeRequest().getHeader("Integrity-Token")
+    }
+
+    @Test
+    @DisplayName("on refresh an integrity token is requested at most once every 6 hours; at enrolment always (ADR-0031 D31.4)")
+    fun refreshIntegrityInterval() {
+        var now = 1_760_000_000L
+        var asked = 0
+        val client = IdentityClient(origin(), proofSource, { asked++; "integrity-token" }, nowSeconds = { now })
+
+        assertEquals("integrity-token", refreshSends(client), "the first refresh in a process is due")
+        now += 15 * 60
+        assertNull(refreshSends(client), "15 minutes later: not due")
+        now += IdentityClient.REFRESH_INTEGRITY_INTERVAL_SECONDS - 15 * 60 - 1
+        assertNull(refreshSends(client), "one second short of 6 hours: not due")
+        now += 1
+        assertEquals("integrity-token", refreshSends(client), "6 hours after the last request: due")
+        assertEquals(2, asked)
+
+        // Enrolment always asks, and restarts the interval.
+        now += 60
+        server.enqueue(json(200, enrolled))
+        client.enrol(requestId, "123456")
+        assertEquals("integrity-token", server.takeRequest().getHeader("Integrity-Token"))
+        now += 60
+        assertNull(refreshSends(client), "a minute after enrolment: not due")
+        assertEquals(3, asked)
+    }
+
+    @Test
+    @DisplayName("a failed acquisition still counts, so a device without tokens does not ask Google on every refresh")
+    fun failedIntegrityAttemptCounts() {
+        var now = 1_760_000_000L
+        var asked = 0
+        val client = IdentityClient(origin(), proofSource, { asked++; null }, nowSeconds = { now })
+        assertNull(refreshSends(client))
+        now += 15 * 60
+        assertNull(refreshSends(client))
+        assertEquals(1, asked, "Google was asked again within the interval")
+    }
+
+    @Test
+    @DisplayName("a clock that went backwards makes the token due rather than suppressing it")
+    fun clockGoingBackwardsIsDue() {
+        var now = 1_760_000_000L
+        val client = IdentityClient(origin(), proofSource, { "integrity-token" }, nowSeconds = { now })
+        assertEquals("integrity-token", refreshSends(client))
+        now -= 60
+        assertEquals("integrity-token", refreshSends(client))
+    }
+
     @Test
     @DisplayName("refresh sends the session and refresh token with a proof for the refresh URL")
     fun refresh() {
