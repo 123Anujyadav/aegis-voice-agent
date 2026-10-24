@@ -188,6 +188,10 @@ fi
 report="$repo_root/android/core/network/build/test-results/testDebugUnitTest/TEST-$suite.xml"
 grep -Eq '<testsuite [^>]*tests="[1-9][0-9]*"' "$report" || { echo "IdentityLiveContractTest did not run ($report)" >&2; exit 1; }
 grep -Eq '<testsuite [^>]*skipped="0"' "$report" || { echo "IdentityLiveContractTest was skipped ($report)" >&2; exit 1; }
+grep -Eq '<testsuite [^>]*failures="0"[^>]*errors="0"' "$report" || { echo "IdentityLiveContractTest failed ($report)" >&2; exit 1; }
+# The evidence, from the JUnit report itself: the counts and each test case.
+echo "== JUnit report: $(grep -oE '<testsuite [^>]*(tests|skipped|failures|errors)="[0-9]+"[^>]*' "$report" | grep -oE '(tests|skipped|failures|errors)="[0-9]+"' | tr '\n' ' ')"
+grep -oE '<testcase name="[^"]*"' "$report" | sed 's/<testcase name=/== test case: /'
 if grep -q "$pass" "$report" "$work/identity.log"; then
   echo "the database password appeared in the output" >&2
   exit 1
