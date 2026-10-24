@@ -136,3 +136,29 @@ func TestHTTP_ARejectedIntegrityTokenAtRefreshRotatesNothing(t *testing.T) {
 		t.Fatalf("tier %q after a certified refresh", tier)
 	}
 }
+
+// The integrity audit events are counted under their own types, not "other",
+// and an enrolment without a token is counted as not_presented.
+func TestMetrics_IntegrityEventsAreCountedByType(t *testing.T) {
+	r := withIntegrity(t, newRig(t, true))
+	r.m.Instrument(r.svc)
+	k := deviceKey(t)
+	reqID, code := r.requestCode(t)
+	p := proof(t, k, k, "enrol-1", "POST", enrolURL, time.Now())
+	r.do(t, "POST", routes.Enrollment, enrolBody(reqID, code), map[string][]string{"DPoP": {p}, IntegrityTokenHeader: {"reject|x"}})
+	if got := r.m.security.Value(string(app.EventIntegrityRejected)); got != 1 {
+		t.Fatalf("rejected events = %d, want 1", got)
+	}
+	if got := r.m.security.Value(SecurityEventOther); got != 0 {
+		t.Fatalf("an integrity event was counted as other (%d)", got)
+	}
+	r.enrol(t, deviceKey(t))
+	if got := r.m.integrity.Value(string(app.IntegrityNotPresented)); got != 1 {
+		t.Fatalf("not_presented = %d, want 1", got)
+	}
+	m := NewMetrics()
+	_ = m.Record(app.SecurityEvent{Type: app.EventIntegrityRestricted})
+	if m.security.Value(string(app.EventIntegrityRestricted)) != 1 {
+		t.Fatal("a restricted event was not counted under its type")
+	}
+}
