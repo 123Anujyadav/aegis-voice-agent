@@ -18,9 +18,11 @@
 #   * Keys and the database are generated here, for this run only: an Ed25519
 #     signing key, an HMAC key, and a throwaway PostgreSQL container on
 #     127.0.0.1 with a random password. All are deleted on exit.
-#   * The canonical proof URLs are this run's loopback origin, which identity
-#     accepts (any canonical http(s) URL) and the client allows only for
-#     loopback.
+#   * identity serves plain HTTP, as it does behind production's load
+#     balancer; a TLS-terminating proxy (tools/scripts/tlsproxy) fronts it
+#     on loopback, with a CA and certificate made for this run. The client
+#     signs DPoP proofs only for https URLs, so the canonical proof URLs and
+#     the client's origin are the proxy's https://127.0.0.1:<port>.
 #
 # Disposable by construction, as identity-postgres-tests.sh: the image must
 # already be present (--pull never), and the run fails unless the Kotlin
@@ -37,8 +39,10 @@ name="cs-idcontract-$(od -An -N4 -tx4 /dev/urandom | tr -d ' \n')"
 work="$(mktemp -d)"
 started=0
 identity_pid=""
+proxy_pid=""
 
 cleanup() {
+  if [ -n "$proxy_pid" ]; then kill "$proxy_pid" 2>/dev/null || true; fi
   # Closing identity's stdin begins its graceful shutdown (the helper's
   # portable stand-in for SIGTERM); wait briefly, then make sure.
   exec 3>&- || true
@@ -80,6 +84,19 @@ printf 'postgres://postgres:%s@127.0.0.1:%s/postgres?sslmode=disable\n' "$pass" 
 # --- Keys, generated for this run --------------------------------------------
 openssl genpkey -algorithm ed25519 -out "$work/signing.pem" 2>/dev/null
 head -c 48 /dev/urandom > "$work/hmac.key"
+# TLS for the loopback proxy: a CA and a server certificate for IP:127.0.0.1,
+# trusted only by this run's test (AEGIS_IDENTITY_E2E_CA_FILE).
+(
+  cd "$work"
+  openssl ecparam -name prime256v1 -genkey -noout -out ca.key 2>/dev/null
+  openssl req -x509 -new -key ca.key -sha256 -days 1 -subj "/CN=aegis-android-contract-ca" \
+    -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" -out ca.crt 2>/dev/null
+  openssl ecparam -name prime256v1 -genkey -noout -out tls.key 2>/dev/null
+  openssl req -new -key tls.key -subj "/CN=127.0.0.1" -out tls.csr 2>/dev/null
+  printf 'subjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\n' > tls.ext
+  openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 1 -sha256 -extfile tls.ext -out tls.crt 2>/dev/null
+  rm -f ca.key tls.csr tls.ext ca.srl
+) || { echo "generating the throwaway TLS certificates failed" >&2; exit 1; }
 
 # --- identity: build, migrate, serve -----------------------------------------
 echo "== building identity's test binary"
@@ -99,7 +116,10 @@ grep -q PASS "$work/migrate.log" || { cat "$work/migrate.log"; echo "identity mi
 
 http_port="$(free_port)"
 health_port="$(free_port)"
-origin="http://127.0.0.1:$http_port"
+tls_port="$(free_port)"
+# The public origin is the TLS proxy's, as in production behind a load
+# balancer: the client signs proofs only for https URLs.
+origin="https://127.0.0.1:$tls_port"
 mkfifo "$work/stdin"
 # Started through env, so $! is identity itself, not a subshell.
 env "${identity_env[@]}" AEGIS_E2E_IDENTITY_PROCESS=serve \
@@ -129,7 +149,26 @@ if [ "$ready" != "1" ]; then
   cat "$work/identity.log" >&2
   exit 1
 fi
-echo "== identity ready on $origin"
+echo "== identity ready on http://127.0.0.1:$http_port"
+
+# --- TLS in front of identity ------------------------------------------------
+(cd "$repo_root/tools/scripts/tlsproxy" && GOWORK=off go build -o "$work/tlsproxy" main.go)
+"$work/tlsproxy" -listen "127.0.0.1:$tls_port" -upstream "http://127.0.0.1:$http_port" \
+  -cert "$work/tls.crt" -key "$work/tls.key" 2> "$work/tlsproxy.log" &
+proxy_pid=$!
+ready=0
+for _ in $(seq 1 60); do
+  # Any HTTP answer through TLS proves the proxy and the certificate work.
+  if curl -sS --cacert "$work/ca.crt" -o /dev/null "$origin/healthz" 2>/dev/null; then ready=1; break; fi
+  kill -0 "$proxy_pid" 2>/dev/null || break
+  sleep 0.5
+done
+if [ "$ready" != "1" ]; then
+  echo "the TLS proxy did not come up; its log:" >&2
+  cat "$work/tlsproxy.log" >&2
+  exit 1
+fi
+echo "== identity reachable on $origin"
 
 # --- The Android client against it ------------------------------------------
 # --rerun: the result depends on the live server, never on Gradle's cache.
@@ -137,6 +176,7 @@ suite=com.callscreen.core.network.identity.IdentityLiveContractTest
 status=0
 (cd "$repo_root/android" && \
   AEGIS_IDENTITY_E2E_BASE_URL="$origin" AEGIS_IDENTITY_E2E_OTP_FILE="$work/otp.log" \
+  AEGIS_IDENTITY_E2E_CA_FILE="$work/ca.crt" \
   ./gradlew --no-daemon --stacktrace :core:network:testDebugUnitTest --tests "$suite" --rerun) || status=$?
 
 if [ "$status" != "0" ]; then
