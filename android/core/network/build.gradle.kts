@@ -12,6 +12,7 @@
 plugins {
     id("callscreen.android.library")
     id("callscreen.android.hilt")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -19,4 +20,9 @@ android {
 }
 
 dependencies {
+    // The identity HTTP client (com.callscreen.core.network.identity): plain
+    // JSON over HTTPS, as identity serves it (services/go/identity/internal/httpapi).
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+    testImplementation(libs.okhttp.mockwebserver)
 }
