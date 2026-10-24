@@ -33,6 +33,15 @@ class ReleaseVersionTest {
     }
 
     @Test
+    fun nameLengthBoundsAreInclusive() {
+        // 1 and 64 characters are the documented limits; 0 and 65 are rejected in anInvalidNameFails.
+        assertEquals("1", ReleaseVersion.name("1"))
+        val longest = "1." + "a".repeat(62)
+        assertEquals(64, longest.length)
+        assertEquals(longest, ReleaseVersion.name(longest))
+    }
+
+    @Test
     fun anInvalidNameFails() {
         for (bad in listOf("", " ", "-1.0", ".1", "1.0 beta", "1.0\n", "v1\"", "a".repeat(65))) {
             assertThrows(IllegalArgumentException::class.java, { ReleaseVersion.name(bad) }, bad)
