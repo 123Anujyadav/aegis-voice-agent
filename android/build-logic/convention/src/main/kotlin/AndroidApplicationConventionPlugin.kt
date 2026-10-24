@@ -42,13 +42,16 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     versionName = ReleaseVersion.name(providers.environmentVariable("CS_VERSION_NAME").orNull)
 
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+                }
 
+                androidResources {
                     // Restrict packaged resources to the languages the product
                     // actually ships. Every unshipped locale in a dependency
                     // otherwise adds resources to the APK, and Phase 1 §17 gates
                     // APK growth at 2% — a threshold that stray locales alone
-                    // can breach.
-                    resourceConfigurations += setOf("en", "hi", "bn", "ta", "te", "mr")
+                    // can breach. localeFilters replaces the deprecated
+                    // defaultConfig.resourceConfigurations, deprecated in AGP 8.9.
+                    localeFilters += setOf("en", "hi", "bn", "ta", "te", "mr")
                 }
 
                 buildFeatures {
