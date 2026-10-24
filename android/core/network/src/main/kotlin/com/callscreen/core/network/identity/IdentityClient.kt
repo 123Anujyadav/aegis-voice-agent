@@ -33,7 +33,20 @@ public class IdentityClient(
     private val proofs: DeviceProofs,
     private val integrity: IntegrityTokens = IntegrityTokens { null },
     private val httpClient: OkHttpClient = defaultHttpClient(),
+    private val refreshIntegrityIntervalSeconds: Long = REFRESH_INTEGRITY_INTERVAL_SECONDS,
+    private val nowSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
 ) {
+    /**
+     * When this client last asked for an integrity token (epoch seconds), or
+     * null if never in this process. ADR-0031 D31.4: a token is attached at
+     * enrolment, and on refresh at most once per [refreshIntegrityIntervalSeconds],
+     * because Google's default quota (10,000 requests per app per day) would
+     * otherwise run out at about 100 subscribers refreshing every 15 minutes.
+     * A refresh without a token keeps the session's tier on the server.
+     */
+    @Volatile
+    private var lastIntegrityAttempt: Long? = null
+
     private val base: HttpUrl = requireNotNull(baseUrl.trimEnd('/').toHttpUrlOrNull()) { "baseUrl is not a URL" }.also {
         require(it.isHttps || it.host in LOOPBACK) { "baseUrl must be https" }
         require(it.encodedPath == "/" && it.query == null && it.username.isEmpty()) { "baseUrl must be an origin" }
@@ -85,6 +98,20 @@ public class IdentityClient(
      * outside the contract. Problem responses map to [IdentityError]; nothing
      * from a response body ever reaches an error.
      */
+    /**
+     * Whether this request should carry an integrity token: always at
+     * enrolment; on refresh only if none was requested for at least the
+     * interval (or ever, in this process). An attempt counts whether or not a
+     * token was obtained: a device that cannot get one does not ask Google
+     * every 15 minutes. A clock that went backwards counts as due.
+     */
+    private fun integrityDue(route: String): Boolean {
+        if (route == IdentityRoutes.ENROLMENT) return true
+        val last = lastIntegrityAttempt ?: return true
+        val now = nowSeconds()
+        return now < last || now - last >= refreshIntegrityIntervalSeconds
+    }
+
     private fun <T> call(route: String, body: String, proof: String?, success: (Int, String) -> T?): IdentityResult<T> {
         val request = Request.Builder()
             .url(origin + route)
@@ -93,7 +120,10 @@ public class IdentityClient(
             .apply {
                 if (proof != null) {
                     header("DPoP", proof)
-                    integrity.tokenFor(proof)?.takeIf { it.isNotEmpty() }?.let { header(INTEGRITY_HEADER, it) }
+                    if (integrityDue(route)) {
+                        lastIntegrityAttempt = nowSeconds()
+                        integrity.tokenFor(proof)?.takeIf { it.isNotEmpty() }?.let { header(INTEGRITY_HEADER, it) }
+                    }
                 }
             }
             .build()
@@ -141,6 +171,9 @@ public class IdentityClient(
     public companion object {
         private const val METHOD = "POST"
         private const val INTEGRITY_HEADER = "Integrity-Token"
+
+        /** ADR-0031 D31.4: on refresh, an integrity token at most once every 6 hours. */
+        public const val REFRESH_INTEGRITY_INTERVAL_SECONDS: Long = 6L * 60 * 60
         private val JSON = "application/json".toMediaType()
         private val LOOPBACK = setOf("localhost", "127.0.0.1", "::1")
 
