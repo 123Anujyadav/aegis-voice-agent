@@ -70,7 +70,12 @@ jobs:
 
       - name: Build-logic unit tests
         working-directory: android
-        run: ./gradlew --no-daemon --stacktrace -p build-logic :convention:test
+        run: |
+          ./gradlew --no-daemon --stacktrace -p build-logic :convention:test
+          # A test task that discovers no tests still passes in Gradle 8, so
+          # require ReleaseVersionTest's JUnit report with at least one test.
+          report=build-logic/convention/build/test-results/test/TEST-ReleaseVersionTest.xml
+          grep -Eq '<testsuite [^>]*tests="[1-9][0-9]*"' "$report" || { echo "::error::ReleaseVersionTest did not run ($report)"; exit 1; }
 
       # The release version comes from CS_VERSION_CODE. A value that is set but
       # invalid must stop the build, not quietly ship the developer default 1.

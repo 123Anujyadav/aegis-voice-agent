@@ -60,6 +60,11 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // Print each test's outcome: Gradle 8 passes a test task that discovered
+    // no tests at all, so the log must show which tests actually ran.
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
 }
 
 // Registering plugins by id lets modules apply them with
