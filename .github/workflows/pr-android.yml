@@ -7,9 +7,10 @@
 # Android milestone (the client's auth and network layers) needs before any of
 # it is written.
 #
-# What it runs: the debug build of every module and the JVM unit tests. Release
-# builds need signing material that only the release workflow has, and
-# instrumented tests need a device; neither runs here.
+# What it runs: the debug build of every module, the JVM unit tests, and the
+# minified staging build (release's R8 configuration, debug-signed). Release
+# builds need signing material, and instrumented tests need a device; neither
+# runs here.
 #
 # Toolchain: the JDK and the Android SDK preinstalled on the runner image. No
 # setup action is used, so no third-party action runs with the checkout.
@@ -66,3 +67,20 @@ jobs:
       - name: JVM unit tests (debug)
         working-directory: android
         run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
+
+      # staging inherits release's R8 minification and resource shrinking but
+      # is signed with the debug key, so it needs no release secrets. Building
+      # it is what catches R8-only defects (missing keep rules, stripped
+      # classes) before a release build ever runs.
+      - name: Minified staging build (R8, debug-signed)
+        working-directory: android
+        run: ./gradlew --no-daemon --stacktrace assembleStaging
+
+      # A green staging build alone does not prove R8 ran: when the staging
+      # build type silently lost release's minification, assembleStaging still
+      # passed. R8 writes the mapping file; its absence fails the job.
+      - name: R8 actually minified the staging build
+        working-directory: android
+        run: |
+          mapping=app/build/outputs/mapping/staging/mapping.txt
+          test -s "$mapping" || { echo "::error::$mapping is missing or empty: the staging build was not minified by R8"; exit 1; }
