@@ -110,6 +110,25 @@ real handset on each provider, including the failover path.
   `SetIntegrityVerifier(decoder, policy)` in bootstrap. The policy's package
   name and certificate digests come from the release signing configuration.
 
+**Proposed configuration** for that wiring PR. **identity reads none of these
+yet**; they follow the existing `CS_IDENTITY_*` naming:
+
+| Name | Holds | Secret? |
+|---|---|---|
+| `CS_IDENTITY_PLAY_INTEGRITY_PACKAGE_NAME` | The Android application id | No |
+| `CS_IDENTITY_PLAY_INTEGRITY_CERT_DIGESTS` | Comma-separated, unpadded base64url SHA-256 digests of the release signing certificate(s) | No |
+| `CS_IDENTITY_PLAY_INTEGRITY_CREDENTIALS_FILE` | The path of a **mounted Kubernetes Secret** holding the Google credential: a workload-identity-federation configuration (preferred) or a service-account key | **Yes** |
+
+**Secure setup:**
+1. SRE creates the credential in the Google Cloud project linked in Play
+   Console, granting only the Play Integrity API.
+2. SRE stores it as a Kubernetes Secret and mounts it read-only into identity.
+3. Only the file path goes into configuration.
+
+The credential never goes into the repository, a ticket, a log or chat. With
+none of these set, identity keeps Play Integrity unavailable, and sessions
+stay `unverified`.
+
 **Before claiming verification works:** an integration test against Google with
 a real device token, both certified and restricted.
 
