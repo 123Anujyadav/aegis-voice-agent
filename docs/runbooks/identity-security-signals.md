@@ -9,9 +9,9 @@
 - **Where the metrics come from:** `GET /metrics` on each service's health
   port (ADR-0013), never the application port. Every label comes from a
   closed vocabulary; no label carries an identifier, number, code or token.
-- **Depends on #131:** `identity.integrity.restricted`,
+- **Since #131:** `identity.integrity.restricted`,
   `identity.integrity.rejected` and the `not_presented` outcome exist only
-  once ADR-0031's implementation (#131) has merged.
+  since ADR-0031's implementation (#131) merged.
 - **Owner:** SRE runs the alerts. Security owns the response to the
   security-classed signals.
 - **Hard rules during any response:**
