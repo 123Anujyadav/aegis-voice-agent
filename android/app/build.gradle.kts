@@ -29,6 +29,23 @@ android {
         val identityBaseUrl = providers.gradleProperty("callscreen.identityBaseUrl").getOrElse("")
         require(Regex("^[A-Za-z0-9:/._-]*$").matches(identityBaseUrl)) { "callscreen.identityBaseUrl must be a plain URL" }
         buildConfigField("String", "IDENTITY_BASE_URL", "\"$identityBaseUrl\"")
+
+        // edge-api's public origin (configuration, NOT a secret). It must equal
+        // edge-api's CS_EDGE_API_PUBLIC_ORIGIN, which every proof's htu is
+        // checked against. Unset (the default) means protected requests are
+        // unavailable; no host is assumed. -Pcallscreen.edgeApiBaseUrl=https://...
+        val edgeApiBaseUrl = providers.gradleProperty("callscreen.edgeApiBaseUrl").getOrElse("")
+        require(Regex("^[A-Za-z0-9:/._-]*$").matches(edgeApiBaseUrl)) { "callscreen.edgeApiBaseUrl must be a plain URL" }
+        buildConfigField("String", "EDGE_API_BASE_URL", "\"$edgeApiBaseUrl\"")
+
+        // The Google Cloud project number linked to this app in Play Console
+        // (an identifier, NOT a secret), for Play Integrity standard requests
+        // (ADR-0031). Unset (the default) means no integrity tokens are sent
+        // and identity records sessions as unverified.
+        // -Pcallscreen.playIntegrityCloudProjectNumber=<digits>
+        val playIntegrityProject = providers.gradleProperty("callscreen.playIntegrityCloudProjectNumber").getOrElse("")
+        require(Regex("^[0-9]*$").matches(playIntegrityProject)) { "callscreen.playIntegrityCloudProjectNumber must be digits" }
+        buildConfigField("String", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "\"$playIntegrityProject\"")
     }
 }
 
