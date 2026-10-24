@@ -316,9 +316,13 @@ owner to accept.
 2. **Revoking an access token is not immediate.** A revoked session's access
    token stays valid for up to 15 minutes plus 60 seconds. This was ADR-0010's
    accepted design; ADR-0029 restates it.
-3. **Play Integrity is not called on the issuance path** (ADR-0010 §5(b)).
-   An app that is not genuine but holds a valid OTP can enrol. Fixing this
-   needs Google setup that only the owner can provide.
+3. **Play Integrity verifies nothing yet** (ADR-0010 §5(b)).
+   - Since #131 it is assessed at issuance (ADR-0031).
+   - There is no Google verifier, and the tier is not enforced.
+   - So an app that is not genuine, holding a valid OTP, can still enrol, as
+     `unverified`.
+   - Fixing this needs Google setup that only the owner can provide, and the
+     owner's decision on what the restricted tier may do.
 4. **The rotation runbook has never been exercised** (§2).
 5. **edge-api's availability now depends on PostgreSQL** (§3).
 
