@@ -1,0 +1,104 @@
+# =============================================================================
+# The Android identity client against the REAL identity service.
+#
+# pr-android tests the client against MockWebServer, and identity-postgres
+# tests identity with Go clients. Neither proves that the Kotlin client and the
+# Go server agree on the contract: routes, bodies, problem codes, DPoP proofs
+# (htu, ath, jkt binding) and refresh-token rotation and reuse. This runs
+# identity as a process on a throwaway PostgreSQL and drives it with the
+# Android client (IdentityLiveContractTest), through
+# tools/scripts/android-identity-contract.sh.
+#
+# It needs no credential, account or external service: every key, the database
+# and the OTP "delivery" (stdout, test-only) are generated or faked for the run.
+# Toolchain as pr-android (the runner's JDK 17 and Android SDK) and
+# identity-postgres (pinned Go, the PostgreSQL image pinned by digest).
+# =============================================================================
+name: android-identity-contract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/core/network/**"
+      - "android/core/security/**"
+      - "android/build-logic/**"
+      - "android/gradle/**"
+      - "services/go/identity/**"
+      - "packages/go/accesstoken/**"
+      - "packages/go/dpop/**"
+      - "packages/go/pgshared/**"
+      - "packages/go/platform/**"
+      - "go.work"
+      - "go.work.sum"
+      - "tools/scripts/android-identity-contract.sh"
+      - ".github/workflows/android-identity-contract.yml"
+  pull_request:
+    paths:
+      - "android/core/network/**"
+      - "android/core/security/**"
+      - "android/build-logic/**"
+      - "android/gradle/**"
+      - "services/go/identity/**"
+      - "packages/go/accesstoken/**"
+      - "packages/go/dpop/**"
+      - "packages/go/pgshared/**"
+      - "packages/go/platform/**"
+      - "go.work"
+      - "go.work.sum"
+      - "tools/scripts/android-identity-contract.sh"
+      - ".github/workflows/android-identity-contract.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: android-identity-contract-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26.10"
+  GOTOOLCHAIN: "local"
+  GOFLAGS: "-mod=readonly"
+  POSTGRES_IMAGE: "docker.io/library/postgres@sha256:7e5df973a74872482e320dcbdeb055e178d6f42de0558b083892c50cda833c96"
+
+jobs:
+  contract:
+    name: Android identity client against the real identity service
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: services/go/identity/go.sum
+
+      - name: Use the runner's JDK 17 and Android SDK
+        run: |
+          test -n "${JAVA_HOME_17_X64:-}" || { echo "::error::JDK 17 is not preinstalled on this image"; exit 1; }
+          test -d "${ANDROID_HOME:-}" || { echo "::error::the Android SDK is not preinstalled on this image"; exit 1; }
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+
+      - name: Pull the pinned PostgreSQL image
+        run: docker pull --platform linux/amd64 "$POSTGRES_IMAGE"
+
+      - name: Android client against identity on throwaway PostgreSQL
+        run: bash tools/scripts/android-identity-contract.sh
+
+      - name: Verify container cleanup
+        if: ${{ always() }}
+        run: |
+          left="$(docker ps -aq --filter name=cs-idcontract-)"
+          if [ -n "$left" ]; then
+            echo "$left" | xargs -r docker rm -f >/dev/null
+            echo "::error::the throwaway PostgreSQL container was left behind and has been removed"
+            exit 1
+          fi

@@ -39,8 +39,8 @@
 
 | Item | Status | Evidence |
 |---|---|---|
-| Device-key proofs (DPoP) in the server's exact profile | **MERGED, NOT INTEGRATED** | #137 (`3dc06e5`). Its vectors are shared with the Go tests. Never run against a live identity. |
-| Identity HTTP client | **MERGED, NOT INTEGRATED** | #139 (`ed71365`), tested with MockWebServer. |
+| Device-key proofs (DPoP) in the server's exact profile | **MERGED, NOT INTEGRATED** | #137 (`3dc06e5`). Its vectors are shared with the Go tests. **Contract-tested against the real identity service** in CI (`android-identity-contract`, `IdentityLiveContractTest`). That is identity run locally on throwaway PostgreSQL, **not a deployed environment and not a device**. |
+| Identity HTTP client | **MERGED, NOT INTEGRATED** | #139 (`ed71365`), tested with MockWebServer, **and against the real identity service** in CI (`android-identity-contract`). The tests cover OTP request; a wrong code refused; enrolment with the access token's `cnf.jkt` equal to the device key; a refresh signed by another key refused without rotating; refresh rotation; and reuse of the rotated-away token ending the whole session. No deployed identity and no device are involved. |
 | Encrypted session store (Keystore AES-GCM plus DataStore) | **MERGED, NOT INTEGRATED** | #140 (`4f0c67f`). `androidx.security-crypto` is avoided: it is deprecated per [the AndroidX releases page](https://developer.android.com/jetpack/androidx/releases/security). |
 | Orchestration (single-flight refresh) | **MERGED, NOT INTEGRATED** | #141 (`da8edb8`): 8 concurrent callers make 1 refresh (test). |
 | Phone-verification UI | **MERGED, NOT INTEGRATED** | #142 (`4a6bbe6`). The Hilt graph was validated in CI. |
