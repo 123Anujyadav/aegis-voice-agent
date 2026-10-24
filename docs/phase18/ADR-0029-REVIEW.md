@@ -67,7 +67,7 @@ complete".**
 
 | ADR-0010 requirement | State on `main` |
 |---|---|
-| §5(b) Play Integrity at issuance and refresh | Wired since #131 (ADR-0031): assessed at enrolment and refresh, and the tier recorded but **not enforced**. There is no Google verifier (needs Google setup), so every session is `unverified`. |
+| §5(b) Play Integrity at issuance and refresh | Wired since #131 (ADR-0031): assessed at enrolment and refresh, and the tier recorded but **not enforced**. There is no Google verifier (needs Google setup), so every session is `unverified`, and a non-genuine app holding a valid OTP can still enrol. |
 | §5(a) OTP exponential backoff, per-device limit | Fixed lockout. Backoff deferred as an owner trade-off (brief §3a). There is no device identity before enrolment. |
 | §10 rate limiting on **token refresh**, and **per source address** | **Not implemented.** OTP send and verify are limited per number only. Refresh has no rate limit. |
 | §10 SIM-swap controls: cooling-off on re-enrolment, notification to the prior device, re-verification for elevated operations | **Not implemented.** None of the elevated operations exist yet. |

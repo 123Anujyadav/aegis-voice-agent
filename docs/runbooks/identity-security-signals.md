@@ -9,9 +9,14 @@
 - **Where the metrics come from:** `GET /metrics` on each service's health
   port (ADR-0013), never the application port. Every label comes from a
   closed vocabulary; no label carries an identifier, number, code or token.
-- **Since #131:** `identity.integrity.restricted`,
-  `identity.integrity.rejected` and the `not_presented` outcome exist only
-  since ADR-0031's implementation (#131) merged.
+- **Play Integrity verifies nothing yet.** No Google verifier is
+  configured, so no genuine-app claim is checked. Every session is
+  `unverified`, and an attacker holding a valid OTP can still enrol (as
+  `unverified`). The integrity signals below describe a missing dependency
+  until a verifier is configured.
+- **Since #131:** the `identity.integrity.restricted` and
+  `identity.integrity.rejected` events and the `not_presented` outcome exist
+  (ADR-0031's implementation).
 - **Owner:** SRE runs the alerts. Security owns the response to the
   security-classed signals.
 - **Hard rules during any response:**

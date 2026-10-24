@@ -41,7 +41,7 @@ spending. Those stay gated as before.
 | Deviation | Where it stands | Owner action |
 |---|---|---|
 | **Session lifetime is 24 h, not 90 days** | Stricter than ADR-0010. Subscribers re-verify daily. | A product decision: keep or extend. |
-| **Play Integrity is not verified against Google** | The fabricating stub is replaced by a fail-closed boundary and an offline-tested verdict policy (#108). Since #131 (ADR-0031), it is assessed at enrolment and refresh, and the tier is recorded on the session, but not enforced. There is no Google verifier, so every session is `unverified`. | Provide a Google Cloud project, credentials and egress. Decide what the restricted tier may do. |
+| **Play Integrity is not verified against Google** | The fabricating stub is replaced by a fail-closed boundary and an offline-tested verdict policy (#108). Since #131 (ADR-0031), it is assessed at enrolment and refresh, and the tier is recorded on the session, but not enforced. There is no Google verifier, so every session is `unverified`, and no genuine-app claim is verified: a non-genuine app holding a valid OTP can still enrol. | Provide a Google Cloud project, credentials and egress. Decide what the restricted tier may do. |
 | **No OTP delivery provider** | A failover sender boundary exists (#109, merged). No provider; requests are refused truthfully. | Choose a provider (and a secondary). In India this needs DLT registration. |
 | **A mounted key set instead of a JWKS** | §1, D11.3 | Ratify or reject. |
 | **DPoP on every request** | §1, D11.4 | Ratify or reject. |
