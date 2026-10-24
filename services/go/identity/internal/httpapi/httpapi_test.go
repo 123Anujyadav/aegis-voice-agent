@@ -67,6 +67,7 @@ type countingRepo struct {
 	*app.MemoryIdentityRepository
 	mu              sync.Mutex
 	saves, deletes  int
+	sessionSaves    int
 	failGet         bool
 	failGetWithText string
 }
@@ -76,6 +77,19 @@ func (c *countingRepo) SaveOtp(ctx context.Context, ch *app.OtpChallenge) error 
 	c.saves++
 	c.mu.Unlock()
 	return c.MemoryIdentityRepository.SaveOtp(ctx, ch)
+}
+
+func (c *countingRepo) SaveSession(ctx context.Context, sess *app.UserSession) error {
+	c.mu.Lock()
+	c.sessionSaves++
+	c.mu.Unlock()
+	return c.MemoryIdentityRepository.SaveSession(ctx, sess)
+}
+
+func (c *countingRepo) sessionCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.sessionSaves
 }
 
 func (c *countingRepo) DeleteOtp(ctx context.Context, id string) error {
