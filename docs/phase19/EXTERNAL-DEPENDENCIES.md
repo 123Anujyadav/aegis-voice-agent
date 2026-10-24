@@ -1,6 +1,7 @@
 # External dependencies and owner decisions: tracker
 
 - **As of:** 2026-10-24, `main` at `c6cecf9`.
+- **Credentials and costs, per service:** [CREDENTIALS-AND-ACCOUNTS.md](CREDENTIALS-AND-ACCOUNTS.md).
 - **What it lists:** everything authentication and identity work is waiting
   on that the repository cannot supply itself. None of it blocks the other
   engineering work, which continues around these items.
