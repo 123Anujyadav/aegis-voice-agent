@@ -1,6 +1,6 @@
 # Credentials, external accounts and costs: register
 
-- **As of:** 2026-10-24, `main` at `0208a88`.
+- **As of:** 2026-10-24, `main` at `9b8b181`.
 - **What this lists:** every credential, external account or paid service the
   code needs, with:
   - the exact names the code reads, or names marked **proposed** where
