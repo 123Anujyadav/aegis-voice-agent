@@ -441,18 +441,19 @@ func (r *Repository) SaveSession(ctx context.Context, s *app.UserSession) error 
 	}
 	tag, err := r.pool.Exec(ctx, `
 		INSERT INTO identity_sessions (session_id, subscriber_id, refresh_token_hash, device_id, roles,
-			created_at, expires_at, is_revoked, device_key_thumbprint)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			created_at, expires_at, is_revoked, device_key_thumbprint, integrity_tier)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (session_id) DO UPDATE SET
 			subscriber_id = EXCLUDED.subscriber_id,
 			refresh_token_hash = EXCLUDED.refresh_token_hash, device_id = EXCLUDED.device_id,
 			roles = EXCLUDED.roles, created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at,
 			is_revoked = identity_sessions.is_revoked OR EXCLUDED.is_revoked,
-			device_key_thumbprint = EXCLUDED.device_key_thumbprint
+			device_key_thumbprint = EXCLUDED.device_key_thumbprint,
+			integrity_tier = EXCLUDED.integrity_tier
 		WHERE identity_sessions.device_key_thumbprint = ''
 		   OR identity_sessions.device_key_thumbprint = EXCLUDED.device_key_thumbprint`,
 		s.SessionID, s.SubscriberID, s.RefreshTokenHash, s.DeviceID, s.Roles,
-		us(s.CreatedAt), us(s.ExpiresAt), s.IsRevoked, s.DeviceKeyThumbprint)
+		us(s.CreatedAt), us(s.ExpiresAt), s.IsRevoked, s.DeviceKeyThumbprint, storedTier(s.IntegrityTier))
 	if err != nil {
 		if ok, g := mapGuard(err); ok {
 			return g
@@ -466,11 +467,25 @@ func (r *Repository) SaveSession(ctx context.Context, s *app.UserSession) error 
 }
 
 func scanSession(row pgx.Row, s *app.UserSession) error {
-	return row.Scan(&s.SubscriberID, &s.RefreshTokenHash, &s.DeviceID, &s.Roles,
-		&s.CreatedAt, &s.ExpiresAt, &s.IsRevoked, &s.DeviceKeyThumbprint)
+	var tier string
+	if err := row.Scan(&s.SubscriberID, &s.RefreshTokenHash, &s.DeviceID, &s.Roles,
+		&s.CreatedAt, &s.ExpiresAt, &s.IsRevoked, &s.DeviceKeyThumbprint, &tier); err != nil {
+		return err
+	}
+	s.IntegrityTier = app.SessionIntegrityTier(tier)
+	return nil
 }
 
-const sessionColumns = `subscriber_id, refresh_token_hash, device_id, roles, created_at, expires_at, is_revoked, device_key_thumbprint`
+// storedTier is the integrity tier as stored: the zero value is 'unverified',
+// as the memory repository stores it (ADR-0031 D31.4).
+func storedTier(t app.SessionIntegrityTier) string {
+	if t == "" {
+		return string(app.SessionUnverified)
+	}
+	return string(t)
+}
+
+const sessionColumns = `subscriber_id, refresh_token_hash, device_id, roles, created_at, expires_at, is_revoked, device_key_thumbprint, integrity_tier`
 
 // GetSession returns a fresh copy, or app.ErrInvalidToken when there is none.
 func (r *Repository) GetSession(ctx context.Context, sessionID string) (*app.UserSession, error) {
@@ -512,10 +527,11 @@ func (r *Repository) ReplaceSession(ctx context.Context, s *app.UserSession, exp
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE identity_sessions SET subscriber_id = $2, refresh_token_hash = $3, device_id = $4,
-				roles = $5, created_at = $6, expires_at = $7, is_revoked = $8, device_key_thumbprint = $9
+				roles = $5, created_at = $6, expires_at = $7, is_revoked = $8, device_key_thumbprint = $9,
+				integrity_tier = $10
 			WHERE session_id = $1`,
 			s.SessionID, s.SubscriberID, s.RefreshTokenHash, s.DeviceID, s.Roles,
-			us(s.CreatedAt), us(s.ExpiresAt), s.IsRevoked, s.DeviceKeyThumbprint); err != nil {
+			us(s.CreatedAt), us(s.ExpiresAt), s.IsRevoked, s.DeviceKeyThumbprint, storedTier(s.IntegrityTier)); err != nil {
 			if ok, g := mapGuard(err); ok {
 				return g
 			}

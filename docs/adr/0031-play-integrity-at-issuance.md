@@ -185,6 +185,19 @@ exactly ADR-0010's "raises a signal".
 - **A new 400 code,** `ERR_INVALID_INTEGRITY_TOKEN`, is added to the closed
   problem vocabulary and counted by `identity_auth_requests_total`.
 
+## Implementation status (2026-10-24)
+
+D31.1–D31.5 are implemented in `services/go/identity`:
+- migration `0006_session_integrity_tier`;
+- `ValidateOtpWithDeviceProofAndIntegrity` and
+  `RefreshTokenWithDeviceProofAndIntegrity`;
+- the `Integrity-Token` header and `ERR_INVALID_INTEGRITY_TOKEN`.
+
+**Not changed by this:**
+- the Status line: owner ratification is still pending;
+- the absence of a Google verifier: production sessions stay `unverified`;
+- the tier being recorded only and never enforced (D31.5).
+
 ## Revisit triggers
 
 - **The owner decides the restricted tier's permissions:** carry the tier to
