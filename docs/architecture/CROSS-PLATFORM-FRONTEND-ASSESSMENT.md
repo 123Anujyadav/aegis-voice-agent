@@ -56,6 +56,11 @@ That is the shape a multiplatform split needs.
 (the Compose UI and the plain-Kotlin identity logic), and the seams for
 platform security already exist.
 
+**Shared UI does not remove platform-specific work.** Whichever stack is chosen, each platform still needs its own:
+- device-key security (Android Keystore; iOS Secure Enclave);
+- attestation (Play Integrity; App Attest, plus server verification);
+- calling integration.
+
 The calling pre-filter stays Android-only. The carrier-side screening path
 (ADR-0002) serves both platforms.
 
