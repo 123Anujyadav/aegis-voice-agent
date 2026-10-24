@@ -24,13 +24,13 @@
 | Item | Status | Evidence |
 |---|---|---|
 | Debug build and JVM unit tests in CI | **VERIFIED** | `pr-android` (#136). `assembleDebug` succeeds and `testDebugUnitTest` runs for every module (CI logs, #136–#144). |
-| Minified (R8) build | **OPEN** | #145 found that `staging` **was never minified**: it was created before `release` set R8, and `initWith` copied the defaults. The fix plus a mapping-file assertion are in #145. Its genuine R8 run was pending when this was written. |
-| `app/proguard-rules.pro` | **OPEN** | It was missing although `release` names it. Added (empty, with an explanation) in #145. |
+| Minified (R8) build | **VERIFIED** | #145 (squash `33aa9c7`, head `f414802`) found that `staging` **had never been minified**: it was created before `release` set R8, so `initWith` copied the defaults. Fixed. CI (`pr-android`, job 120836170651) ran `:app:minifyStagingWithR8` (09:31:43–09:32:41Z), and the assertion that `app/build/outputs/mapping/staging/mapping.txt` exists and is non-empty passed. The step now runs on every Android PR. |
+| `app/proguard-rules.pro` | **VERIFIED** | It was missing, although `release` names it. Added in #145 (empty, with an explanation): no keep rule was needed for the R8 build to pass. |
 | **Target API 36** | **DEFECT** (fix prepared) | Google Play: "New apps and app updates must target Android 16 (API level 36) or higher", effective 2026-08-31, with extensions to 2026-11-01 ([target-sdk requirements](https://developer.android.com/google/play/requirements/target-sdk), updated 2026-10-16). The app targets **35** (`android/gradle/libs.versions.toml`). The prepared fix is AGP 8.7.3 → 8.9.1 (the minimum for API 36, per [about-agp](https://developer.android.com/build/releases/about-agp)), with `compileSdk` and `targetSdk` at 36. Gradle 8.12 and JDK 17 are kept. |
 | Android 16 behavior changes | **VERIFIED** (no change needed) | Checked against [behavior-changes-16](https://developer.android.com/about/versions/16/behavior-changes-16): `MainActivity` already calls `enableEdgeToEdge()`; there is no `onBackPressed` or `KEYCODE_BACK`; there are no orientation or resizability locks; the manifest declares no permissions, services or receivers. |
 | **Release workflow** | **EXTERNAL / DEFECT** | **None exists** (`.github/workflows/`), although the convention plugin says release signing "is injected by the release workflow". |
 | Release signing and upload key | **EXTERNAL** | No release signing config exists anywhere, which is correct: there must be no key in Git. It needs an upload key held in CI secrets, with Play App Signing managed by Google. Secret names will be defined by the release workflow; none exist yet. |
-| Version code and name | **VERIFIED** (mechanism) | `CS_VERSION_CODE` and `CS_VERSION_NAME` (non-secret environment variables) are read by `AndroidApplicationConventionPlugin.kt`. No release has set them yet. |
+| Version code and name | **DEFECT** (fix prepared) | `CS_VERSION_CODE` and `CS_VERSION_NAME` (non-secret environment variables) are read by `AndroidApplicationConventionPlugin.kt`. On `main`, a set-but-invalid `CS_VERSION_CODE` **silently becomes versionCode 1**. The fix (branch `fix/android-release-version-validation`) fails the build instead and bounds the code to 1–2,100,000,000, Play's maximum ([versioning](https://developer.android.com/studio/publish/versioning)). No release has set either value yet. |
 | Backup | **VERIFIED** | `android:allowBackup="false"` in `app/src/main/AndroidManifest.xml`. |
 | Cleartext traffic | **VERIFIED** (platform default) | There is no network-security config. Cleartext is blocked by default at this `targetSdk`, and the clients additionally refuse non-https origins (`EndpointConfig`, `IdentityClient`, `EdgeApiClient`). |
 
@@ -84,3 +84,42 @@ The decision is the owner's.
    supplied.
 5. **Owner:** link the Play Integrity Cloud project, and choose the OTP
    provider and complete DLT. Without an OTP provider, nobody can enrol.
+
+## 6. Release workflow and signing: proposed design (not implemented)
+
+**Why it is not implemented yet:**
+- The signing path cannot be exercised without an upload key, and none exists.
+- A workflow nobody can run would be unverified code that only looks finished.
+- The smallest safe step taken so far is version validation: an invalid version now fails the build (section 1).
+
+**How the keys relate** ([Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756)):
+- The **app signing key** is held by Google. It signs the APKs delivered to users, and new apps are enrolled by default.
+- The **upload key** is held by us. It signs the bundle we upload, and Google uses it to verify the uploader.
+- Google recommends the two keys be different.
+- A lost or compromised upload key can be reset from Play Console with a new certificate. Losing it does not lock the app.
+
+**Proposed workflow** (`release-android.yml`):
+1. **Trigger:** manual `workflow_dispatch` only, gated by a protected GitHub Environment with required reviewers. The owner configures the environment.
+2. **Inputs:**
+   - `CS_VERSION_CODE`: 1–2,100,000,000, strictly greater than the last uploaded code;
+   - `CS_VERSION_NAME`: for example `1.0.0`.
+   - Both are non-secret. The build rejects invalid values.
+3. **Build:**
+   - decode the upload keystore from an Environment secret into `$RUNNER_TEMP`;
+   - run `bundleRelease` (R8, as staging already proves) with a signing config that the convention plugin creates **only** when the signing variables are present;
+   - delete the keystore in an `always()` step.
+4. **Output:** a signed `.aab` workflow artifact, uploaded to Play's internal-testing track **by the owner**. Automated upload through the Play Developer API would need a service-account credential, and it is deferred until the owner authorises it.
+
+**Proposed secret names.** They are not created. They become final only when the workflow is written and run, and they would be GitHub **Environment** secrets, never in Git:
+
+| Name | Secret? | Purpose |
+|---|---|---|
+| `ANDROID_UPLOAD_KEYSTORE_BASE64` | secret | The upload keystore, base64 |
+| `ANDROID_UPLOAD_KEYSTORE_PASSWORD` | secret | The keystore password |
+| `ANDROID_UPLOAD_KEY_ALIAS` | not sensitive, kept beside the others | The key alias |
+| `ANDROID_UPLOAD_KEY_PASSWORD` | secret | The key password |
+
+**Prerequisites (owner):**
+- a Play Console developer account (the registration fee is **not verified here**);
+- the app created in Play Console;
+- an upload key generated by the owner offline with `keytool` and stored as the secrets above. **No key is ever generated or committed by automation.**
