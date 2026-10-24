@@ -1,7 +1,7 @@
 # Android / Google Play release-readiness assessment
 
 - **As of:** 2026-10-24.
-- **Evidence:** `main` at `84d6741`, plus the PRs named below. Every claim
+- **Evidence:** `main` at `2ab335a`, plus the PRs named below. Every claim
   cites a repository path, a commit or PR, CI evidence, or official
   documentation.
 - **Not claimed: Google Play readiness.** This document lists what stands
@@ -31,7 +31,7 @@
 | Android 16 behavior changes | **VERIFIED** (no change needed) | Checked against [behavior-changes-16](https://developer.android.com/about/versions/16/behavior-changes-16): `MainActivity` already calls `enableEdgeToEdge()`; there is no `onBackPressed` or `KEYCODE_BACK`; there are no orientation or resizability locks; the manifest declares no permissions, services or receivers. |
 | **Release workflow** | **EXTERNAL / DEFECT** | **None exists** (`.github/workflows/`), although the convention plugin says release signing "is injected by the release workflow". |
 | Release signing and upload key | **EXTERNAL** | No release signing config exists anywhere, which is correct: there must be no key in Git. It needs an upload key held in CI secrets, with Play App Signing managed by Google. Secret names will be defined by the release workflow; none exist yet. |
-| Version code and name | **DEFECT** (fix OPEN in #148) | `CS_VERSION_CODE` and `CS_VERSION_NAME` (non-secret environment variables) are read by `AndroidApplicationConventionPlugin.kt`. On `main`, a set-but-invalid `CS_VERSION_CODE` **silently becomes versionCode 1**. The fix, #148 (**OPEN**), fails the build instead and bounds the code to 1–2,100,000,000, Play's maximum ([versioning](https://developer.android.com/studio/publish/versioning)). No release has set either value yet. |
+| Version code and name | **VERIFIED** | #148 (squash `2ab335a`, head `2217a45`): `CS_VERSION_CODE` and `CS_VERSION_NAME` (non-secret environment variables) are validated by `ReleaseVersion` (`android/build-logic/convention/src/main/kotlin/ReleaseVersion.kt`). Unset gives the developer defaults. Set but invalid fails the build; before #148, an invalid code silently became versionCode 1. The code must be 1 to 2,100,000,000, Play's maximum ([versioning](https://developer.android.com/studio/publish/versioning)). The name must be 1–64 characters of `[0-9A-Za-z.+_-]`, starting with a letter or digit. CI job 120881371351: all 5 `ReleaseVersionTest` cases are listed PASSED; the JUnit report is required to contain at least one test; and `CS_VERSION_CODE=not-a-number` fails `:app:help` with the validation message. **Gap:** no test accepts an exactly-64-character name. No release has set either value yet. |
 | Backup | **VERIFIED** | `android:allowBackup="false"` in `app/src/main/AndroidManifest.xml`. |
 | Cleartext traffic | **VERIFIED** (platform default) | There is no network-security config. Cleartext is blocked by default at this `targetSdk`, and the clients additionally refuse non-https origins (`EndpointConfig`, `IdentityClient`, `EdgeApiClient`). |
 
@@ -76,7 +76,7 @@ The decision is the owner's.
 
 ## 5. Shortest path to a first Play internal-testing release
 
-1. #145 (R8), #146 (app wiring) and #147 (API 36) are merged. #148 (version validation) is next.
+1. #145 (R8), #146 (app wiring), #147 (API 36) and #148 (version validation) are merged.
 2. **Owner/SRE:** choose the identity and edge hosts, and deploy staging.
 3. **Owner:** set up the Play Console account and app, the upload key (held
    as a CI secret) and Play App Signing.
@@ -91,7 +91,7 @@ The decision is the owner's.
 **Why it is not implemented yet:**
 - The signing path cannot be exercised without an upload key, and none exists.
 - A workflow nobody can run would be unverified code that only looks finished.
-- The smallest safe step taken so far is version validation: an invalid version now fails the build (section 1).
+- The smallest safe step taken so far is version validation (#148): an invalid version now fails the build (section 1).
 
 **How the keys relate** ([Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756)):
 - The **app signing key** is held by Google. It signs the APKs delivered to users, and new apps are enrolled by default.
@@ -140,4 +140,5 @@ Re-verified against the repository on 2026-10-24.
 | Real-device Play Integrity, sign-in and calling | **Device and release-environment validation** | Never run on a device. It needs a Play-installed build and live hosts. |
 | ADR-0029, ADR-0030 D30.3 (with amendments), ADR-0031; session permissions; SIM-swap policy and device-history retention; OTP backoff and session lifetime | **Owner decision** | §3 |
 | Cryptographic review; privacy (DPDP) review | **Independent review** | §3 |
+| `ReleaseVersionTest` has no test accepting an exactly-64-character `CS_VERSION_NAME` | **Code (test)** | The limit is enforced in `ReleaseVersion.name`; only 65 characters (rejected) is tested. |
 | Stale `android.suppressUnsupportedCompileSdk=35` in `android/gradle.properties` | **Code (cleanup)** | AGP 8.9.1 supports `compileSdk` 36, so the property no longer suppresses anything. It is harmless. |
