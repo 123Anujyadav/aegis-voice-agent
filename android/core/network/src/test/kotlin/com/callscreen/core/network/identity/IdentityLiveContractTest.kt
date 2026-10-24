@@ -32,7 +32,7 @@ import java.util.Base64
 @EnabledIfEnvironmentVariable(named = "AEGIS_IDENTITY_E2E_BASE_URL", matches = "http://127\\.0\\.0\\.1:[0-9]+")
 class IdentityLiveContractTest {
 
-    private val baseUrl = System.getenv("AEGIS_IDENTITY_E2E_BASE_URL")
+    private val baseUrl: String = requireNotNull(System.getenv("AEGIS_IDENTITY_E2E_BASE_URL"))
     private val otpFile = File(requireNotNull(System.getenv("AEGIS_IDENTITY_E2E_OTP_FILE")) { "AEGIS_IDENTITY_E2E_OTP_FILE is not set" })
 
     @Test
