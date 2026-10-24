@@ -4,12 +4,12 @@
   - The owner's requirement is one shared Android/iOS frontend codebase, with
     Android and Google Play launching first.
   - Nothing here migrates code, adds iOS work, or delays the Android release.
-- **Evidence:** the repository at `main` `7179f03` (2026-10-24). Module counts
+- **Evidence:** the repository at `main` `84d6741` (2026-10-24). Module counts
   are `find`/`grep` over `android/**/src/main`.
 
 ## 1. What exists today
 
-The app is **Kotlin with Jetpack Compose**, Hilt and Gradle, and has 66 Kotlin
+The app is **Kotlin with Jetpack Compose**, Hilt and Gradle, and has 67 Kotlin
 source files across 17 modules, excluding the Gradle convention plugins. **It is not a shared iOS UI.** The Go
 backend's HTTP contracts (identity, edge-api) are the only interface the
 frontend depends on.
