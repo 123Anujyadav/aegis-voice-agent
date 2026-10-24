@@ -107,7 +107,8 @@ The decision is the owner's.
    - Both are non-secret. The build rejects invalid values.
 3. **Build:**
    - decode the upload keystore from an Environment secret into `$RUNNER_TEMP`;
-   - run `bundleRelease` (R8, as staging already proves) with a signing config that the convention plugin creates **only** when the signing variables are present;
+   - run `bundleRelease` (R8, as staging already proves) with the upload-key signing config. **Implemented:** the convention plugin creates it **only** when all four `CS_UPLOAD_*` variables are set (`ReleaseSigning`), fails on a partial set, and leaves release unsigned when none is set.
+     `pr-android` proves it on every Android PR: it builds a signed `bundleRelease` with a throwaway key generated and deleted inside the job, and checks that the bundle's signer certificate is that key's.
    - delete the keystore in an `always()` step.
 4. **Output:** a signed `.aab` workflow artifact, uploaded to Play's internal-testing track **by the owner**. Automated upload through the Play Developer API would need a service-account credential, and it is deferred until the owner authorises it.
 
@@ -131,7 +132,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 
 | Blocker | Kind | Repository evidence |
 |---|---|---|
-| Release workflow (`bundleRelease`, upload-key signing) | **Code, ready to implement once an upload key exists** | No `release*` workflow in `.github/workflows/`. The design is §6. |
+| Release workflow (`bundleRelease`, upload-key signing) | **Code, ready to implement once an upload key exists** | No `release*` workflow exists in `.github/workflows/`. The design is §6. The **build side is implemented**: `ReleaseSigning` reads `CS_UPLOAD_*`, and `pr-android` builds and verifies a signed bundle with a throwaway key. The real upload key, the protected GitHub Environment and the workflow remain. |
 | Identity and edge-api hosts | **External setup (owner)** | `callscreen.identityBaseUrl` and `callscreen.edgeApiBaseUrl` default to empty (`android/app/build.gradle.kts`). These are public configuration, not secrets. |
 | Server-side Play Integrity verifier: integration into identity | **Owner decision**, then **external setup**, then **code** | The adapter `services/go/identity/internal/playintegrity/playintegrity.go` exists; its tests run only against a local fake of `decodeIntegrityToken` (`playintegrity_test.go`), and it has **never called Google**. It is **not wired** into identity's authentication flow: nothing outside the package imports it, and `SetIntegrityVerifier` (`internal/app/integrity.go`) is never called, so every session is recorded `unverified`. Wiring a real verifier would switch on ADR-0031 D31.3, which refuses a token Google rejects with 400 `ERR_INVALID_INTEGRITY_TOKEN`. ADR-0031 is **Proposed, owner ratification pending**, and the verdict thresholds (`IntegrityPolicy`) are security policy, so both are the owner's. Then external setup: the Google Cloud project linked in Play Console, and a credential for the verifier. The mechanism (workload identity federation or a service-account key) is undecided, and the credential would be a secret. |
 | Play Integrity on the client: Cloud project number | **External setup (owner)** | `callscreen.playIntegrityCloudProjectNumber` (public) is unset, so the app requests no integrity token (#146). |

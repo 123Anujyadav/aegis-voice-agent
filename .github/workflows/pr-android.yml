@@ -73,9 +73,11 @@ jobs:
         run: |
           ./gradlew --no-daemon --stacktrace -p build-logic :convention:test
           # A test task that discovers no tests still passes in Gradle 8, so
-          # require ReleaseVersionTest's JUnit report with at least one test.
-          report=build-logic/convention/build/test-results/test/TEST-ReleaseVersionTest.xml
-          grep -Eq '<testsuite [^>]*tests="[1-9][0-9]*"' "$report" || { echo "::error::ReleaseVersionTest did not run ($report)"; exit 1; }
+          # require each suite's JUnit report with at least one test.
+          for suite in ReleaseVersionTest ReleaseSigningTest; do
+            report=build-logic/convention/build/test-results/test/TEST-$suite.xml
+            grep -Eq '<testsuite [^>]*tests="[1-9][0-9]*"' "$report" || { echo "::error::$suite did not run ($report)"; exit 1; }
+          done
 
       # The release version comes from CS_VERSION_CODE. A value that is set but
       # invalid must stop the build, not quietly ship the developer default 1.
@@ -104,3 +106,38 @@ jobs:
         run: |
           mapping=app/build/outputs/mapping/staging/mapping.txt
           test -s "$mapping" || { echo "::error::$mapping is missing or empty: the staging build was not minified by R8"; exit 1; }
+
+      # The release signing path, proven with a THROWAWAY key generated here
+      # and deleted with the job's temp directory. It is never the real upload
+      # key, which only the release workflow will hold. bundleRelease must be
+      # signed by exactly this key's certificate.
+      - name: Release bundle is signed with the upload key (throwaway key)
+        working-directory: android
+        run: |
+          dir="$RUNNER_TEMP/throwaway-upload-key"
+          mkdir -p "$dir"
+          trap 'rm -rf "$dir"' EXIT
+          pass="$(openssl rand -hex 24)"
+          echo "::add-mask::$pass"
+          keytool -genkeypair -noprompt -keystore "$dir/upload.p12" -storetype PKCS12             -storepass "$pass" -keypass "$pass" -alias upload -keyalg RSA -keysize 2048             -validity 1 -dname "CN=Throwaway CI upload key"
+          CS_UPLOAD_KEYSTORE_FILE="$dir/upload.p12" CS_UPLOAD_KEYSTORE_PASSWORD="$pass"             CS_UPLOAD_KEY_ALIAS=upload CS_UPLOAD_KEY_PASSWORD="$pass"             ./gradlew --no-daemon --stacktrace :app:bundleRelease
+          bundle=app/build/outputs/bundle/release/app-release.aab
+          test -s "$bundle" || { echo "::error::$bundle was not produced"; exit 1; }
+          expected=$(keytool -exportcert -rfc -keystore "$dir/upload.p12" -storepass "$pass" -alias upload | openssl x509 -noout -fingerprint -sha256)
+          actual=$(keytool -printcert -rfc -jarfile "$bundle" | openssl x509 -noout -fingerprint -sha256)
+          echo "upload key: $expected"
+          echo "bundle signer: $actual"
+          if [ -z "$actual" ] || [ "$expected" != "$actual" ]; then
+            echo "::error::$bundle is not signed by the upload key"; exit 1
+          fi
+
+      # A release with only some CS_UPLOAD_* variables set must fail, naming
+      # the missing variables, rather than quietly building an unsigned bundle.
+      - name: A partial upload-key configuration fails the build
+        working-directory: android
+        run: |
+          log="$RUNNER_TEMP/partial-signing.log"
+          if CS_UPLOAD_KEY_ALIAS=upload ./gradlew --no-daemon :app:help > "$log" 2>&1; then
+            echo "::error::the build accepted a partial upload-key configuration"; exit 1
+          fi
+          grep -q "Release signing needs all of" "$log" || { cat "$log"; echo "::error::the build failed, but not on the upload-key configuration"; exit 1; }
