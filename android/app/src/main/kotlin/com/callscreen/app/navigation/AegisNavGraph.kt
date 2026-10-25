@@ -22,7 +22,7 @@ import com.callscreen.feature.onboarding.CallForwardingSetupScreen
 import com.callscreen.feature.onboarding.ScreeningRoleRoute
 import com.callscreen.feature.onboarding.PhoneVerificationRoute
 import com.callscreen.feature.onboarding.SetupCompleteScreen
-import com.callscreen.feature.onboarding.SimDetectionScreen
+import com.callscreen.feature.onboarding.SimDetectionRoute
 import com.callscreen.feature.onboarding.SplashScreen
 import com.callscreen.feature.onboarding.WelcomeScreen
 import com.callscreen.feature.protection.FraudIntelligenceScreen
@@ -103,7 +103,7 @@ public fun AegisNavGraph(
             WelcomeScreen(onGetStartedClick = { navController.navigate(AegisDestinations.SIM_DETECTION) })
         }
         composable(AegisDestinations.SIM_DETECTION) {
-            SimDetectionScreen(onContinueClick = { navController.navigate(AegisDestinations.PHONE_VERIFICATION) })
+            SimDetectionRoute(onContinueClick = { navController.navigate(AegisDestinations.PHONE_VERIFICATION) })
         }
         composable(AegisDestinations.PHONE_VERIFICATION) {
             val context = LocalContext.current
@@ -129,7 +129,11 @@ public fun AegisNavGraph(
             CallForwardingSetupScreen(onActivateForwardingClick = { navController.navigate(AegisDestinations.SETUP_COMPLETE) })
         }
         composable(AegisDestinations.SETUP_COMPLETE) {
-            SetupCompleteScreen(onGoToHomeClick = { navController.navigate(AegisDestinations.CALLS_FEED) })
+            val context = LocalContext.current
+            SetupCompleteScreen(
+                onGoToHomeClick = { navController.navigate(AegisDestinations.CALLS_FEED) },
+                blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
+            )
         }
         composable(AegisDestinations.CALLS_FEED) {
             CallsFeedRoute(

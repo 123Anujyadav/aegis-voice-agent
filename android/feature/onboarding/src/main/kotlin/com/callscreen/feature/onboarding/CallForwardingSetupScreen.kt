@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PhoneForwarded
-import androidx.compose.material.icons.filled.ContentCopy
 
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -54,13 +53,13 @@ public fun CallForwardingSetupScreen(
             )
 
             Text(
-                text = "Carrier Call Forwarding",
+                text = ForwardingCopy.TITLE,
                 style = CallScreenTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary
             )
             Text(
-                text = "Enable conditional call forwarding (*71 / *67 MMI code) so unanswered calls route to Aegis AI.",
+                text = ForwardingCopy.HOW,
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.secondary
             )
@@ -80,41 +79,24 @@ public fun CallForwardingSetupScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Carrier Dial Code",
+                            text = ForwardingCopy.STATUS_TITLE,
                             style = CallScreenTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = CallScreenTheme.colors.content.primary
                         )
-                        AegisStatusChip(text = "Jio / Airtel", variant = StatusChipVariant.Verified)
+                        AegisStatusChip(text = ForwardingCopy.NOT_AVAILABLE, variant = StatusChipVariant.Fraud)
                     }
                     Text(
-                        text = "*71*+911140008899#",
-                        style = CallScreenTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = CallScreenTheme.colors.action.primary.fill
+                        text = ForwardingCopy.WHY_NOT,
+                        style = CallScreenTheme.typography.bodyMedium,
+                        color = CallScreenTheme.colors.content.secondary
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Code",
-                            tint = CallScreenTheme.colors.content.tertiary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Tap button below to dial and activate automatically.",
-                            style = CallScreenTheme.typography.bodySmall,
-                            color = CallScreenTheme.colors.content.secondary
-                        )
-                    }
                 }
             }
         }
 
         AegisPrimaryButton(
-            text = "Activate Call Forwarding",
+            text = ForwardingCopy.CONTINUE,
             onClick = onActivateForwardingClick,
             modifier = Modifier.padding(bottom = 16.dp)
         )
@@ -128,3 +110,22 @@ private fun CallForwardingSetupScreenPreview() {
         CallForwardingSetupScreen()
     }
 }
+
+/**
+ * A07 until forwarding exists. ADR-0002 §5 provisions it with the standard
+ * no-reply code (`**61*<DID>**<seconds>#`) to a platform number, dialled only
+ * with the subscriber's consent and verified afterwards. No platform number is
+ * allocated yet, so no code is shown and nothing is dialled.
+ */
+internal object ForwardingCopy {
+    const val TITLE = "Call forwarding"
+    const val HOW =
+        "Your carrier can forward calls you don't answer to the assistant. You'll see the exact code " +
+            "before anything is dialled, and you can undo it."
+    const val STATUS_TITLE = "Status"
+    const val NOT_AVAILABLE = "Not available yet"
+    const val WHY_NOT =
+        "Forwarding needs a number from our service, which isn't set up yet. Nothing has been changed with your carrier."
+    const val CONTINUE = "Continue without forwarding"
+}
+

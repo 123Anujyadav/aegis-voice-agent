@@ -79,7 +79,7 @@ Several prototype screens show fixed values as if they were measured or detected
 - The calls feed shows `sampleCalls` (`CallsFeedScreen.kt:54`).
 - Welcome claims the AI "filters spam before your phone rings" and "scans caller speech vectors". On Android the AI answers only after the carrier's ring delay (ADR-0002 §5), and no such scanning exists (`WelcomeScreen.kt:87,92`).
 
-A release must not show invented status: it misleads users, and Play's policies on deceptive behaviour apply. **Recommendation:** before any public track, replace each value with real data or an honest empty state, and remove the unsupported claims. Wording and product claims are the owner's; the code change is routine once the wording is chosen.
+**Update: #179 removes these** for onboarding, Protection and the calls feed (readiness §7). Prototype content remains on other tabs. A release must not show invented status: it misleads users, and Play's policies on deceptive behaviour apply. **Recommendation:** before any public track, replace each value with real data or an honest empty state, and remove the unsupported claims. Wording and product claims are the owner's; the code change is routine once the wording is chosen.
 
 ### 4.2 Contact matching depends on the number's format
 

@@ -33,11 +33,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisBottomBar
-import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.AegisTab
-import com.callscreen.core.ui.components.AegisThreatCard
 import com.callscreen.core.ui.components.AegisTopAppBar
-import com.callscreen.core.ui.components.StatusChipVariant
 
 @Composable
 public fun ProtectionDashboardScreen(
@@ -84,17 +81,16 @@ public fun ProtectionDashboardScreen(
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Text(
-                                    text = "Aegis Score 98/100",
+                                    text = DashboardCopy.TITLE,
                                     style = CallScreenTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = CallScreenTheme.colors.content.inverse
                                 )
                             }
-                            AegisStatusChip(text = "Optimal", variant = StatusChipVariant.Verified)
                         }
 
                         Text(
-                            text = "Active Protection Shield running on-device. Zero unverified scam breaches detected.",
+                            text = DashboardCopy.NO_DATA,
                             style = CallScreenTheme.typography.bodyMedium,
                             color = CallScreenTheme.colors.content.inverse.copy(alpha = 0.8f)
                         )
@@ -108,14 +104,14 @@ public fun ProtectionDashboardScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     StatMetricCard(
-                        title = "Spam Blocked",
-                        value = "142",
+                        title = "Spam blocked",
+                        value = null,
                         icon = Icons.Default.Block,
                         modifier = Modifier.weight(1f)
                     )
                     StatMetricCard(
-                        title = "AI Screenings",
-                        value = "89",
+                        title = "AI screenings",
+                        value = null,
                         icon = Icons.Default.Psychology,
                         modifier = Modifier.weight(1f)
                     )
@@ -132,7 +128,7 @@ public fun ProtectionDashboardScreen(
 
             item {
                 Text(
-                    text = "Live Threat Intelligence Radar",
+                    text = DashboardCopy.THREATS_TITLE,
                     style = CallScreenTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = CallScreenTheme.colors.content.primary
@@ -140,10 +136,10 @@ public fun ProtectionDashboardScreen(
             }
 
             item {
-                AegisThreatCard(
-                    threatTitle = "Active Bank OTP Phishing Campaign",
-                    threatScore = 94,
-                    description = "Widespread scam targeting India accounts via spoofed Mumbai numbers. 412 reports in last 24h."
+                Text(
+                    text = DashboardCopy.NO_THREATS,
+                    style = CallScreenTheme.typography.bodyMedium,
+                    color = CallScreenTheme.colors.content.secondary
                 )
             }
         }
@@ -153,7 +149,8 @@ public fun ProtectionDashboardScreen(
 @Composable
 private fun StatMetricCard(
     title: String,
-    value: String,
+    /** The count, or null while the app records none: shown as "Not available yet", never as a made-up number. */
+    value: String?,
     icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
@@ -181,9 +178,9 @@ private fun StatMetricCard(
                 )
             }
             Text(
-                text = value,
-                style = CallScreenTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black,
+                text = value ?: DashboardCopy.NOT_AVAILABLE,
+                style = if (value == null) CallScreenTheme.typography.bodyMedium else CallScreenTheme.typography.headlineMedium,
+                fontWeight = if (value == null) FontWeight.Normal else FontWeight.Black,
                 color = CallScreenTheme.colors.content.primary
             )
             Text(
@@ -220,3 +217,17 @@ private fun ProtectionDashboardScreenPreview() {
         ProtectionDashboardScreen()
     }
 }
+
+/**
+ * What Protection can honestly show. No source of counts, a protection score
+ * or threat reports exists yet (no call records, no fraud feed: readiness
+ * §2a), so none is shown; the lists below are real.
+ */
+internal object DashboardCopy {
+    const val TITLE = "Protection"
+    const val NO_DATA = "No protection data yet. Counts of blocked and screened calls will appear here once the app records them."
+    const val NOT_AVAILABLE = "Not available yet"
+    const val THREATS_TITLE = "Threat reports"
+    const val NO_THREATS = "No threat reports yet."
+}
+
