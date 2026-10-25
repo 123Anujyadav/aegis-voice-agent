@@ -50,6 +50,26 @@ class EndpointConfigTest {
     }
 
     @Test
+    @DisplayName("certificate pins: none is today's unpinned client; valid pins pin the origin's host; unusable pins turn the endpoint off")
+    fun certificatePins() {
+        val a = "sha256/" + "A".repeat(43) + "="
+        val b = "sha256/" + "B".repeat(43) + "="
+
+        val unpinned = requireNotNull(EndpointConfig.httpClient("https://identity.example.test", ""))
+        assertEquals(emptySet<Any>(), unpinned.certificatePinner.pins, "no pins means no pinning")
+
+        val pinned = requireNotNull(EndpointConfig.httpClient("https://identity.example.test", "$a,$b"))
+        assertEquals(
+            setOf(a, b),
+            pinned.certificatePinner.pins.filter { it.pattern == "identity.example.test" }.map { it.toString() }.toSet(),
+        )
+
+        for (bad in listOf(a, "$a,$a", "$a,sha256/short=", "$a,not-a-pin")) {
+            assertNull(EndpointConfig.httpClient("https://identity.example.test", bad), "$bad must not fall back to an unpinned client")
+        }
+    }
+
+    @Test
     @DisplayName("a Cloud project number must be a positive decimal; anything else means no integrity tokens")
     fun cloudProjectNumber() {
         assertEquals(123456789012L, EndpointConfig.cloudProjectNumber("123456789012"))

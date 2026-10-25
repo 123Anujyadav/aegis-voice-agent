@@ -46,6 +46,20 @@ android {
         val playIntegrityProject = providers.gradleProperty("callscreen.playIntegrityCloudProjectNumber").getOrElse("")
         require(Regex("^[0-9]*$").matches(playIntegrityProject)) { "callscreen.playIntegrityCloudProjectNumber must be digits" }
         buildConfigField("String", "PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER", "\"$playIntegrityProject\"")
+
+        // Certificate pins for each origin (ADR-0010: "our own leaf and a
+        // backup pin"). These are configuration, NOT secrets: hashes of public
+        // keys, as sha256/<base64>, at least two each, comma-separated. Unset
+        // (the default) means no pinning, which is today's behaviour. A value
+        // that is set but unusable turns that endpoint off rather than leaving
+        // it unpinned. They must be set before a release (readiness §7).
+        // -Pcallscreen.identityCertPins=sha256/...,sha256/...
+        val identityCertPins = providers.gradleProperty("callscreen.identityCertPins").getOrElse("")
+        require(Regex("^[A-Za-z0-9+/=,]*$").matches(identityCertPins)) { "callscreen.identityCertPins must be sha256/<base64> pins, comma-separated" }
+        buildConfigField("String", "IDENTITY_CERT_PINS", "\"$identityCertPins\"")
+        val edgeApiCertPins = providers.gradleProperty("callscreen.edgeApiCertPins").getOrElse("")
+        require(Regex("^[A-Za-z0-9+/=,]*$").matches(edgeApiCertPins)) { "callscreen.edgeApiCertPins must be sha256/<base64> pins, comma-separated" }
+        buildConfigField("String", "EDGE_API_CERT_PINS", "\"$edgeApiCertPins\"")
     }
 }
 

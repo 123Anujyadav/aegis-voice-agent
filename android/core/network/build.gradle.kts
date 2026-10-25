@@ -27,6 +27,8 @@ dependencies {
     api(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.okhttp.mockwebserver)
+    // Test only: a real TLS server and certificates for the pinning tests.
+    testImplementation(libs.okhttp.tls)
     // Test only: IdentityLiveContractTest signs real proofs with the app's
     // own DpopProofFactory. core:security does not depend on this module.
     testImplementation(projects.core.security)
