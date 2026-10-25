@@ -20,6 +20,10 @@ android {
     namespace = "com.callscreen"
 
     defaultConfig {
+        // Instrumented tests run under HiltTestApplication (app/src/androidTest),
+        // so a test can replace a module with a fixture; production is unchanged.
+        testInstrumentationRunner = "com.callscreen.app.HiltTestRunner"
+
         // identity's public origin (configuration, NOT a secret). Device proofs
         // sign <origin>/v1/otp/validate and <origin>/v1/token/refresh, which
         // must equal identity's CS_IDENTITY_ENROLLMENT_CANONICAL_URL and
@@ -97,5 +101,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.timber)
-}
 
+    // Instrumented tests: the system role and permission dialogs live in another app.
+    androidTestImplementation(libs.androidx.test.uiautomator)
+}

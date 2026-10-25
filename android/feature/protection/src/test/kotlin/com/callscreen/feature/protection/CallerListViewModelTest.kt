@@ -81,7 +81,7 @@ class CallerListViewModelTest {
         val blocklist = screen(ListType.BLOCK)
         blocklist.add("+919876500001")
         advanceUntilIdle()
-        assertEquals(ListMessage.MOVED, blocklist.state.value.message)
+        assertEquals(ListMessage.MOVED_TO_BLOCKED, blocklist.state.value.message)
         assertEquals(ListType.BLOCK, store.listOf(e164("+919876500001")))
         assertTrue(screen(ListType.ALLOW).state.value.entries.isEmpty())
     }
@@ -166,7 +166,8 @@ class CallerListViewModelTest {
         val blocklist = screen(ListType.BLOCK)
         blocklist.moveToOtherList(blocklist.state.value.entries.single())
         advanceUntilIdle()
-        assertEquals(ListMessage.MOVED, blocklist.state.value.message)
+        // Out of the list on screen: the message names the list it went to.
+        assertEquals(ListMessage.MOVED_TO_ALLOWED, blocklist.state.value.message)
         assertTrue(blocklist.state.value.entries.isEmpty())
         val allowed = screen(ListType.ALLOW).state.value.entries.single()
         assertEquals(ListType.ALLOW to "Courier", allowed.type to allowed.label)

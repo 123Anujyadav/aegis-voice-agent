@@ -64,7 +64,7 @@
 - a saved contact reached the service only with `READ_CONTACTS`;
 - answers took 1–65 ms against Android's 5 s limit.
 
-Carrier behaviour, Android 8/9 and the screens on a device are **not** verified (that document's §5 is the manual sheet).
+**Screens on a device (#181):** 11 instrumented tests pass on the Android 15 emulator, through real navigation and Hilt with a fixture list file. They found and fixed four UI defects: snackbars dismissed immediately (so no Undo or move statement), an unnamed Add button, the wrong move direction, and a missing allowlist caveat. Carrier behaviour is **not** verified (that document's §5 is the manual sheet). Android 8/9: see that document.
 
 Found on 2026-10-25: **the app cannot screen a call yet.** `core:telephony`,
 `core:permissions`, `core:notifications` and `core:database` contain no code,

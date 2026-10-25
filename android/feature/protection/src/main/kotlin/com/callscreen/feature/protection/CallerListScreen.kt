@@ -113,7 +113,6 @@ internal fun CallerListScreen(
 
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
-        onMessageShown()
         val undo = message == ListMessage.REMOVED && state.undoable != null
         val result = snackbar.showSnackbar(
             message = copy.message(message),
@@ -121,6 +120,10 @@ internal fun CallerListScreen(
             // An undo stays until its window closes (below); anything else is brief.
             duration = if (undo) SnackbarDuration.Indefinite else SnackbarDuration.Short,
         )
+        // Only once it has been shown: clearing it first changed this effect's key, which
+        // cancelled the effect and dismissed the snackbar at once (no message, no Undo).
+        // A newer message cancels this one instead, and is shown in its place.
+        onMessageShown()
         if (result == SnackbarResult.ActionPerformed) onUndo()
     }
     LaunchedEffect(state.undoable) {
@@ -136,6 +139,9 @@ internal fun CallerListScreen(
                     onClick = { adding = true },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = { Text(CallerListCopy.ADD_NUMBER) },
+                    // The extended FAB does not expose its text to accessibility (on a device the
+                    // button was announced without a name), so it is labelled explicitly.
+                    modifier = Modifier.semantics { contentDescription = CallerListCopy.ADD_NUMBER },
                 )
             }
         },
@@ -150,6 +156,16 @@ internal fun CallerListScreen(
         ) {
             if (notice != null && !state.loading && !state.unreadable) {
                 BlockingNotice(notice, onNoticeAction, modifier = Modifier.padding(top = 12.dp))
+            }
+            // An allowed call still rings unanswered into carrier forwarding (readiness §2a):
+            // said whenever the allowlist is shown, not only while it is empty.
+            if (state.type == ListType.ALLOW && !state.loading && !state.unreadable) {
+                Text(
+                    text = CallerListCopy.FORWARDING_CAVEAT,
+                    style = CallScreenTheme.typography.bodyMedium,
+                    color = CallScreenTheme.colors.content.secondary,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
             }
             when {
                 state.loading -> Unit
@@ -397,14 +413,13 @@ internal class CallerListCopy private constructor(private val type: ListType) {
             "Blocking works on this phone, even offline or if our service is down.",
         )
     } else {
-        listOf("Numbers you allow are never blocked here, even if they're flagged as spam.", FORWARDING_CAVEAT)
+        listOf("Numbers you allow are never blocked here, even if they're flagged as spam.")
     }
 
     fun message(message: ListMessage): String = when (message) {
         ListMessage.ADDED -> if (type == ListType.BLOCK) "Blocked." else "Allowed."
-        ListMessage.MOVED ->
-            if (type == ListType.BLOCK) "Moved from your allowed numbers to your blocked numbers."
-            else "Moved from your blocked numbers to your allowed numbers."
+        ListMessage.MOVED_TO_BLOCKED -> "Moved from your allowed numbers to your blocked numbers."
+        ListMessage.MOVED_TO_ALLOWED -> "Moved from your blocked numbers to your allowed numbers."
         ListMessage.ALREADY_LISTED -> "That number is already on this list."
         ListMessage.REMOVED -> "Removed."
         ListMessage.NOT_A_PHONE_NUMBER -> "Enter a full phone number, with its area code."

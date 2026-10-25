@@ -87,6 +87,25 @@ On this emulator (region not India), a contact saved as `+91…` was not matched
 
 ### 4.3 The screening screens cannot be reached in a build without identity
 
+**Update: #181 closes this** with instrumented tests in `android/app/src/androidTest`.
+- **How they run:** under `HiltTestApplication`, through the app's real navigation and Hilt graph. Only the caller-list file is a fixture, swapped in with `@UninstallModules(TelephonyModule)`. Role and contacts states are set by the system shell; sign-in is not bypassed.
+- **Android 15 emulator results:** 11/11 pass. Covered:
+  - Protection navigation;
+  - add, label, move (stated in the right direction), remove and the 5-second undo;
+  - refusals;
+  - the corrupted list kept until "Start again";
+  - each blocklist notice (declined, taken by another app, contacts with no prompt before the tap, denied then Settings, granted);
+  - the F14 banner, appearing and clearing;
+  - A09b's "Not now" and "Continue" (the system request opens);
+  - the honest onboarding screens;
+  - the 48 dp remove touch target and small-screen scrolling.
+
+**Defects these tests found on the device** (fixed in #181):
+- Every list snackbar was dismissed as soon as it appeared, so no move statement and no Undo were ever shown.
+- The "Add number" button had no accessible name.
+- The move message named the wrong direction when the move came from a detail sheet.
+- A populated allowlist did not state the forwarding caveat.
+
 Onboarding stops at phone verification, so A09b, Protection (A32/A33/A32d), the blocklist notice and the F14 banner were **not exercised on the device**. Their automated coverage is Robolectric UI tests. Device coverage needs a staging build with identity hosts (external), or an instrumented test that hosts these screens directly (a routine follow-up).
 
 ### 4.4 Repository hygiene
