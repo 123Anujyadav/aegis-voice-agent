@@ -1,6 +1,6 @@
 # Play Integrity: integration and Google authentication, decision memo
 
-- **As of:** 2026-10-25, `main` at `b4d929d`. §3b, §4, §10 and §11 were revised after a second review.
+- **As of:** 2026-10-25, `main` at `13d1639`. §3b, §4, §10 and §11 were revised after a second review; §12 (status checklist) was added after a third.
 - **What this is:** an engineering recommendation for the owner. **It decides
   nothing.**
   - Every policy value below is marked **PROPOSED, awaiting owner
@@ -146,6 +146,9 @@ updated 2026-10-22, which covers EKS explicitly):
   - the attribute mapping `google.subject=assertion.sub`;
   - an **attribute condition limited to identity's namespace and Kubernetes
     service account**.
+  - **Not yet definable:** the repository has no EKS cluster definition, and no
+    identity Deployment, ServiceAccount or IRSA annotation. `infra/k8s/base` holds
+    only a generic `aegis-service-template` in namespace `aegis-system`. See §12 B2.
 - **In the pod:** a projected service-account token whose audience is the
   provider, with a 1-hour expiry that the kubelet rotates.
 - **The credential configuration file** (`credential_source` points at the
@@ -290,3 +293,62 @@ wait for the decision.
 | O8 | §10b tier policy, including `unverified` treated as `restricted` | **Accept, as policy.** Enforcement (§10c) is built per route. |
 | O8 | A Google-rejected token at refresh downgrades the tier to `restricted` | **Accept** (a small identity change, after approval). |
 | — | Workload Identity Federation + service-account impersonation (§7); no key | **Accept.** It is the only option consistent with accepted ADR-0008 and `SECURITY.md`. |
+
+## 12. Approval and setup checklist: status at `13d1639`
+
+**Status key:**
+- **Verified:** true in the code or official documentation today.
+- **Proposed:** a recommendation in this memo.
+- **Owner approval:** needs the owner's explicit decision.
+- **External:** setup outside the repository.
+
+**Nothing below is approved.**
+
+### A. Security policy
+
+| Item | Status | Basis |
+|---|---|---|
+| Behaviour already implemented: checks (§3a), failure table (§4), tier recording | **Verified** (code), **dormant**: no verifier is wired (`SetIntegrityVerifier` has 0 callers) | `internal/app/integrity.go`, migration `0006` |
+| O7: ratify ADR-0031, including refusing Google-rejected (400) tokens at sign-in | **Proposed: ratify** → **Owner approval** | §11 |
+| `MaxAge` 2 min | **Proposed** → **Owner approval** | Code allows (0, 10 min] |
+| `FutureSkew` 30 s | **Proposed** → **Owner approval** | Code allows [0, 1 min] |
+| `DecodeTimeout` 3 s | **Proposed** → **Owner approval** | Code allows (0, 5 s] |
+| Certificate: Play App Signing, converted to base64url, confirmed against a staging verdict | **Proposed** → **Owner approval**; the confirmation is **External** (A3) | §3b |
+| Require `MEETS_DEVICE_INTEGRITY` and `LICENSED`; not `MEETS_STRONG_INTEGRITY` | **Verified** as implemented; keeping it is **Proposed** → **Owner approval** | `Assess` |
+| O8: per-tier permissions (§10b) | **Proposed** → **Owner approval**. Enforcement does **not exist** (§10c) | §10 |
+| O8: a Google-rejected token at refresh downgrades to `restricted` | **Proposed** → **Owner approval**. Today it is refused once, and the tier is unchanged (**Verified**) | §4, §10b |
+
+### B. Authentication architecture
+
+| Item | Status | Basis |
+|---|---|---|
+| B1. Workload Identity Federation + impersonation of a dedicated service account; no key | **Proposed** → **Owner approval** | §7 |
+| Consistency with ADR-0008 and `SECURITY.md` | **Verified.** ADR-0008 (accepted): "IRSA for every workload. No static cloud credentials anywhere". `SECURITY.md`: "no static cloud credentials". A service-account key would violate both. | ADR-0008 §5 (Decision), `SECURITY.md` |
+| Google supports EKS for this pattern; the credential file has no private key | **Verified** (Google documentation, 2026-10-22) | §7 |
+| **B2. The deployment identity to trust: the EKS cluster's OIDC issuer, identity's namespace and its Kubernetes ServiceAccount** | **Unresolved. Not in the repository:** no cluster IaC; no identity Deployment, ServiceAccount or IRSA annotation; only a generic `aegis-service-template` in `aegis-system`. | `infra/k8s/base/*` |
+| B3. Whether the dedicated service account needs any IAM role beyond the Play Console link | **Unverified:** Google's documentation does not say. Verify in staging without broad roles. | §7 |
+| B4. identity needs `golang.org/x/oauth2` (external-account) behind the adapter's `TokenSource` | **Verified:** it is not a dependency yet. Adding it is part of the wiring PR, after approval. | `services/go/identity/go.mod` |
+
+### C. External setup (owner or SRE)
+
+| Item | Owner | Status | Cost |
+|---|---|---|---|
+| C1. A Google Cloud project, **linked to the app in Play Console** | Owner | **External**, not done | Not stated (unverified) |
+| C2. Play Integrity API enabled in that project | Owner | **External**, not done | Price **unverified**; the default quota of 10,000 per app per day is **verified** |
+| C3. The EKS cluster and identity's namespace and ServiceAccount (B2), then a federation pool and an OIDC provider for the cluster's issuer, with an attribute condition for that namespace and ServiceAccount | SRE (cluster), owner/SRE (Google) | **External**, not done; blocked on B2 | IAM API "free of charge" (Google pricing); WIF is not named there (unverified) |
+| C4. A dedicated service account; `roles/iam.workloadIdentityUser` for identity's federated subject only | Owner/SRE | **External**, not done | As C3 |
+| C5. The actual Play App Signing certificate SHA-256, converted to base64url | Owner (Play Console) | **External**, not done | None |
+| C6. A quota review and increase request before launch (D31.4) | Owner/SRE | **External**, not requested | Unverified |
+| C7. A build installed from Play (internal testing), for staging validation on a real device | Owner (Play Console) | **External**, not done; needs the upload key and Play Console account (readiness §6) | The Play Console registration fee is unverified |
+
+### Smallest next step, and what can proceed now
+
+- **After A, B1 and C1–C5 are approved and done:**
+  1. one identity PR adding configuration and the WIF `TokenSource`, which
+     calls `SetIntegrityVerifier` **only when fully configured**, with tests
+     against the local fake;
+  2. then staging on a Play-installed build (C7).
+- **O8 enforcement** (§10c) follows its approval, built per route as sensitive
+  routes are added.
+- **Without approvals:** no further code task. Every remaining item either
+  activates unapproved behaviour or needs external setup.
