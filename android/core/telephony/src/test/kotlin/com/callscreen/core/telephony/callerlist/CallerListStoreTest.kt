@@ -114,6 +114,41 @@ class CallerListStoreTest {
     }
 
     @Test
+    @DisplayName("a label is the subscriber's note: normalised, persisted, cleared when blank")
+    fun labels() {
+        store.block("+919876500001", ListSource.MANUAL)
+        val change = store.setLabel("09876500001", "  Insurance   calls ")
+        assertEquals("Insurance calls", (change as ListChange.Relabelled).entry.label)
+        assertEquals("Insurance calls", CallerListStore(MemoryRecord(record.bytes)).entries(ListType.BLOCK).single().label)
+        assertEquals(ListChange.Relabelled::class, store.setLabel("+919876500001", "   ")::class)
+        assertNull(store.entries(ListType.BLOCK).single().label)
+        assertEquals(ListChange.NotListed, store.setLabel("+919876500002", "Someone"))
+    }
+
+    @Test
+    @DisplayName("labels are bounded and plain text; a number keeps its label when it moves lists")
+    fun labelRulesAndMoves() {
+        store.block("+919876500001", ListSource.MANUAL)
+        val tooLong = "x".repeat(CallerLabel.MAX_LENGTH + 1)
+        assertEquals(ListChange.Refused(ListRefusal.INVALID_LABEL), store.setLabel("+919876500001", tooLong))
+        assertEquals(ListChange.Relabelled::class, store.setLabel("+919876500001", "x".repeat(CallerLabel.MAX_LENGTH))::class)
+        assertEquals(ListChange.Refused(ListRefusal.INVALID_LABEL), store.setLabel("+919876500001", "bell\u0007"))
+        store.setLabel("+919876500001", "Courier")
+        val moved = store.allow("+919876500001", ListSource.MANUAL) as ListChange.Moved
+        assertEquals("Courier", moved.entry.label)
+        assertEquals(ListType.ALLOW, store.listOf(e164("+919876500001")))
+    }
+
+    @Test
+    @DisplayName("a list saved before labels existed (format 1) is still read")
+    fun readsFormatOne() {
+        val v1 = "{\"version\":1,\"entries\":[{\"number\":\"+919876500001\",\"type\":\"BLOCK\",\"source\":\"MANUAL\",\"addedAt\":5}]}"
+        val s = CallerListStore(MemoryRecord(v1.toByteArray()))
+        assertEquals(StoreHealth.READY, s.health())
+        assertEquals(CallerListEntry(e164("+919876500001"), ListType.BLOCK, ListSource.MANUAL, 5), s.entries(ListType.BLOCK).single())
+    }
+
+    @Test
     @DisplayName("a failed save changes nothing: the pre-filter never acts on an unsaved list")
     fun failedSaveChangesNothing() {
         store.block("+919876500001", ListSource.MANUAL)
@@ -130,10 +165,11 @@ class CallerListStoreTest {
         val n = "\"number\":\"+919876500001\",\"type\":\"BLOCK\",\"source\":\"MANUAL\",\"addedAt\":1"
         val unreadable = listOf(
             "not json",
-            "{\"version\":2,\"entries\":[]}",
+            "{\"version\":3,\"entries\":[]}",
             "{\"version\":1,\"entries\":[{\"number\":\"112\",\"type\":\"BLOCK\",\"source\":\"MANUAL\",\"addedAt\":1}]}",
             "{\"version\":1,\"entries\":[{$n},{$n}]}",
             "{\"version\":1,\"entries\":[{$n,\"extra\":true}]}",
+            "{\"version\":2,\"entries\":[{$n,\"label\":\"tab\\there\"}]}",
             "{\"version\":1,\"entries\":[{\"number\":\"+919876500001\",\"type\":\"MUTE\",\"source\":\"MANUAL\",\"addedAt\":1}]}",
         )
         for (text in unreadable) {

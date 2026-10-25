@@ -140,6 +140,41 @@ class CallerListViewModelTest {
     }
 
     @Test
+    @DisplayName("A32d: a label is saved, cleared, and refused when too long; the entry follows it")
+    fun labels() = runTest(dispatcher) {
+        store.block("+919876500001", ListSource.MANUAL)
+        val vm = screen(ListType.BLOCK)
+        val entry = vm.state.value.entries.single()
+        vm.setLabel(entry, " Courier  ")
+        advanceUntilIdle()
+        assertEquals(ListMessage.LABEL_SAVED, vm.state.value.message)
+        assertEquals("Courier", vm.state.value.entries.single().label)
+        vm.setLabel(entry, "x".repeat(41))
+        advanceUntilIdle()
+        assertEquals(ListMessage.INVALID_LABEL, vm.state.value.message)
+        assertEquals("Courier", vm.state.value.entries.single().label)
+        vm.setLabel(entry, "")
+        advanceUntilIdle()
+        assertNull(vm.state.value.entries.single().label)
+    }
+
+    @Test
+    @DisplayName("A32d: moving an entry to the other list keeps its label and source, and is stated")
+    fun moveFromDetail() = runTest(dispatcher) {
+        store.block("+919876500001", ListSource.FROM_CALL)
+        store.setLabel("+919876500001", "Courier")
+        val blocklist = screen(ListType.BLOCK)
+        blocklist.moveToOtherList(blocklist.state.value.entries.single())
+        advanceUntilIdle()
+        assertEquals(ListMessage.MOVED, blocklist.state.value.message)
+        assertTrue(blocklist.state.value.entries.isEmpty())
+        val allowed = screen(ListType.ALLOW).state.value.entries.single()
+        assertEquals(ListType.ALLOW to "Courier", allowed.type to allowed.label)
+        assertEquals(ListSource.FROM_CALL, allowed.source)
+        assertNull(store.listOf(e164("+919876500002")))
+    }
+
+    @Test
     @DisplayName("each screen shows only its own list, and search matches digits")
     fun listsAndSearch() = runTest(dispatcher) {
         store.block("+919876500001", ListSource.MANUAL)
