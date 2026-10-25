@@ -24,11 +24,13 @@ on:
   push:
     branches: [main]
     paths:
+      - "tools/scripts/android-release-bundle.sh"
       - "android/**"
       - "design/tokens/**"
       - ".github/workflows/pr-android.yml"
   pull_request:
     paths:
+      - "tools/scripts/android-release-bundle.sh"
       - "android/**"
       - "design/tokens/**"
       - ".github/workflows/pr-android.yml"
@@ -107,29 +109,26 @@ jobs:
           mapping=app/build/outputs/mapping/staging/mapping.txt
           test -s "$mapping" || { echo "::error::$mapping is missing or empty: the staging build was not minified by R8"; exit 1; }
 
-      # The release signing path, proven with a THROWAWAY key generated here
-      # and deleted with the job's temp directory. It is never the real upload
-      # key, which only the release workflow will hold. bundleRelease must be
-      # signed by exactly this key's certificate.
-      - name: Release bundle is signed with the upload key (throwaway key)
-        working-directory: android
+      # The release signing path, through the SAME script the release workflow
+      # runs (tools/scripts/android-release-bundle.sh), with a THROWAWAY key
+      # generated here and deleted with the job's temp directory. It is never
+      # the real upload key, which only the release workflow's protected
+      # Environment holds. The script builds :app:bundleRelease and fails
+      # unless the bundle's signer is exactly this key's certificate.
+      - name: Release bundle is signed with the upload key (throwaway key, release script)
         run: |
           dir="$RUNNER_TEMP/throwaway-upload-key"
           mkdir -p "$dir"
           trap 'rm -rf "$dir"' EXIT
           pass="$(openssl rand -hex 24)"
           echo "::add-mask::$pass"
-          keytool -genkeypair -noprompt -keystore "$dir/upload.p12" -storetype PKCS12             -storepass "$pass" -keypass "$pass" -alias upload -keyalg RSA -keysize 2048             -validity 1 -dname "CN=Throwaway CI upload key"
-          CS_UPLOAD_KEYSTORE_FILE="$dir/upload.p12" CS_UPLOAD_KEYSTORE_PASSWORD="$pass"             CS_UPLOAD_KEY_ALIAS=upload CS_UPLOAD_KEY_PASSWORD="$pass"             ./gradlew --no-daemon --stacktrace :app:bundleRelease
-          bundle=app/build/outputs/bundle/release/app-release.aab
-          test -s "$bundle" || { echo "::error::$bundle was not produced"; exit 1; }
-          expected=$(keytool -exportcert -rfc -keystore "$dir/upload.p12" -storepass "$pass" -alias upload | openssl x509 -noout -fingerprint -sha256)
-          actual=$(keytool -printcert -rfc -jarfile "$bundle" | openssl x509 -noout -fingerprint -sha256)
-          echo "upload key: $expected"
-          echo "bundle signer: $actual"
-          if [ -z "$actual" ] || [ "$expected" != "$actual" ]; then
-            echo "::error::$bundle is not signed by the upload key"; exit 1
-          fi
+          keytool -genkeypair -noprompt -keystore "$dir/upload.p12" -storetype PKCS12 \
+            -storepass "$pass" -keypass "$pass" -alias upload -keyalg RSA -keysize 2048 \
+            -validity 1 -dname "CN=Throwaway CI upload key"
+          UPLOAD_KEYSTORE_BASE64="$(base64 -w0 "$dir/upload.p12")" \
+            CS_UPLOAD_KEYSTORE_PASSWORD="$pass" CS_UPLOAD_KEY_ALIAS=upload CS_UPLOAD_KEY_PASSWORD="$pass" \
+            CS_VERSION_CODE=1 CS_VERSION_NAME=0.0.0-ci \
+            bash tools/scripts/android-release-bundle.sh
 
       # A release with only some CS_UPLOAD_* variables set must fail, naming
       # the missing variables, rather than quietly building an unsigned bundle.
