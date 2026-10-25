@@ -79,7 +79,8 @@ class CertificatePinningTest {
     fun noPinsIsTodaysBehaviour() {
         val result = requestOtp(null)
         assertTrue(result is IdentityResult.Success, "got $result")
-        assertEquals(CertificatePinner.DEFAULT, IdentityClient.defaultHttpClient().certificatePinner)
+        // OkHttp wraps the default pinner, so compare its pins, not its identity.
+        assertTrue(IdentityClient.defaultHttpClient().certificatePinner.pins.isEmpty())
     }
 
     @Test

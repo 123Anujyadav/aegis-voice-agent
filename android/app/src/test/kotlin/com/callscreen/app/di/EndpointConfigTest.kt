@@ -1,6 +1,5 @@
 package com.callscreen.app.di
 
-import okhttp3.CertificatePinner
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
@@ -57,7 +56,7 @@ class EndpointConfigTest {
         val b = "sha256/" + "B".repeat(43) + "="
 
         val unpinned = requireNotNull(EndpointConfig.httpClient("https://identity.example.test", ""))
-        assertEquals(CertificatePinner.DEFAULT, unpinned.certificatePinner)
+        assertEquals(emptySet<Any>(), unpinned.certificatePinner.pins, "no pins means no pinning")
 
         val pinned = requireNotNull(EndpointConfig.httpClient("https://identity.example.test", "$a,$b"))
         assertEquals(
