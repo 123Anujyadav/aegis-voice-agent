@@ -1,0 +1,87 @@
+# =============================================================================
+# Android release: build the App Bundle signed with the upload key.
+#
+# Manual only (workflow_dispatch). It runs in the `play-release` GitHub
+# Environment, which is where the upload key lives and where the owner sets
+# the protection (required reviewers) before any real key is added. Until the
+# owner creates the secrets, this workflow fails at its first check, naming the
+# missing secrets, and builds nothing.
+#
+# It does NOT upload to Google Play: the signed .aab is a workflow artifact,
+# uploaded to Play's internal-testing track by the owner. Automated upload
+# would need a Play Developer API credential, which is deferred until the
+# owner authorises one (docs/phase19/RELEASE-READINESS-ASSESSMENT.md §6).
+#
+# Secrets (Environment `play-release`; never in the repository or in chat):
+#   ANDROID_UPLOAD_KEYSTORE_BASE64     the upload keystore, base64
+#   ANDROID_UPLOAD_KEYSTORE_PASSWORD   its password
+#   ANDROID_UPLOAD_KEY_ALIAS           the key's alias (not sensitive)
+#   ANDROID_UPLOAD_KEY_PASSWORD        the key's password
+#
+# The build and the signature check are tools/scripts/android-release-bundle.sh,
+# the same script pr-android runs on every Android pull request with a
+# throwaway key, so this path is tested before a real key exists.
+# =============================================================================
+name: release-android
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "versionCode: a whole number from 1 to 2100000000, greater than the last one uploaded to Play"
+        required: true
+        type: string
+      version_name:
+        description: "versionName shown to users, for example 1.0.0"
+        required: true
+        type: string
+
+concurrency:
+  group: release-android
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Signed release bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: play-release
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use the runner's JDK 17 and Android SDK
+        run: |
+          test -n "${JAVA_HOME_17_X64:-}" || { echo "::error::JDK 17 is not preinstalled on this image"; exit 1; }
+          test -d "${ANDROID_HOME:-}" || { echo "::error::the Android SDK is not preinstalled on this image"; exit 1; }
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+
+      # Inputs and secrets reach the script through the environment only, never
+      # interpolated into the shell, so neither can inject commands. The
+      # script names missing values and never prints a secret.
+      - name: Build and verify the signed release bundle
+        env:
+          CS_VERSION_CODE: ${{ inputs.version_code }}
+          CS_VERSION_NAME: ${{ inputs.version_name }}
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          CS_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          CS_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          CS_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: bash tools/scripts/android-release-bundle.sh
+
+      - name: Keep the signed bundle and its R8 mapping
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: app-release-${{ inputs.version_code }}
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 30

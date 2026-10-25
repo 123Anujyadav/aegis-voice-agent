@@ -29,7 +29,7 @@
 | `app/proguard-rules.pro` | **VERIFIED** | It was missing, although `release` names it. Added in #145 (empty, with an explanation): no keep rule was needed for the R8 build to pass. |
 | **Target API 36** | **VERIFIED** (build) | Google Play: "New apps and app updates must target Android 16 (API level 36) or higher", effective 2026-08-31, with extensions to 2026-11-01 ([target-sdk requirements](https://developer.android.com/google/play/requirements/target-sdk), updated 2026-10-16). #147 (squash `84d6741`, head `0c6efa4`): AGP 8.7.3 → 8.9.1 (the minimum for API 36, per [about-agp](https://developer.android.com/build/releases/about-agp)); `compileSdk` and `targetSdk` 36; Gradle 8.12 and JDK 17 kept. AGP 8.9 deprecated `resourceConfigurations`, so it was migrated to `androidResources.localeFilters`, not suppressed. CI job 120873962833: all modules compiled, 24 unit-test tasks ran, `:app:minifyStagingWithR8` ran, and the mapping assertion passed. **Not run on a device.** |
 | Android 16 behavior changes | **VERIFIED** (no change needed) | Checked against [behavior-changes-16](https://developer.android.com/about/versions/16/behavior-changes-16): `MainActivity` already calls `enableEdgeToEdge()`; there is no `onBackPressed` or `KEYCODE_BACK`; there are no orientation or resizability locks; the manifest declares no permissions, services or receivers. |
-| **Release workflow** | **EXTERNAL / DEFECT** | **None exists** (`.github/workflows/`), although the convention plugin says release signing "is injected by the release workflow". |
+| **Release workflow** | **EXTERNAL** (code done) | `.github/workflows/release-android.yml` builds and verifies a signed `.aab` (§6). It is tested through the same script on every Android PR, with a throwaway key. It needs the owner's upload key, the protected `play-release` Environment and its secrets. |
 | Release signing and upload key | **EXTERNAL** | No release signing config exists anywhere, which is correct: there must be no key in Git. It needs an upload key held in CI secrets, with Play App Signing managed by Google. Secret names will be defined by the release workflow; none exist yet. |
 | Version code and name | **VERIFIED** | #148 (squash `2ab335a`, head `2217a45`): `CS_VERSION_CODE` and `CS_VERSION_NAME` (non-secret environment variables) are validated by `ReleaseVersion` (`android/build-logic/convention/src/main/kotlin/ReleaseVersion.kt`). Unset gives the developer defaults. Set but invalid fails the build; before #148, an invalid code silently became versionCode 1. The code must be 1 to 2,100,000,000, Play's maximum ([versioning](https://developer.android.com/studio/publish/versioning)). The name must be 1–64 characters of `[0-9A-Za-z.+_-]`, starting with a letter or digit. CI job 120881371351: all 5 `ReleaseVersionTest` cases are listed PASSED; the JUnit report is required to contain at least one test; and `CS_VERSION_CODE=not-a-number` fails `:app:help` with the validation message. **Gap:** no test accepts an exactly-64-character name. No release has set either value yet. |
 | Backup | **VERIFIED** | `android:allowBackup="false"` in `app/src/main/AndroidManifest.xml`. |
@@ -86,12 +86,17 @@ The decision is the owner's.
 5. **Owner:** link the Play Integrity Cloud project, and choose the OTP
    provider and complete DLT. Without an OTP provider, nobody can enrol.
 
-## 6. Release workflow and signing: proposed design (not implemented)
+## 6. Release workflow and signing: implemented, awaiting the owner's key
 
-**Why it is not implemented yet:**
-- The signing path cannot be exercised without an upload key, and none exists.
-- A workflow nobody can run would be unverified code that only looks finished.
-- The smallest safe step taken so far is version validation (#148): an invalid version now fails the build (section 1).
+**Status:** implemented as `.github/workflows/release-android.yml`.
+- **What it is:** manual (`workflow_dispatch`), in the `play-release` GitHub Environment.
+- **What it does:** builds `:app:bundleRelease`, proves that the signer is the upload key's certificate, and keeps the `.aab` and its R8 mapping as artifacts. **It does not upload to Play.**
+- **How it is tested:** its build and signature check are `tools/scripts/android-release-bundle.sh`, which `pr-android` runs on every Android PR with a throwaway key. So the path is tested, except for where the secrets come from.
+- **What it needs from the owner:**
+  1. an upload key (generated offline);
+  2. the `play-release` Environment's protection (required reviewers);
+  3. the four secrets below.
+- **Until then:** it fails at its first check, naming the missing secrets, and builds nothing.
 
 **How the keys relate** ([Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756)):
 - The **app signing key** is held by Google. It signs the APKs delivered to users, and new apps are enrolled by default.
@@ -99,20 +104,20 @@ The decision is the owner's.
 - Google recommends the two keys be different.
 - A lost or compromised upload key can be reset from Play Console with a new certificate. Losing it does not lock the app.
 
-**Proposed workflow** (`release-android.yml`):
-1. **Trigger:** manual `workflow_dispatch` only, gated by a protected GitHub Environment with required reviewers. The owner configures the environment.
+**The workflow** (`release-android.yml`, as implemented):
+1. **Trigger:** manual `workflow_dispatch` only, in the `play-release` GitHub Environment. The owner adds its protection (required reviewers) **before** adding the key.
 2. **Inputs:**
    - `CS_VERSION_CODE`: 1–2,100,000,000, strictly greater than the last uploaded code;
    - `CS_VERSION_NAME`: for example `1.0.0`.
    - Both are non-secret. The build rejects invalid values.
 3. **Build:**
-   - decode the upload keystore from an Environment secret into `$RUNNER_TEMP`;
+   - `tools/scripts/android-release-bundle.sh` decodes the upload keystore from an Environment secret into a private (mode 700) temporary directory;
    - run `bundleRelease` (R8, as staging already proves) with the upload-key signing config. **Implemented:** the convention plugin creates it **only** when all four `CS_UPLOAD_*` variables are set (`ReleaseSigning`), fails on a partial set, and leaves release unsigned when none is set.
      `pr-android` proves it on every Android PR: it builds a signed `bundleRelease` with a throwaway key generated and deleted inside the job, and checks that the bundle's signer certificate is that key's.
-   - delete the keystore in an `always()` step.
+   - the keystore is deleted on exit, whatever happens (a `trap`), and the script fails unless the bundle's signer is the upload key's certificate.
 4. **Output:** a signed `.aab` workflow artifact, uploaded to Play's internal-testing track **by the owner**. Automated upload through the Play Developer API would need a service-account credential, and it is deferred until the owner authorises it.
 
-**Proposed secret names.** They are not created. They become final only when the workflow is written and run, and they would be GitHub **Environment** secrets, never in Git:
+**Secret names**, read by `release-android.yml`. They are **not created**: the owner adds them to the `play-release` Environment, never to Git or to chat:
 
 | Name | Secret? | Purpose |
 |---|---|---|
@@ -132,7 +137,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 
 | Blocker | Kind | Repository evidence |
 |---|---|---|
-| Release workflow (`bundleRelease`, upload-key signing) | **Code, ready to implement once an upload key exists** | No `release*` workflow exists in `.github/workflows/`. The design is §6. The **build side is implemented**: `ReleaseSigning` reads `CS_UPLOAD_*`, and `pr-android` builds and verifies a signed bundle with a throwaway key. The real upload key, the protected GitHub Environment and the workflow remain. |
+| Release workflow (`bundleRelease`, upload-key signing) | **External setup (owner)**; the code is done | `release-android.yml` plus `tools/scripts/android-release-bundle.sh` (§6). Remaining: the upload key, the `play-release` Environment's protection, and its four secrets. Then a first manual run, and the owner's upload of the `.aab` to internal testing. |
 | Identity and edge-api hosts | **External setup (owner)** | `callscreen.identityBaseUrl` and `callscreen.edgeApiBaseUrl` default to empty (`android/app/build.gradle.kts`). These are public configuration, not secrets. |
 | Server-side Play Integrity verifier: integration into identity | **Owner decision**, then **external setup**, then **code** | The adapter `services/go/identity/internal/playintegrity/playintegrity.go` exists; its tests run only against a local fake of `decodeIntegrityToken` (`playintegrity_test.go`), and it has **never called Google**. It is **not wired** into identity's authentication flow: nothing outside the package imports it, and `SetIntegrityVerifier` (`internal/app/integrity.go`) is never called, so every session is recorded `unverified`. Wiring a real verifier would switch on ADR-0031 D31.3, which refuses a token Google rejects with 400 `ERR_INVALID_INTEGRITY_TOKEN`. ADR-0031 is **Proposed, owner ratification pending**, and the verdict thresholds (`IntegrityPolicy`) are security policy, so both are the owner's. Then external setup: the Google Cloud project linked in Play Console, and a credential for the verifier. The mechanism (workload identity federation or a service-account key) is undecided, and the credential would be a secret. |
 | Play Integrity on the client: Cloud project number | **External setup (owner)** | `callscreen.playIntegrityCloudProjectNumber` (public) is unset, so the app requests no integrity token (#146). |
