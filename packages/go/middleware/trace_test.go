@@ -207,7 +207,7 @@ func TestEdgeTrace_ServerErrorRecordsOnlyAFixedCategory(t *testing.T) {
 	t.Parallel()
 	sink := &spanSink{}
 	routes := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "provider echoed: my account number is 1234", http.StatusBadGateway)
+		http.Error(w, "provider echoed: my account is acct-qx-canary", http.StatusBadGateway)
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v1/x?token=abc", strings.NewReader("transcript text"))
 	req.Header.Set("Authorization", "DPoP secret-access-token")
@@ -217,8 +217,12 @@ func TestEdgeTrace_ServerErrorRecordsOnlyAFixedCategory(t *testing.T) {
 	if span.Err != "http status 502" {
 		t.Errorf("err = %q, want the fixed category", span.Err)
 	}
+	// The whole span is searched, so a new field cannot leak unnoticed. Each
+	// marker must be impossible in generated values: the dump also holds hex
+	// trace and span IDs, a base32 correlation ID and timestamps, so a marker
+	// of digits alone (it was "1234") matched them by chance and flaked.
 	dump := fmt.Sprintf("%+v", span)
-	for _, secret := range []string{"1234", "secret-access-token", "token=abc", "transcript", "/v1/x", "DPoP"} {
+	for _, secret := range []string{"acct-qx-canary", "secret-access-token", "token=abc", "transcript", "/v1/x", "DPoP"} {
 		if strings.Contains(dump, secret) {
 			t.Errorf("span contains %q: %s", secret, dump)
 		}
