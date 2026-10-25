@@ -77,6 +77,9 @@ dependencies {
     // (api from core:auth), and the device-key proofs.
     implementation(projects.core.auth)
     implementation(projects.core.security)
+    // The on-device pre-filter (ADR-0002 Stage 1): the call screening service,
+    // declared in core:telephony's manifest, and the caller list it reads.
+    implementation(projects.core.telephony)
 
     implementation(projects.feature.onboarding)
     implementation(projects.feature.calls)

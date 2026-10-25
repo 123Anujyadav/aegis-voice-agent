@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  The on-device pre-filter (ADR-0002 Stage 1), declared by the module that
+  implements it.
+
+  The service is exported because the system binds to it, and it is protected
+  by BIND_SCREENING_SERVICE, a permission only the system holds, so no other
+  app can bind it. It does nothing until the user gives this app the call
+  screening role (RoleManager.ROLE_CALL_SCREENING, Android 10 and later).
+
+  No user permission is declared: the role is not a permission, and contacts
+  are not read (Android lets calls from contacts ring without passing them to
+  the service unless the app holds READ_CONTACTS).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <service
+            android:name="com.callscreen.core.telephony.screening.PreFilterScreeningService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>

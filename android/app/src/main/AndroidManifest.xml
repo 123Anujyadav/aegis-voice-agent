@@ -7,10 +7,11 @@
   declared yet, because none exist yet — declaring a permission the app does not
   use is both a Play Store policy risk and a privacy-review finding.
 
-  In particular the telephony permissions (READ_PHONE_STATE, ANSWER_PHONE_CALLS,
-  and the CallScreeningService binding) are deliberately absent. They arrive
-  with the module that actually uses them, so that every permission in the
-  shipped manifest is traceable to the code that needs it.
+  In particular the telephony permissions (READ_PHONE_STATE, ANSWER_PHONE_CALLS)
+  are deliberately absent. Components and permissions arrive with the module
+  that actually uses them, so that every entry in the shipped manifest is
+  traceable to the code that needs it: the CallScreeningService is declared by
+  core:telephony's manifest and merged into this one.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
