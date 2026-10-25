@@ -2,10 +2,13 @@ package com.callscreen.app.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.callscreen.core.telephony.screening.ScreeningRole
+import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 import com.callscreen.core.ui.components.AegisTab
 import com.callscreen.feature.assistant.AssistantHomeScreen
 import com.callscreen.feature.assistant.VoiceConversationScreen
@@ -15,7 +18,7 @@ import com.callscreen.feature.calls.IncomingCallScreen
 import com.callscreen.feature.family.FamilyShieldScreen
 import com.callscreen.feature.onboarding.AiScreeningSetupScreen
 import com.callscreen.feature.onboarding.CallForwardingSetupScreen
-import com.callscreen.feature.onboarding.PermissionsEducationScreen
+import com.callscreen.feature.onboarding.ScreeningRoleRoute
 import com.callscreen.feature.onboarding.PhoneVerificationRoute
 import com.callscreen.feature.onboarding.SetupCompleteScreen
 import com.callscreen.feature.onboarding.SimDetectionScreen
@@ -44,7 +47,7 @@ public object AegisDestinations {
     public const val WELCOME: String = "welcome"
     public const val SIM_DETECTION: String = "sim_detection"
     public const val PHONE_VERIFICATION: String = "phone_verification"
-    public const val PERMISSIONS: String = "permissions"
+    public const val SCREENING_ROLE: String = "screening_role"
     public const val AI_SETUP: String = "ai_setup"
     public const val CALL_FORWARDING: String = "call_forwarding"
     public const val SETUP_COMPLETE: String = "setup_complete"
@@ -95,10 +98,21 @@ public fun AegisNavGraph(
             SimDetectionScreen(onContinueClick = { navController.navigate(AegisDestinations.PHONE_VERIFICATION) })
         }
         composable(AegisDestinations.PHONE_VERIFICATION) {
-            PhoneVerificationRoute(onVerified = { navController.navigate(AegisDestinations.PERMISSIONS) })
+            val context = LocalContext.current
+            PhoneVerificationRoute(
+                onVerified = {
+                    // A09b only when the role can be asked for and is not held (A09 edge cases).
+                    val next = if (ScreeningRole.status(context) == ScreeningRoleStatus.NOT_HELD) {
+                        AegisDestinations.SCREENING_ROLE
+                    } else {
+                        AegisDestinations.AI_SETUP
+                    }
+                    navController.navigate(next)
+                },
+            )
         }
-        composable(AegisDestinations.PERMISSIONS) {
-            PermissionsEducationScreen(onGrantPermissionsClick = { navController.navigate(AegisDestinations.AI_SETUP) })
+        composable(AegisDestinations.SCREENING_ROLE) {
+            ScreeningRoleRoute(onDone = { navController.navigate(AegisDestinations.AI_SETUP) })
         }
         composable(AegisDestinations.AI_SETUP) {
             AiScreeningSetupScreen(onContinueClick = { navController.navigate(AegisDestinations.CALL_FORWARDING) })
