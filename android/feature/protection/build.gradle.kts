@@ -20,5 +20,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
+    // A32/A32d rendered on the JVM with Robolectric (provided by callscreen.android.compose).
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.junit4)
 }
 

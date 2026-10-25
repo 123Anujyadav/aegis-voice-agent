@@ -108,6 +108,15 @@ public class CallerListStore(
      */
     public fun restore(entry: CallerListEntry): ListChange = change { it.put(entry, ownNumber()) }
 
+    /**
+     * Sets the label of [rawNumber]'s entry from what the subscriber typed
+     * ([CallerLabel.normalise]); blank clears it.
+     */
+    public fun setLabel(rawNumber: String, rawLabel: String): ListChange {
+        val number = PhoneNumbers.normalise(rawNumber) ?: return ListChange.NotListed
+        return change { it.relabel(number, CallerLabel.normalise(rawLabel)) }
+    }
+
     public fun remove(rawNumber: String): ListChange {
         val number = PhoneNumbers.normalise(rawNumber) ?: return ListChange.NotListed
         return change { it.remove(number) }
@@ -161,13 +170,15 @@ public class CallerListStore(
     }
 
     private companion object {
-        const val FORMAT_VERSION = 1
+        /** 2 added the optional label. Version 1 records (no labels) are still read. */
+        const val FORMAT_VERSION = 2
+        val READABLE_VERSIONS = setOf(1, FORMAT_VERSION)
         val json = Json { ignoreUnknownKeys = false }
 
         fun encode(list: CallerList): ByteArray {
             val stored = StoredList(
                 FORMAT_VERSION,
-                list.entries.map { StoredEntry(it.number.value, it.type, it.source, it.addedAtEpochSeconds) },
+                list.entries.map { StoredEntry(it.number.value, it.type, it.source, it.addedAtEpochSeconds, it.label) },
             )
             return json.encodeToString(StoredList.serializer(), stored).toByteArray(Charsets.UTF_8)
         }
@@ -181,10 +192,10 @@ public class CallerListStore(
             } catch (e: IllegalArgumentException) {
                 return null
             }
-            if (stored.version != FORMAT_VERSION) return null
+            if (stored.version !in READABLE_VERSIONS) return null
             val entries = stored.entries.map { e ->
                 val number = E164Number.of(e.number) ?: return null
-                CallerListEntry(number, e.type, e.source, e.addedAt)
+                CallerListEntry(number, e.type, e.source, e.addedAt, e.label)
             }
             return CallerList.of(entries)
         }
@@ -200,4 +211,5 @@ private data class StoredEntry(
     val type: ListType,
     val source: ListSource,
     val addedAt: Long,
+    val label: String? = null,
 )

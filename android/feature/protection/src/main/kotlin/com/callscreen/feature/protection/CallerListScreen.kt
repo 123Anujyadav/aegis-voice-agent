@@ -1,15 +1,19 @@
 package com.callscreen.feature.protection
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -25,6 +29,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,17 +40,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.telephony.callerlist.CallerLabel
 import com.callscreen.core.telephony.callerlist.CallerListEntry
 import com.callscreen.core.telephony.callerlist.ListSource
 import com.callscreen.core.telephony.prefilter.ListType
 import com.callscreen.core.ui.components.AegisPrimaryButton
+import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.AegisTopAppBar
+import com.callscreen.core.ui.components.StatusChipVariant
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -64,6 +75,8 @@ public fun CallerListRoute(modifier: Modifier = Modifier, viewModel: CallerListV
         onQueryChange = viewModel::onQueryChange,
         onAdd = viewModel::add,
         onRemove = viewModel::remove,
+        onSetLabel = viewModel::setLabel,
+        onMove = viewModel::moveToOtherList,
         onUndo = viewModel::undo,
         onMessageShown = viewModel::onMessageShown,
         onDiscardUnreadable = viewModel::discardUnreadable,
@@ -78,6 +91,8 @@ internal fun CallerListScreen(
     onQueryChange: (String) -> Unit,
     onAdd: (String) -> Unit,
     onRemove: (CallerListEntry) -> Unit,
+    onSetLabel: (CallerListEntry, String) -> Unit,
+    onMove: (CallerListEntry) -> Unit,
     onUndo: () -> Unit,
     onMessageShown: () -> Unit,
     onDiscardUnreadable: () -> Unit,
@@ -86,6 +101,9 @@ internal fun CallerListScreen(
     val copy = CallerListCopy.of(state.type)
     val snackbar = remember { SnackbarHostState() }
     var adding by remember { mutableStateOf(false) }
+    // A32d: the open entry, by number, so it follows a relabel and closes when the entry leaves this list.
+    var openNumber by remember { mutableStateOf<String?>(null) }
+    val open = state.entries.firstOrNull { it.number.value == openNumber }
 
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
@@ -128,7 +146,7 @@ internal fun CallerListScreen(
                 state.loading -> Unit
                 state.unreadable -> Unreadable(onDiscardUnreadable)
                 state.entries.isEmpty() -> Empty(copy)
-                else -> Entries(state, onQueryChange, onRemove)
+                else -> Entries(state, onQueryChange, onOpen = { openNumber = it.number.value }, onRemove = onRemove)
             }
         }
     }
@@ -138,10 +156,32 @@ internal fun CallerListScreen(
             AddNumber(copy, onSubmit = { raw -> adding = false; onAdd(raw) })
         }
     }
+    if (open != null) {
+        ModalBottomSheet(onDismissRequest = { openNumber = null }) {
+            EntryDetail(
+                entry = open,
+                onSaveLabel = { onSetLabel(open, it) },
+                onMove = {
+                    openNumber = null
+                    onMove(open)
+                },
+                // The sheet closes and the list's 5-second undo takes over.
+                onRemove = {
+                    openNumber = null
+                    onRemove(open)
+                },
+            )
+        }
+    }
 }
 
 @Composable
-private fun Entries(state: CallerListState, onQueryChange: (String) -> Unit, onRemove: (CallerListEntry) -> Unit) {
+private fun Entries(
+    state: CallerListState,
+    onQueryChange: (String) -> Unit,
+    onOpen: (CallerListEntry) -> Unit,
+    onRemove: (CallerListEntry) -> Unit,
+) {
     OutlinedTextField(
         value = state.query,
         onValueChange = onQueryChange,
@@ -153,20 +193,43 @@ private fun Entries(state: CallerListState, onQueryChange: (String) -> Unit, onR
             .padding(vertical = 12.dp),
     )
     LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        items(state.visible, key = { it.number.value }) { entry -> EntryRow(entry, onRemove) }
+        items(state.visible, key = { it.number.value }) { entry -> EntryRow(entry, onOpen, onRemove) }
     }
 }
 
 @Composable
-private fun EntryRow(entry: CallerListEntry, onRemove: (CallerListEntry) -> Unit) {
+internal fun EntryRow(
+    entry: CallerListEntry,
+    onOpen: (CallerListEntry) -> Unit,
+    onRemove: (CallerListEntry) -> Unit,
+) {
     val spoken = CallerListCopy.spoken(entry.number.value)
     val detail = "${CallerListCopy.source(entry.source)} · ${CallerListCopy.date(entry.addedAtEpochSeconds)}"
+    val description = listOfNotNull(entry.label, spoken, detail).joinToString(", ")
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        // One node for the row: the number digit by digit, its source and date (A32 accessibility).
-        Column(modifier = Modifier.weight(1f).clearAndSetSemantics { contentDescription = "$spoken, $detail" }) {
+        // One node for the row: label, the number digit by digit, its source and date (A32 accessibility).
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable { onOpen(entry) }
+                .clearAndSetSemantics {
+                    contentDescription = description
+                    onClick(label = CallerListCopy.OPEN_DETAILS) {
+                        onOpen(entry)
+                        true
+                    }
+                },
+        ) {
+            entry.label?.let {
+                Text(
+                    text = it,
+                    style = CallScreenTheme.typography.titleMedium,
+                    color = CallScreenTheme.colors.content.primary,
+                )
+            }
             Text(
                 text = entry.number.value,
-                style = CallScreenTheme.typography.titleMedium,
+                style = with(CallScreenTheme.typography) { if (entry.label == null) titleMedium else bodyLarge },
                 color = CallScreenTheme.colors.content.primary,
             )
             Text(
@@ -178,6 +241,74 @@ private fun EntryRow(entry: CallerListEntry, onRemove: (CallerListEntry) -> Unit
         // IconButton's touch target is 48 dp.
         IconButton(onClick = { onRemove(entry) }) {
             Icon(Icons.Default.Close, contentDescription = "${CallerListCopy.REMOVE} $spoken")
+        }
+    }
+}
+
+/**
+ * A32d · the detail of one entry: only what is stored (its list, number,
+ * label, source and date), what the list does to calls, and the actions.
+ */
+@Composable
+internal fun EntryDetail(
+    entry: CallerListEntry,
+    onSaveLabel: (String) -> Unit,
+    onMove: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val copy = CallerListCopy.of(entry.type)
+    var label by remember(entry.number, entry.label) { mutableStateOf(entry.label.orEmpty()) }
+    // Scrolls: on a small screen the actions would otherwise be cut off below the fold.
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+    ) {
+        AegisStatusChip(
+            text = copy.status,
+            variant = if (entry.type == ListType.BLOCK) StatusChipVariant.Spam else StatusChipVariant.Verified,
+        )
+        Text(
+            text = entry.number.value,
+            style = CallScreenTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = CallScreenTheme.colors.content.primary,
+            modifier = Modifier.semantics {
+                heading()
+                contentDescription = CallerListCopy.spoken(entry.number.value)
+            },
+        )
+        Text(
+            text = "${CallerListCopy.source(entry.source)} · ${CallerListCopy.date(entry.addedAtEpochSeconds)}",
+            style = CallScreenTheme.typography.bodyMedium,
+            color = CallScreenTheme.colors.content.secondary,
+        )
+        for (line in copy.meaning) {
+            Text(
+                text = line,
+                style = CallScreenTheme.typography.bodyLarge,
+                color = CallScreenTheme.colors.content.primary,
+            )
+        }
+        OutlinedTextField(
+            value = label,
+            onValueChange = { label = it.take(CallerLabel.MAX_LENGTH) },
+            label = { Text(CallerListCopy.LABEL) },
+            supportingText = { Text("${label.length}/${CallerLabel.MAX_LENGTH}") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        AegisPrimaryButton(
+            text = CallerListCopy.SAVE_LABEL,
+            onClick = { onSaveLabel(label) },
+            enabled = CallerLabel.normalise(label) != entry.label,
+        )
+        TextButton(onClick = onMove, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            Text(copy.moveAction, style = CallScreenTheme.typography.titleMedium)
+        }
+        TextButton(onClick = onRemove, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            Text(CallerListCopy.REMOVE, style = CallScreenTheme.typography.titleMedium)
         }
     }
 }
@@ -234,6 +365,21 @@ internal class CallerListCopy private constructor(private val type: ListType) {
     val title: String = if (type == ListType.BLOCK) "Blocked numbers" else "Allowed numbers"
     val addAction: String = if (type == ListType.BLOCK) "Block" else "Allow"
 
+    /** A32d: which list, in words as well as colour. */
+    val status: String = if (type == ListType.BLOCK) "Blocked" else "Allowed"
+    val moveAction: String = if (type == ListType.BLOCK) "Move to allowed numbers" else "Move to blocked numbers"
+
+    /**
+     * What the list does to this number's calls, and no more. An allowed call
+     * rings, but the carrier can still forward it to screening if it is not
+     * answered: the phone cannot stop that (readiness §2a).
+     */
+    val meaning: List<String> = if (type == ListType.BLOCK) {
+        listOf("While this app screens your calls, calls from this number are rejected on this phone.")
+    } else {
+        listOf(ALLOWED_NEVER_BLOCKED, FORWARDING_CAVEAT)
+    }
+
     /** A32's first-run empty state, which states the offline guarantee once (A32 security). */
     val emptyTitle: String = if (type == ListType.BLOCK) "No blocked numbers" else "No allowed numbers"
     val emptyLines: List<String> = if (type == ListType.BLOCK) {
@@ -242,7 +388,7 @@ internal class CallerListCopy private constructor(private val type: ListType) {
             "Blocking works on this phone, even offline or if our service is down.",
         )
     } else {
-        listOf("Numbers you allow are never blocked here, even if they're flagged as spam.")
+        listOf("Numbers you allow are never blocked here, even if they're flagged as spam.", FORWARDING_CAVEAT)
     }
 
     fun message(message: ListMessage): String = when (message) {
@@ -257,6 +403,8 @@ internal class CallerListCopy private constructor(private val type: ListType) {
         ListMessage.LIST_FULL -> "This list is full. Remove some numbers first."
         ListMessage.COULD_NOT_SAVE -> "Couldn't save. Nothing changed."
         ListMessage.UNREADABLE -> UNREADABLE
+        ListMessage.LABEL_SAVED -> "Label saved."
+        ListMessage.INVALID_LABEL -> "A label can be up to ${CallerLabel.MAX_LENGTH} characters of plain text."
     }
 
     companion object {
@@ -265,6 +413,12 @@ internal class CallerListCopy private constructor(private val type: ListType) {
         const val SEARCH = "Search numbers"
         const val PHONE_NUMBER = "Phone number"
         const val REMOVE = "Remove"
+        const val OPEN_DETAILS = "Open details"
+        const val LABEL = "Label (optional)"
+        const val SAVE_LABEL = "Save label"
+        const val ALLOWED_NEVER_BLOCKED =
+            "Calls from this number are never blocked here, even if they're flagged as spam."
+        const val FORWARDING_CAVEAT = "If you don't answer, your carrier may still forward the call to be screened."
         const val UNREADABLE =
             "Your blocked and allowed numbers can't be read on this phone, so no number is blocked. " +
                 "Nothing has been deleted."

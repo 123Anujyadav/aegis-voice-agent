@@ -37,6 +37,10 @@ public enum class ListMessage {
     LIST_FULL,
     COULD_NOT_SAVE,
 
+    /** A32d: the entry's label was saved or cleared. */
+    LABEL_SAVED,
+    INVALID_LABEL,
+
     /** The stored lists cannot be read; nothing can change until the subscriber discards them. */
     UNREADABLE,
 }
@@ -95,6 +99,21 @@ public class CallerListViewModel internal constructor(
             when (type) {
                 ListType.BLOCK -> store.block(rawNumber, ListSource.MANUAL)
                 ListType.ALLOW -> store.allow(rawNumber, ListSource.MANUAL)
+            }
+        }
+    }
+
+    /** A32d: sets [entry]'s label to what the subscriber typed; blank clears it. */
+    public fun setLabel(entry: CallerListEntry, rawLabel: String) {
+        save { store.setLabel(entry.number.value, rawLabel) }
+    }
+
+    /** A32d: moves [entry] to the other list, keeping its label (P-CO-1: the move is stated). */
+    public fun moveToOtherList(entry: CallerListEntry) {
+        save {
+            when (entry.type) {
+                ListType.BLOCK -> store.allow(entry.number.value, entry.source)
+                ListType.ALLOW -> store.block(entry.number.value, entry.source)
             }
         }
     }
@@ -177,12 +196,14 @@ public class CallerListViewModel internal constructor(
             is ListChange.Moved -> ListMessage.MOVED
             is ListChange.AlreadyListed -> ListMessage.ALREADY_LISTED
             is ListChange.Removed -> ListMessage.REMOVED
+            is ListChange.Relabelled -> ListMessage.LABEL_SAVED
             ListChange.NotListed -> ListMessage.REMOVED
             is ListChange.Refused -> when (change.reason) {
                 ListRefusal.NOT_A_PHONE_NUMBER -> ListMessage.NOT_A_PHONE_NUMBER
                 ListRefusal.OWN_NUMBER -> ListMessage.OWN_NUMBER
                 ListRefusal.LIST_FULL -> ListMessage.LIST_FULL
                 ListRefusal.STORE_UNREADABLE -> ListMessage.UNREADABLE
+                ListRefusal.INVALID_LABEL -> ListMessage.INVALID_LABEL
             }
         }
     }
