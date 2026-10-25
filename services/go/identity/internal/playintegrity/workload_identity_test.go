@@ -173,12 +173,14 @@ func TestWorkloadIdentity_CachesTheTokenUntilItNearsExpiry(t *testing.T) {
 }
 
 func TestWorkloadIdentity_RefusesAServiceAccountKey(t *testing.T) {
-	key := []byte(`{"type":"service_account","project_id":"p","private_key_id":"k","private_key":"-----BEGIN PRIVATE KEY-----\nMIIfake\n-----END PRIVATE KEY-----\n","client_email":"sa@p.iam.gserviceaccount.com","token_uri":"https://oauth2.googleapis.com/token"}`)
+	// The type alone is refused. The key field is a placeholder, deliberately
+	// not credential-shaped, so secret scanners have nothing to find.
+	key := []byte(`{"type":"service_account","project_id":"p","private_key_id":"k","private_key":"placeholder-not-a-key-value","client_email":"sa@p.iam.gserviceaccount.com","token_uri":"https://oauth2.googleapis.com/token"}`)
 	_, err := NewWorkloadIdentityTokens(context.Background(), key, nil)
 	if !errors.Is(err, ErrInvalidCredentialConfig) {
 		t.Fatalf("err = %v, want ErrInvalidCredentialConfig: ADR-0008 allows no static cloud credentials", err)
 	}
-	if strings.Contains(err.Error(), "PRIVATE KEY") || strings.Contains(err.Error(), "MIIfake") {
+	if strings.Contains(err.Error(), "placeholder-not-a-key-value") {
 		t.Fatalf("the error repeats key material: %v", err)
 	}
 }

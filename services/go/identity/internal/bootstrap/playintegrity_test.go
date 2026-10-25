@@ -160,7 +160,9 @@ func TestNewPlayIntegrityVerifier_BuildsFromAFederationConfiguration(t *testing.
 
 func TestNewPlayIntegrityVerifier_RefusesAServiceAccountKey(t *testing.T) {
 	clearPlayIntegrityEnv(t)
-	key := `{"type":"service_account","private_key":"-----BEGIN PRIVATE KEY-----\nMIIfake\n-----END PRIVATE KEY-----\n","client_email":"sa@p.iam.gserviceaccount.com"}`
+	// The type alone is refused. The key field is a placeholder, deliberately
+	// not credential-shaped.
+	key := `{"type":"service_account","private_key":"placeholder-not-a-key-value","client_email":"sa@p.iam.gserviceaccount.com"}`
 	setAllPlayIntegrity(t, writeCredentialConfig(t, key))
 	cfg, _, err := LoadPlayIntegrityConfig()
 	if err != nil {
@@ -170,7 +172,7 @@ func TestNewPlayIntegrityVerifier_RefusesAServiceAccountKey(t *testing.T) {
 	if !errors.Is(err, ErrInvalidConfig) || !errors.Is(err, playintegrity.ErrInvalidCredentialConfig) {
 		t.Fatalf("err = %v, want a refusal: ADR-0008 allows no static cloud credentials", err)
 	}
-	if strings.Contains(err.Error(), "MIIfake") || strings.Contains(err.Error(), cfg.CredentialConfigFile) {
+	if strings.Contains(err.Error(), "placeholder-not-a-key-value") || strings.Contains(err.Error(), cfg.CredentialConfigFile) {
 		t.Fatalf("the error repeats key material or the path: %v", err)
 	}
 }
