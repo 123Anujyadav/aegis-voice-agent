@@ -100,6 +100,15 @@ On this emulator (region not India), a contact saved as `+91…` was not matched
   - the honest onboarding screens;
   - the 48 dp remove touch target and small-screen scrolling.
 
+**Android 9 (API 28), the 8/9 fallback (2026-10-25):**
+- **Setup:** a new AVD `Aegis_API_28` (`system-images;android-28;google_apis;x86_64` r11, build `google/sdk_gphone_x86_64/generic_x86_64:9/PSR1.180720.122/6736742`; 2.7 GB installed). The existing AVD was unchanged.
+- **Instrumented suite:** 8/8 pass. The API 29+ role tests are excluded by `@SdkSuppress`. `AndroidNineFallbackTest` shows:
+  - the blocklist says "This version of Android doesn't let apps block calls…", with no role request;
+  - setup complete says blocking is off.
+- **The lists still work locally:** add, label, move, remove and undo, and the corrupted-list recovery.
+- **Telephony:** with a number on the blocklist, a simulated call from it **rang**, and Telecom never bound the app's screening service. That matches what the app now says.
+- **Not verified:** real Android 8/9 phones and OEM builds.
+
 **Defects these tests found on the device** (fixed in #181):
 - Every list snackbar was dismissed as soon as it appeared, so no move statement and no Undo were ever shown.
 - The "Add number" button had no accessible name.
