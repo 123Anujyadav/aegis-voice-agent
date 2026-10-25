@@ -174,8 +174,10 @@ class CallerListStoreTest {
         file.write("two".toByteArray())
         assertEquals("two", file.read()?.toString(Charsets.UTF_8))
         assertEquals(listOf("caller_list.json"), File(dir, "lists").list()?.toList())
-        val s = CallerListStore(file)
-        s.block("+919876500001", ListSource.MANUAL)
-        assertEquals(ListType.BLOCK, CallerListStore(file).listOf(e164("+919876500001")))
+        // "two" is not a stored list, so a store on that file is unreadable.
+        assertEquals(StoreHealth.UNREADABLE, CallerListStore(file).health())
+        val listFile = AtomicRecordFile(File(dir, "caller_list.json"))
+        assertEquals(ListChange.Added::class, CallerListStore(listFile).block("+919876500001", ListSource.MANUAL)::class)
+        assertEquals(ListType.BLOCK, CallerListStore(listFile).listOf(e164("+919876500001")))
     }
 }
