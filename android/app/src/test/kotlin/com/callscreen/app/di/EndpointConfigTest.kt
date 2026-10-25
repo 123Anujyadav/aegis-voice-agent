@@ -52,8 +52,10 @@ class EndpointConfigTest {
     @Test
     @DisplayName("certificate pins: none is today's unpinned client; valid pins pin the origin's host; unusable pins turn the endpoint off")
     fun certificatePins() {
+        // Canonical base64 of 32-byte hashes, as a real SPKI pin always is: the last character
+        // before "=" carries 2 unused bits, which must be zero ("A"), or OkHttp re-encodes the pin.
         val a = "sha256/" + "A".repeat(43) + "="
-        val b = "sha256/" + "B".repeat(43) + "="
+        val b = "sha256/" + "B".repeat(42) + "A="
 
         val unpinned = requireNotNull(EndpointConfig.httpClient("https://identity.example.test", ""))
         assertEquals(emptySet<Any>(), unpinned.certificatePinner.pins, "no pins means no pinning")
