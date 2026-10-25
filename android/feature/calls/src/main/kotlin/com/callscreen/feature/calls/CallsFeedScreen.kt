@@ -44,7 +44,10 @@ public data class CallLogItem(
 public fun CallsFeedScreen(
     onCallClick: (String) -> Unit = {},
     onTabSelected: (AegisTab) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** F14: another app has taken the screening role; the banner (A75) offers to switch back. */
+    roleLost: Boolean = false,
+    onSwitchBackClick: () -> Unit = {},
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
@@ -70,6 +73,10 @@ public fun CallsFeedScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
+            if (roleLost) {
+                ScreeningRoleBanner(onSwitchBack = onSwitchBackClick, modifier = Modifier.padding(top = 12.dp))
+            }
+
             AegisSearchBar(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },

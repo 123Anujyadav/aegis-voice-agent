@@ -14,7 +14,7 @@ import com.callscreen.core.ui.components.AegisTab
 import com.callscreen.feature.assistant.AssistantHomeScreen
 import com.callscreen.feature.assistant.VoiceConversationScreen
 import com.callscreen.feature.assistant.VoiceSetupScreen
-import com.callscreen.feature.calls.CallsFeedScreen
+import com.callscreen.feature.calls.CallsFeedRoute
 import com.callscreen.feature.calls.IncomingCallScreen
 import com.callscreen.feature.family.FamilyShieldScreen
 import com.callscreen.feature.onboarding.AiScreeningSetupScreen
@@ -132,9 +132,9 @@ public fun AegisNavGraph(
             SetupCompleteScreen(onGoToHomeClick = { navController.navigate(AegisDestinations.CALLS_FEED) })
         }
         composable(AegisDestinations.CALLS_FEED) {
-            CallsFeedScreen(
+            CallsFeedRoute(
                 onCallClick = { navController.navigate(AegisDestinations.POST_CALL_SUMMARY) },
-                onTabSelected = { tab -> handleTabClick(navController, tab) }
+                onTabSelected = { tab -> handleTabClick(navController, tab) },
             )
         }
         composable(AegisDestinations.INCOMING_CALL) {
