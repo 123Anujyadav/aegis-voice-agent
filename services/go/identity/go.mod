@@ -19,6 +19,11 @@ require (
 require github.com/callscreen/callscreen-platform/packages/go/telemetry v0.0.0
 
 require (
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
+	golang.org/x/oauth2 v0.36.0
+)
+
+require (
 	github.com/callscreen/callscreen-platform/packages/go/metrics v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/metricsexport v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/pgshared v0.0.0

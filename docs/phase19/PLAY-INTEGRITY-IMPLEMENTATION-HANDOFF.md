@@ -89,6 +89,18 @@ no IAM role.** Grant nothing broad on the assumption that one is needed.
 
 **Preconditions:** memo §12 A and B1 approved; C1–C5 and S1–S5 done.
 
+**Status:** items 1–3 and the tests in 5–8 are **implemented and dormant**:
+- `internal/bootstrap/playintegrity.go`, and
+  `internal/playintegrity/workload_identity.go`, with their tests;
+- an assembled-chain test: configuration → federation exchange →
+  impersonation → `decodeIntegrityToken` → a certified verdict, all against
+  a local fake of Google.
+
+**Only item 4, the wiring, remains.** A tripwire test
+(`TestPlayIntegrity_IsNotWiredIntoTheServer`) fails if `cmd/server` mentions
+the verifier, and the wiring PR removes it deliberately. Production
+behaviour is unchanged.
+
 **Code (one identity PR):**
 1. **Configuration contract.** Read these through `platform.LoadConfig`, as
    `SecurityConfig` does:
@@ -96,8 +108,7 @@ no IAM role.** Grant nothing broad on the assumption that one is needed.
    - the certificate digests (43-character base64url);
    - the approved `MaxAge`, `FutureSkew` and `DecodeTimeout`;
    - the credential-configuration file path.
-   - All the names are **proposed**: the credentials register's names are
-     proposals.
+   - The names are defined by `bootstrap.PlayIntegrityVariables`.
 2. **All or nothing.**
    - Nothing set: no verifier (`SetIntegrityVerifier(nil, …)`), which is
      today's behaviour.
