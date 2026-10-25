@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.callerlist.CallerListEntry
@@ -53,12 +54,13 @@ class CallerListUiTest {
         compose.onNodeWithText(CallerListCopy.FORWARDING_CAVEAT).assertDoesNotExist()
 
         compose.onNodeWithText(CallerListCopy.SAVE_LABEL).assertIsNotEnabled()
-        compose.onNodeWithText("Courier").performTextReplacement("Courier company")
-        compose.onNodeWithText(CallerListCopy.SAVE_LABEL).assertIsEnabled().performClick()
+        compose.onNodeWithText("Courier").performScrollTo().performTextReplacement("Courier company")
+        compose.onNodeWithText(CallerListCopy.SAVE_LABEL).performScrollTo().assertIsEnabled().performClick()
         assertEquals("Courier company", saved)
 
-        compose.onNodeWithText("Move to allowed numbers").performClick()
-        compose.onNodeWithText(CallerListCopy.REMOVE).performClick()
+        // The sheet scrolls; its actions are reachable on a small screen.
+        compose.onNodeWithText("Move to allowed numbers").performScrollTo().performClick()
+        compose.onNodeWithText(CallerListCopy.REMOVE).performScrollTo().performClick()
         assertEquals(1, moves)
         assertEquals(1, removes)
     }

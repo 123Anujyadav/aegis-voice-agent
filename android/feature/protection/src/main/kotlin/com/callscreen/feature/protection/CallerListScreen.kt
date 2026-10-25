@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -256,7 +258,13 @@ internal fun EntryDetail(
 ) {
     val copy = CallerListCopy.of(entry.type)
     var label by remember(entry.number, entry.label) { mutableStateOf(entry.label.orEmpty()) }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(16.dp)) {
+    // Scrolls: on a small screen the actions would otherwise be cut off below the fold.
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+    ) {
         AegisStatusChip(
             text = copy.status,
             variant = if (entry.type == ListType.BLOCK) StatusChipVariant.Spam else StatusChipVariant.Verified,
