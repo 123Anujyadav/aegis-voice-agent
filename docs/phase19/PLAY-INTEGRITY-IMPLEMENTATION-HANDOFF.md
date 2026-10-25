@@ -1,6 +1,6 @@
 # Play Integrity: SRE handoff, permission verification and wiring checklist
 
-- **As of:** 2026-10-25, `main` at `f48e73c`.
+- **As of:** 2026-10-25, `main` at `cd6bd50`.
 - **What this is:** the operational follow-on to
   [PLAY-INTEGRITY-DECISION-MEMO.md](PLAY-INTEGRITY-DECISION-MEMO.md). It does
   not repeat the memo's analysis.
@@ -33,6 +33,27 @@ namespace `aegis-system`. ADR-0008 (accepted) fixes the platform: EKS in
 
 S4 and S5 are pod-spec changes for SRE, made **after** S1–S3 exist and
 the owner has approved B1. They are not made here.
+
+### 1a. Order, classification and the evidence to return
+
+**None of S1–S6 is a secret.** Each is public configuration (an identifier, a
+manifest or a network rule). If a step seems to need a secret, stop: under the
+recommended design none does (Google states that the credential configuration
+holds no private key).
+
+| # | Depends on | Evidence SRE returns (reviewable, no secrets) |
+|---|---|---|
+| S1 | An EKS cluster, which the repository does not define | The issuer URL string, as `aws eks describe-cluster` prints it |
+| S2 | The cluster | The namespace manifest (in SRE's infrastructure change) |
+| S3 | S2 | The ServiceAccount manifest, and identity's Deployment showing `serviceAccountName: <S3>` |
+| — | **C3, Google side (owner or SRE):** the pool and the OIDC provider for S1, with an attribute condition on S2 and S3 | The provider's resource path (public). **S4 and S5 cannot be written without it.** |
+| S4 | C3 (the provider path is the token audience), and **B1 approved** | The pod spec, showing the projected token volume: audience = the provider path, `expirationSeconds: 3600` |
+| S5 | C3, **C4** (the service account's email appears in the impersonation URL), and **B1 approved** | The ConfigMap manifest. The reviewer confirms it has **no `private_key` field** |
+| S6 | identity's Deployment (S3) | The egress rule change, and a TLS handshake from an identity pod to the three hosts (it needs no credentials) |
+
+**Order:** S1 → S2 → S3 → C3 → C4 → S4, S5. S6 can run in parallel once S3
+exists. Staging (§3, items 9–11) waits for all of them, plus C1, C2, C5 and
+C7.
 
 ## 2. Verification plan for B3: the minimum Google permissions
 
