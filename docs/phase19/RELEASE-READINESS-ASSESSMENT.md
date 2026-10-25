@@ -53,6 +53,27 @@
 | OTP delivery | **EXTERNAL** | No provider. India DLT registration is needed. Billed per message (cost unverified). |
 | FCM | **EXTERNAL** | Interface only. A Firebase project is needed (cost unverified). |
 
+## 2a. The core function: on-device call screening (ADR-0002 Stage 1)
+
+Found on 2026-10-25: **the app cannot screen a call yet.** `core:telephony`,
+`core:permissions`, `core:notifications` and `core:database` contain no code,
+and the manifest declares no `CallScreeningService`. ADR-0002 (accepted) makes
+the on-device pre-filter Stage 1 of the product. Without it, a release is a
+sign-in shell.
+
+| Item | Status | Evidence |
+|---|---|---|
+| Pre-filter decision (`PreFilterDecisionService`, docs/domain/11-consumer.md §11.6) | **Code (this PR); not on a device** | `core/telephony/.../prefilter/PreFilter.kt`. The order is: a number that cannot be normalised is screened; the allowlist rings through (P-CO-3); the blocklist rejects, even for a contact (§11.16, constraint 5); a contact rings through; anything else is screened. A failing lookup degrades to screening, never to rejection (§11.15). Covered by JVM tests in `PreFilterTest`. |
+| Number normalisation (E.164) | **Code (this PR)** | `PhoneNumbers.normalise` accepts `+`/`00` international forms and the Indian national forms. Anything uncertain (short codes including 112, local landlines without an area code) gives null, so it is screened and can never match a block. |
+| Blocked caller: reject, not silence | **Derived from the platform; needs device and carrier validation** | Android: a silenced call "will, however, still be sent to the default dialer app if it is not blocked". It stays unanswered, so the carrier's forward-on-no-reply (ADR-0002 §5) would send a known-bad caller to paid screening. A rejected call is ended "as if the user had manually rejected it". Only no-reply forwarding is provisioned, so a rejected call is not forwarded, which is what ADR-0002 §5 requires ("no forwarding"). `SILENCE` is kept, but nothing produces it until a reputation mapping exists. *Source: AOSP `telecomm/java/android/telecom/CallScreeningService.java`, read 2026-10-25.* |
+| Contacts without `READ_CONTACTS` | **Platform fact** | Same source: "only calls which are not in the user's contacts are passed for screening, unless the CallScreeningService has been granted READ_CONTACTS". So contacts ring through without the app holding a contacts permission. That is fewer permissions to request and declare. **Consequence:** without `READ_CONTACTS`, a block on a saved contact cannot take effect, because the call never reaches the service. Whether to request the permission for that case is a product and privacy decision for the owner (ADR-0012). Calls with a withheld number (restricted, unknown or payphone presentation) are not passed to the service either, so they ring. |
+| Screening deadline | **Platform fact** | The service must respond within 5 seconds, and "the user's device will not begin ringing until the response is received". So the decision is local, with no network call (`EvaluatePreFilter`, §11.10). |
+| Reputation input | **OWNER (mapping)** and **code (feed)** | No reputation feed reaches the device, and no band-to-decision mapping is specified (docs/domain/15-fraud-detection.md). The spec's degradation for a missing reputation is `SCREEN`, which the pre-filter gives. |
+| `CallScreeningService`, the manifest entry, and the role request (`ROLE_CALL_SCREENING`, onboarding A09b) | **Code: next** | Not started. The service maps each decision with `ScreeningResponse.of` (reject plus no missed-call notification for a block; allow otherwise). |
+| Caller list storage (block and allow, P-CO-1/P-CO-2) | **Code: next** | `core:database` is empty. A block must apply immediately and offline. |
+| Call forwarding provisioning (`**61*<DID>**<seconds>#`, verified with `*#61#`) | **Code, after a DID pool exists (external)** | ADR-0002 §5. Needs platform DIDs and the carrier matrix (`docs/runbooks/carrier-matrix.md`, a launch blocker per ADR-0002). |
+| UX flow F2 diagram | **Documentation finding** | `docs/ux/android/08-user-flows.md` draws the pre-filter after "not answered". On Android the pre-filter runs before the phone rings; carrier forwarding happens after. |
+
 ## 3. Security, operations and reviews
 
 | Item | Status | Evidence |
@@ -86,6 +107,9 @@ The decision is the owner's.
    supplied.
 5. **Owner:** link the Play Integrity Cloud project, and choose the OTP
    provider and complete DLT. Without an OTP provider, nobody can enrol.
+6. **Engineering:** the call-screening service, role request and caller-list
+   storage (§2a). Internal testing can start without it, but a production
+   listing would ship an app that cannot screen calls.
 
 ## 6. Release workflow and signing: implemented, awaiting the owner's key
 
@@ -141,10 +165,11 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 | Release workflow (`bundleRelease`, upload-key signing) | **External setup (owner)**; the code is done | `release-android.yml` plus `tools/scripts/android-release-bundle.sh` (§6). Remaining: the upload key, the `play-release` Environment's protection, and its four secrets. Then a first manual run, and the owner's upload of the `.aab` to internal testing. |
 | Certificate pins for the identity and edge-api hosts | **External setup (owner or SRE)**, then configuration | Two `sha256/` SPKI pins per host (the current key and a backup) in `callscreen.identityCertPins` and `callscreen.edgeApiCertPins`. The code is done; the pins wait for the hosts' keys. |
 | Identity and edge-api hosts | **External setup (owner)** | `callscreen.identityBaseUrl` and `callscreen.edgeApiBaseUrl` default to empty (`android/app/build.gradle.kts`). These are public configuration, not secrets. |
-| Server-side Play Integrity verifier: integration into identity | **Owner decision**, then **external setup**, then **code** | The adapter `services/go/identity/internal/playintegrity/playintegrity.go` exists; its tests run only against a local fake of `decodeIntegrityToken` (`playintegrity_test.go`), and it has **never called Google**. It is **not wired** into identity's authentication flow: nothing outside the package imports it, and `SetIntegrityVerifier` (`internal/app/integrity.go`) is never called, so every session is recorded `unverified`. Wiring a real verifier would switch on ADR-0031 D31.3, which refuses a token Google rejects with 400 `ERR_INVALID_INTEGRITY_TOKEN`. ADR-0031 is **Proposed, owner ratification pending**, and the verdict thresholds (`IntegrityPolicy`) are security policy, so both are the owner's. Then external setup: the Google Cloud project linked in Play Console, and a credential for the verifier. The mechanism (workload identity federation or a service-account key) is undecided, and the credential would be a secret. |
+| Server-side Play Integrity verifier: integration into identity | **Owner decision**, then **external setup**, then **code** | The adapter `services/go/identity/internal/playintegrity/playintegrity.go` exists; its tests run only against a local fake of `decodeIntegrityToken` (`playintegrity_test.go`), and it has **never called Google**. It is **not wired** into identity's authentication flow: nothing outside the package imports it, and `SetIntegrityVerifier` (`internal/app/integrity.go`) is never called, so every session is recorded `unverified`. Wiring a real verifier would switch on ADR-0031 D31.3, which refuses a token Google rejects with 400 `ERR_INVALID_INTEGRITY_TOKEN`. ADR-0031 is **Proposed, owner ratification pending**, and the verdict thresholds (`IntegrityPolicy`) are security policy, so both are the owner's. Then external setup: the Google Cloud project linked in Play Console, and a credential for the verifier. Workload identity federation is implemented and dormant (#164): the code refuses service-account keys (ADR-0008, no static cloud credentials). Its approval (memo §12 B1) and the federation setup are the owner's and SRE's. |
 | Play Integrity on the client: Cloud project number | **External setup (owner)** | `callscreen.playIntegrityCloudProjectNumber` (public) is unset, so the app requests no integrity token (#146). |
 | OTP provider and India DLT | **External setup (owner)**, then **code** | `services/go/identity/internal/otpdelivery/otpdelivery.go`: "No SMS provider is implemented in this repository." |
 | FCM | **External setup**, then **code** | No Firebase SDK in any `go.mod` or Android build file. `notification-fanout` is a Phase 2 shell (`cmd/server/main.go`). |
+| **Call screening (the core function)** | **Code** (in progress), then **device and carrier validation** | §2a. The pre-filter decision is implemented and tested; the `CallScreeningService`, the role request, caller-list storage and forwarding provisioning are not. Forwarding needs a DID pool (external). |
 | Play Console account, upload key, privacy policy, Data safety form | **External setup (owner)** | Not represented in the repository. |
 | Real-device Play Integrity, sign-in and calling | **Device and release-environment validation** | Never run on a device. It needs a Play-installed build and live hosts. |
 | ADR-0029, ADR-0030 D30.3 (with amendments), ADR-0031; session permissions; SIM-swap policy and device-history retention; OTP backoff and session lifetime; the frontend stack | **Owner decision** | §3, §4 |
