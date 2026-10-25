@@ -1,5 +1,6 @@
 package com.callscreen.app.di
 
+import okhttp3.CertificatePinner
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
@@ -47,6 +48,26 @@ class EndpointConfigTest {
         }
         assertNull(tokens.tokenFor("the-proof"))
         assertEquals("the-proof", boundTo, "the token must be requested for the proof it accompanies")
+    }
+
+    @Test
+    @DisplayName("certificate pins: none is today's unpinned client; valid pins pin the origin's host; unusable pins turn the endpoint off")
+    fun certificatePins() {
+        val a = "sha256/" + "A".repeat(43) + "="
+        val b = "sha256/" + "B".repeat(43) + "="
+
+        val unpinned = requireNotNull(EndpointConfig.httpClient("https://identity.example.test", ""))
+        assertEquals(CertificatePinner.DEFAULT, unpinned.certificatePinner)
+
+        val pinned = requireNotNull(EndpointConfig.httpClient("https://identity.example.test", "$a,$b"))
+        assertEquals(
+            setOf(a, b),
+            pinned.certificatePinner.pins.filter { it.pattern == "identity.example.test" }.map { it.toString() }.toSet(),
+        )
+
+        for (bad in listOf(a, "$a,$a", "$a,sha256/short=", "$a,not-a-pin")) {
+            assertNull(EndpointConfig.httpClient("https://identity.example.test", bad), "$bad must not fall back to an unpinned client")
+        }
     }
 
     @Test

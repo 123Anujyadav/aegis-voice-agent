@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import okhttp3.CertificatePinner
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -184,15 +185,20 @@ public class IdentityClient(
 
         /**
          * A client with bounded timeouts that never follows redirects. Add no
-         * body-logging interceptor to it.
+         * body-logging interceptor to it. With [pins], a connection to that
+         * host must present one of the pinned keys (ADR-0010); a mismatch is a
+         * connection failure, reported as [IdentityError.Network].
          */
-        public fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        public fun defaultHttpClient(pins: CertificatePins? = null): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
             .callTimeout(30, TimeUnit.SECONDS)
             .followRedirects(false)
             .followSslRedirects(false)
+            .apply {
+                if (pins != null) certificatePinner(CertificatePinner.Builder().add(pins.host, *pins.pins.toTypedArray()).build())
+            }
             .build()
     }
 }

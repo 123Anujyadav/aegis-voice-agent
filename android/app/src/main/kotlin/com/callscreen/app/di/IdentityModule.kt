@@ -64,10 +64,12 @@ internal object IdentityModule {
     @Singleton
     fun identityGraph(@ApplicationContext context: Context, key: DeviceKey): IdentityGraph {
         val origin = EndpointConfig.httpsOrigin(BuildConfig.IDENTITY_BASE_URL) ?: return IdentityGraph(null)
+        val http = EndpointConfig.httpClient(origin, BuildConfig.IDENTITY_CERT_PINS) ?: return IdentityGraph(null)
         val client = IdentityClient(
             origin,
             DeviceProofs { method, htu -> key.proofs.proof(method, htu) },
             integrityTokens(context),
+            http,
         )
         val store = EncryptedSessionStore(KeystoreSessionKey(), DataStoreBlobStore(context))
         return IdentityGraph(IdentityAuthenticator(client, store))
@@ -78,7 +80,8 @@ internal object IdentityModule {
     fun edgeGraph(identity: IdentityGraph, key: DeviceKey): EdgeGraph {
         val auth = identity.authenticator ?: return EdgeGraph(null)
         val origin = EndpointConfig.httpsOrigin(BuildConfig.EDGE_API_BASE_URL) ?: return EdgeGraph(null)
-        return EdgeGraph(EdgeApiClient(origin, auth, AccessTokenProofs { method, htu, token -> key.proofs.proof(method, htu, token) }))
+        val http = EndpointConfig.httpClient(origin, BuildConfig.EDGE_API_CERT_PINS) ?: return EdgeGraph(null)
+        return EdgeGraph(EdgeApiClient(origin, auth, AccessTokenProofs { method, htu, token -> key.proofs.proof(method, htu, token) }, http))
     }
 
     @Provides
