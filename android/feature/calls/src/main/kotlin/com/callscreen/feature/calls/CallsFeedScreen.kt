@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,8 @@ public data class CallLogItem(
 @Composable
 public fun CallsFeedScreen(
     onCallClick: (String) -> Unit = {},
+    /** The calls to show. Nothing records calls yet, so the app passes none and the feed says so. */
+    calls: List<CallLogItem> = emptyList(),
     onTabSelected: (AegisTab) -> Unit = {},
     modifier: Modifier = Modifier,
     /** F14: another app has taken the screening role; the banner (A75) offers to switch back. */
@@ -50,16 +53,6 @@ public fun CallsFeedScreen(
     onSwitchBackClick: () -> Unit = {},
 ) {
     var searchQuery by remember { mutableStateOf("") }
-
-    val sampleCalls = remember {
-        listOf(
-            CallLogItem("1", "Unknown Caller", "+1 (555) 234-5678", "10:42 AM", CallType.ScreenedAI, "AI Handled"),
-            CallLogItem("2", "National Bank Support", "+91 22 4918 2000", "09:15 AM", CallType.BlockedSpam, "Blocked Spam"),
-            CallLogItem("3", "Sarah (Wife)", "+91 98200 12345", "Yesterday", CallType.Incoming, "Verified"),
-            CallLogItem("4", "David (Grandfather)", "+91 98211 67890", "Yesterday", CallType.Outgoing, "Verified"),
-            CallLogItem("5", "Suspected Scam", "+91 11 4056 9900", "Aug 5", CallType.BlockedSpam, "High Risk")
-        )
-    }
 
     Scaffold(
         topBar = { AegisTopAppBar(title = "Calls Feed") },
@@ -97,7 +90,23 @@ public fun CallsFeedScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(sampleCalls) { call ->
+                if (calls.isEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 24.dp)) {
+                            Text(
+                                text = CallsFeedCopy.EMPTY_TITLE,
+                                style = CallScreenTheme.typography.titleMedium,
+                                color = CallScreenTheme.colors.content.primary,
+                            )
+                            Text(
+                                text = CallsFeedCopy.EMPTY,
+                                style = CallScreenTheme.typography.bodyMedium,
+                                color = CallScreenTheme.colors.content.secondary,
+                            )
+                        }
+                    }
+                }
+                items(calls.filter { searchQuery.isBlank() || searchQuery in it.callerName || searchQuery in it.phoneNumber }) { call ->
                     AegisCallCard(
                         callerName = call.callerName,
                         phoneNumber = call.phoneNumber,
@@ -119,3 +128,10 @@ private fun CallsFeedScreenPreview() {
         CallsFeedScreen()
     }
 }
+
+/** A20 with no call records: nothing records calls on the device or the server yet. */
+internal object CallsFeedCopy {
+    const val EMPTY_TITLE = "No call data yet"
+    const val EMPTY = "Calls the app blocks or screens will appear here."
+}
+
