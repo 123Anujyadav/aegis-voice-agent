@@ -1,6 +1,5 @@
 package com.callscreen.feature.protection
 
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
@@ -47,7 +46,8 @@ class CallerListUiTest {
                 EntryDetail(blocked, onSaveLabel = { saved = it }, onMove = { moves++ }, onRemove = { removes++ })
             }
         }
-        compose.onNodeWithText("Blocked").assertIsDisplayed()
+        // The chip shows the list as a word (upper-cased by the chip), not only as a colour.
+        compose.onNodeWithText("Blocked", ignoreCase = true).assertExists()
         compose.onNodeWithContentDescription(spoken).assertExists()
         compose.onNodeWithText("From a call", substring = true).assertExists()
         compose.onNodeWithText(CallerListCopy.FORWARDING_CAVEAT).assertDoesNotExist()
@@ -68,7 +68,7 @@ class CallerListUiTest {
         compose.setContent {
             CallScreenTheme { EntryDetail(allowed, onSaveLabel = {}, onMove = {}, onRemove = {}) }
         }
-        compose.onNodeWithText("Allowed").assertIsDisplayed()
+        compose.onNodeWithText("Allowed", ignoreCase = true).assertExists()
         compose.onNodeWithText(CallerListCopy.ALLOWED_NEVER_BLOCKED).assertExists()
         compose.onNodeWithText(CallerListCopy.FORWARDING_CAVEAT).assertExists()
         compose.onNodeWithText("Move to blocked numbers").assertExists()
