@@ -1,6 +1,6 @@
 # Play Integrity: integration and Google authentication, decision memo
 
-- **As of:** 2026-10-25, `main` at `97ee159`.
+- **As of:** 2026-10-25, `main` at `b4d929d`. §3b, §4, §10 and §11 were revised after a second review.
 - **What this is:** an engineering recommendation for the owner. **It decides
   nothing.**
   - Every policy value below is marked **PROPOSED, awaiting owner
@@ -72,9 +72,9 @@ updated 2026-10-23).
 | `MaxAge` | (0, 10 min] | **2 min** | A standard token is requested immediately before the call it accompanies, so a fresh verdict is seconds old. 2 minutes tolerates slow networks. Longer widens the replay window for a captured token, although the DPoP binding already confines it to one request. |
 | `FutureSkew` | [0, 1 min] | **30 s** | Tolerates clock drift between Google and identity without accepting obviously future-dated verdicts. |
 | `DecodeTimeout` | (0, 5 s] | **3 s** | It must leave room within identity's 10-second handler budget. A timeout is `unavailable`: the session is `unverified` and **not refused**. |
-| `CertificateDigests` | ≥ 1 | **The Play App Signing certificate's SHA-256** (from Play Console), plus the upload key's only if internal-testing builds are distributed outside Play | With Play App Signing, users receive APKs signed by Google's app-signing key, not the upload key. A wrong digest makes every verdict `restricted` (`certificate_mismatch`), not refused. |
-| Require `LICENSED` | (implemented) | **Keep** | An unlicensed app becomes `restricted`, not refused, and the tier is not enforced (D31.5). Dropping it would hide a real signal. |
-| Device bar | `MEETS_DEVICE_INTEGRITY` (implemented) | **Keep**; do not require `MEETS_STRONG_INTEGRITY` | Strong integrity excludes many legitimate older devices. Basic-only devices are `restricted`, not refused. |
+| `CertificateDigests` | ≥ 1, each **43-character base64url** | **The Play App Signing certificate's SHA-256** (Play Console, *App signing key certificate*), plus the upload key's only if test builds are distributed outside Play | With Play App Signing, users receive APKs signed by Google's app-signing key. Google does not say which certificate `certificateSha256Digest` reports, so **confirm it against a real verdict in staging**. **Format trap:** Play Console shows SHA-256 as colon-separated hex, but the API returns base64url. Convert it with `printf %s HEX \| tr -d : \| xxd -r -p \| base64 \| tr '+/' '-_' \| tr -d =`. `IntegrityPolicy.Validate` rejects a hex value, so a pasted fingerprint fails at startup, not silently. A wrong digest makes verdicts `restricted`, never refused. |
+| Require `LICENSED` | (implemented) | **Keep** | `LICENSED` means installed or updated from Google Play. `UNLICENSED` means sideloaded. It is **`UNEVALUATED` when the user is not signed in to Google Play**, or when the device is not trustworthy enough ([verdicts](https://developer.android.com/google/play/integrity/verdicts), updated 2026-10-23). Those users become `restricted`, **not refused**, so this is a signal, not a lockout. |
+| Device bar | `MEETS_DEVICE_INTEGRITY` (implemented) | **Keep**; do not require `MEETS_STRONG_INTEGRITY` | On Android 13 and higher, device integrity means hardware-backed proof of a locked bootloader and a certified image. Strong integrity additionally needs security updates within the last year on all partitions, which excludes many genuine, older-patched phones. Basic-only devices become `restricted`. |
 
 **How strict this can be without harm:** a `restricted` result changes no
 permission until the owner decides O8. The only user-refusing outcome is
@@ -97,7 +97,10 @@ depend on these values.
 **Granting nothing on failure:** the integrity check runs **after** the OTP
 code and the proof are verified, and **before** the session is created (D31.3).
 - A refused token creates nothing.
-- A rejected token at refresh rotates nothing (D31.4).
+- A rejected token at refresh rotates nothing (D31.4). **The session continues with its existing tier.**
+  - The app maps the refusal to `AuthState.Unavailable` (`IdentityAuthenticator.kt`), keeping the session.
+  - Its next refresh within 6 hours in the same app process carries no token (#158), and succeeds.
+  - So a Google-rejected token at refresh **does not downgrade or end** the session. §10 proposes a change; it is an owner decision.
 - No error carries the integrity token, the access token or Google's response
   text (`playintegrity.go`).
 
@@ -222,3 +225,68 @@ without granting broad roles.
      `SetIntegrityVerifier` called **only** when fully configured;
   2. tests against the local fake;
   3. staging (§5).
+
+## 10. O8: what each tier may do (PROPOSED, owner decision)
+
+### 10a. What exists today (verified)
+
+- **Recorded:** the tier, in `identity_sessions.integrity_tier` (`certified`,
+  `restricted` or `unverified`; migration `0006`).
+- **Not carried:** the tier is **not** in the access token, and **no service
+  enforces it** (D31.5).
+- **Protected API:** edge-api serves exactly **one** protected route,
+  `GET /v1/me` (`internal/httpapi`).
+- **Roles:** the access token already has a `roles` claim. identity issues
+  `["subscriber"]`, the `accesstoken` package "defines no role", and edge-api
+  passes roles to handlers, **but no route checks them**.
+- **Elevated-risk operations** (ADR-0010: changing the forwarding DID,
+  exporting transcripts, changing consent) **do not exist as routes yet**.
+  Their re-verification requirement is also unimplemented.
+
+So today **no tier changes what a session can do**. Any policy below needs new
+enforcement, which is listed in §10c.
+
+### 10b. Proposed least-privilege policy
+
+| Tier | Meaning | Proposed policy |
+|---|---|---|
+| `certified` | Genuine Play-distributed app on a certified device (§3a) | All standard features. Elevated-risk operations **still** require re-verification (ADR-0010), whatever the tier. |
+| `restricted` | A verdict was obtained and failed a check: sideloaded, modified or unrecognised app, uncertified device, unlicensed, or not signed in to Play | Sign in, `GET /v1/me`, and features that expose no stored sensitive data. **Denied:** elevated-risk operations and reading stored transcripts or call history. Re-assessed at the next refresh that carries a token. |
+| `unverified` | No verdict: no token sent, no Play services, Google unavailable or timed out, or no verifier configured | **The same as `restricted`** (ADR-0031 D31.3 already states "no verdict is not a pass"). It is kept distinct in metrics so outages do not look like attacks. |
+| Rejected at **issuance** (Google 400) | A forged, malformed or other-app token | **No session** (implemented, D31.3). |
+| Rejected at **refresh** | The same, on an existing session | Today: refused once, then the session continues with its old tier (§4). **Proposed:** identity sets the tier to `restricted`. That fails safe without locking anyone out on a Google-side fault. **Revoking is not recommended.** |
+
+**The trade-off:** treating `unverified` as `restricted` denies sensitive
+features to phones without Play services and during Google outages. Today that
+costs nothing, because no sensitive route exists. Revisit it with ADR-0010's
+5% verdict-failure trigger and the outcome metrics.
+
+### 10c. Enforcement this would need (none exists)
+
+1. **identity** adds a tier role to `roles` at issuance and refresh (for
+   example `integrity:certified`).
+   - This needs no claim-schema change: `roles` is already a string array that
+     edge-api accepts.
+   - A tier change reaches edge-api within one access-token lifetime
+     (15 minutes).
+2. **edge-api** gets a per-route requirement (a middleware that checks roles)
+   for each sensitive route as that route is built.
+3. **identity** implements the §10b rejected-at-refresh downgrade, if it is
+   approved.
+4. The ADR-0010 re-verification for elevated-risk operations, which is
+   separate and also unimplemented.
+
+None of this is started. Items 1 and 2 *are* the enforcement of O8, so they
+wait for the decision.
+
+## 11. Decisions requiring explicit owner approval
+
+| # | Decision | Recommendation |
+|---|---|---|
+| O7 | Ratify ADR-0031 as written, including refusing tokens Google rejects (400) at issuance | **Ratify.** It refuses only tokens Google itself declares invalid. Every Google-side failure, and every failed check, degrades to a tier instead. |
+| — | `MaxAge` 2 min, `FutureSkew` 30 s, `DecodeTimeout` 3 s | **Accept.** They are within the code's bounds (≤ 10 min, ≤ 1 min, ≤ 5 s), and a timeout never refuses. |
+| — | Certificate digest: the Play App Signing certificate, converted to base64url, confirmed in staging | **Accept.** |
+| — | Keep `LICENSED` and `MEETS_DEVICE_INTEGRITY`; do not require `MEETS_STRONG_INTEGRITY` | **Accept.** |
+| O8 | §10b tier policy, including `unverified` treated as `restricted` | **Accept, as policy.** Enforcement (§10c) is built per route. |
+| O8 | A Google-rejected token at refresh downgrades the tier to `restricted` | **Accept** (a small identity change, after approval). |
+| — | Workload Identity Federation + service-account impersonation (§7); no key | **Accept.** It is the only option consistent with accepted ADR-0008 and `SECURITY.md`. |
