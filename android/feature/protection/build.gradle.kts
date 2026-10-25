@@ -1,6 +1,9 @@
 plugins {
     id("callscreen.android.library")
     id("callscreen.android.compose")
+    // CallerListViewModel is a @HiltViewModel: without Hilt's code generation
+    // here, hiltViewModel() cannot create it and the screen crashes on open.
+    id("callscreen.android.hilt")
 }
 
 android {
