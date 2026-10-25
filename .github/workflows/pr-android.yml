@@ -70,6 +70,24 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
 
+      # A test task that discovers no tests still passes: the app module ran
+      # none of its JUnit 5 tests until #180. Every module with test sources
+      # must report at least one executed test.
+      - name: Every module with unit tests ran them
+        working-directory: android
+        run: |
+          missing=""
+          while IFS= read -r dir; do
+            module="${dir%/src/test}"
+            results="$module/build/test-results/testDebugUnitTest"
+            if ! grep -Eqs '<testsuite [^>]*tests="[1-9][0-9]*"' "$results"/*.xml; then
+              missing="$missing $module"
+            fi
+          done < <(find . -path ./build-logic -prune -o -type d -path '*/src/test' -print | sed 's#^\./##' | sort)
+          if [ -n "$missing" ]; then
+            echo "::error::no unit test ran in:$missing"; exit 1
+          fi
+
       - name: Build-logic unit tests
         working-directory: android
         run: |

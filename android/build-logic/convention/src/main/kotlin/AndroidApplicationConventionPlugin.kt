@@ -2,9 +2,11 @@ import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.getByType
+import org.gradle.kotlin.dsl.withType
 import java.io.File
 
 /**
@@ -157,6 +159,20 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                         isReturnDefaultValues = true
                         isIncludeAndroidResources = true
                     }
+                }
+            }
+
+            // The same unit-test setup as callscreen.android.library. Without
+            // useJUnitPlatform() Gradle runs JUnit 4 only, so the app's JUnit 5
+            // tests were compiled but never executed, and the task still passed.
+            tasks.withType<Test>().configureEach {
+                useJUnitPlatform()
+                timeout.set(java.time.Duration.ofMinutes(10))
+                testLogging {
+                    events("failed", "skipped")
+                    showStackTraces = true
+                    showCauses = true
+                    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
                 }
             }
 
