@@ -48,10 +48,13 @@ class CertificatePinningTest {
 
     private fun requestOtp(pins: CertificatePins?): IdentityResult<OtpChallenge> {
         server.enqueue(
-            MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+            // identity answers an OTP request with 202 Accepted (the client accepts nothing else).
+            MockResponse().setResponseCode(202).setHeader("Content-Type", "application/json")
                 .setBody("""{"requestId":"req_${"a".repeat(64)}","expiresInSeconds":300}"""),
         )
-        val origin = server.url("/").toString().trimEnd('/').replace("127.0.0.1", "localhost")
+        // The certificate is for "localhost"; the server's own URL may carry the
+        // machine's host name instead, so the origin is built explicitly.
+        val origin = "https://localhost:${server.port}"
         return IdentityClient(origin, { _, _ -> "proof" }, httpClient = client(pins)).requestOtp("+919876543210")
     }
 
@@ -59,7 +62,8 @@ class CertificatePinningTest {
     @DisplayName("a connection presenting the pinned key succeeds, with a backup pin alongside")
     fun pinnedKeyConnects() {
         val pins = CertificatePins.parse("localhost", "${pin(leaf)},${pin(spare)}")
-        assertTrue(requestOtp(pins) is IdentityResult.Success)
+        val result = requestOtp(pins)
+        assertTrue(result is IdentityResult.Success, "got $result")
     }
 
     @Test
@@ -73,7 +77,8 @@ class CertificatePinningTest {
     @Test
     @DisplayName("without pins the client behaves as before (no pinning)")
     fun noPinsIsTodaysBehaviour() {
-        assertTrue(requestOtp(null) is IdentityResult.Success)
+        val result = requestOtp(null)
+        assertTrue(result is IdentityResult.Success, "got $result")
         assertEquals(CertificatePinner.DEFAULT, IdentityClient.defaultHttpClient().certificatePinner)
     }
 
