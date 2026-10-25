@@ -12,6 +12,7 @@
 plugins {
     id("callscreen.android.library")
     id("callscreen.android.hilt")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -19,4 +20,6 @@ android {
 }
 
 dependencies {
+    // The caller list's stored form (com.callscreen.core.telephony.callerlist).
+    implementation(libs.kotlinx.serialization.json)
 }
