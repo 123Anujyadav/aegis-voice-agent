@@ -59,7 +59,10 @@ public class PreFilterScreeningService : CallScreeningService() {
     }
 
     private companion object {
-        /** Contacts are not read: without READ_CONTACTS, Android lets calls from contacts ring without binding us. */
+        /**
+         * Contacts are never read. Without contacts access Android rings them without binding us;
+         * with it, a contact that is not blocked is allowed like any other caller.
+         */
         val NO_CONTACTS = ContactLookup { false }
 
         fun ScreeningResponse.toCallResponse(): CallScreeningService.CallResponse =

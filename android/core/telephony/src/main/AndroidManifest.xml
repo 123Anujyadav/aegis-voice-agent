@@ -8,11 +8,16 @@
   app can bind it. It does nothing until the user gives this app the call
   screening role (RoleManager.ROLE_CALL_SCREENING, Android 10 and later).
 
-  No user permission is declared: the role is not a permission, and contacts
-  are not read (Android lets calls from contacts ring without passing them to
-  the service unless the app holds READ_CONTACTS).
+  One user permission, READ_CONTACTS, and only as Android's switch: without
+  it, Android lets calls from contacts ring without passing them to the
+  service, so a saved contact cannot be blocked. It is requested only when the
+  subscriber asks to block saved contacts too (blocklist screen), and the app
+  never reads the contacts provider or uploads contacts (ContactsAccess; a
+  test fails if production code queries it). The role is not a permission.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <application>
         <service
