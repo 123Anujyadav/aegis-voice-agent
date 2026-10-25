@@ -12,5 +12,10 @@ dependencies {
     implementation(projects.core.ui)
     implementation(projects.core.shared)
     implementation(libs.androidx.compose.material.icons.extended)
+    // A32/A33/A35: the caller list the on-device pre-filter reads, edited here.
+    implementation(projects.core.telephony)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.hilt.navigation.compose)
 }
 

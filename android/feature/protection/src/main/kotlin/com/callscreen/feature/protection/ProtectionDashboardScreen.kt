@@ -1,6 +1,7 @@
 package com.callscreen.feature.protection
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +42,9 @@ import com.callscreen.core.ui.components.StatusChipVariant
 @Composable
 public fun ProtectionDashboardScreen(
     onTabSelected: (AegisTab) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onBlockedNumbersClick: () -> Unit = {},
+    onAllowedNumbersClick: () -> Unit = {},
 ) {
     Scaffold(
         topBar = { AegisTopAppBar(title = "Protection Dashboard") },
@@ -119,6 +122,14 @@ public fun ProtectionDashboardScreen(
                 }
             }
 
+            // A32 and A33: the two lists the subscriber controls directly.
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CallerListLink(title = "Blocked numbers", onClick = onBlockedNumbersClick)
+                    CallerListLink(title = "Allowed numbers", onClick = onAllowedNumbersClick)
+                }
+            }
+
             item {
                 Text(
                     text = "Live Threat Intelligence Radar",
@@ -181,6 +192,24 @@ private fun StatMetricCard(
                 color = CallScreenTheme.colors.content.secondary
             )
         }
+    }
+}
+
+@Composable
+private fun CallerListLink(title: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CallScreenTheme.colors.surface.raised),
+    ) {
+        Text(
+            text = title,
+            style = CallScreenTheme.typography.titleMedium,
+            color = CallScreenTheme.colors.content.primary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+        )
     }
 }
 

@@ -101,6 +101,19 @@ class CallerListStoreTest {
     }
 
     @Test
+    @DisplayName("restore puts a removed entry back exactly (undo), under the same rules")
+    fun restore() {
+        store.block("+919876500001", ListSource.FROM_CALL)
+        val entry = store.entries(ListType.BLOCK).single()
+        store.remove("+919876500001")
+        now += 3_600
+        assertEquals(ListChange.Added(entry), store.restore(entry))
+        assertEquals(listOf(entry), CallerListStore(MemoryRecord(record.bytes)).entries(ListType.BLOCK))
+        val ownBlock = CallerListEntry(requireNotNull(own), ListType.BLOCK, ListSource.MANUAL, now)
+        assertEquals(ListChange.Refused(ListRefusal.OWN_NUMBER), store.restore(ownBlock))
+    }
+
+    @Test
     @DisplayName("a failed save changes nothing: the pre-filter never acts on an unsaved list")
     fun failedSaveChangesNothing() {
         store.block("+919876500001", ListSource.MANUAL)

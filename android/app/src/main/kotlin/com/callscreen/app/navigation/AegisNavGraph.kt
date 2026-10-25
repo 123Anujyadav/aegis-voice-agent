@@ -7,6 +7,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.callscreen.core.telephony.prefilter.ListType
 import com.callscreen.core.telephony.screening.ScreeningRole
 import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 import com.callscreen.core.ui.components.AegisTab
@@ -25,6 +26,8 @@ import com.callscreen.feature.onboarding.SimDetectionScreen
 import com.callscreen.feature.onboarding.SplashScreen
 import com.callscreen.feature.onboarding.WelcomeScreen
 import com.callscreen.feature.protection.FraudIntelligenceScreen
+import com.callscreen.feature.protection.CallerListRoute
+import com.callscreen.feature.protection.CallerListViewModel
 import com.callscreen.feature.protection.ProtectionDashboardScreen
 import com.callscreen.feature.screening.EmergencyDetectionScreen
 import com.callscreen.feature.screening.FraudWarningScreen
@@ -59,6 +62,11 @@ public object AegisDestinations {
     public const val EMERGENCY_ALERT: String = "emergency_alert"
     public const val PROTECTION_DASHBOARD: String = "protection_dashboard"
     public const val FRAUD_INTELLIGENCE: String = "fraud_intelligence"
+
+    /** A32 or A33; the ViewModel reads the list from the route's argument. */
+    public const val CALLER_LIST: String = "caller_list/{${CallerListViewModel.LIST_ARG}}"
+
+    public fun callerList(type: ListType): String = "caller_list/${CallerListViewModel.argOf(type)}"
     public const val FAMILY_SHIELD: String = "family_shield"
     public const val ASSISTANT_HOME: String = "assistant_home"
     public const val VOICE_SETUP: String = "voice_setup"
@@ -155,7 +163,14 @@ public fun AegisNavGraph(
             EmergencyDetectionScreen(onConnectImmediatelyClick = { navController.navigate(AegisDestinations.CALLS_FEED) })
         }
         composable(AegisDestinations.PROTECTION_DASHBOARD) {
-            ProtectionDashboardScreen(onTabSelected = { tab -> handleTabClick(navController, tab) })
+            ProtectionDashboardScreen(
+                onTabSelected = { tab -> handleTabClick(navController, tab) },
+                onBlockedNumbersClick = { navController.navigate(AegisDestinations.callerList(ListType.BLOCK)) },
+                onAllowedNumbersClick = { navController.navigate(AegisDestinations.callerList(ListType.ALLOW)) },
+            )
+        }
+        composable(AegisDestinations.CALLER_LIST) {
+            CallerListRoute()
         }
         composable(AegisDestinations.FRAUD_INTELLIGENCE) {
             FraudIntelligenceScreen()
