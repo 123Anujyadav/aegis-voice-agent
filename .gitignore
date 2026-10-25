@@ -43,6 +43,8 @@ secrets.yaml
 
 # --- Gradle / Android --------------------------------------------------------
 .gradle/
+# Kotlin Gradle plugin state (daemon session markers, caches); rewritten by every build.
+.kotlin/
 build/
 android/local.properties
 android/**/build/
