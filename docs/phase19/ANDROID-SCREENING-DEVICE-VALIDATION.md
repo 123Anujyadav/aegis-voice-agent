@@ -87,6 +87,34 @@ On this emulator (region not India), a contact saved as `+91…` was not matched
 
 ### 4.3 The screening screens cannot be reached in a build without identity
 
+**Update: #181 closes this** with instrumented tests in `android/app/src/androidTest`.
+- **How they run:** under `HiltTestApplication`, through the app's real navigation and Hilt graph. Only the caller-list file is a fixture, swapped in with `@UninstallModules(TelephonyModule)`. Role and contacts states are set by the system shell; sign-in is not bypassed.
+- **Android 15 emulator results:** 11/11 pass. Covered:
+  - Protection navigation;
+  - add, label, move (stated in the right direction), remove and the 5-second undo;
+  - refusals;
+  - the corrupted list kept until "Start again";
+  - each blocklist notice (declined, taken by another app, contacts with no prompt before the tap, denied then Settings, granted);
+  - the F14 banner, appearing and clearing;
+  - A09b's "Not now" and "Continue" (the system request opens);
+  - the honest onboarding screens;
+  - the 48 dp remove touch target and small-screen scrolling.
+
+**Android 9 (API 28), the 8/9 fallback (2026-10-25):**
+- **Setup:** a new AVD `Aegis_API_28` (`system-images;android-28;google_apis;x86_64` r11, build `google/sdk_gphone_x86_64/generic_x86_64:9/PSR1.180720.122/6736742`; 2.7 GB installed). The existing AVD was unchanged.
+- **Instrumented suite:** 8/8 pass. The API 29+ role tests are excluded by `@SdkSuppress`. `AndroidNineFallbackTest` shows:
+  - the blocklist says "This version of Android doesn't let apps block calls…", with no role request;
+  - setup complete says blocking is off.
+- **The lists still work locally:** add, label, move, remove and undo, and the corrupted-list recovery.
+- **Telephony:** with a number on the blocklist, a simulated call from it **rang**, and Telecom never bound the app's screening service. That matches what the app now says.
+- **Not verified:** real Android 8/9 phones and OEM builds.
+
+**Defects these tests found on the device** (fixed in #181):
+- Every list snackbar was dismissed as soon as it appeared, so no move statement and no Undo were ever shown.
+- The "Add number" button had no accessible name.
+- The move message named the wrong direction when the move came from a detail sheet.
+- A populated allowlist did not state the forwarding caveat.
+
 Onboarding stops at phone verification, so A09b, Protection (A32/A33/A32d), the blocklist notice and the F14 banner were **not exercised on the device**. Their automated coverage is Robolectric UI tests. Device coverage needs a staging build with identity hosts (external), or an instrumented test that hosts these screens directly (a routine follow-up).
 
 ### 4.4 Repository hygiene

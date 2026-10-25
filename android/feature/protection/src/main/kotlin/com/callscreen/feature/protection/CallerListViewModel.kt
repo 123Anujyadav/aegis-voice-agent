@@ -28,8 +28,13 @@ import kotlinx.coroutines.withContext
 public enum class ListMessage {
     ADDED,
 
-    /** P-CO-1: the number was on the other list and has moved; the screen says so. */
-    MOVED,
+    /**
+     * P-CO-1: the number moved between lists, and the screen says which way.
+     * The direction comes from the move, not from the screen: from a detail
+     * sheet a number moves out of the list on screen.
+     */
+    MOVED_TO_BLOCKED,
+    MOVED_TO_ALLOWED,
     ALREADY_LISTED,
     REMOVED,
     NOT_A_PHONE_NUMBER,
@@ -193,7 +198,8 @@ public class CallerListViewModel internal constructor(
 
         internal fun messageFor(change: ListChange): ListMessage = when (change) {
             is ListChange.Added -> ListMessage.ADDED
-            is ListChange.Moved -> ListMessage.MOVED
+            is ListChange.Moved ->
+                if (change.entry.type == ListType.BLOCK) ListMessage.MOVED_TO_BLOCKED else ListMessage.MOVED_TO_ALLOWED
             is ListChange.AlreadyListed -> ListMessage.ALREADY_LISTED
             is ListChange.Removed -> ListMessage.REMOVED
             is ListChange.Relabelled -> ListMessage.LABEL_SAVED

@@ -88,6 +88,13 @@ jobs:
             echo "::error::no unit test ran in:$missing"; exit 1
           fi
 
+      # The instrumented tests (app/src/androidTest) need a device, so CI does
+      # not run them (docs/phase19/ANDROID-SCREENING-DEVICE-VALIDATION.md has
+      # the latest device run). Compiling them here keeps them from rotting.
+      - name: Compile the instrumented tests
+        working-directory: android
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebugAndroidTest
+
       - name: Build-logic unit tests
         working-directory: android
         run: |
