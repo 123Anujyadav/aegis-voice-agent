@@ -55,6 +55,17 @@
 
 ## 2a. The core function: on-device call screening (ADR-0002 Stage 1)
 
+**Emulator validation (2026-10-25):** see `ANDROID-SCREENING-DEVICE-VALIDATION.md`. On Android 15's real Telecom stack (emulator, synthetic numbers), all 14 cases behaved as designed:
+- blocked calls were rejected and logged by the screening service;
+- allowed and unknown callers rang;
+- blocks survived an app restart;
+- a corrupted list was kept and callers were screened;
+- role loss stopped blocking;
+- a saved contact reached the service only with `READ_CONTACTS`;
+- answers took 1–65 ms against Android's 5 s limit.
+
+Carrier behaviour, Android 8/9 and the screens on a device are **not** verified (that document's §5 is the manual sheet).
+
 Found on 2026-10-25: **the app cannot screen a call yet.** `core:telephony`,
 `core:permissions`, `core:notifications` and `core:database` contain no code,
 and the manifest declares no `CallScreeningService`. ADR-0002 (accepted) makes
@@ -203,6 +214,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 | OTP provider and India DLT | **External setup (owner)**, then **code** | `services/go/identity/internal/otpdelivery/otpdelivery.go`: "No SMS provider is implemented in this repository." |
 | FCM | **External setup**, then **code** | No Firebase SDK in any `go.mod` or Android build file. `notification-fanout` is a Phase 2 shell (`cmd/server/main.go`). |
 | **Call screening (the core function)** | **Code** (in progress; #167–#175), then **device and carrier validation** | §2a. The pre-filter decision (#167), caller-list storage (#168), the `CallScreeningService` (#169) and the role request (A09b, #170) and the blocklist and allowlist screens (#171) are implemented and tested. Role-loss detection (F14) is also done (#172). List sync and forwarding provisioning are not. An unanswered allowed or contact call is still forwarded to screening (§2a). Forwarding needs a DID pool (external). |
+| Placeholder data shown as fact (SIM screen "Carrier: Jio 5G India" and "Conditional Call Forwarding Supported"; Protection "Aegis Score 98/100" and "Spam Blocked 142"; sample calls; Welcome's "before your phone rings") | **Code, after owner wording** | `ANDROID-SCREENING-DEVICE-VALIDATION.md` §4.1, seen on the emulator with no SIM. Each value needs real data or an honest empty state before any public track. |
 | Play Console account, upload key, privacy policy, Data safety form | **External setup (owner)** | Not represented in the repository. The policy and the form must cover the one runtime permission, `READ_CONTACTS` (#175). It is used only so Android passes calls from saved contacts to the screening service, at the subscriber's request. Contacts are never read or uploaded. |
 | Real-device Play Integrity, sign-in and calling | **Device and release-environment validation** | Never run on a device. It needs a Play-installed build and live hosts. |
 | ADR-0029, ADR-0030 D30.3 (with amendments), ADR-0031; session permissions; SIM-swap policy and device-history retention; OTP backoff and session lifetime; the frontend stack | **Owner decision** | §3, §4 |
