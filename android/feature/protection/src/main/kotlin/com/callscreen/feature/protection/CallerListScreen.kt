@@ -70,8 +70,12 @@ import java.time.format.FormatStyle
 @Composable
 public fun CallerListRoute(modifier: Modifier = Modifier, viewModel: CallerListViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val (notice, onNoticeAction) = rememberBlockingNotice()
     CallerListScreen(
         state = state,
+        // Only the blocklist depends on the role and contacts access; an allowlist entry needs neither.
+        notice = notice.takeIf { state.type == ListType.BLOCK },
+        onNoticeAction = onNoticeAction,
         onQueryChange = viewModel::onQueryChange,
         onAdd = viewModel::add,
         onRemove = viewModel::remove,
@@ -88,6 +92,8 @@ public fun CallerListRoute(modifier: Modifier = Modifier, viewModel: CallerListV
 @Composable
 internal fun CallerListScreen(
     state: CallerListState,
+    notice: BlockingNoticeState?,
+    onNoticeAction: () -> Unit,
     onQueryChange: (String) -> Unit,
     onAdd: (String) -> Unit,
     onRemove: (CallerListEntry) -> Unit,
@@ -142,6 +148,9 @@ internal fun CallerListScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp),
         ) {
+            if (notice != null && !state.loading && !state.unreadable) {
+                BlockingNotice(notice, onNoticeAction, modifier = Modifier.padding(top = 12.dp))
+            }
             when {
                 state.loading -> Unit
                 state.unreadable -> Unreadable(onDiscardUnreadable)

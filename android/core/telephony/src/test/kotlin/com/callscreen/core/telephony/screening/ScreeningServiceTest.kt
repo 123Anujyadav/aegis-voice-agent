@@ -34,7 +34,7 @@ class ScreeningServiceTest {
     }
 
     @Test
-    @DisplayName("the manifest exports the service only to the system, and asks for no permission")
+    @DisplayName("the manifest exports the service only to the system, and asks only for contacts access")
     fun manifest() {
         // Unit tests run in the module directory.
         val file = File("src/main/AndroidManifest.xml")
@@ -42,7 +42,9 @@ class ScreeningServiceTest {
         val doc = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }.newDocumentBuilder().parse(file)
         val android = "http://schemas.android.com/apk/res/android"
 
-        assertEquals(0, doc.getElementsByTagName("uses-permission").length, "no user permission")
+        val permissions = doc.getElementsByTagName("uses-permission")
+        assertEquals(1, permissions.length, "one user permission")
+        assertEquals("android.permission.READ_CONTACTS", (permissions.item(0) as Element).getAttributeNS(android, "name"))
         val services = doc.getElementsByTagName("service")
         assertEquals(1, services.length)
         val service = services.item(0) as Element
