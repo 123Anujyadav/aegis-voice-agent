@@ -102,6 +102,12 @@ public class CallerListStore(
     /** Allows [rawNumber]; if it was blocked, it moves (P-CO-1). */
     public fun allow(rawNumber: String, source: ListSource): ListChange = put(rawNumber, ListType.ALLOW, source)
 
+    /**
+     * Puts [entry] back exactly as it was (its list, source and date): undoing
+     * a removal. The same rules apply as to any change.
+     */
+    public fun restore(entry: CallerListEntry): ListChange = change { it.put(entry, ownNumber()) }
+
     public fun remove(rawNumber: String): ListChange {
         val number = PhoneNumbers.normalise(rawNumber) ?: return ListChange.NotListed
         return change { it.remove(number) }
