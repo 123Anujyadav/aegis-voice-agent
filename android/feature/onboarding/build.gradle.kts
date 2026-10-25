@@ -18,5 +18,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
+    // A09b: the call screening role request (ScreeningRole) and its system result.
+    implementation(projects.core.telephony)
+    implementation(libs.androidx.activity.compose)
 }
 
