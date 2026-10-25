@@ -21,13 +21,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
-import com.callscreen.core.ui.components.AegisStatusChip
-import com.callscreen.core.ui.components.StatusChipVariant
 
 @Composable
 public fun SetupCompleteScreen(
     onGoToHomeClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Whether on-device blocking is on: this app holds the call screening role. */
+    blockingOn: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -58,23 +58,19 @@ public fun SetupCompleteScreen(
             }
 
             Text(
-                text = "Setup Complete!",
+                text = SetupCompleteCopy.TITLE,
                 style = CallScreenTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary
             )
 
-            Text(
-                text = "Aegis AI Call Protection is now active. Unknown calls will automatically be screened.",
-                style = CallScreenTheme.typography.bodyLarge,
-                color = CallScreenTheme.colors.content.secondary
-            )
-
-            AegisStatusChip(
-                text = "Protection Active",
-                variant = StatusChipVariant.Verified,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            for (line in SetupCompleteCopy.lines(blockingOn)) {
+                Text(
+                    text = line,
+                    style = CallScreenTheme.typography.bodyLarge,
+                    color = CallScreenTheme.colors.content.secondary
+                )
+            }
         }
 
         AegisPrimaryButton(
@@ -92,3 +88,14 @@ private fun SetupCompleteScreenPreview() {
         SetupCompleteScreen()
     }
 }
+
+/** A14's words: what is actually on, never "protection active" when it is not. */
+internal object SetupCompleteCopy {
+    const val TITLE = "Setup finished"
+    const val BLOCKING_ON = "On-device blocking is on for the numbers you block."
+    const val BLOCKING_OFF = "On-device blocking is off. You can turn it on from Protection, Blocked numbers."
+    const val SCREENING = "Screening unknown callers with the assistant needs call forwarding, which isn't available yet."
+
+    fun lines(blockingOn: Boolean): List<String> = listOf(if (blockingOn) BLOCKING_ON else BLOCKING_OFF, SCREENING)
+}
+

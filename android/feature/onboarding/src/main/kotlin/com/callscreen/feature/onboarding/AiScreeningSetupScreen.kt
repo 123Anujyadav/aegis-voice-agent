@@ -66,7 +66,7 @@ public fun AiScreeningSetupScreen(
                 color = CallScreenTheme.colors.content.primary
             )
             Text(
-                text = "Configure how Aegis AI interacts with unknown callers when screening.",
+                text = "Choose how the assistant will talk to unknown callers. Your choice isn't saved yet: the assistant needs call forwarding, which isn't available yet.",
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.secondary
             )
@@ -77,7 +77,7 @@ public fun AiScreeningSetupScreen(
             ) {
                 PersonaCard(
                     title = "Strict Protection",
-                    description = "Screens all unknown numbers immediately. High fraud sensitivity.",
+                    description = "Screens every unknown caller you don't answer, with high fraud sensitivity.",
                     isSelected = selectedPersona == "Strict Protection",
                     onSelect = { selectedPersona = "Strict Protection" }
                 )
@@ -89,7 +89,7 @@ public fun AiScreeningSetupScreen(
                 )
                 PersonaCard(
                     title = "Silent Assistant",
-                    description = "Transcribes live calls without speaking unless scam patterns trigger.",
+                    description = "Says only what every caller must be told, then takes a message.",
                     isSelected = selectedPersona == "Silent Assistant",
                     onSelect = { selectedPersona = "Silent Assistant" }
                 )

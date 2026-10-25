@@ -71,7 +71,7 @@ public fun WelcomeScreen(
                 color = CallScreenTheme.colors.content.primary
             )
             Text(
-                text = "Your autonomous shield against scam calls, deepfakes, and unwanted interruptions.",
+                text = WelcomeCopy.TAGLINE,
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.secondary,
                 modifier = Modifier.padding(horizontal = 8.dp)
@@ -83,13 +83,13 @@ public fun WelcomeScreen(
         ) {
             WelcomeFeatureCard(
                 icon = Icons.Default.RecordVoiceOver,
-                title = "Live AI Screening",
-                description = "AI answers unknown callers, transcribes in real-time, and filters spam before your phone rings."
+                title = WelcomeCopy.SCREENING_TITLE,
+                description = WelcomeCopy.SCREENING,
             )
             WelcomeFeatureCard(
                 icon = Icons.Default.Security,
-                title = "Deepfake & Fraud Defense",
-                description = "Scans caller speech vectors to catch impersonation fraud instantly."
+                title = WelcomeCopy.BLOCKING_TITLE,
+                description = WelcomeCopy.BLOCKING,
             )
         }
 
@@ -154,4 +154,20 @@ private fun WelcomeScreenPreview() {
     CallScreenTheme {
         WelcomeScreen()
     }
+}
+
+/**
+ * Welcome's claims, limited to what the app does (ADR-0002): numbers you block
+ * are rejected on the phone (Stage 1); an assistant screens unknown callers
+ * only through carrier forwarding after the phone has rung (Stage 2), which is
+ * not available yet. No deepfake or speech analysis exists, so none is claimed.
+ */
+internal object WelcomeCopy {
+    const val TAGLINE = "Block the calls you don't want, and get help with the ones you don't recognise."
+    const val BLOCKING_TITLE = "On-device blocking"
+    const val BLOCKING = "Numbers you block are rejected on this phone before it rings, even offline."
+    const val SCREENING_TITLE = "Assistant screening"
+    const val SCREENING =
+        "Once call forwarding is set up, an assistant can answer unknown callers you don't pick up. " +
+            "Your phone always rings first."
 }
