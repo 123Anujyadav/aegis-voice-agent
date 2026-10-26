@@ -34,6 +34,7 @@ const (
 	host       = "https://identity.example.test"
 	enrolURL   = host + routes.Enrollment
 	refreshURL = host + routes.Refresh
+	deleteURL  = host + routes.AccountDeletion
 	msisdn     = "+919876543210"
 )
 
@@ -148,7 +149,9 @@ func newRig(t *testing.T, withSender bool) *rig {
 	}
 	svc.SetAccessTokenSigner(signer)
 	replay := dpop.NewMemoryReplayStore()
-	for htu, set := range map[string]func(*dpop.Verifier){enrolURL: svc.SetDeviceProofVerifier, refreshURL: svc.SetRefreshProofVerifier} {
+	for htu, set := range map[string]func(*dpop.Verifier){
+		enrolURL: svc.SetDeviceProofVerifier, refreshURL: svc.SetRefreshProofVerifier, deleteURL: svc.SetAccountDeletionProofVerifier,
+	} {
 		v, err := dpop.NewVerifier(dpop.Config{HTU: htu, MaxAge: 2 * time.Minute, FutureSkew: time.Minute, Replay: replay})
 		if err != nil {
 			t.Fatal(err)

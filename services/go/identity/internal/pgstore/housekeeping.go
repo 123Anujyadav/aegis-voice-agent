@@ -51,6 +51,10 @@ import (
 //	    and keeping it is the conservative choice. Access tokens never consult
 //	    the session, so deleting it changes nothing for them.
 //	identity_dpop_replay     expires_at < cutoff.
+//	identity_erasure_receipts expires_at < cutoff (the erased session's expiry).
+//
+// NEVER TOUCHED: identity_erasures and identity_security_audit (append-only,
+// LEGAL_HOLD).
 //	    expires_at is iat + MaxAge + 1s, after which the verifier refuses the
 //	    proof as stale on any replica whose clock is not behind; the margin
 //	    covers replicas that are. Reserve already treats such rows as free.
@@ -132,11 +136,13 @@ func (c HousekeepingConfig) Validate() error {
 type HousekeepingResult struct {
 	Skipped                                                      bool
 	Challenges, Requests, Failures, RateStates, Sessions, Proofs int64
+	// ErasureReceipts are receipts of erased sessions past the session's expiry.
+	ErasureReceipts int64
 }
 
 // Total is the number of rows the iteration deleted.
 func (r HousekeepingResult) Total() int64 {
-	return r.Challenges + r.Requests + r.Failures + r.RateStates + r.Sessions + r.Proofs
+	return r.Challenges + r.Requests + r.Failures + r.RateStates + r.Sessions + r.Proofs + r.ErasureReceipts
 }
 
 // Housekeeper deletes expired identity state in bounded batches.
@@ -206,6 +212,12 @@ var housekeepingSteps = []struct {
 		SELECT jkt, jti FROM identity_dpop_replay WHERE expires_at < $1
 		ORDER BY expires_at LIMIT $2 FOR UPDATE SKIP LOCKED)`, false,
 		func(r *HousekeepingResult, n int64) { r.Proofs = n },
+	},
+	{
+		"erasure receipts", `DELETE FROM identity_erasure_receipts WHERE session_id IN (
+		SELECT session_id FROM identity_erasure_receipts WHERE expires_at < $1
+		ORDER BY expires_at LIMIT $2 FOR UPDATE SKIP LOCKED)`, false,
+		func(r *HousekeepingResult, n int64) { r.ErasureReceipts = n },
 	},
 }
 
