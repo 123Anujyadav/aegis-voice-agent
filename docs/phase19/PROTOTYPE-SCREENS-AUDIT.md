@@ -13,7 +13,7 @@
 
 The bottom tabs lead to: Calls, Protection, Assistant and Settings.
 
-| Screen | Was | Source | Now (#182) |
+| Screen | Was | Source | Now (#186) |
 |---|---|---|---|
 | Assistant home (`ASSISTANT_HOME`) | "Autonomous Screening: AI will answer unknown calls on your behalf", with a switch defaulting to **on** | SAMPLE / NOT BUILT. The switch was `remember { mutableStateOf(true) }`: never saved and wired to nothing. Assistant screening needs carrier forwarding (ADR-0002 Stage 2), which is not available. | "Assistant screening: **Not available yet** … needs call forwarding". There is **no switch**: a toggle that saves and changes nothing would mislead. |
 | Voice setup (`VOICE_SETUP`) | Three voices, an "Active" chip on the selected one, and "Audition & Save Voice" | STATIC (the vendors are ADR-0007's) / NOT BUILT. The selection lived only in memory, the button only went back, and no tts-gateway exists. | The voices are kept as **planned** voices. "Choosing one isn't available yet, and nothing is saved." There is no "Active" chip, and the button is disabled: "Saving a voice isn't available yet". |
@@ -24,7 +24,7 @@ The bottom tabs lead to: Calls, Protection, Assistant and Settings.
 
 **Nothing in a release build navigates to these.** Previously they were registered in the release graph, and debug builds could open them with the start-screen extra (#180). Every value on them is invented: none reads an API, stored data or the device.
 
-#182 registers them **only in debug builds** (`AegisNavGraph(includeDesignPreviews = BuildConfig.DEBUG)`), each under a fixed label: "Design preview: sample data, not a working feature. Not in release builds." `DesignPreviewGatingTest` proves a release graph contains none of them, and a debug graph shows the label. Their design structure is kept for when real data exists.
+#186 registers them **only in debug builds** (`AegisNavGraph(includeDesignPreviews = BuildConfig.DEBUG)`), each under a fixed label: "Design preview: sample data, not a working feature. Not in release builds." `DesignPreviewGatingTest` proves a release graph contains none of them, and a debug graph shows the label. Their design structure is kept for when real data exists.
 
 | Screen (route) | Sample content | What real data would need | Class |
 |---|---|---|---|
