@@ -266,6 +266,62 @@ class IdentityClientTest {
     }
 
     @Test
+    @DisplayName("deleteAccount sends the session and refresh token with a proof for the deletion URL, no integrity token, and succeeds only on 204")
+    fun deleteAccount() {
+        server.enqueue(MockResponse().setResponseCode(204))
+        var integrityAsked = false
+        val result = client(integrity = { integrityAsked = true; "integrity-token" }).deleteAccount(sessionId, refreshToken)
+        assertEquals(IdentityResult.Success(Unit), result)
+
+        val sent = server.takeRequest()
+        assertEquals("POST", sent.method)
+        assertEquals("/v1/account/delete", sent.path)
+        assertEquals(listOf("POST" to origin() + "/v1/account/delete"), proofs)
+        assertEquals("proof-1", sent.getHeader("DPoP"))
+        assertNull(sent.getHeader("Integrity-Token"))
+        assertFalse(integrityAsked, "deletion must not spend integrity quota")
+        assertEquals("""{"sessionId":"$sessionId","refreshToken":"$refreshToken"}""", sent.body.readUtf8())
+    }
+
+    @Test
+    @DisplayName("deleteAccount: anything but 204 is not a deletion; refusals map to their errors")
+    fun deleteAccountRefusals() {
+        val cases = listOf(
+            json(200, "{}") to IdentityError.UnexpectedResponse(200),
+            problem(401, "ERR_INVALID_TOKEN") to IdentityError.SessionEnded,
+            problem(400, "ERR_INVALID_DPOP_PROOF") to IdentityError.InvalidDeviceProof,
+            problem(503, "ERR_TEMPORARILY_UNAVAILABLE") to IdentityError.TemporarilyUnavailable,
+            MockResponse().setResponseCode(302).setHeader("Location", "https://elsewhere.example.test/") to IdentityError.UnexpectedResponse(302),
+        )
+        for ((response, error) in cases) {
+            server.enqueue(response)
+            assertEquals(IdentityResult.Failure(error), client().deleteAccount(sessionId, refreshToken))
+        }
+        assertEquals(cases.size, server.requestCount, "a redirect must not be followed")
+    }
+
+    @Test
+    @DisplayName("deleteAccount refuses malformed input without sending, and reports no answer as Network")
+    fun deleteAccountInputAndNetwork() {
+        assertEquals(IdentityResult.Failure(IdentityError.InvalidInput), client().deleteAccount("sess_x", refreshToken))
+        assertEquals(IdentityResult.Failure(IdentityError.InvalidInput), client().deleteAccount(sessionId, "short"))
+        assertEquals(0, server.requestCount)
+        assertTrue(proofs.isEmpty())
+
+        val gone = MockWebServer().apply { start(InetAddress.getByName("127.0.0.1"), 0) }
+        val url = gone.url("/").toString()
+        gone.shutdown()
+        assertEquals(IdentityResult.Failure(IdentityError.Network), IdentityClient(url, proofSource).deleteAccount(sessionId, refreshToken))
+    }
+
+    @Test
+    @DisplayName("a 204 is not success for the other endpoints")
+    fun noContentElsewhere() {
+        server.enqueue(MockResponse().setResponseCode(204))
+        assertEquals(IdentityResult.Failure(IdentityError.UnexpectedResponse(204)), client().refresh(sessionId, refreshToken))
+    }
+
+    @Test
     @DisplayName("the base URL must be an https origin (plain http only for loopback)")
     fun baseUrlRules() {
         assertThrows<IllegalArgumentException> { IdentityClient("http://identity.example.test", proofSource) }

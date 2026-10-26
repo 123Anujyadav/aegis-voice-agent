@@ -11,15 +11,17 @@ package com.callscreen.core.network.identity
  *                                                          -> 200 {"accessToken","tokenType","expiresIn","refreshToken","sessionId"}
  *   POST /v1/token/refresh  DPoP [+ Integrity-Token] {"sessionId","refreshToken"}
  *                                                          -> 200 {"accessToken","tokenType","expiresIn","refreshToken"}
+ *   POST /v1/account/delete DPoP {"sessionId","refreshToken"} -> 204
  *
  * Errors are application/problem+json with a fixed "code" (IdentityError).
  */
 
-/** The three endpoint paths (services/go/identity/internal/routes). */
+/** The four endpoint paths (services/go/identity/internal/routes). */
 public object IdentityRoutes {
     public const val OTP_REQUEST: String = "/v1/otp/request"
     public const val ENROLMENT: String = "/v1/otp/validate"
     public const val REFRESH: String = "/v1/token/refresh"
+    public const val ACCOUNT_DELETION: String = "/v1/account/delete"
 }
 
 /** The server's input rules, applied before anything is sent. */
