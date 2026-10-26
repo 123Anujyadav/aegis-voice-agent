@@ -3,6 +3,7 @@ package com.callscreen.app.di
 import android.content.Context
 import com.callscreen.BuildConfig
 import com.callscreen.core.auth.AccessTokenProofs
+import com.callscreen.core.auth.AccountDeletionOutcome
 import com.callscreen.core.auth.EdgeApiClient
 import com.callscreen.core.auth.EnrolOutcome
 import com.callscreen.core.auth.IdentityAuthenticator
@@ -20,6 +21,7 @@ import com.callscreen.core.security.dpop.KeystoreProofKey
 import com.callscreen.core.security.integrity.GooglePlayIntegritySource
 import com.callscreen.core.security.integrity.PlayIntegrityTokens
 import com.callscreen.feature.onboarding.PhoneVerificationService
+import com.callscreen.feature.settings.AccountDeletionService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -94,6 +96,16 @@ internal object IdentityModule {
         }
     }
 
+    @Provides
+    fun accountDeletion(graph: IdentityGraph): AccountDeletionService {
+        val auth = graph.authenticator ?: return NoAccounts
+        return object : AccountDeletionService {
+            override val isConfigured: Boolean = true
+            override suspend fun isSignedIn(): Boolean = auth.isSignedIn()
+            override suspend fun deleteAccount(): AccountDeletionOutcome = auth.deleteAccount()
+        }
+    }
+
     /**
      * Play Integrity tokens bound to each proof (ADR-0031), when
      * BuildConfig.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER is configured. Otherwise
@@ -114,5 +126,12 @@ internal object IdentityModule {
             IdentityResult.Failure(IdentityError.TemporarilyUnavailable)
         override suspend fun enrol(requestId: String, code: String): EnrolOutcome =
             EnrolOutcome.Failed(IdentityError.TemporarilyUnavailable)
+    }
+
+    /** Deletion in a build with no identity server: there is no account, and nothing is ever sent. */
+    private object NoAccounts : AccountDeletionService {
+        override val isConfigured: Boolean = false
+        override suspend fun isSignedIn(): Boolean = false
+        override suspend fun deleteAccount(): AccountDeletionOutcome = AccountDeletionOutcome.NotSignedIn
     }
 }

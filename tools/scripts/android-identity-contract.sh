@@ -8,10 +8,11 @@
 # Go clients. Neither proves that the two agree. This runs identity as a real
 # process, on a real PostgreSQL, with its real HTTP API and DPoP verifier, and
 # runs IdentityLiveContractTest (android/core/network) against it:
-# enrolment, refresh, device binding and refresh-token reuse. It then runs the
-# real edge-api binary on the same database (identity's migrations create its
-# DPoP replay table) and EdgeLiveContractTest (android/core/auth): the app's
-# authenticator signs in, and EdgeApiClient calls GET /v1/me with the
+# enrolment, refresh, device binding, refresh-token reuse and account
+# deletion. It then runs the real edge-api binary on the same database
+# (identity's migrations create its DPoP replay table) and
+# EdgeLiveContractTest (android/core/auth): the app's authenticator signs
+# in, and EdgeApiClient calls GET /v1/me with the
 # identity-issued token and this device's proof; another key's proof is
 # refused.
 #

@@ -49,7 +49,7 @@ There is no account table. A person is a **subscriber id**: `usr_` and 32 hex ch
 | OTP rate-limit rows | `identity_otp_rate_state`, `_requests`, `_failures` | **Kept until housekeeping deletes them** (rate window 15 min + 1 h) | Keyed by the number's pseudonym, not the subscriber; they are abuse controls. |
 | DPoP replay rows | `identity_dpop_replay` | **Kept until expiry** (minutes) | They block replay, including replay of the deletion proof itself. |
 | Access tokens already issued | (not stored) | **Valid until expiry, at most 15 min** | edge-api does not consult sessions (ADR-0029). The token names only the subscriber id, and edge-api holds no subscriber data. |
-| Data on the phone | Android | **Cleared by the app after a confirmed 204** (#189) | Session store. The device key stays in the Keystore until uninstall; the blocklist and allowlist are local and not account data. |
+| Data on the phone | Android | **Session cleared by the app after a confirmed 204** (#189; also on a 401) | Session store. The device key stays in the Keystore until uninstall; the blocklist and allowlist are local and not account data. |
 | Carrier call forwarding | carrier | **Not applicable yet** | P-ID-4 requires clearing forwarding **before** erasure. Forwarding is not implemented; when it is, the erasure must clear it first. |
 
 **Tests (#188):**
@@ -81,16 +81,45 @@ Play requires a public web link through which a user can request deletion **with
 
 **Local alternative for development:** identity's `OtpSender` interface with a fake sender, as the tests already use. No public endpoint or page is deployed by this work.
 
-## 4. Android (#189)
+## 4. Android (implemented, #189)
 
-**Settings → Delete account.** The screen:
-- explains what deletion does and does not do;
-- needs an explicit final confirmation;
-- shows loading, error and success states;
-- reports success **only on the server's 204**;
-- clears the session from the phone, then returns to the start.
+**Entry point:** the Settings tab has an **Account** section (a heading) with a **Delete account** button. It is reachable whether or not the phone is signed in.
 
-When there is no signed-in session it says so, and offers nothing that would pretend to delete.
+**The screen** (`feature/settings` `AccountDeletionScreen`, `AccountDeletionViewModel`):
+
+| State | What the user sees |
+|---|---|
+| Checking | "Checking this phone's sign-in…", with a progress indicator |
+| No identity server in this build | Accounts are not available, so there is nothing to delete. No delete button. |
+| Not signed in | There is no account to delete from this phone; sign in with its number first. No delete button. |
+| Ready | What deletion does (server account on every phone; sessions, codes and device records; this phone signed out) and **what stays** (the erasure record with a coded id, the security log, the local blocklist and allowlist, short-lived security records). "This cannot be undone." A **Delete my account** button. |
+| Confirming | A dialog: "Delete your account permanently?", with **Delete permanently** and **Cancel**. Nothing is sent before this. |
+| Deleting | "Deleting your account…" (a polite live region), with a progress indicator. A double tap sends one request. |
+| Deleted | **Only after the server's 204:** "Your account has been deleted". **Done** returns to the Welcome screen and clears the back stack. |
+
+**Failures never show success:**
+- **No answer, or an answer outside the contract:** "We could not confirm the deletion… If it already went through, trying again confirms it." The session is kept, so the retry presents the same credentials and the server's receipt answers 204.
+- **Unavailable, rate limited, or a device-proof refusal:** says that nothing was deleted, and keeps the session.
+- **401, the session already ended:** the phone is signed out and told to sign in again to delete.
+
+**Client and session handling:**
+- `IdentityClient.deleteAccount` POSTs `{sessionId, refreshToken}` with a DPoP proof for `origin + /v1/account/delete`. It sends no integrity token, so no Play Integrity quota is spent. Only 204 is success; a redirect is not followed.
+- `IdentityAuthenticator.deleteAccount` runs under the same lock as refresh, so it always presents the current refresh token. It clears the stored session only on 204, or when the server says the session has ended.
+- The device key stays in Android Keystore until the app is uninstalled; it identifies no one once the server's records are gone.
+
+**Tests:**
+- `IdentityClientTest`: the request, the proof URL, no integrity token, 204 only, each refusal, no redirect, input refused locally, network failure, and 204 not accepted on other endpoints.
+- `IdentityAuthenticatorTest`: clears only after 204; every failure keeps the session and the retry presents the same token; a 401 clears the session; no session sends nothing; deletion is serialised with refresh.
+- `AccountDeletionViewModelTest`: confirmation, cancel, double tap, network failure then retry, each refusal, session ended, and no session or no server.
+- `AccountDeletionUiTest` (Robolectric): the Settings entry (a heading and a clickable button), the consequences, cancel deletes nothing, loading then success then one navigation, network failure shown, no session offers no delete.
+- `IdentityLiveContractTest.accountDeletion`: the real client against the **real identity binary and PostgreSQL** in CI (`android-identity-contract.yml`):
+  - another key is refused and erases nothing;
+  - the enrolled key deletes;
+  - the retry is confirmed;
+  - another key's retry is refused;
+  - the session is gone.
+
+**Not run:** an emulator or device run of the screen against a live identity server. No identity server is deployed, and debug builds have no identity URL, so on a device the screen shows "Accounts are not available".
 
 ## 5. Decisions for the owner (not decided here)
 

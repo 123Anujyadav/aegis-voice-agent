@@ -53,6 +53,29 @@ public sealed interface EnrolOutcome {
     public data object StorageFailed : EnrolOutcome
 }
 
+/** The outcome of deleting the account (docs/phase19/ACCOUNT-DELETION.md). */
+public sealed interface AccountDeletionOutcome {
+    /** The server confirmed the erasure (204), and the session was removed from this phone. */
+    public data object Deleted : AccountDeletionOutcome
+
+    /** No usable session on this phone: nothing was sent. */
+    public data object NotSignedIn : AccountDeletionOutcome
+
+    /**
+     * The server refused the session (ended or revoked): nothing was erased by
+     * this request. The session was removed from this phone; signing in again
+     * is needed to delete the account.
+     */
+    public data object SessionEnded : AccountDeletionOutcome
+
+    /**
+     * No confirmation. The session is kept. After [IdentityError.Network] the
+     * request may have reached the server: trying again with the same session
+     * is answered as a success if it did.
+     */
+    public data class Failed(val error: IdentityError) : AccountDeletionOutcome
+}
+
 /**
  * The identity flow over the HTTP client and the encrypted session store.
  *
@@ -131,6 +154,38 @@ public class IdentityAuthenticator(
                 StoredSessionResult.Unrecoverable -> AuthState.SignedOut(SignedOutReason.STORED_SESSION_UNRECOVERABLE)
                 is StoredSessionResult.Present ->
                     if (read.session.accessToken == rejectedAccessToken) refresh(read.session) else AuthState.Authenticated(read.session.accessToken)
+            }
+        }
+    }
+
+    /** Whether a session is stored on this phone and can be opened. Nothing is sent. */
+    public suspend fun isSignedIn(): Boolean = lock.withLock {
+        withContext(io) { store.read() is StoredSessionResult.Present }
+    }
+
+    /**
+     * Deletes the account, on every device, with the stored session. Under the
+     * same lock as refresh, so the refresh token presented is the current one.
+     * The session is removed from this phone only after the server confirms
+     * (204), or when the server says it has ended; on any other failure it is
+     * kept, so the request can be retried.
+     */
+    public suspend fun deleteAccount(): AccountDeletionOutcome = lock.withLock {
+        withContext(io) {
+            val session = (store.read() as? StoredSessionResult.Present)?.session
+                ?: return@withContext AccountDeletionOutcome.NotSignedIn
+            when (val result = client.deleteAccount(session.sessionId, session.refreshToken)) {
+                is IdentityResult.Success -> {
+                    // Erased on the server: a session left behind only fails its next refresh.
+                    runCatching { store.clear() }
+                    AccountDeletionOutcome.Deleted
+                }
+                is IdentityResult.Failure -> if (result.error == IdentityError.SessionEnded) {
+                    runCatching { store.clear() }
+                    AccountDeletionOutcome.SessionEnded
+                } else {
+                    AccountDeletionOutcome.Failed(result.error)
+                }
             }
         }
     }

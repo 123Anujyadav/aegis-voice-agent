@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +31,8 @@ import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -46,22 +49,26 @@ public data class TaskItem(
     val status: TaskStatus,
 )
 
-/** The Settings tab: setup steps computed from this phone's actual state, rechecked on each return. */
+/**
+ * The Settings tab: setup steps computed from this phone's actual state,
+ * rechecked on each return, and the account section.
+ */
 @Composable
-public fun TaskCenterRoute() {
+public fun TaskCenterRoute(onDeleteAccountClick: () -> Unit = {}) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(SetupTasks.of(ScreeningRoleStatus.UNAVAILABLE, contactsAccess = false)) }
     LifecycleResumeEffect(Unit) {
         tasks = SetupTasks.of(ScreeningRole.status(context), ContactsAccess.granted(context))
         onPauseOrDispose {}
     }
-    TaskCenterScreen(tasks = tasks)
+    TaskCenterScreen(tasks = tasks, onDeleteAccountClick = onDeleteAccountClick)
 }
 
 @Composable
 public fun TaskCenterScreen(
     modifier: Modifier = Modifier,
     tasks: List<TaskItem> = emptyList(),
+    onDeleteAccountClick: () -> Unit = {},
 ) {
 
     Scaffold(
@@ -129,7 +136,33 @@ public fun TaskCenterScreen(
                         }
                     }
                 }
+                item { AccountSection(onDeleteAccountClick) }
             }
+        }
+    }
+}
+
+/** Account management: deletion, reachable from Settings whether or not this phone is signed in. */
+@Composable
+private fun AccountSection(onDeleteAccountClick: () -> Unit) {
+    Column(
+        modifier = Modifier.padding(top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "Account",
+            style = CallScreenTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = CallScreenTheme.colors.content.primary,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            text = AccountDeletionCopy.ENTRY_DESCRIPTION,
+            style = CallScreenTheme.typography.bodyMedium,
+            color = CallScreenTheme.colors.content.secondary,
+        )
+        OutlinedButton(onClick = onDeleteAccountClick, modifier = Modifier.fillMaxWidth()) {
+            Text(text = AccountDeletionCopy.TITLE, color = CallScreenTheme.colors.action.danger.fill)
         }
     }
 }

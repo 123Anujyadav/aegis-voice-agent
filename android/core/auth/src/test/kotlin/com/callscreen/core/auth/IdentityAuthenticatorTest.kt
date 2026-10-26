@@ -16,8 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -216,6 +218,82 @@ class IdentityAuthenticatorTest {
         blobs.bytes!!.let { it[it.size - 1] = (it[it.size - 1].toInt() xor 0x01).toByte() }
         assertEquals(AuthState.SignedOut(SignedOutReason.STORED_SESSION_UNRECOVERABLE), auth.accessToken())
         assertEquals(1, server.requestCount)
+    }
+
+    private suspend fun signedIn(): IdentityAuthenticator {
+        server.enqueue(enrolled())
+        return authenticator().also { it.enrol(requestId, "123456"); server.takeRequest() }
+    }
+
+    @Test
+    @DisplayName("account deletion presents the stored session and clears it only after the server's 204")
+    fun deleteAccount() = runBlocking {
+        val auth = signedIn()
+        assertTrue(auth.isSignedIn())
+        server.enqueue(MockResponse().setResponseCode(204))
+        assertEquals(AccountDeletionOutcome.Deleted, auth.deleteAccount())
+        val sent = server.takeRequest()
+        assertEquals("/v1/account/delete", sent.path)
+        assertEquals("""{"sessionId":"$sessionId","refreshToken":"$rt1"}""", sent.body.readUtf8())
+        assertEquals(StoredSessionResult.Absent, stored())
+        assertFalse(auth.isSignedIn())
+        assertEquals(AuthState.SignedOut(SignedOutReason.NOT_SIGNED_IN), auth.accessToken())
+    }
+
+    @Test
+    @DisplayName("account deletion without a confirmation keeps the session, so a retry is possible")
+    fun deleteAccountFailureKeepsTheSession() = runBlocking {
+        val auth = signedIn()
+        val failures = listOf(
+            MockResponse().setResponseCode(204).setHeadersDelay(2, TimeUnit.SECONDS) to IdentityError.Network,
+            problem(503, "ERR_TEMPORARILY_UNAVAILABLE") to IdentityError.TemporarilyUnavailable,
+            problem(400, "ERR_INVALID_DPOP_PROOF") to IdentityError.InvalidDeviceProof,
+            json(200, "{}") to IdentityError.UnexpectedResponse(200),
+        )
+        for ((response, error) in failures) {
+            server.enqueue(response)
+            assertEquals(AccountDeletionOutcome.Failed(error), auth.deleteAccount(), "$error")
+            assertTrue(stored() is StoredSessionResult.Present, "$error cleared the session")
+        }
+        // The retry presents the same, still current, refresh token.
+        server.enqueue(MockResponse().setResponseCode(204))
+        assertEquals(AccountDeletionOutcome.Deleted, auth.deleteAccount())
+        repeat(failures.size) { server.takeRequest() }
+        assertEquals("""{"sessionId":"$sessionId","refreshToken":"$rt1"}""", server.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    @DisplayName("a session the server refuses is cleared: SessionEnded; with no session nothing is sent")
+    fun deleteAccountSessionEndedAndSignedOut() = runBlocking {
+        val auth = signedIn()
+        server.enqueue(problem(401, "ERR_INVALID_TOKEN"))
+        assertEquals(AccountDeletionOutcome.SessionEnded, auth.deleteAccount())
+        assertEquals(StoredSessionResult.Absent, stored())
+
+        val before = server.requestCount
+        assertEquals(AccountDeletionOutcome.NotSignedIn, auth.deleteAccount())
+        assertFalse(auth.isSignedIn())
+        assertEquals(before, server.requestCount)
+    }
+
+    @Test
+    @DisplayName("deletion and refresh share the lock: deletion never presents a token a concurrent refresh spent")
+    fun deletionIsSerialisedWithRefresh() = runBlocking {
+        val auth = signedIn()
+        now += 10_000
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse =
+                if (request.path == "/v1/token/refresh") refreshed() else MockResponse().setResponseCode(204)
+        }
+        val refresh = async(Dispatchers.Default) { auth.accessToken() }
+        val deletion = async(Dispatchers.Default) { auth.deleteAccount() }
+        refresh.await()
+        assertEquals(AccountDeletionOutcome.Deleted, deletion.await())
+        val sent = (1 until server.requestCount).map { server.takeRequest() }
+        val presented = sent.single { it.path == "/v1/account/delete" }.body.readUtf8()
+        // Refresh first: deletion presents the rotated token. Deletion first: refresh finds no session and sends nothing.
+        val expected = if (sent.any { it.path == "/v1/token/refresh" }) rt2 else rt1
+        assertTrue(presented.contains(expected), presented)
     }
 
     @Test
