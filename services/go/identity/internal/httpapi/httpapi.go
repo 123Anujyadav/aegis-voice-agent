@@ -1,4 +1,4 @@
-// Package httpapi is the identity service's HTTP surface: exactly three POST
+// Package httpapi is the identity service's HTTP surface: exactly four POST
 // endpoints (internal/routes), each a thin adapter over one IdentityService
 // method. No authentication, token or proof logic lives here: the proof is
 // handed to the service's DPoP verifier as it arrived, and tokens come only
@@ -42,7 +42,13 @@
 //	  401 ERR_INVALID_TOKEN (unknown, expired, revoked or reused refresh token
 //	      — reuse also revokes the session — or a session with no device key)
 //
-// All three: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
+//	POST /v1/account/delete   DPoP: <proof>   {"sessionId": "...", "refreshToken": "..."}
+//	  204 (no body): the account that owns the session is erased (app/erasure.go);
+//	      also for a retry of an erased session with a proof by the same key
+//	  400 ERR_INVALID_DPOP_PROOF (as above; the htu is the deletion URL),
+//	  401 ERR_INVALID_TOKEN (as for refresh; nothing is erased)
+//
+// All four: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
 // including the replay store, or the request ran out of time) and 500
 // ERR_INTERNAL. Neither ever accompanies a token.
 //
@@ -53,7 +59,7 @@
 // proof spends its jti: a malformed body never costs the client its proof.
 //
 // Every response is counted once in identity_auth_requests_total{endpoint,
-// outcome} (metrics.go). The endpoint is one of the three routes or "unknown";
+// outcome} (metrics.go). The endpoint is one of the four routes or "unknown";
 // the outcome is "success" or the response's problem code. Nothing from the
 // request is a label. cmd/server exposes it at GET /metrics on the health
 // listener, never on this API's port.
@@ -135,6 +141,8 @@ func (h *handler) route(w http.ResponseWriter, r *http.Request) {
 		serve = h.enroll
 	case routes.Refresh:
 		serve = h.refresh
+	case routes.AccountDeletion:
+		serve = h.deleteAccount
 	default:
 		h.problem(w, r, http.StatusNotFound, "ERR_NOT_FOUND")
 		return
@@ -245,6 +253,34 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 		"expiresIn":    int64(accesstoken.Lifetime / time.Second),
 		"refreshToken": refresh,
 	})
+}
+
+// deleteAccount erases the account that owns the session (app/erasure.go):
+// the same body and DPoP proof as refresh, and 204 No Content once erased. A
+// repeated request for an erased session, with a proof from the same key, is
+// also 204, so a client that lost the answer can safely retry.
+func (h *handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SessionID    string `json:"sessionId"`
+		RefreshToken string `json:"refreshToken"`
+	}
+	if !h.decode(w, r, &body) {
+		return
+	}
+	if !sessionIDPattern.MatchString(body.SessionID) || !refreshTokenPattern.MatchString(body.RefreshToken) {
+		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_INPUT")
+		return
+	}
+	proof, ok := h.proof(w, r)
+	if !ok {
+		return
+	}
+	if err := h.svc.DeleteAccountWithDeviceProof(r.Context(), body.SessionID, body.RefreshToken, r.Method, proof); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.m.record(r, OutcomeSuccess)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ---------------------------------------------------------------------------
@@ -398,6 +434,7 @@ func (h *handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 		h.problem(w, r, http.StatusServiceUnavailable, "ERR_OTP_DELIVERY_FAILED")
 	case errors.Is(err, dpop.ErrReplayUnavailable), errors.Is(err, app.ErrEnrollmentUnavailable),
 		errors.Is(err, app.ErrDeviceRefreshUnavailable), errors.Is(err, app.ErrTokenIssuanceUnavailable),
+		errors.Is(err, app.ErrAccountDeletionUnavailable),
 		errors.Is(err, context.DeadlineExceeded):
 		h.problem(w, r, http.StatusServiceUnavailable, "ERR_TEMPORARILY_UNAVAILABLE")
 	default:

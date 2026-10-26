@@ -20,4 +20,8 @@ const (
 	Enrollment = "/v1/otp/validate"
 	// Refresh rotates a device-bound session's refresh token on a DPoP proof.
 	Refresh = "/v1/token/refresh"
+	// AccountDeletion erases the account that owns a device-bound session, on
+	// the session's current refresh token and a DPoP proof (app/erasure.go).
+	// Its canonical URL is the refresh canonical URL's origin and this path.
+	AccountDeletion = "/v1/account/delete"
 )

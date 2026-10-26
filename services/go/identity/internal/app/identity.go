@@ -390,6 +390,9 @@ type MemoryIdentityRepository struct {
 	otpRates    map[string]*otpRateState
 	// nextReservation numbers verification reservations; guarded by mu.
 	nextReservation uint64
+	// erasures and erasureReceipts are account erasure (erasure.go).
+	erasures        []SubscriberErasure
+	erasureReceipts map[string]erasureReceipt
 }
 
 // otpRateState is one MSISDN's rate-limit state: the times of its OTP requests
@@ -533,6 +536,8 @@ func NewMemoryIdentityRepository() *MemoryIdentityRepository {
 		devices:     make(map[string]*DeviceAttestation),
 		delegations: make(map[string]*GuardianDelegation),
 		otpRates:    make(map[string]*otpRateState),
+
+		erasureReceipts: make(map[string]erasureReceipt),
 	}
 }
 
@@ -971,6 +976,10 @@ type IdentityService struct {
 	// configured with its own endpoint's canonical URL. Nil — the default —
 	// means proof-bound refresh is not configured and is refused.
 	refreshProof *dpop.Verifier
+	// deletionProof verifies device-key proofs for account deletion (htu:
+	// the deletion URL). Nil, the default, means deletion is not configured
+	// and is refused (erasure.go).
+	deletionProof *dpop.Verifier
 
 	// otpSender delivers one-time codes. Nil — the default, and the only value
 	// production code sets today — means no delivery exists; see SetOtpSender.

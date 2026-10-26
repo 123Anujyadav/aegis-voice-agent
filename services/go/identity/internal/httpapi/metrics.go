@@ -71,6 +71,7 @@ const (
 	EndpointOTPRequest  = "otp_request"
 	EndpointOTPValidate = "otp_validate"
 	EndpointRefresh     = "token_refresh"
+	EndpointAccountDel  = "account_delete"
 	EndpointUnknown     = "unknown"
 )
 
@@ -152,7 +153,7 @@ func (m *Metrics) ObserveAuditFailure(t app.SecurityEventType) {
 func securityEventLabel(t app.SecurityEventType) string {
 	switch t {
 	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused, app.EventDeviceEnrolled,
-		app.EventDeviceReenrolled, app.EventIntegrityRestricted, app.EventIntegrityRejected:
+		app.EventDeviceReenrolled, app.EventIntegrityRestricted, app.EventIntegrityRejected, app.EventAccountDeleted:
 		return string(t)
 	default:
 		return SecurityEventOther
@@ -206,6 +207,8 @@ func endpointFor(path string) string {
 		return EndpointOTPValidate
 	case routes.Refresh:
 		return EndpointRefresh
+	case routes.AccountDeletion:
+		return EndpointAccountDel
 	default:
 		return EndpointUnknown
 	}

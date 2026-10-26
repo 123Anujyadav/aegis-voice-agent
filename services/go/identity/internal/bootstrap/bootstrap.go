@@ -206,7 +206,32 @@ func Build(cfg SecurityConfig, deps Dependencies) (*app.IdentityService, error) 
 	svc.SetAccessTokenSigner(signer)
 	svc.SetDeviceProofVerifier(enrol)
 	svc.SetRefreshProofVerifier(refresh)
+
+	// Account deletion's canonical URL is the refresh canonical URL's origin
+	// and the deletion path: identity has one origin, and every canonical
+	// path is fixed by routes, so a separate variable could only be
+	// misconfigured. Its proofs share refresh's replay store, which is keyed
+	// by key and proof id; a proof for one endpoint cannot pass the other (htu).
+	deletion, derr := dpop.NewVerifier(dpop.Config{
+		HTU: AccountDeletionCanonicalURL(cfg.RefreshCanonicalURL), MaxAge: ProofMaxAge, FutureSkew: ProofFutureSkew,
+		Replay: deps.RefreshReplay, Now: deps.Now,
+	})
+	if derr != nil {
+		return nil, fmt.Errorf("%w: account deletion URL from %s_REFRESH_CANONICAL_URL: %w", ErrInvalidConfig, EnvPrefix, derr)
+	}
+	svc.SetAccountDeletionProofVerifier(deletion)
 	return svc, nil
+}
+
+// AccountDeletionCanonicalURL is the canonical URL a deletion proof must name:
+// refreshCanonicalURL's scheme and host with routes.AccountDeletion. The
+// refresh URL is already validated as canonical.
+func AccountDeletionCanonicalURL(refreshCanonicalURL string) string {
+	u, err := url.Parse(refreshCanonicalURL)
+	if err != nil {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host + routes.AccountDeletion
 }
 
 // loadSigner reads and parses the key file and builds the signer. Parsing and

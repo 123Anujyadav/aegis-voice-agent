@@ -308,12 +308,36 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 7 {
-		t.Fatalf("chain has %d steps, want 7", len(chain))
+	if len(chain) != 8 {
+		t.Fatalf("chain has %d steps, want 8", len(chain))
 	}
 	for i, step := range chain {
 		if step.Version != i+1 {
 			t.Fatalf("step %d is version %d: the chain is not contiguous", i, step.Version)
+		}
+	}
+
+	// 0008 adds account erasure's two tables and the record's append-only
+	// guard, and touches no existing table or row.
+	var code8 []string
+	for _, line := range strings.Split(chain[7].SQL, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+			code8 = append(code8, line)
+		}
+	}
+	v8 := strings.Join(code8, "\n")
+	for _, want := range []string{
+		"CREATE TABLE identity_erasures", "CREATE TABLE identity_erasure_receipts",
+		"CHECK (subscriber_id ~ '^usr_[0-9a-f]{32}$')", "ERRCODE = 'CSA02'",
+		"BEFORE UPDATE OR DELETE ON identity_erasures", "BEFORE TRUNCATE ON identity_erasures",
+	} {
+		if !strings.Contains(v8, want) {
+			t.Errorf("0008 lacks %q", want)
+		}
+	}
+	for _, forbidden := range []string{"DELETE FROM", "UPDATE IDENTITY", "INSERT INTO", "TRUNCATE IDENTITY", "DROP ", "ALTER TABLE"} {
+		if strings.Contains(strings.ToUpper(v8), forbidden) {
+			t.Errorf("0008 contains %q", forbidden)
 		}
 	}
 
