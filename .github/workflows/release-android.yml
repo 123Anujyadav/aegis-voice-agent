@@ -74,6 +74,13 @@ jobs:
           CS_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
           CS_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           CS_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          # Public endpoint configuration: Environment VARIABLES, not secrets.
+          # The build fails, naming each, unless all four are usable.
+          CS_IDENTITY_BASE_URL: ${{ vars.CALLSCREEN_IDENTITY_BASE_URL }}
+          CS_EDGE_API_BASE_URL: ${{ vars.CALLSCREEN_EDGE_API_BASE_URL }}
+          CS_IDENTITY_CERT_PINS: ${{ vars.CALLSCREEN_IDENTITY_CERT_PINS }}
+          CS_EDGE_API_CERT_PINS: ${{ vars.CALLSCREEN_EDGE_API_CERT_PINS }}
+          CS_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER: ${{ vars.CALLSCREEN_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER }}
         run: bash tools/scripts/android-release-bundle.sh
 
       - name: Keep the signed bundle and its R8 mapping

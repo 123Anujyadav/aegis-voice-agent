@@ -80,6 +80,17 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     }
                 }
 
+                // A release (the release script sets callscreen.requireReleaseEndpoints)
+                // must carry its public endpoint configuration, or it would ship
+                // an app that stops at sign-in and connects unpinned
+                // (ReleaseEndpoints). Every other build is unaffected.
+                if (providers.gradleProperty(ReleaseEndpoints.REQUIRED).orNull == "true") {
+                    val problems = ReleaseEndpoints.problems { providers.gradleProperty(it).orNull }
+                    require(problems.isEmpty()) {
+                        "A release build needs its public endpoint configuration: " + problems.joinToString("; ")
+                    }
+                }
+
                 // -------------------------------------------------------------
                 // BUILD VARIANTS
                 //

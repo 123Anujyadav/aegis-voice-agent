@@ -299,6 +299,13 @@ No account was created, nothing was purchased, configured or published.
 
 Every row is **open**. A recommendation is engineering's reading of the existing specifications and code; it is **not** an approval, and the current behaviour stays until the named approver decides. The tracker rows are O9–O17 in `EXTERNAL-DEPENDENCIES.md`. No ratified document (ADR-0010, ADR-0012, the domain model) is changed here.
 
+**As of 2026-10-26 (`main` `93fe2cb`), all nine are still pending.** No project record shows an approval.
+- **Identifiers:** Phase 15 and the telephony programme also use D8–D11 for unrelated decisions, so cite these as **O9–O17** elsewhere (`ROADMAP-INVENTORY.md` §1).
+- **Effect on the milestones:**
+  - **No** decision here blocks a Play **internal-testing** release (`ROADMAP-INVENTORY.md` §4.3).
+  - Before **production:** D1 (O9) and D5 (O13) are needed, and D2 and D3 need legal review.
+  - The rest (D4, D6, D7, D8, D9) can follow, with the current behaviour standing.
+
 **Kinds:**
 - **Owner approval:** a product or security decision only the owner can make.
 - **Privacy/legal review:** the owner decides **on qualified advice** (E9); engineering does not change retention without it.

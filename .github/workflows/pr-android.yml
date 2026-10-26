@@ -120,7 +120,7 @@ jobs:
           ./gradlew --no-daemon --stacktrace -p build-logic :convention:test
           # A test task that discovers no tests still passes in Gradle 8, so
           # require each suite's JUnit report with at least one test.
-          for suite in ReleaseVersionTest ReleaseSigningTest; do
+          for suite in ReleaseVersionTest ReleaseSigningTest ReleaseEndpointsTest; do
             report=build-logic/convention/build/test-results/test/TEST-$suite.xml
             grep -Eq '<testsuite [^>]*tests="[1-9][0-9]*"' "$report" || { echo "::error::$suite did not run ($report)"; exit 1; }
           done
@@ -172,7 +172,24 @@ jobs:
           UPLOAD_KEYSTORE_BASE64="$(base64 -w0 "$dir/upload.p12")" \
             CS_UPLOAD_KEYSTORE_PASSWORD="$pass" CS_UPLOAD_KEY_ALIAS=upload CS_UPLOAD_KEY_PASSWORD="$pass" \
             CS_VERSION_CODE=1 CS_VERSION_NAME=0.0.0-ci \
+            CS_IDENTITY_BASE_URL=https://identity.example.test CS_EDGE_API_BASE_URL=https://api.example.test \
+            CS_IDENTITY_CERT_PINS="sha256/$(printf 'A%.0s' $(seq 42))A=,sha256/$(printf 'B%.0s' $(seq 42))A=" \
+            CS_EDGE_API_CERT_PINS="sha256/$(printf 'C%.0s' $(seq 42))A=,sha256/$(printf 'D%.0s' $(seq 42))A=" \
             bash tools/scripts/android-release-bundle.sh
+
+      # A release without its public endpoint configuration must fail, naming
+      # every missing property, rather than ship an app that stops at sign-in.
+      - name: A release without endpoint configuration fails the build
+        working-directory: android
+        run: |
+          log="$RUNNER_TEMP/release-endpoints.log"
+          if ./gradlew --no-daemon -Pcallscreen.requireReleaseEndpoints=true :app:help > "$log" 2>&1; then
+            echo "::error::the build accepted a release with no endpoint configuration"; exit 1
+          fi
+          grep -q "A release build needs its public endpoint configuration" "$log" || { cat "$log"; echo "::error::the build failed, but not on the endpoint configuration"; exit 1; }
+          for name in callscreen.identityBaseUrl callscreen.edgeApiBaseUrl callscreen.identityCertPins callscreen.edgeApiCertPins; do
+            grep -q "$name" "$log" || { cat "$log"; echo "::error::$name was not named"; exit 1; }
+          done
 
       # A release with only some CS_UPLOAD_* variables set must fail, naming
       # the missing variables, rather than quietly building an unsigned bundle.

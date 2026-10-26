@@ -53,8 +53,8 @@ CI generate test keys inside the tests.
 ## 1a. Android build configuration (public, never secret)
 
 These are read at build time. They are **not secrets**, and all default to empty or a developer value.
-- No build or workflow sets them yet.
-- The one exception is `pr-android`, which sets an *invalid* `CS_VERSION_CODE` only to prove that the build fails.
+- **A release must carry the four endpoint values (#194).** `release-android.yml` reads them from the `play-release` Environment's **variables** (below), and the build fails, naming each missing or unusable one (`ReleaseEndpoints`), so a release can never ship stopping at sign-in or unpinned. No variable is set yet: the owner adds them with the hosts.
+- `pr-android` sets only test values: an *invalid* `CS_VERSION_CODE`, to prove the build fails, and `example.test` endpoints with fake pins for the throwaway-key release build.
 
 | Name | Read by | Purpose | Default and validation |
 |---|---|---|---|
@@ -62,6 +62,8 @@ These are read at build time. They are **not secrets**, and all default to empty
 | `callscreen.edgeApiBaseUrl` (Gradle property) | `android/app/build.gradle.kts` → `BuildConfig.EDGE_API_BASE_URL` | edge-api's origin. It must equal `CS_EDGE_API_PUBLIC_ORIGIN`. | Empty, so protected calls are unavailable. It must be an https origin. |
 | `callscreen.playIntegrityCloudProjectNumber` (Gradle property) | `android/app/build.gradle.kts` → `BuildConfig.PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER` | Play Integrity standard requests (see §2) | Empty, so no integrity token is requested. Digits only. |
 | `callscreen.identityCertPins`, `callscreen.edgeApiCertPins` (Gradle properties) | `android/app/build.gradle.kts` → `BuildConfig.IDENTITY_CERT_PINS` / `EDGE_API_CERT_PINS` → `EndpointConfig.httpClient` | Certificate pinning (ADR-0010: "our own leaf and a backup pin"). These are hashes of public keys, `sha256/<base64>`, and not secrets. | Empty means no pinning (today). If set, at least two distinct well-formed pins are required, or **that endpoint is turned off**: it is never left unpinned. They must be set before a release. |
+| `callscreen.requireReleaseEndpoints` (Gradle property) | `ReleaseEndpoints` (`android/build-logic/convention/src/main/kotlin/ReleaseEndpoints.kt`, #194) | Set to `true` by `tools/scripts/android-release-bundle.sh` only | Unset everywhere else. When `true`, the build fails unless both origins are https origins naming a DNS host and each has two or more distinct `sha256/` pins (ADR-0010). |
+| `CALLSCREEN_IDENTITY_BASE_URL`, `CALLSCREEN_EDGE_API_BASE_URL`, `CALLSCREEN_IDENTITY_CERT_PINS`, `CALLSCREEN_EDGE_API_CERT_PINS`, `CALLSCREEN_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER` (GitHub Environment **variables**, `play-release`) | `release-android.yml` → the release script → the Gradle properties above | The release's public configuration | **Not set** (owner, with the hosts). The first four are required for a release; the project number is optional (unset: no integrity tokens, sessions recorded unverified). Variables, not secrets: they are public values. |
 | `CS_VERSION_CODE` (environment) | `ReleaseVersion` (`android/build-logic/convention/src/main/kotlin/ReleaseVersion.kt`, #148) | versionCode | Unset gives `1` (developer build). If set, it must be 1–2,100,000,000, or the build fails. |
 | `CS_VERSION_NAME` (environment) | `ReleaseVersion` (#148) | versionName | Unset gives `0.1.0-dev`. If set, it must be 1–64 characters of `[0-9A-Za-z.+_-]`, starting with a letter or digit, or the build fails. |
 
