@@ -115,7 +115,24 @@ On this emulator (region not India), a contact saved as `+91…` was not matched
 - The move message named the wrong direction when the move came from a detail sheet.
 - A populated allowlist did not state the forwarding caveat.
 
-Onboarding stops at phone verification, so A09b, Protection (A32/A33/A32d), the blocklist notice and the F14 banner were **not exercised on the device**. Their automated coverage is Robolectric UI tests. Device coverage needs a staging build with identity hosts (external), or an instrumented test that hosts these screens directly (a routine follow-up).
+**Corrected 2026-10-26 (#195).** This paragraph used to say these screens were "not exercised on the device". That was true of the manual adb run (§2), where onboarding stops at phone verification, but **not of #181's instrumented tests, which host each screen directly** in the real navigation graph, as listed above. The roadmap inventory had relied on the stale wording.
+
+**#195 adds** the device coverage that was still missing, and fixes one defect it found:
+- **New on Android 10+ (`ScreeningStateAcrossScreensTest`):**
+  - **The Settings checklist reports the role as it is, and re-checks on return:** not held, then "to do"; granted, then "done"; taken by another app, then "to do" again (never a stale "done"). The contacts row matches the phone's actual permission, and forwarding is always "not available".
+  - **The role is lost after turning blocking on from Protection, before the Calls feed was ever opened.** This is the defect (below). Then Protection, the feed and recovery all agree.
+  - **The role is revoked with no other holder:** the feed warns, "Switch back" opens the system request, declining keeps the warning, and regaining the role clears it.
+- **New on Android 9 (`AndroidNineFallbackTest`):**
+  - the Settings checklist says blocking and contacts are "not available";
+  - the Calls feed never shows a role-loss warning.
+- **Defect, reproduced on the Android 15 emulator and fixed:**
+  - **Before:** F14's "held before" memory was recorded **only by the Calls feed**. A subscriber who turned blocking on from Protection, and lost the role before ever opening the feed, was **never warned**: their blocks stopped silently. The test failed on the feed with no banner.
+  - **After:** `MainActivity.onResume` records it on every foreground (`ScreeningRoleWatch.observe`), so the test passes.
+- **Not fixed: an owner decision (OD-11).** The banner's spec sentence (UX `08-user-flows.md` F14) says "Another app is now screening your calls". An app cannot know who holds the role (`RoleManager.getRoleHolders` is a system API), and the same banner correctly appears when the subscriber simply turns screening off, with no other holder. The sentence is pinned to the spec by `ScreeningRoleBannerCopyTest`, so changing it is a UX-spec amendment. The tests assert the banner's consequence sentence, which is true in both cases, not the "another app" claim.
+- **Flake fixed (API 28 only):** `ProtectionListsTest` typed before the add sheet existed, and waited only 5 s for the dashboard after Back. On the slow API 28 emulator it failed one of three runs (two different steps). It now waits for the field and allows 15 s; it then passed in three consecutive runs, and the full suite passed.
+- **Results (emulators; not physical devices):**
+  - **Android 15 (API 35, `Pixel_9_API_35`): 16/16 pass**, none skipped;
+  - **Android 9 (API 28, `Aegis_API_28`): 12/12 pass**, none skipped.
 
 ### 4.4 Repository hygiene
 

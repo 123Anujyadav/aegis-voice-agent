@@ -83,6 +83,7 @@ class ProtectionListsTest {
 
         // A35: add a block.
         compose.onNodeWithContentDescription("Add number").performClick()
+        compose.awaitText("Phone number") // the add sheet opens asynchronously (slow on API 28)
         compose.onNodeWithText("Phone number").performTextInput("98765 00001")
         compose.onNodeWithText("Block").performClick()
         compose.awaitDescription("$spoken, Added by you")
@@ -115,7 +116,7 @@ class ProtectionListsTest {
         // then wait for Protection before opening the other list.
         Espresso.closeSoftKeyboard()
         Espresso.pressBack()
-        compose.awaitText("Protection Dashboard")
+        compose.awaitText("Protection Dashboard", timeoutMillis = 15_000) // navigation is slow on the API 28 emulator
         openList("Allowed numbers")
         compose.onNodeWithText("If you don't answer, your carrier may still forward the call to be screened.").assertExists()
         compose.onNode(hasContentDescription("Courier, $spoken", substring = true)).assertExists()
@@ -134,6 +135,7 @@ class ProtectionListsTest {
     fun aRefusedNumberIsExplainedAndNothingIsSaved() {
         openList("Blocked numbers")
         compose.onNodeWithContentDescription("Add number").performClick()
+        compose.awaitText("Phone number")
         compose.onNodeWithText("Phone number").performTextInput("112")
         compose.onNodeWithText("Block").performClick()
         compose.awaitText("Enter a full phone number, with its area code.")

@@ -96,4 +96,20 @@ class AndroidNineFallbackTest {
         compose.activity.setContent { CallScreenTheme { AegisNavGraph(startDestination = AegisDestinations.SETUP_COMPLETE) } }
         compose.awaitText("On-device blocking is off.", substring = true)
     }
+
+    @Test
+    fun settingsChecklistSaysBlockingAndContactsAreNotAvailable() {
+        compose.activity.setContent { CallScreenTheme { AegisNavGraph(startDestination = AegisDestinations.TASK_CENTER) } }
+        compose.awaitText("This version of Android doesn't let apps block calls.")
+        compose.awaitText("Needs on-device blocking, which this phone can't do.")
+        compose.onNodeWithText("Numbers you block are rejected on this phone.").assertDoesNotExist()
+        compose.onNodeWithText("Turn it on from Protection, Blocked numbers.").assertDoesNotExist()
+    }
+
+    @Test
+    fun theCallsFeedNeverWarnsOfARoleThatCannotExist() {
+        compose.activity.setContent { CallScreenTheme { AegisNavGraph(startDestination = AegisDestinations.CALLS_FEED) } }
+        compose.awaitText("No call data yet")
+        compose.onNodeWithText("won't be blocked until you switch back", substring = true).assertDoesNotExist()
+    }
 }

@@ -62,24 +62,24 @@ The repository uses three different meanings of "phase". None defines a phase af
 | C14 | `client_id` rollout | O1, only if `client_id` is chosen | Tracker §3 |
 | C15 | `BiometricPrompt` before the deletion confirmation | O12, only if screen lock is chosen | Tracker §3 |
 
-**Completed in this round, not counted above:** the release endpoint preflight (#194, §5).
+**Completed, not counted above:** the release endpoint preflight (#194), and the F14 "held before" fix (#195).
 
-### 3.2 Testing: 5 open, 1 unblocked
+### 3.2 Testing: 4 open, 0 unblocked
 
 | # | Task | State | Source |
 |---|---|---|---|
-| T1 | Device (instrumented) coverage of A09b, Protection, the blocklist notice and the F14 banner, hosting those screens directly | **Unblocked: not started.** Today they are covered only by Robolectric. | Validation doc §4.3 ("a routine follow-up") |
+| T1 | Device (instrumented) coverage of A09b, Protection, the blocklist notice, the F14 banner and the Settings checklist | **Done.** Most of it was already done by #181; this row had been stale (validation doc §4.3, corrected). #195 adds the Settings checklist, the role lost before the feed was opened (a defect, fixed), the role revoked with no holder, and Android 9's checklist and feed. **Emulators: API 35 16/16, API 28 12/12.** | Validation doc §4.3 |
 | T2 | Physical phone, SIM and carrier sheet M1–M12 (**12 cases**, including forwarding and Indian number presentation) | Blocked: X3, X4 | Validation doc §5 |
 | T3 | Sign-in, refresh and deletion on a device against live hosts | Blocked: X5, E2 | Readiness §8.4 |
 | T4 | Play Integrity verdicts from a Play-installed build | Blocked: E1, X1 | Readiness §8.4 |
 | T5 | Run the signing-key rotation runbook once in staging | Blocked: E3 (SRE) | Tracker E3 |
 
-### 3.3 Owner decisions: 25 pending (none approved)
+### 3.3 Owner decisions: 26 pending (none approved)
 
 - **Tracker O1–O17 (17),** less O10 and O11, which are in §3.4: **15.**
   - O9–O17 are the account-deletion decisions D1–D9.
   - No row records an approval (checked: the tracker contains no "approved", "ratified" or "decided" entry).
-- **Defined in other Phase 19 documents and not in the tracker (10):**
+- **Defined in other Phase 19 documents and not in the tracker (11):**
 
 | # | Decision | Source |
 |---|---|---|
@@ -93,6 +93,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 | OD-8 | The frontend stack (also blocks C1) | Readiness §4, §7 |
 | OD-9 | Workload identity federation approval for the verifier (memo §12 B1) | Readiness §7; Play Integrity memo §12 |
 | OD-10 | Phase 19 completion criteria (§2) | This inventory, conflict 3 |
+| OD-11 | The F14 banner's first sentence, "Another app is now screening your calls", is a UX-spec text the app cannot verify, and it is false when the subscriber simply turned screening off. Recommended: amend F14 to a sentence true in both cases, for example "This app is no longer screening your calls." | Validation doc §4.3 (#195) |
 
 ### 3.4 Privacy and legal review: 6 pending
 
@@ -132,8 +133,8 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 | Category | Open | Of which unblocked now |
 |---|---|---|
 | Coding | 15 | 0 |
-| Testing | 5 (T2 has 12 cases) | 1 (T1) |
-| Owner decisions | 25 | — |
+| Testing | 4 (T2 has 12 cases) | 0 |
+| Owner decisions | 26 | — |
 | Privacy/legal reviews | 6 | — |
 | External dependencies | 15 | — |
 
@@ -181,4 +182,4 @@ Everything in §4.1, plus:
 2. **X5:** choose where staging identity and edge-api run, so their origins and pins can be set as the Environment variables (#194).
 3. **OD-10:** approve Phase 19's completion criteria (§2), so that "done" is defined.
 
-Nothing else is needed before internal testing. D1–D9 and the other owner decisions can wait for production, and unrelated safe work continues meanwhile (T1 next).
+Nothing else is needed before internal testing. D1–D9 and the other owner decisions can wait for production. **No testing task is unblocked any more** (T1 is done, #195). Every remaining test needs a physical device, live hosts or an external account.

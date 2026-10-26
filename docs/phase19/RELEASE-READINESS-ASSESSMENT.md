@@ -275,7 +275,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 
 | Item | Evidence |
 |---|---|
-| **No physical device has run the app.** The emulator covered screening (14 cases), API 35 (12 instrumented tests) and API 28 (8). | `ANDROID-SCREENING-DEVICE-VALIDATION.md` |
+| **No physical device has run the app.** Emulators covered: screening (14 manual cases); the instrumented suite on **API 35 (16/16)** and **API 28 (12/12)**, as of #195, including the Settings checklist, the role-loss banner when the role is lost before the feed was opened (a defect, fixed), and the role revoked with no holder. | `ANDROID-SCREENING-DEVICE-VALIDATION.md` §4.3 |
 | Sign-in, refresh and account deletion on a device against live hosts | Not run: no hosts. CI proves the client against the real binaries (`android-identity-contract`). |
 | Carrier behaviour (forwarding, Indian number presentation) | Not run. The emulator region was not India (validation doc). |
 | Play Integrity verdicts from a Play-installed build | Not run |
