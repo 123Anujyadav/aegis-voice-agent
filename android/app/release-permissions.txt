@@ -1,0 +1,12 @@
+# Every permission the release app requests, after manifest merging (#187).
+# CI ("Release permissions match the reviewed list") fails if the release
+# build requests anything else, or stops requesting something listed here.
+# Change this list only together with docs/phase19/ANDROID-DATA-INVENTORY.md.
+#
+# Network access for sign-in and edge-api calls (core:network). Normal permission.
+android.permission.INTERNET
+# Requested only when the subscriber asks to block saved contacts (core:telephony).
+# Contacts are never read: it only lets Android pass contacts' calls to the screener.
+android.permission.READ_CONTACTS
+# AndroidX core's own signature permission for its non-exported dynamic receivers.
+com.callscreen.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION

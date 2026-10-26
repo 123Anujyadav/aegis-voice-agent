@@ -66,6 +66,25 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon --stacktrace assembleDebug
 
+      # The release app requests exactly the permissions in
+      # app/release-permissions.txt. A module or dependency that adds one (or a
+      # change that drops one) fails here, so the Data safety inventory is
+      # updated on purpose, never by accident.
+      - name: Release permissions match the reviewed list
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon --stacktrace :app:processReleaseMainManifest
+          manifest=app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml
+          test -f "$manifest" || { echo "::error::merged release manifest not found at $manifest"; exit 1; }
+          actual="$(grep -oE '<uses-permission(-sdk-23)? [^>]*android:name="[^"]+"' "$manifest" | sed -E 's/.*android:name="([^"]+)"/\1/' | sort -u)"
+          expected="$(grep -vE '^[[:space:]]*(#|$)' app/release-permissions.txt | sort -u)"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::the release permissions differ from app/release-permissions.txt"
+            diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") || true
+            exit 1
+          fi
+          printf 'release permissions:\n%s\n' "$actual"
+
       - name: JVM unit tests (debug)
         working-directory: android
         run: ./gradlew --no-daemon --stacktrace testDebugUnitTest
