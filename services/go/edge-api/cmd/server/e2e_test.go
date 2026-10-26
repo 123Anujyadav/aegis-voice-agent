@@ -595,6 +595,15 @@ func TestE2E_IdentityTokenAdmittedByEdgeThroughTheRealLifecycle(t *testing.T) {
 		t.Errorf("after deletion, the unexpired access token: %d %s; this test pins the documented residual window "+
 			"(if edge-api now refuses it, update ACCOUNT-DELETION.md and this assertion)", r.code, r.raw)
 	}
+	// The app destroys its device key once the deletion is confirmed
+	// (core:security DeviceProofKey.discard) and enrols any new account with a
+	// new key. A proof by that new key cannot present the old token: the
+	// residual window needs the destroyed key, so it is closed for the app,
+	// though not revoked by the server.
+	newDeviceKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	wantRefused("after deletion, the old token with the phone's new key", edgeGet(t, edgeBase, httpapi.MePath, map[string]string{
+		"Authorization": "DPoP " + token, "DPoP": proof(t, newDeviceKey, "GET", e2eOrigin+httpapi.MePath, token),
+	}), 401, "ERR_INVALID_DPOP_PROOF", "invalid_dpop_proof")
 
 	// 7. Shutdown with an authenticated request IN FLIGHT.
 	type result struct {

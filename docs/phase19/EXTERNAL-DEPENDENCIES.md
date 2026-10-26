@@ -1,6 +1,6 @@
 # External dependencies and owner decisions: tracker
 
-- **As of:** 2026-10-25, `main` at `e89ae2d`; account-deletion rows (E10, O9–O16) added 2026-10-26 at `ff96fea`.
+- **As of:** 2026-10-25, `main` at `e89ae2d`; account-deletion rows (E10, O9–O16) added 2026-10-26 at `ff96fea`, O17 at `0dd48ae`.
 - **Credentials and costs, per service:** [CREDENTIALS-AND-ACCOUNTS.md](CREDENTIALS-AND-ACCOUNTS.md).
 - **What it lists:** everything authentication and identity work is waiting
   on that the repository cannot supply itself. None of it blocks the other
@@ -45,6 +45,7 @@
 | O14 | Device-attestation retention (D6) | §5 D6 | Delete once no session uses the key, plus a margin; before E1 is wired |
 | O15 | Immediate deletion or a grace period (D7) | §5 D7 | Immediate while identity holds no user content |
 | O16 | UX spec A53d "type the last four digits" (D8) | §5 D8 | Amend A53d to the explicit confirmation |
+| O17 | Server-side revocation of access tokens after deletion (D9; an ADR-0010 amendment) | §5 D9 | Not now: the app destroys its key after a confirmed deletion (#192). Add an erased-subject check before any protected route returns personal data. |
 
 ## 3. Engineering work that is ready once each item lands
 

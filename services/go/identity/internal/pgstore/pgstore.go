@@ -439,7 +439,36 @@ func (r *Repository) SaveSession(ctx context.Context, s *app.UserSession) error 
 	if err := app.CheckStorableSession(s); err != nil {
 		return err
 	}
-	tag, err := r.pool.Exec(ctx, `
+	if !s.ErasureFence.IsZero() {
+		return inTx(ctx, r.pool, func(tx pgx.Tx) error {
+			// Serialised with EraseSubscriber on the subscriber's erasure lock:
+			// an erasure in progress finishes first and is seen here, or this
+			// session commits first and the erasure deletes it.
+			if err := lockSubscriberErasure(ctx, tx, s.SubscriberID); err != nil {
+				return err
+			}
+			var erased bool
+			if err := tx.QueryRow(ctx, `
+				SELECT EXISTS (SELECT 1 FROM identity_erasures WHERE subscriber_id = $1 AND requested_at >= $2)`,
+				s.SubscriberID, us(s.ErasureFence)).Scan(&erased); err != nil {
+				return fmt.Errorf("pgstore: checking for an erasure: %w", err)
+			}
+			if erased {
+				return app.ErrSubscriberErased
+			}
+			return saveSession(ctx, tx, s)
+		})
+	}
+	return saveSession(ctx, r.pool, s)
+}
+
+// execer is what saveSession needs: the pool or a transaction.
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+func saveSession(ctx context.Context, db execer, s *app.UserSession) error {
+	tag, err := db.Exec(ctx, `
 		INSERT INTO identity_sessions (session_id, subscriber_id, refresh_token_hash, device_id, roles,
 			created_at, expires_at, is_revoked, device_key_thumbprint, integrity_tier)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)

@@ -241,7 +241,9 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 | `INTERNET` declared; release permission set pinned in CI | **Done** | #187; `android/app/release-permissions.txt` |
 | In-app account deletion (server and app) | **Done**; security-reviewed, with three defects fixed (#191) | `ACCOUNT-DELETION.md` §2, §2a, §4 |
 | Web deletion endpoints and page | **Open**: plan ready, blocked on O13, E2 and E10 | `ACCOUNT-DELETION.md` §3 |
-| Device key deleted after a confirmed deletion (R3) | **Open**: proposed | `ACCOUNT-DELETION.md` §2a R3 |
+| Device key destroyed after a confirmed deletion (R3) | **Done (#192)**, verified in real Keystore on the Android 15 emulator | `ACCOUNT-DELETION.md` §2a F5 |
+| A sign-in in flight cannot outlive a deletion (R5) | **Done (#192)**, with PostgreSQL concurrency tests | `ACCOUNT-DELETION.md` §2a F4 |
+| Server-side access-token revocation after deletion | **Not implemented; owner decision D9** (ADR-0010 amendment). The token is unusable by the app once its key is destroyed; it is not revoked by the server (≤ 15 min). | `ACCOUNT-DELETION.md` §5 D9 |
 | Attestation housekeeping (D6) | **Open**: after O14, before E1 | §2a R4 |
 | Call screening: list sync and forwarding provisioning | **Open** | §2a of this document |
 | A reviewer path through sign-in (Play's "App access" needs a working login for review) | **Open: owner decision.** Sign-in is SMS-only. There is no test-number bypass, and adding one is a security decision (it must not work in production for anyone else). | `PhoneVerificationViewModel`; no bypass exists |
@@ -250,7 +252,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 
 | Item | Evidence |
 |---|---|
-| Account deletion D1–D8 (O9–O16): re-registration, erasure-record and audit retention (**privacy/legal**), step-up, web approach, attestation retention, grace period, the A53d confirmation | `ACCOUNT-DELETION.md` §5 |
+| Account deletion D1–D9 (O9–O17): re-registration, erasure-record and audit retention (**privacy/legal**), step-up, web approach, attestation retention, grace period, the A53d confirmation | `ACCOUNT-DELETION.md` §5 |
 | DPDP privacy review (E9), including the data inventory | `ANDROID-DATA-INVENTORY.md` §6 Q8 |
 | The privacy policy text | `ANDROID-DATA-INVENTORY.md` §6 Q6 |
 | ADR-0029, ADR-0030 D30.3, ADR-0031; session permissions; SIM-swap policy; OTP backoff and session lifetime | §7, `EXTERNAL-DEPENDENCIES.md` O1–O8 |

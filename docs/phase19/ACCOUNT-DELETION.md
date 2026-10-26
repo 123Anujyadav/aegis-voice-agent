@@ -50,7 +50,7 @@ There is no account table. A person is a **subscriber id**: `usr_` and 32 hex ch
 | OTP rate-limit rows | `identity_otp_rate_state`, `_requests`, `_failures` | **Kept until housekeeping deletes them** (rate window 15 min + 1 h) | Keyed by the number's pseudonym, not the subscriber; they are abuse controls. |
 | DPoP replay rows | `identity_dpop_replay` | **Kept until expiry** (minutes) | They block replay, including replay of the deletion proof itself. |
 | Access tokens already issued | (not stored) | **NOT revoked: still admitted by edge-api until expiry, at most 15 min** (asserted end to end, §2a) | edge-api does not consult sessions (ADR-0029). The token names only the subscriber id, and edge-api holds no subscriber data (R1). |
-| Data on the phone | Android | **Session cleared by the app after a confirmed 204** (#189; also on a 401) | Session store. The device key stays in the Keystore until uninstall, which makes a re-registration from the same phone linkable for ≤ 25 h (R3); the blocklist and allowlist are local and not account data. |
+| Data on the phone | Android | **Session cleared by the app after a confirmed 204** (#189; also on a 401). **The device key is destroyed after a confirmed 204, and only then** (#192). | Session store and Keystore key. Every unconfirmed outcome keeps the key, because a retry needs it. The next sign-in from the phone enrols a new key (R3). The blocklist and allowlist are local and not account data. |
 | Carrier call forwarding | carrier | **Not applicable yet** | P-ID-4 requires clearing forwarding **before** erasure. Forwarding is not implemented; when it is, the erasure must clear it first. |
 
 **Tests (#188):**
@@ -72,6 +72,13 @@ There is no account table. A person is a **subscriber id**: `usr_` and 32 hex ch
 | F2 | **The authorization was checked outside the erasure transaction.** Two concurrent deletions of one session both passed and both erased: **two** LEGAL_HOLD erasure records (append-only, so they can never be corrected) and two audit events. A deletion also erased after a concurrent refresh had rotated the token it presented. | A mutation test with the in-transaction check removed (which is the behaviour on `ff96fea`): "2 erasure records, want 1", "2 deletion audit events", and a rotated-token deletion returned success. | The repository locks the requesting session (`SELECT … FOR UPDATE`) and re-checks the current token hash, revocation, expiry and subscriber **inside** the erasure transaction. If anything changed, nothing is erased (`ErrSessionConflict`), and the request is answered from the receipt: a concurrent duplicate by the same key gets 204, anything else 401. | `erasure_race_test.go` (concurrent duplicates → 1 record, 1 event, both 204; rotation between read and erase → 401, nothing erased). Contract case `AccountErasure` on memory **and PostgreSQL** (superseded token, another subscriber, unknown session, a duplicate erasure). Mutation-checked on both backends. |
 | F3 | **The app claimed "Nothing was deleted" when it could not know.** After an attempt whose answer was lost, a later refusal (503, a proof refusal, rate limiting, or 401 once the receipt has expired) says nothing about the earlier attempt. | Copy in `AccountDeletionCopy.message`. | Each message now says the deletion is **not confirmed**, and the session-ended message says the phone cannot confirm whether the account was deleted. | `AccountDeletionViewModelTest` "no failure message claims nothing was deleted". |
 
+### Defects found and fixed (#192)
+
+| # | Defect | Evidence before the fix | Fix | Test |
+|---|---|---|---|---|
+| F4 | **A sign-in in flight could outlive the erasure** (was R5). Sign-in consumes its code, then (after the Play Integrity check, a network call) saves the session, in separate steps. An erasure committing in between deleted the subscriber's sessions, and the sign-in then created a **new session for the erased account**. | A deterministic app test runs a real deletion exactly between consumption and save: without the fix the sign-in returns a session (mutation-verified). | `UserSession.ErasureFence` (a write precondition, never stored) is set to when validation began. `SaveSession` refuses (`ErrSubscriberErased`, answered as a spent code, 401 `ERR_INVALID_OTP`) if an erasure of that subscriber was requested at or after it. On PostgreSQL, the erasure transaction and a fenced save **serialise on a per-subscriber advisory lock** (`pg_advisory_xact_lock(hashtextextended('identity_erasure:'+id))`), so neither can miss the other. A code requested after the erasure still signs in (D1 unchanged). | `TestDeleteAccount_ASignInInFlightCannotOutliveTheErasure`; PostgreSQL `…ASignInWaitsForAnErasureInProgressAndIsRefused` and `…AnErasureWaitsForASignInInProgressAndDeletesItsSession` (each forces the interleaving by holding the lock and waiting until `pg_stat_activity` shows the call blocked on it; removing either side's lock fails them). |
+| F5 | **The phone kept its device key after a confirmed deletion** (was R3). A re-registration from the same phone enrolled the same key thumbprint, which the retry receipt holds for ≤ 25 h, linking the new account to the erased one; and the access token issued before the deletion stayed presentable from the app for up to 15 min. | `KeystoreProofKey.loadOrCreate` had no delete; the app's `DeviceKey` was a `lazy` that could not be reset. | `core:security` `DeviceProofKey` (with `KeystoreProofKeys`) can `discard()` the key. `IdentityAuthenticator` calls `onAccountDeleted` **only on a confirmed 204**, after clearing the session, under its lock; the app wires it to `discard`. No other outcome (no answer, 503, 400, 500, 401) destroys the key, so a retry is always signed by the enrolled key. | `DeviceKeyAfterDeletionTest` (core:auth: every unconfirmed outcome keeps the key and the retry is signed by it; the 204 destroys it; 401 keeps it; re-registration enrols a new key; mutation-verified). `DeviceProofKeyTest` (core:security). **On the Android 15 emulator, real Keystore:** `DeviceKeyKeystoreTest`: after discard the old key cannot sign, and the next key differs. |
+
 ### Verified behaviour (with the test that shows it)
 
 | Property | Result | Evidence |
@@ -87,15 +94,15 @@ There is no account table. A person is a **subscriber id**: `usr_` and 32 hex ch
 | Android: cancel, ambiguous failure, retry, confirmed success | Cancel sends nothing; no answer keeps the session and says "not confirmed"; the retry presents the same token with a fresh proof; success only on 204 | `AccountDeletionViewModelTest`, `AccountDeletionUiTest`, `IdentityAuthenticatorTest` (#189), plus F1 and F3 |
 | Logs | The deletion path logs only the error code and path | `httpapi.go` (`identity request failed`: `code`, `path`) |
 
-### Residual risks (not fixed here)
+### Residual risks
 
 | # | Risk | Why it remains | Bound and evidence | What would close it |
 |---|---|---|---|---|
-| R1 | **An access token issued before deletion keeps working at edge-api** | edge-api never consults sessions (ADR-0029). Revocation would need a session lookup or a deny list on every request. | ≤ 15 min (asserted, step 6c). edge-api holds no subscriber data: `GET /v1/me` returns only the subject and key thumbprint. | Nothing needed while edge-api holds no subscriber data. Revisit when a protected route returns or changes personal data (a deny list of erased subjects until token expiry). |
-| R2 | **The erasure record and the deletion audit event are joinable** | Both are written with the same instant. The record holds the subscriber id; the event holds the requesting session id, which also names that session's refresh-reuse audit events, if any. | By design: the record *is* the erasure's audit (domain `ErasureRequest`, ADR-0012). The subscriber id is a keyed HMAC of the number: linking it to a person needs identity's key **and** the number. | D2 and D3 (privacy review). |
-| R3 | **A re-registration from the same phone is linkable to the erased account for ≤ 25 h** | The app keeps its Keystore device key after deletion, so a new enrolment has the same key thumbprint, which the receipt holds until the old session's expiry. A re-registration with the same number also gets the **same** subscriber id (D1), so the LEGAL_HOLD record then names a live account's id. | Receipt ≤ 24 h + 1 h. | **Proposed code change:** delete the device key after a confirmed deletion, so the next enrolment uses a new key. It needs the app's `DeviceKey` singleton to reload; not done here, to keep this change focused. D1 for the shared subscriber id. |
-| R4 | **Attestations of devices whose sessions were already housekept escape erasure** | Erasure finds devices through the subscriber's current sessions. Attestations have no expiry and no subscriber column. | **Latent:** attestations are written only by the Play Integrity verifier, which nothing wires (`SetIntegrityVerifier` has no caller), so production writes none today. The verifier writes the key-derived device id, the time and a certified flag (the model, OS and token columns stay empty); no subscriber id or number. | D6 (a retention tied to the sessions using the device). |
-| R5 | **A sign-in in flight during the erasure can create a session afterwards** | Enrolment reads its challenge before the erasure deletes it. A session saved after the erasure commits is a new account under the same id. | The person must hold the phone number and the code. The result is the same as signing in again just after deleting. | D1. If re-registration is blocked, the tombstone check at session creation closes it. |
+| R1 | **An access token issued before deletion is not revoked by the server** | edge-api verifies tokens locally, without calling identity or a shared session store: ADR-0010 §9 and §13 (**Accepted**), ADR-0029 D11.2. Server-side revocation needs an architecture decision (D9). | ≤ 15 min (asserted). **Mitigated for the app (#192):** the token is DPoP-bound, and the app destroys the key after a confirmed deletion, so it cannot present the token again; an edge-api test shows the old token with the phone's new key is refused (401). It is **not** closed against a modified client that kept a copy of the key, which Keystore makes non-exportable. edge-api holds no subscriber data (`GET /v1/me` returns the subject and key thumbprint). | D9 |
+| R2 | **The erasure record and the deletion audit event are joinable** | Both are written with the same instant. The record holds the subscriber id; the event holds the requesting session id, which also names that session's refresh-reuse audit events, if any. Removing or coarsening either would change what LEGAL_HOLD audit contains, which is D2/D3, not an engineering change. | By design: the record *is* the erasure's audit (domain `ErasureRequest`, ADR-0012). The subscriber id is a keyed HMAC of the number: linking it to a person needs identity's key **and** the number. With F5, the retry receipt's key thumbprint no longer matches any later enrolment. | D2 and D3 (privacy/legal review). |
+| R3 | ~~A re-registration from the same phone is linkable to the erased account~~ | **Fixed by F5 (#192).** A re-registration with the same number still gets the **same** subscriber id while ids are derived from the number (D1). | — | D1 for the shared subscriber id |
+| R4 | **Attestations of devices whose sessions were already housekept escape erasure** | Erasure finds devices through the subscriber's current sessions. Attestations have no expiry and no subscriber column. | **Latent:** attestations are written only by the Play Integrity verifier, which nothing wires (`SetIntegrityVerifier` has no caller), so none exist today. The verifier writes the key-derived device id, the time and a certified flag (no subscriber id or number). With F5, a discarded key's `dev_` id never recurs, so an orphan cannot be joined to a later enrolment. | D6 (a retention tied to the sessions using the device) **before** the verifier is wired (E1). |
+| R5 | ~~A sign-in in flight during the erasure can create a session afterwards~~ | **Fixed by F4 (#192).** | — | — |
 | R6 | **Carrier forwarding is not cleared before erasure (P-ID-4)** | Forwarding is not implemented. | Not applicable today. | Must be implemented with forwarding provisioning. |
 
 ## 3. Web deletion: implementation-ready plan (NOT implemented, NOT deployed)
@@ -210,7 +217,7 @@ No account was created, nothing was purchased, configured or published.
 **Client and session handling:**
 - `IdentityClient.deleteAccount` POSTs `{sessionId, refreshToken}` with a DPoP proof for `origin + /v1/account/delete`. It sends no integrity token, so no Play Integrity quota is spent. Only 204 is success; a redirect is not followed.
 - `IdentityAuthenticator.deleteAccount` runs under the same lock as refresh, so it always presents the current refresh token. It clears the stored session only on 204, or when the server says the session has ended.
-- The device key stays in Android Keystore until the app is uninstalled; it identifies no one once the server's records are gone.
+- The device key is destroyed after a confirmed deletion, and only then (F5, #192). Every unconfirmed outcome keeps it, because a retry must be signed by it.
 
 **Tests:**
 - `IdentityClientTest`: the request, the proof URL, no integrity token, 204 only, each refusal, no redirect, input refused locally, network failure, and 204 not accepted on other endpoints.
@@ -228,18 +235,25 @@ No account was created, nothing was purchased, configured or published.
 
 ## 5. Decision register (recommendations, NOT approvals)
 
-Every row is **open**. A recommendation is engineering's reading of the existing specifications and code; it is **not** an approval, and the current behaviour stays until the named approver decides. The tracker rows are O9–O16 in `EXTERNAL-DEPENDENCIES.md`. No ratified document (ADR-0010, ADR-0012, the domain model) is changed here.
+Every row is **open**. A recommendation is engineering's reading of the existing specifications and code; it is **not** an approval, and the current behaviour stays until the named approver decides. The tracker rows are O9–O17 in `EXTERNAL-DEPENDENCIES.md`. No ratified document (ADR-0010, ADR-0012, the domain model) is changed here.
 
-| # | Decision | Status | Recommended | Approver |
-|---|---|---|---|---|
-| D1 | May an erased number sign up again? | Open: **the code conflicts with the domain text** | Allow (current); amend INV-ID-7 to tombstone the *subscriber id*, which needs random ids (ADR-0030 D30.3) | Owner + privacy review (E9); domain-model amendment |
-| D2 | What the erasure record keeps, and for how long | Open: **privacy/legal review** | Keep the content (it is what the domain specifies); set an end date on legal advice | Owner on DPDP legal advice (E9) |
-| D3 | Audit-log retention in practice | Open: **privacy/legal review** | Keep ADR-0012's LEGAL_HOLD; ask legal for a concrete period | Owner on legal advice (E9); an ADR-0012 amendment if it changes |
-| D4 | A fresh SMS code before deletion | Open | No SMS step-up. Optionally, the phone's own screen-lock check before the final confirmation. | Owner (security/product) |
-| D5 | Web deletion approach | Open | Self-service OTP (§3), **plus** a support channel for a lost number | Owner; depends on E2 and E10 |
-| D6 | Device-attestation retention | Open (**latent**: none are written today) | Delete an attestation once no session uses its key, plus a margin | Owner (retention) |
-| D7 | Immediate deletion or a grace period | Open | Immediate (current), while identity holds no user content | Owner (product) |
-| D8 | UX spec A53d's "type the last four digits" confirmation | Open: **the spec cannot be implemented as written** | Keep the explicit dialog; amend A53d, or decide to keep the last four digits on the phone | Owner (UX spec) |
+**Kinds:**
+- **Owner approval:** a product or security decision only the owner can make.
+- **Privacy/legal review:** the owner decides **on qualified advice** (E9); engineering does not change retention without it.
+- **Governance:** it changes an Accepted ADR or the domain model, so it needs an amendment through that document's process.
+- External dependencies and their costs (all **unverified**) are in §6, not here.
+
+| # | Decision | Kind | Status | Recommended | Approver |
+|---|---|---|---|---|---|
+| D1 | May an erased number sign up again? | Owner approval + privacy review; **governance** (domain model INV-ID-7) | Open: **the code conflicts with the domain text** | Allow (current); amend INV-ID-7 to tombstone the *subscriber id*, which needs random ids (ADR-0030 D30.3) | Owner + privacy review (E9); domain-model amendment |
+| D2 | What the erasure record keeps, and for how long | **Privacy/legal review** | Open: **privacy/legal review** | Keep the content (it is what the domain specifies); set an end date on legal advice | Owner on DPDP legal advice (E9) |
+| D3 | Audit-log retention in practice | **Privacy/legal review**; **governance** (ADR-0012) if a period is set | Open: **privacy/legal review** | Keep ADR-0012's LEGAL_HOLD; ask legal for a concrete period | Owner on legal advice (E9); an ADR-0012 amendment if it changes |
+| D4 | A fresh SMS code before deletion | Owner approval | Open | No SMS step-up. Optionally, the phone's own screen-lock check before the final confirmation. | Owner (security/product) |
+| D5 | Web deletion approach | Owner approval; external (E2, E10) | Open | Self-service OTP (§3), **plus** a support channel for a lost number | Owner; depends on E2 and E10 |
+| D6 | Device-attestation retention | Owner approval (retention) | Open (**latent**: none are written today) | Delete an attestation once no session uses its key, plus a margin | Owner (retention) |
+| D7 | Immediate deletion or a grace period | Owner approval | Open | Immediate (current), while identity holds no user content | Owner (product) |
+| D8 | UX spec A53d's "type the last four digits" confirmation | Owner approval (UX spec) | Open: **the spec cannot be implemented as written** | Keep the explicit dialog; amend A53d, or decide to keep the last four digits on the phone | Owner (UX spec) |
+| D9 | Revoke access tokens at edge-api after deletion? | **Governance** (ADR-0010 §9/§13 Accepted; ADR-0029 D11.2) + owner approval | Open | Not now: keep stateless verification; the app-side key destruction (F5) already makes the token unusable by the app. Add an erased-subject check **when a protected route first returns or changes personal data** | Owner, through an ADR-0010 amendment |
 
 ### D1 · Re-registration after deletion
 - **Evidence:**
@@ -336,6 +350,20 @@ Every row is **open**. A recommendation is engineering's reading of the existing
   - keep the last four digits on the phone at sign-in. That is new personal data on the device, for little security value, since the person holding the phone usually knows its number.
 - **Recommendation:** amend A53d.
 - **Approver:** the owner (UX spec).
+
+### D9 · Access tokens after deletion (raised by #192)
+- **Evidence:**
+  - Tokens are self-contained, 15 minutes, and verified by edge-api locally with no call to identity (ADR-0029 D11.2; ADR-0010 §9 and §13, **Accepted**: "Stateless verification … requires no shared session store").
+  - The end-to-end test shows an erased account's unexpired token is still admitted (with a proof by the original key), and refused with any other key.
+  - After F5, the app destroys that key on a confirmed deletion.
+  - edge-api's only protected route, `GET /v1/me`, returns the subject and key thumbprint and nothing else.
+- **Options:**
+  - *(a) Status quo plus F5 (current):* no availability cost. The residual is a client that kept the key, which Keystore makes non-exportable, for ≤ 15 min, against a route with no subscriber data.
+  - *(b) An erased-subject check at edge-api:* refuse a token whose `sub` was erased at or after its `iat`. edge-api already writes to PostgreSQL on every request (DPoP replay), so it adds one indexed read and **no new availability dependency**. But it couples edge-api to identity's erasure data, against ADR-0010 §13. A token re-issued after a re-registration within the same second could be refused.
+  - *(c) A session or version check per request:* real revocation of any session, but it puts identity's state on every request path. That is the explicit opposite of ADR-0010 §9.
+  - *(d) A shorter lifetime (for example 5 min):* it narrows the window for everyone. It triples refresh traffic, and with it the integrity-token requests at their quota (ADR-0031 D31.4). ADR-0029 change.
+- **Recommendation:** (a) now. Adopt (b) through an ADR-0010 amendment **before** any protected route returns or changes personal data, because only then does the window expose anything.
+- **Approver:** the owner, through ADR governance.
 
 ## 6. External setup and credentials still needed
 

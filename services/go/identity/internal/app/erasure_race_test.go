@@ -19,6 +19,20 @@ type seamRepo struct {
 	mu        sync.Mutex
 	afterRead func()
 	eraseErr  error
+	// afterConsume runs once inside sign-in, after the code is consumed and
+	// before the session is saved (ResetOtpFailures sits between the two).
+	afterConsume func()
+}
+
+func (r *seamRepo) ResetOtpFailures(ctx context.Context, pseudonym string) error {
+	r.mu.Lock()
+	hook := r.afterConsume
+	r.afterConsume = nil
+	r.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return r.MemoryIdentityRepository.ResetOtpFailures(ctx, pseudonym)
 }
 
 func (r *seamRepo) GetSession(ctx context.Context, id string) (*UserSession, error) {
@@ -145,4 +159,51 @@ func TestDeleteAccount_AStorageFailureErasesAndAuditsNothing(t *testing.T) {
 	if err := e.svc.DeleteAccountWithDeviceProof(ctx, e.sessA1.SessionID, e.sessA1.RefreshToken, "POST", e.deletionProof(t, e.kA1, "recovered")); err != nil {
 		t.Fatalf("retry after recovery: %v", err)
 	}
+}
+
+// A sign-in already past its code check when the account is erased must not
+// re-create a session for the erased account. The erasure runs exactly
+// between the code's consumption and the session's save; the sign-in is
+// refused as a spent code, and no session of the subscriber survives. A code
+// requested after the erasure then signs in normally (D1 is unchanged).
+func TestDeleteAccount_ASignInInFlightCannotOutliveTheErasure(t *testing.T) {
+	ctx := context.Background()
+	e := newErasureRig(ctx, t)
+	seam := e.withSeam()
+	seam.afterConsume = func() {
+		if err := e.svc.DeleteAccountWithDeviceProof(ctx, e.sessA1.SessionID, e.sessA1.RefreshToken, "POST", e.deletionProof(t, e.kA1, "mid-sign-in")); err != nil {
+			t.Errorf("deletion during the sign-in: %v", err)
+		}
+	}
+
+	newKey := deviceKey(t)
+	_, _, err := e.svc.ValidateOtpWithDeviceProof(ctx, "req_pending_a", testOtpCode, "POST",
+		enrollProof(t, newKey, newKey, "in-flight", "POST", e.clock.now()))
+	if !errors.Is(err, ErrInvalidOtp) || !errors.Is(err, ErrSubscriberErased) {
+		t.Fatalf("in-flight sign-in: err = %v, want a spent code (ErrInvalidOtp, ErrSubscriberErased)", err)
+	}
+	if n := e.sessionsOf(sid(rlMSISDN)); n != 0 {
+		t.Fatalf("%d sessions of the erased subscriber exist after the erasure", n)
+	}
+	if n := len(e.repo.Erasures()); n != 1 {
+		t.Fatalf("%d erasures, want 1", n)
+	}
+
+	afterTheClockTicks()
+	again := e.enrolKey(ctx, t, "req_after", deviceKey(t))
+	if again.SubscriberID != sid(rlMSISDN) {
+		t.Errorf("a code requested after the erasure did not sign in: %+v", again)
+	}
+}
+
+func (e *erasureRig) sessionsOf(subscriber string) int {
+	e.repo.mu.RLock()
+	defer e.repo.mu.RUnlock()
+	n := 0
+	for _, s := range e.repo.sessions {
+		if s.SubscriberID == subscriber {
+			n++
+		}
+	}
+	return n
 }

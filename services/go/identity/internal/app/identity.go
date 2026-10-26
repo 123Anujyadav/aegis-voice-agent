@@ -55,6 +55,11 @@ var (
 	// client-facing error; RefreshToken answers it with ErrInvalidToken.
 	ErrSessionConflict = errors.New("identity: session changed since it was read")
 
+	// ErrSubscriberErased refuses a session for a subscriber whose account was
+	// erased after the sign-in began (UserSession.ErasureFence). It is a
+	// repository-level signal; sign-in answers it as a spent code.
+	ErrSubscriberErased = errors.New("identity: the account was erased after this sign-in began")
+
 	// ErrRateLimited is an MSISDN that has used its OTP request allowance, or
 	// has reached the failed-verification limit and is locked out. See
 	// OtpRatePolicy. It carries no detail about which limit applied.
@@ -160,6 +165,14 @@ type UserSession struct {
 	// RECORDED, NOT ENFORCED (D31.5): nothing reads it to authorise anything
 	// until the owner sets the restricted tier's permissions.
 	IntegrityTier SessionIntegrityTier `json:"integrityTier,omitempty"`
+	// ErasureFence is a WRITE PRECONDITION, never stored: when set, SaveSession
+	// refuses (ErrSubscriberErased) if an erasure of SubscriberID was requested
+	// at or after this instant. Sign-in sets it to when its validation began,
+	// so a sign-in that was in flight when the account was erased cannot
+	// re-create a session for it, while a code requested after the erasure
+	// signs in normally (docs/phase19/ACCOUNT-DELETION.md D1, R5). Both times
+	// come from identity's clocks; replicas are assumed NTP-synchronised.
+	ErasureFence time.Time `json:"-"`
 }
 
 // refreshTokenDomain separates refresh-token hashes from everything else the
@@ -236,6 +249,7 @@ func CheckStorableSession(s *UserSession) error {
 // stored as SessionUnverified.
 func storedSession(s *UserSession) *UserSession {
 	cp := cloneSession(s)
+	cp.ErasureFence = time.Time{}
 	if cp.IntegrityTier == "" {
 		cp.IntegrityTier = SessionUnverified
 	}
@@ -716,6 +730,13 @@ func (m *MemoryIdentityRepository) SaveSession(ctx context.Context, session *Use
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if !session.ErasureFence.IsZero() {
+		for i := range m.erasures {
+			if e := &m.erasures[i]; e.SubscriberID == session.SubscriberID && !e.RequestedAt.Before(session.ErasureFence) {
+				return ErrSubscriberErased
+			}
+		}
+	}
 	stored := m.sessions[session.SessionID]
 	if replacesEnrolledKey(stored, session) {
 		return ErrDeviceKeyAlreadyEnrolled
@@ -1489,6 +1510,10 @@ func (s *IdentityService) wrongCode(ctx context.Context, challenge *OtpChallenge
 }
 
 func (s *IdentityService) validateOtp(ctx context.Context, requestID, code, deviceKeyThumbprint string, assess integrityAssessor) (*UserSession, error) {
+	// An erasure requested before this instant already deleted the
+	// subscriber's challenges, so this sign-in finds none; one requested from
+	// now on must not be outlived by the session this creates (ErasureFence).
+	began := time.Now()
 	challenge, err := s.repo.GetOtp(ctx, requestID)
 	if err != nil {
 		return nil, err
@@ -1666,9 +1691,17 @@ func (s *IdentityService) validateOtp(ctx context.Context, requestID, code, devi
 		// Only ever a thumbprint the proof verifier produced, or empty.
 		DeviceKeyThumbprint: deviceKeyThumbprint,
 		IntegrityTier:       tier,
+		// An erasure of this subscriber requested since this sign-in began
+		// means the account was deleted while it was in flight: no session is
+		// created for it.
+		ErasureFence: began,
 	}
 
 	if err := s.repo.SaveSession(ctx, session); err != nil {
+		if errors.Is(err, ErrSubscriberErased) {
+			// The code is spent; a new one, requested now, signs in normally.
+			return nil, fmt.Errorf("%w: %w", ErrInvalidOtp, err)
+		}
 		return nil, err
 	}
 	issued := cloneSession(session)
