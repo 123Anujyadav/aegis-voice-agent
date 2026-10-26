@@ -182,7 +182,10 @@ Play requires a public web link through which a user can request deletion **with
 - A receipt table like `identity_erasure_receipts`, keyed by `req_…`, housekept at expiry.
 - `EraseSubscriber` gains a variant whose in-transaction check is "the challenge is still unconsumed" instead of the requesting session (the F2 pattern).
 
-**Interfaces:** `OtpSender.SendOtp(ctx, msisdn, code)` is unchanged. DLT needs a **separate registered template** for the deletion message ("Your Aegis account deletion code is {#var#}. If you did not ask to delete your account, ignore this message."), so the sender takes a message **purpose** selecting the template. The fake sender used by tests and the E2E harness (`stdoutOtpSender`) implements it. **No provider API is assumed.**
+**Interfaces:** `OtpSender.SendOtp(ctx, msisdn, code)` is unchanged. DLT needs a **separate registered template** for the deletion message ("Your Aegis account deletion code is {#var#}. If you did not ask to delete your account, ignore this message."). As implemented:
+- `app.DeletionCodeSender` (#193) is the identity-side port;
+- `otpdelivery.DeletionCodeProvider` is a provider's separate `SendDeletionCode` method, for that template;
+- `Sender.DeletionCodes()` exists only when a provider implements it. The fake sender used by tests and the E2E harness (`stdoutOtpSender`) implements it. **No provider API is assumed.**
 
 ### 3.2 The page
 

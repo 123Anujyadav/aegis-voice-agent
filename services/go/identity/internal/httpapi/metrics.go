@@ -58,6 +58,12 @@ const (
 // ProviderOther. No provider is configured today.
 const MetricOtpDeliveries = "identity_otp_deliveries_total"
 
+// MetricDeletionCodeDeliveries counts account-deletion code delivery attempts
+// by provider and outcome (otpdelivery.Config.ObserveDeletion), apart from
+// sign-in codes: deletion sends are watched against their own hourly budget
+// (docs/phase19/ACCOUNT-DELETION.md §3.3). No provider is configured today.
+const MetricDeletionCodeDeliveries = "identity_deletion_code_deliveries_total"
+
 // ProviderOther is the provider label for a name that is not a valid
 // otpdelivery provider name.
 const ProviderOther = "other"
@@ -93,6 +99,7 @@ type Metrics struct {
 	integrity    *metrics.Counter
 	restrictions *metrics.Counter
 	deliveries   *metrics.Counter
+	deletionSent *metrics.Counter
 }
 
 // NewMetrics registers the API's instruments in a fresh registry.
@@ -106,6 +113,7 @@ func NewMetrics() *Metrics {
 		integrity:    reg.Counter(MetricIntegrityOutcomes, "outcome"),
 		restrictions: reg.Counter(MetricIntegrityRestrictions, "reason"),
 		deliveries:   reg.Counter(MetricOtpDeliveries, "provider", "outcome"),
+		deletionSent: reg.Counter(MetricDeletionCodeDeliveries, "provider", "outcome"),
 	}
 }
 
@@ -199,6 +207,19 @@ func (m *Metrics) ObserveOtpDelivery(provider string, o otpdelivery.Outcome) {
 		provider = ProviderOther
 	}
 	m.deliveries.Inc(provider, string(o))
+}
+
+// ObserveDeletionCodeDelivery counts one account-deletion code delivery
+// attempt. Its signature is otpdelivery.Config.ObserveDeletion's. A nil m
+// counts nothing.
+func (m *Metrics) ObserveDeletionCodeDelivery(provider string, o otpdelivery.Outcome) {
+	if m == nil {
+		return
+	}
+	if !providerLabelPattern.MatchString(provider) {
+		provider = ProviderOther
+	}
+	m.deletionSent.Inc(provider, string(o))
 }
 
 // endpointFor maps a request path to its endpoint label.

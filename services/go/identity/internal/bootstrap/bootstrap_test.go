@@ -247,6 +247,32 @@ func TestBuild_InvalidURLs(t *testing.T) {
 			wantInvalid(t, err, "must name the served path")
 		})
 	}
+	// The app signs every proof for https, with one identity origin: either
+	// rule broken would refuse every client at runtime, so startup refuses.
+	for name, mutate := range map[string]func(*SecurityConfig){
+		"enrolment over http": func(c *SecurityConfig) { c.EnrollmentCanonicalURL = "http://identity.example.test/v1/otp/validate" },
+		"refresh over http":   func(c *SecurityConfig) { c.RefreshCanonicalURL = "http://identity.example.test/v1/token/refresh" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := validConfig(path)
+			mutate(&c)
+			_, err := Build(c, validDeps())
+			wantInvalid(t, err, "must be https")
+		})
+	}
+	for name, mutate := range map[string]func(*SecurityConfig){
+		"another host": func(c *SecurityConfig) { c.RefreshCanonicalURL = "https://auth.example.test/v1/token/refresh" },
+		"another port": func(c *SecurityConfig) {
+			c.EnrollmentCanonicalURL = "https://identity.example.test:8443/v1/otp/validate"
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := validConfig(path)
+			mutate(&c)
+			_, err := Build(c, validDeps())
+			wantInvalid(t, err, "must share one origin")
+		})
+	}
 	t.Run("invalid key id", func(t *testing.T) {
 		c := validConfig(path)
 		c.AccessTokenKeyID = "kid\x01"

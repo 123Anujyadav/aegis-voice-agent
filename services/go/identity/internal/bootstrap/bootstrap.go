@@ -29,9 +29,11 @@
 // every enrolment proof acceptable for refresh and vice versa.
 //
 // Each URL's path must also be exactly the path the HTTP API serves for that
-// endpoint (internal/routes: /v1/otp/validate and /v1/token/refresh). Scheme
-// and host are the deployment's; a proxy that rewrites the path is not
-// supported, since the client signs the URL it sees.
+// endpoint (internal/routes: /v1/otp/validate and /v1/token/refresh). Both
+// must be https and share one origin: the app signs proofs only for https
+// URLs, always with its one configured identity origin. The origin is the
+// deployment's; a proxy that rewrites the path is not supported, since the
+// client signs the URL it sees.
 //
 // No production value for any of these exists in this repository, and none is
 // defaulted here.
@@ -190,16 +192,8 @@ func Build(cfg SecurityConfig, deps Dependencies) (*app.IdentityService, error) 
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s_REFRESH_CANONICAL_URL: %w", ErrInvalidConfig, EnvPrefix, err)
 	}
-	// A proof names the canonical URL (htu). If its path is not the path the
-	// API serves, no proof for that endpoint could ever be accepted; refuse.
-	// The URLs are already known canonical, so they parse.
-	for _, c := range []struct{ name, url, path string }{
-		{"ENROLLMENT_CANONICAL_URL", cfg.EnrollmentCanonicalURL, routes.Enrollment},
-		{"REFRESH_CANONICAL_URL", cfg.RefreshCanonicalURL, routes.Refresh},
-	} {
-		if u, err := url.Parse(c.url); err != nil || u.Path != c.path {
-			return nil, fmt.Errorf("%w: %s_%s must name the served path %s", ErrInvalidConfig, EnvPrefix, c.name, c.path)
-		}
+	if err := checkCanonicalURLs(cfg); err != nil {
+		return nil, err
 	}
 
 	svc := app.NewIdentityService(deps.Repository, append([]byte(nil), deps.SecretKey...))
@@ -221,6 +215,39 @@ func Build(cfg SecurityConfig, deps Dependencies) (*app.IdentityService, error) 
 	}
 	svc.SetAccountDeletionProofVerifier(deletion)
 	return svc, nil
+}
+
+// checkCanonicalURLs refuses canonical URLs no app proof could ever match.
+// They are already known canonical, so they parse.
+func checkCanonicalURLs(cfg SecurityConfig) error {
+	// A proof names the canonical URL (htu). If its path is not the path the
+	// API serves, no proof for that endpoint could ever be accepted; refuse.
+	// The URLs are already known canonical, so they parse.
+	for _, c := range []struct{ name, url, path string }{
+		{"ENROLLMENT_CANONICAL_URL", cfg.EnrollmentCanonicalURL, routes.Enrollment},
+		{"REFRESH_CANONICAL_URL", cfg.RefreshCanonicalURL, routes.Refresh},
+	} {
+		u, err := url.Parse(c.url)
+		if err != nil || u.Path != c.path {
+			return fmt.Errorf("%w: %s_%s must name the served path %s", ErrInvalidConfig, EnvPrefix, c.name, c.path)
+		}
+		// The app (android core:security DpopProofFactory) signs proofs only
+		// for https URLs: an http canonical URL could never match one.
+		if u.Scheme != "https" {
+			return fmt.Errorf("%w: %s_%s must be https: the app signs proofs only for https URLs", ErrInvalidConfig, EnvPrefix, c.name)
+		}
+	}
+	// The app signs every proof with ONE identity origin (its configured
+	// base URL plus the route), and deletion's URL is derived from refresh's
+	// origin. Two origins here would start cleanly and then refuse every
+	// enrolment, or every refresh and deletion, from every client.
+	enrolURL, eerr := url.Parse(cfg.EnrollmentCanonicalURL)
+	refreshURL, rerr := url.Parse(cfg.RefreshCanonicalURL)
+	if eerr != nil || rerr != nil || enrolURL.Host != refreshURL.Host {
+		return fmt.Errorf("%w: %s_ENROLLMENT_CANONICAL_URL and %s_REFRESH_CANONICAL_URL must share one origin (host and port)",
+			ErrInvalidConfig, EnvPrefix, EnvPrefix)
+	}
+	return nil
 }
 
 // AccountDeletionCanonicalURL is the canonical URL a deletion proof must name:

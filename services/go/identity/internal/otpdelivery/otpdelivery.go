@@ -27,6 +27,20 @@
 //
 // Errors never carry a provider's text: it may echo the number or the code.
 // The sender returns ErrAllProvidersFailed, or the caller's context error.
+//
+// # Account-deletion codes
+//
+// A web account-deletion code (app.DeletionCodeSender) is a DIFFERENT message:
+// India DLT requires each message template to be registered, and a deletion
+// message is not a sign-in message. A provider that has a registered deletion
+// template implements DeletionCodeProvider as well as Provider; one that does
+// not is never asked to send a deletion code. Deletion codes get the same
+// failover, attempt bound and error discipline as sign-in codes, over the
+// deletion-capable providers only, with their own health and observations (a
+// rejected deletion template says nothing about sign-in delivery).
+// Sender.DeletionCodes returns a deletion sender only when at least one
+// provider can deliver one: identity must not be told deletion codes can be
+// sent when none can.
 package otpdelivery
 
 import (
@@ -40,7 +54,10 @@ import (
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
 )
 
-var _ app.OtpSender = (*Sender)(nil)
+var (
+	_ app.OtpSender          = (*Sender)(nil)
+	_ app.DeletionCodeSender = (*deletionSender)(nil)
+)
 
 // Provider delivers one OTP message. Implementations must honour ctx, must not
 // retry internally (Sender owns failover), and must not log the number or the
@@ -49,6 +66,15 @@ var _ app.OtpSender = (*Sender)(nil)
 type Provider interface {
 	Name() string
 	SendOtp(ctx context.Context, msisdn, code string) error
+}
+
+// DeletionCodeProvider is a Provider that can also deliver an account-deletion
+// code, with the provider's separately registered deletion template. The same
+// rules apply: honour ctx, no internal retry, never log the number or the
+// code, never return text that may echo them.
+type DeletionCodeProvider interface {
+	Provider
+	SendDeletionCode(ctx context.Context, msisdn, code string) error
 }
 
 // Outcome is the result of one provider attempt. The vocabulary is closed.
@@ -89,20 +115,33 @@ type Config struct {
 	// AttemptTimeout bounds each provider attempt, within
 	// [MinAttemptTimeout, MaxAttemptTimeout].
 	AttemptTimeout time.Duration
-	// Observe, if set, is called once per attempt with the provider's name
-	// and its outcome: the hook for delivery-rate metrics (ADR-0010 §9). It
-	// receives nothing from the message. It must be safe for concurrent use.
+	// Observe, if set, is called once per sign-in code attempt with the
+	// provider's name and its outcome: the hook for delivery-rate metrics
+	// (ADR-0010 §9). It receives nothing from the message. It must be safe
+	// for concurrent use.
 	Observe func(provider string, outcome Outcome)
+	// ObserveDeletion is the same, for account-deletion code attempts, kept
+	// apart so deletion sends can be watched against their own budget.
+	ObserveDeletion func(provider string, outcome Outcome)
 }
 
 var providerNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
-// Sender is an app.OtpSender over an ordered list of providers.
+// Sender is an app.OtpSender over an ordered list of providers, and, through
+// DeletionCodes, an app.DeletionCodeSender over the deletion-capable ones.
 type Sender struct {
-	providers []Provider
-	timeout   time.Duration
-	observe   func(string, Outcome)
-	now       func() time.Time
+	signIn   *chain
+	deletion *chain // nil when no provider can deliver a deletion code
+}
+
+// chain is one ordered failover: its providers' send functions, the attempt
+// bound, the observation hook and the providers' health for this message.
+type chain struct {
+	names   []string
+	sends   []func(ctx context.Context, msisdn, code string) error
+	timeout time.Duration
+	observe func(string, Outcome)
+	now     func() time.Time
 
 	mu     sync.Mutex
 	health map[string]*ProviderHealth
@@ -146,38 +185,89 @@ func New(cfg Config) (*Sender, error) {
 		}
 		seen[name] = true
 	}
-	observe := cfg.Observe
+	signIn := newChain(cfg.AttemptTimeout, cfg.Observe)
+	deletion := newChain(cfg.AttemptTimeout, cfg.ObserveDeletion)
+	for _, p := range cfg.Providers {
+		signIn.add(p.Name(), p.SendOtp)
+		if d, ok := p.(DeletionCodeProvider); ok {
+			deletion.add(d.Name(), d.SendDeletionCode)
+		}
+	}
+	s := &Sender{signIn: signIn}
+	if len(deletion.names) > 0 {
+		s.deletion = deletion
+	}
+	return s, nil
+}
+
+func newChain(timeout time.Duration, observe func(string, Outcome)) *chain {
 	if observe == nil {
 		observe = func(string, Outcome) {}
 	}
-	health := make(map[string]*ProviderHealth, len(cfg.Providers))
-	for _, p := range cfg.Providers {
-		health[p.Name()] = &ProviderHealth{Name: p.Name()}
-	}
-	return &Sender{
-		providers: append([]Provider(nil), cfg.Providers...), timeout: cfg.AttemptTimeout,
-		observe: observe, now: time.Now, health: health,
-	}, nil
+	return &chain{timeout: timeout, observe: observe, now: time.Now, health: map[string]*ProviderHealth{}}
 }
 
-// Health returns a snapshot of every provider's health, in the order the
-// providers are tried. It is safe for concurrent use.
-func (s *Sender) Health() []ProviderHealth {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]ProviderHealth, 0, len(s.providers))
-	for _, p := range s.providers {
-		out = append(out, *s.health[p.Name()])
+func (c *chain) add(name string, send func(ctx context.Context, msisdn, code string) error) {
+	c.names = append(c.names, name)
+	c.sends = append(c.sends, send)
+	c.health[name] = &ProviderHealth{Name: name}
+}
+
+// Health returns a snapshot of every provider's sign-in delivery health, in
+// the order the providers are tried. It is safe for concurrent use.
+func (s *Sender) Health() []ProviderHealth { return s.signIn.snapshot() }
+
+// DeletionHealth returns the deletion-capable providers' account-deletion
+// delivery health, in order; empty when none can deliver one.
+func (s *Sender) DeletionHealth() []ProviderHealth {
+	if s.deletion == nil {
+		return nil
+	}
+	return s.deletion.snapshot()
+}
+
+// DeletionCodes returns the account-deletion code sender, and false when no
+// configured provider can deliver a deletion code. Identity is configured
+// with it (SetDeletionCodeSender) only when it exists: otherwise identity
+// would accept deletion requests whose codes nobody can deliver.
+func (s *Sender) DeletionCodes() (app.DeletionCodeSender, bool) {
+	if s.deletion == nil {
+		return nil, false
+	}
+	return &deletionSender{s.deletion}, true
+}
+
+// SendOtp implements app.OtpSender: it delivers through the first provider
+// that accepts, in order. See the package documentation for the semantics.
+func (s *Sender) SendOtp(ctx context.Context, msisdn, code string) error {
+	return s.signIn.send(ctx, msisdn, code)
+}
+
+// deletionSender is the app.DeletionCodeSender over the deletion chain.
+type deletionSender struct{ c *chain }
+
+// SendDeletionCode implements app.DeletionCodeSender, with the sign-in
+// semantics over the deletion-capable providers.
+func (d *deletionSender) SendDeletionCode(ctx context.Context, msisdn, code string) error {
+	return d.c.send(ctx, msisdn, code)
+}
+
+func (c *chain) snapshot() []ProviderHealth {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]ProviderHealth, 0, len(c.names))
+	for _, n := range c.names {
+		out = append(out, *c.health[n])
 	}
 	return out
 }
 
 // record updates name's health with one attempt's outcome.
-func (s *Sender) record(name string, o Outcome) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	h := s.health[name]
-	h.LastOutcome, h.LastAttemptAt = o, s.now()
+func (c *chain) record(name string, o Outcome) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	h := c.health[name]
+	h.LastOutcome, h.LastAttemptAt = o, c.now()
 	switch o {
 	case OutcomeDelivered:
 		h.ConsecutiveFailures = 0
@@ -186,16 +276,15 @@ func (s *Sender) record(name string, o Outcome) {
 	}
 }
 
-// SendOtp implements app.OtpSender: it delivers through the first provider
-// that accepts, in order. See the package documentation for the semantics.
-func (s *Sender) SendOtp(ctx context.Context, msisdn, code string) error {
-	for _, p := range s.providers {
+// send tries the chain's providers in order: see the package documentation.
+func (c *chain) send(ctx context.Context, msisdn, code string) error {
+	for i, name := range c.names {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		outcome := s.attempt(ctx, p, msisdn, code)
-		s.record(p.Name(), outcome)
-		s.observe(p.Name(), outcome)
+		outcome := c.attempt(ctx, c.sends[i], msisdn, code)
+		c.record(name, outcome)
+		c.observe(name, outcome)
 		switch outcome {
 		case OutcomeDelivered:
 			return nil
@@ -211,11 +300,11 @@ func (s *Sender) SendOtp(ctx context.Context, msisdn, code string) error {
 // The wait is bounded even for a provider that ignores its context: the
 // attempt stops waiting at the deadline, and the provider's eventual answer is
 // discarded (the channel is buffered, so its goroutine always finishes).
-func (s *Sender) attempt(ctx context.Context, p Provider, msisdn, code string) Outcome {
-	actx, cancel := context.WithTimeout(ctx, s.timeout)
+func (c *chain) attempt(ctx context.Context, send func(context.Context, string, string) error, msisdn, code string) Outcome {
+	actx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- p.SendOtp(actx, msisdn, code) }()
+	go func() { done <- send(actx, msisdn, code) }()
 	var err error
 	select {
 	case err = <-done:

@@ -54,10 +54,22 @@
 - **Map the provider's errors** to a plain error: their text may echo the number.
 - **Build the sender in `cmd/server`** with `Observe` wired to the metrics, and
   set it with `SetOtpSender`. Until this is done, nothing changes.
-- **Web deletion (#193), separately:** implement `app.DeletionCodeSender` for
-  the deletion template, set it with `SetDeletionCodeSender`, and wire an hourly
-  budget (`SetDeletionCodeBudget`; the value is the owner's or SRE's). Without
-  both, `/v1/account/deletion/*` answers 503 for every number.
+- **Web deletion (#193), separately, with the same provider adapter:**
+  - implement `otpdelivery.DeletionCodeProvider` as well, with
+    `SendDeletionCode` using the registered **deletion** template, under the
+    same rules as `SendOtp`;
+  - a provider without a registered deletion template simply does not
+    implement it, and is never asked to send a deletion code;
+  - the composed `otpdelivery.Sender` gives deletion codes the same failover,
+    attempt bound and error discipline, with their own health
+    (`DeletionHealth`) and observations (`ObserveDeletion`, counted as
+    `identity_deletion_code_deliveries_total`).
+- **Wiring, in `cmd/server`:**
+  - `SetOtpSender(sender)`;
+  - only if `sender.DeletionCodes()` returns a sender, **and** web deletion is
+    approved (O13): `SetDeletionCodeSender(it)` and an hourly budget
+    (`SetDeletionCodeBudget`; the value is the owner's or SRE's).
+  - Without both, `/v1/account/deletion/*` answers 503 for every number.
 - **The owner's ordered setup checklist** for internal testing is
   `docs/phase19/INTERNAL-TESTING-SETUP.md` (step A).
 
