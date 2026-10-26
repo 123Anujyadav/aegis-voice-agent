@@ -18,10 +18,11 @@ func sessID(c byte) string { return "sess_" + strings.Repeat(string(c), 64) }
 func usrID(c byte) string  { return "usr_" + strings.Repeat(string(c), 32) }
 func reqID(c byte) string  { return "req_" + strings.Repeat(string(c), 64) }
 func jktOf(c byte) string  { return "jkt_" + string(c) }
-func eraseOf(subscriber, session, jkt string, expires time.Time) *app.SubscriberErasure {
+func eraseOf(subscriber, session, tokenHash, jkt string, expires time.Time) *app.SubscriberErasure {
 	return &app.SubscriberErasure{
 		SubscriberID: subscriber, RequestedAt: time.Now(), RequestingSessionID: session,
-		DeviceKeyThumbprint: jkt, ReceiptExpiresAt: expires, Exceptions: app.ErasureExceptions,
+		RequestingRefreshTokenHash: tokenHash, DeviceKeyThumbprint: jkt, ReceiptExpiresAt: expires,
+		Exceptions: app.ErasureExceptions,
 	}
 }
 
@@ -69,8 +70,30 @@ func testErasure(t *testing.T, be backend) {
 	if !ok {
 		t.Fatal("the repository does not implement app.ErasureRepository")
 	}
-	if err := erasure.EraseSubscriber(ctx, eraseOf(usrID('a'), sessID('1'), jktOf('1'), time.Now().Add(time.Hour))); err != nil {
+	hour := time.Now().Add(time.Hour)
+	// The requesting session is re-checked inside the erasure: a token it no
+	// longer holds, a session of someone else, or no session erases nothing.
+	for name, e := range map[string]*app.SubscriberErasure{
+		"superseded token":   eraseOf(usrID('a'), sessID('1'), th("rt_0"), jktOf('1'), hour),
+		"another subscriber": eraseOf(usrID('b'), sessID('1'), th("rt_1"), jktOf('1'), hour),
+		"no such session":    eraseOf(usrID('a'), sessID('9'), th("rt_0"), jktOf('9'), hour),
+	} {
+		if err := erasure.EraseSubscriber(ctx, e); !errors.Is(err, app.ErrSessionConflict) {
+			t.Errorf("%s: err = %v, want ErrSessionConflict", name, err)
+		}
+	}
+	for _, id := range []string{sessID('1'), sessID('2'), sessID('3')} {
+		if _, err := be.b.GetSession(ctx, id); err != nil {
+			t.Fatalf("a refused erasure removed session %s: %v", id[:9], err)
+		}
+	}
+
+	if err := erasure.EraseSubscriber(ctx, eraseOf(usrID('a'), sessID('1'), th("rt_1"), jktOf('1'), hour)); err != nil {
 		t.Fatal(err)
+	}
+	// Erasing the same session again (a concurrent duplicate) changes nothing.
+	if err := erasure.EraseSubscriber(ctx, eraseOf(usrID('a'), sessID('1'), th("rt_1"), jktOf('1'), hour)); !errors.Is(err, app.ErrSessionConflict) {
+		t.Errorf("a second erasure of the same session: err = %v, want ErrSessionConflict", err)
 	}
 	for _, id := range []string{sessID('1'), sessID('2')} {
 		if _, err := be.b.GetSession(ctx, id); !errors.Is(err, app.ErrInvalidToken) {
@@ -98,7 +121,7 @@ func testErasure(t *testing.T, be backend) {
 		t.Error("a receipt for a session that was never erased")
 	}
 	// A receipt past its expiry answers nothing, deleted or not.
-	if err := erasure.EraseSubscriber(ctx, eraseOf(usrID('b'), sessID('3'), jktOf('3'), time.Now().Add(-time.Second))); err != nil {
+	if err := erasure.EraseSubscriber(ctx, eraseOf(usrID('b'), sessID('3'), th("rt_0"), jktOf('3'), time.Now().Add(-time.Second))); err != nil {
 		t.Fatal(err)
 	}
 	if _, found, _ := reader.ErasureReceipt(ctx, sessID('3')); found {
@@ -106,9 +129,10 @@ func testErasure(t *testing.T, be backend) {
 	}
 }
 
-// What only PostgreSQL holds: attestations and delegations erased, the
-// erasure recorded and append-only, receipts housekept and records never.
-func TestErasure_Postgres_AttestationsDelegationsRecordAndHousekeeping(t *testing.T) {
+// What only PostgreSQL holds: a failed erasure rolled back, attestations and
+// delegations erased, the erasure recorded once and append-only, receipts
+// housekept and records never.
+func TestErasure_Postgres_RollbackAttestationsDelegationsRecordAndHousekeeping(t *testing.T) {
 	env := requirePostgres(t)
 	repo := NewRepository(env.poolA)
 	be := backend{a: repo, b: NewRepository(env.poolB)}
@@ -124,10 +148,6 @@ func TestErasure_Postgres_AttestationsDelegationsRecordAndHousekeeping(t *testin
 		}
 	}
 
-	if err := repo.EraseSubscriber(ctx, eraseOf(usrID('a'), sessID('1'), jktOf('1'), time.Now().Add(time.Hour))); err != nil {
-		t.Fatal(err)
-	}
-
 	count := func(sql string, args ...any) int {
 		t.Helper()
 		var n int
@@ -135,6 +155,33 @@ func TestErasure_Postgres_AttestationsDelegationsRecordAndHousekeeping(t *testin
 			t.Fatal(err)
 		}
 		return n
+	}
+	held := func() [6]int {
+		return [6]int{
+			count(`SELECT count(*) FROM identity_sessions`),
+			count(`SELECT count(*) FROM identity_refresh_tokens_superseded`),
+			count(`SELECT count(*) FROM identity_otp_challenges`),
+			count(`SELECT count(*) FROM identity_device_attestations`),
+			count(`SELECT count(*) FROM identity_guardian_delegations`),
+			count(`SELECT count(*) FROM identity_erasures`) + count(`SELECT count(*) FROM identity_erasure_receipts`),
+		}
+	}
+
+	// ROLLBACK: the last statement (the receipt) fails its CHECK after every
+	// deletion has run; the transaction leaves everything as it was.
+	before := held()
+	if err := repo.EraseSubscriber(ctx, eraseOf(usrID('a'), sessID('1'), th("rt_1"), "", time.Now().Add(time.Hour))); err == nil {
+		t.Fatal("an erasure whose receipt cannot be written succeeded")
+	}
+	if after := held(); after != before {
+		t.Fatalf("a failed erasure changed the store: %v -> %v (sessions, superseded, challenges, attestations, delegations, records+receipts)", before, after)
+	}
+
+	if err := repo.EraseSubscriber(ctx, eraseOf(usrID('a'), sessID('1'), th("rt_1"), jktOf('1'), time.Now().Add(time.Hour))); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.EraseSubscriber(ctx, eraseOf(usrID('a'), sessID('1'), th("rt_1"), jktOf('1'), time.Now().Add(time.Hour))); !errors.Is(err, app.ErrSessionConflict) {
+		t.Errorf("a duplicate erasure: err = %v, want ErrSessionConflict", err)
 	}
 	if n := count(`SELECT count(*) FROM identity_device_attestations WHERE device_id = $1`, "dev_"+jktOf('1')); n != 0 {
 		t.Error("the erased subscriber's device attestation survived")

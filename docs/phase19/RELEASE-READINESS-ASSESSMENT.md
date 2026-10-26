@@ -216,7 +216,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 | **Call screening (the core function)** | **Code** (in progress; #167–#175), then **device and carrier validation** | §2a. The pre-filter decision (#167), caller-list storage (#168), the `CallScreeningService` (#169) and the role request (A09b, #170) and the blocklist and allowlist screens (#171) are implemented and tested. Role-loss detection (F14) is also done (#172). List sync and forwarding provisioning are not. An unanswered allowed or contact call is still forwarded to screening (§2a). Forwarding needs a DID pool (external). |
 | Placeholder data shown as fact | **Resolved: onboarding, Protection and the calls feed (#179); the remaining prototype screens (#186)** | Every displayed value was traced to its source. **#179:** SIM shows what `TelephonyManager` reports (no permission) or "not available", with no forwarding claim; forwarding (A07) is "Not available yet" (the old `*71` code was a US code with an invented number, and the button dialled nothing); setup complete says whether blocking is actually on; Welcome claims only on-device blocking and conditional assistant screening; personas say they are not saved and never skip the announcement; Protection shows no score, counts or threats; the feed says "No call data yet". **#186** (`PROTOTYPE-SCREENS-AUDIT.md`): the four screens a release build can reach (Assistant home, voice setup, voice session, Settings) are honest, and Settings is a real setup checklist. The 16 unreachable prototype screens are debug-only design previews under a visible label, and a release graph does not register them (tested). **Tests:** Robolectric UI tests per screen, and `ReleaseCopyGuardTest` fails if a removed value or claim returns. **Wording assumption** (owner may revise): honest empty or unavailable states, not hidden sections. |
 | Play Console account, upload key, privacy policy, Data safety form | **External setup (owner)** | Not represented in the repository. The policy and the form must cover the one runtime permission, `READ_CONTACTS` (#175). It is used only so Android passes calls from saved contacts to the screening service, at the subscriber's request. Contacts are never read or uploaded. **Inputs prepared:** `ANDROID-DATA-INVENTORY.md` (#187) traces every permission, data flow, destination and retention rule, and lists the questions to answer before submitting. |
-| Account deletion (Play policy for apps with accounts) | **In-app: code (#188 backend, #189 Android). Web: owner decision and external setup** | `ACCOUNT-DELETION.md`. Identity `POST /v1/account/delete` is authenticated exactly like a proof-bound refresh. It erases every session, challenge, device attestation and delegation of the subscriber in one transaction, and keeps a LEGAL_HOLD erasure record and the existing audit log, as the domain and ADR-0012 require. It is tested on memory and real PostgreSQL. **Remaining:** the web deletion page and flow (needs SMS/OTP and hosting), and owner decisions D1–D7 (re-registration of an erased number, what the erasure record keeps, step-up, grace period). |
+| Account deletion (Play policy for apps with accounts) | **In-app: code (#188 backend, #189 Android), security-reviewed (#191). Web: owner decision and external setup** | `ACCOUNT-DELETION.md`. Identity `POST /v1/account/delete` is authenticated exactly like a proof-bound refresh, re-checked inside the erasure transaction. It erases every session, challenge, device attestation and delegation of the subscriber in one transaction (rollback tested on PostgreSQL), and keeps a LEGAL_HOLD erasure record and the audit log, as the domain and ADR-0012 require. Access tokens already issued are **not** revoked: edge-api admits them until expiry, ≤ 15 min (asserted end to end). **#191 fixed:** OkHttp resending single-use proofs; duplicate erasure records under concurrency; app messages claiming "nothing was deleted". **Remaining:** the web deletion page (an implementation-ready plan in §3 there; needs SMS/DLT and hosting), and decisions D1–D8 (§5 there; O9–O16). |
 | Real-device Play Integrity, sign-in and calling | **Device and release-environment validation** | Never run on a device. It needs a Play-installed build and live hosts. |
 | ADR-0029, ADR-0030 D30.3 (with amendments), ADR-0031; session permissions; SIM-swap policy and device-history retention; OTP backoff and session lifetime; the frontend stack | **Owner decision** | §3, §4 |
 | Cryptographic review; privacy (DPDP) review | **Independent review** | §3 |
@@ -228,3 +228,62 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 | The release app lacked `android.permission.INTERNET`, so every server call failed on a device (`socket failed: EPERM`) | **Resolved** by #187 | `core:network` declares it. `NetworkPermissionTest` failed on the Android 15 emulator without it and passes with it. CI now pins the release permission set to `android/app/release-permissions.txt`. |
 | No test accepted an exactly-64-character `CS_VERSION_NAME` | **Resolved** by #150 (squash `ee08c0a`, head `feb45d9`) | `nameLengthBoundsAreInclusive()` accepts names of exactly 1 and 64 characters, and the 0- and 65-character rejections are unchanged. The `pr-android` job 120907314040 log lists `ReleaseVersionTest > nameLengthBoundsAreInclusive() PASSED`. Post-merge `main` `ee08c0a`: 9/9 green. |
 | Stale `android.suppressUnsupportedCompileSdk=35` in `android/gradle.properties` | **Resolved** by #151 (squash `0208a88`, head `e4f2c49`) | The block is removed, and nothing else references the property. The `pr-android` job 120915500024 log has no compileSdk warning, and `:app:minifyStagingWithR8` ran. |
+
+## 8. Google Play launch checklist (as of 2026-10-26, `main` `ff96fea`)
+
+**Not claimed: Play readiness.** Each line is open unless it says done, and each cites its evidence. Nothing has been submitted to Play Console and nothing has been published.
+
+### 8.1 Code and automated tests
+
+| Item | State | Evidence |
+|---|---|---|
+| Target API 36; R8 release and staging builds; upload-key signing; version validation | **Done** | #145–#148, #154 (§1, §6) |
+| `INTERNET` declared; release permission set pinned in CI | **Done** | #187; `android/app/release-permissions.txt` |
+| In-app account deletion (server and app) | **Done**; security-reviewed, with three defects fixed (#191) | `ACCOUNT-DELETION.md` §2, §2a, §4 |
+| Web deletion endpoints and page | **Open**: plan ready, blocked on O13, E2 and E10 | `ACCOUNT-DELETION.md` §3 |
+| Device key deleted after a confirmed deletion (R3) | **Open**: proposed | `ACCOUNT-DELETION.md` §2a R3 |
+| Attestation housekeeping (D6) | **Open**: after O14, before E1 | §2a R4 |
+| Call screening: list sync and forwarding provisioning | **Open** | §2a of this document |
+| A reviewer path through sign-in (Play's "App access" needs a working login for review) | **Open: owner decision.** Sign-in is SMS-only. There is no test-number bypass, and adding one is a security decision (it must not work in production for anyone else). | `PhoneVerificationViewModel`; no bypass exists |
+
+### 8.2 Owner decisions and privacy/legal review
+
+| Item | Evidence |
+|---|---|
+| Account deletion D1–D8 (O9–O16): re-registration, erasure-record and audit retention (**privacy/legal**), step-up, web approach, attestation retention, grace period, the A53d confirmation | `ACCOUNT-DELETION.md` §5 |
+| DPDP privacy review (E9), including the data inventory | `ANDROID-DATA-INVENTORY.md` §6 Q8 |
+| The privacy policy text | `ANDROID-DATA-INVENTORY.md` §6 Q6 |
+| ADR-0029, ADR-0030 D30.3, ADR-0031; session permissions; SIM-swap policy; OTP backoff and session lifetime | §7, `EXTERNAL-DEPENDENCIES.md` O1–O8 |
+| Cryptographic review or penetration test (E8) | §3 |
+
+### 8.3 External services, credentials and hosting
+
+| Item | Evidence |
+|---|---|
+| SMS/OTP provider and India DLT, **including a deletion template** (E2). Nobody can enrol without it. | `otpdelivery.go`; `ACCOUNT-DELETION.md` §3.5 |
+| Identity and edge-api hosts, deployed with migrations through `0008`; certificate pins | §7 |
+| A domain and hosting for the web deletion page, and the privacy policy URL (E10) | `ACCOUNT-DELETION.md` §3.3 |
+| Play Integrity: the Cloud project number (client) and the verifier's credential (server) | §7 |
+| FCM (only if notifications ship) | §7 |
+
+### 8.4 Physical-device and carrier validation
+
+| Item | Evidence |
+|---|---|
+| **No physical device has run the app.** The emulator covered screening (14 cases), API 35 (12 instrumented tests) and API 28 (8). | `ANDROID-SCREENING-DEVICE-VALIDATION.md` |
+| Sign-in, refresh and account deletion on a device against live hosts | Not run: no hosts. CI proves the client against the real binaries (`android-identity-contract`). |
+| Carrier behaviour (forwarding, Indian number presentation) | Not run. The emulator region was not India (validation doc). |
+| Play Integrity verdicts from a Play-installed build | Not run |
+
+### 8.5 Play Console declarations and release operations
+
+| Item | Evidence or input |
+|---|---|
+| Developer account, app entry, Play App Signing, upload key into the `play-release` Environment | §6 |
+| Data safety form | Inputs: `ANDROID-DATA-INVENTORY.md` §6 Q2–Q5 (owner confirms) |
+| Delete-account URL | Needs E10 |
+| Privacy policy URL | Needs the policy (8.2) and hosting |
+| App access instructions for review | Needs the reviewer path (8.1) |
+| Content rating, target audience, ads declaration (no ads SDK: inventory) | The owner completes them in Play Console |
+| Whether `READ_CONTACTS` or the call-screening role needs a permissions declaration | **Not verified here**; check Play's policy pages at submission |
+| First internal-testing release: a manual `release-android.yml` run, then the owner uploads | §6 |

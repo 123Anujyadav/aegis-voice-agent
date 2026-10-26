@@ -22,6 +22,12 @@ import okhttp3.Response
  *   proofs and refresh tokens, and responses carry tokens.
  * - **Redirects are never followed** by [defaultHttpClient], so a proof or a
  *   token goes only to [baseUrl].
+ * - **Requests are never resent by OkHttp** ([defaultHttpClient]). Every
+ *   proof is single-use: a resent request carries a proof the server has
+ *   already seen and is refused as a replay, which would turn a lost answer
+ *   (a deletion that happened, a rotation that happened) into a misleading
+ *   refusal. A failed call is reported as [IdentityError.Network], and the
+ *   caller retries, if it should, with a fresh proof.
  * - **[baseUrl] must be https**; plain http is accepted only for a loopback
  *   host, which only tests use.
  * - **The proof's htu** is [baseUrl] plus the route. In production that is
@@ -202,7 +208,8 @@ public class IdentityClient(
         private val json = Json { ignoreUnknownKeys = true }
 
         /**
-         * A client with bounded timeouts that never follows redirects. Add no
+         * A client with bounded timeouts that never follows redirects and never
+         * resends a request on its own (proofs are single-use). Add no
          * body-logging interceptor to it. With [pins], a connection to that
          * host must present one of the pinned keys (ADR-0010); a mismatch is a
          * connection failure, reported as [IdentityError.Network].
@@ -214,6 +221,8 @@ public class IdentityClient(
             .callTimeout(30, TimeUnit.SECONDS)
             .followRedirects(false)
             .followSslRedirects(false)
+            // A proof is single-use: OkHttp must not silently resend a request with it.
+            .retryOnConnectionFailure(false)
             .apply {
                 if (pins != null) certificatePinner(CertificatePinner.Builder().add(pins.host, *pins.pins.toTypedArray()).build())
             }

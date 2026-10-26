@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -312,6 +313,23 @@ class IdentityClientTest {
         val url = gone.url("/").toString()
         gone.shutdown()
         assertEquals(IdentityResult.Failure(IdentityError.Network), IdentityClient(url, proofSource).deleteAccount(sessionId, refreshToken))
+    }
+
+    @Test
+    @DisplayName("a request is never resent with the same single-use proof when a reused connection drops after sending it")
+    fun noTransparentResend() {
+        // The first call leaves a pooled connection; the server reads the
+        // second request on it and closes without answering. OkHttp's default
+        // would resend that request, with the same proof, on a new connection.
+        server.enqueue(MockResponse().setResponseCode(204))
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST))
+        server.enqueue(MockResponse().setResponseCode(204))
+        val client = client()
+        assertEquals(IdentityResult.Success(Unit), client.deleteAccount(sessionId, refreshToken))
+        assertEquals(IdentityResult.Failure(IdentityError.Network), client.deleteAccount(sessionId, refreshToken))
+        assertEquals(2, server.requestCount, "the request was resent")
+        assertEquals(listOf("proof-1", "proof-2"), (1..2).map { server.takeRequest().getHeader("DPoP") })
+        assertFalse(IdentityClient.defaultHttpClient().retryOnConnectionFailure)
     }
 
     @Test
