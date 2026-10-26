@@ -284,6 +284,51 @@ func TestMetrics_OtpDeliveriesAreCountedByProvider(t *testing.T) {
 	none.ObserveOtpDelivery("primary-sms", otpdelivery.OutcomeDelivered)
 }
 
+// deletionProvider is a fake with a deletion template.
+type deletionProvider struct{ okProvider }
+
+func (deletionProvider) SendDeletionCode(context.Context, string, string) error { return nil }
+
+// Deletion code attempts are counted apart from sign-in codes, by provider
+// and outcome, and only on their own series.
+func TestMetrics_DeletionCodeDeliveriesAreCountedApart(t *testing.T) {
+	m := NewMetrics()
+	s, err := otpdelivery.New(otpdelivery.Config{
+		Providers:       []otpdelivery.Provider{deletionProvider{okProvider{"primary-sms"}}},
+		AttemptTimeout:  otpdelivery.MinAttemptTimeout,
+		Observe:         m.ObserveOtpDelivery,
+		ObserveDeletion: m.ObserveDeletionCodeDelivery,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, ok := s.DeletionCodes()
+	if !ok {
+		t.Fatal("no deletion sender")
+	}
+	if err := d.SendDeletionCode(context.Background(), msisdn, "123456"); err != nil {
+		t.Fatal(err)
+	}
+	if m.deletionSent.Value("primary-sms", string(otpdelivery.OutcomeDelivered)) != 1 ||
+		m.deliveries.Value("primary-sms", string(otpdelivery.OutcomeDelivered)) != 0 {
+		t.Fatalf("deletion %v, sign-in %v", m.deletionSent.Series(), m.deliveries.Series())
+	}
+	m.ObserveDeletionCodeDelivery("+919876543210", otpdelivery.OutcomeFailed)
+	if m.deletionSent.Value(ProviderOther, string(otpdelivery.OutcomeFailed)) != 1 {
+		t.Fatal("an invalid provider label was not mapped to other")
+	}
+	mount := &fakeMount{}
+	m.MountOn(mount, "identity")
+	rec := httptest.NewRecorder()
+	mount.h.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", http.NoBody))
+	body := rec.Body.String()
+	if !strings.Contains(body, MetricDeletionCodeDeliveries+`{outcome="delivered",provider="primary-sms"} 1`) || strings.Contains(body, "+91") {
+		t.Fatalf("scrape:\n%s", body)
+	}
+	var none *Metrics
+	none.ObserveDeletionCodeDelivery("primary-sms", otpdelivery.OutcomeDelivered)
+}
+
 // refusingAuditor is a durable audit log that is down.
 type refusingAuditor struct{}
 
