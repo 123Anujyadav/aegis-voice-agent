@@ -17,7 +17,8 @@ import com.callscreen.core.network.identity.IdentityResult
 import com.callscreen.core.network.identity.IntegrityTokens
 import com.callscreen.core.network.identity.OtpChallenge
 import com.callscreen.core.security.dpop.DpopProofFactory
-import com.callscreen.core.security.dpop.KeystoreProofKey
+import com.callscreen.core.security.dpop.DeviceProofKey
+import com.callscreen.core.security.dpop.KeystoreProofKeys
 import com.callscreen.core.security.integrity.GooglePlayIntegritySource
 import com.callscreen.core.security.integrity.PlayIntegrityTokens
 import com.callscreen.feature.onboarding.PhoneVerificationService
@@ -48,10 +49,10 @@ public class EdgeGraph(public val client: EdgeApiClient?)
  * The device key, shared by identity's and edge-api's proofs, which must both
  * come from the key the session is bound to. It is created in Android
  * Keystore on first use, inside a client call on the IO dispatcher, never on
- * the main thread.
+ * the main thread, and destroyed only after a confirmed account deletion.
  */
-internal class DeviceKey {
-    val proofs: DpopProofFactory by lazy { DpopProofFactory(KeystoreProofKey.loadOrCreate()) }
+internal class DeviceKey(val holder: DeviceProofKey = DeviceProofKey(KeystoreProofKeys())) {
+    val proofs: DpopProofFactory get() = holder.proofs()
 }
 
 @Module
@@ -74,7 +75,9 @@ internal object IdentityModule {
             http,
         )
         val store = EncryptedSessionStore(KeystoreSessionKey(), DataStoreBlobStore(context))
-        return IdentityGraph(IdentityAuthenticator(client, store))
+        // A confirmed deletion destroys the device key: the next sign-in from
+        // this phone enrols a new one (docs/phase19/ACCOUNT-DELETION.md R3).
+        return IdentityGraph(IdentityAuthenticator(client, store, onAccountDeleted = key.holder::discard))
     }
 
     @Provides

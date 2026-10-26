@@ -45,6 +45,12 @@ func (r *Repository) EraseSubscriber(ctx context.Context, e *app.SubscriberErasu
 			subtle.ConstantTimeCompare([]byte(tokenHash), []byte(e.RequestingRefreshTokenHash)) != 1 {
 			return app.ErrSessionConflict
 		}
+		// A sign-in in flight for this subscriber either commits its session
+		// before this point (and the DELETE below removes it) or waits and
+		// then sees this erasure (SaveSession's ErasureFence).
+		if err := lockSubscriberErasure(ctx, tx, e.SubscriberID); err != nil {
+			return err
+		}
 		// The device ids must be read before the sessions that name them go.
 		if _, err := tx.Exec(ctx, `
 			DELETE FROM identity_device_attestations WHERE device_id IN (
@@ -75,6 +81,16 @@ func (r *Repository) EraseSubscriber(ctx context.Context, e *app.SubscriberErasu
 		}
 		return nil
 	})
+}
+
+// lockSubscriberErasure takes the subscriber's transaction-scoped erasure
+// lock: a PostgreSQL advisory lock on a 64-bit hash of the subscriber id
+// (a collision only serialises two subscribers' sign-in and erasure).
+func lockSubscriberErasure(ctx context.Context, tx pgx.Tx, subscriberID string) error {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "identity_erasure:"+subscriberID); err != nil {
+		return fmt.Errorf("pgstore: taking the subscriber erasure lock: %w", err)
+	}
+	return nil
 }
 
 // ErasureReceipt implements app.ErasureRepository. An expired receipt is not

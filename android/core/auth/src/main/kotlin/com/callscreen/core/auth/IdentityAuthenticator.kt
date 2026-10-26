@@ -100,6 +100,14 @@ public class IdentityAuthenticator(
     private val store: EncryptedSessionStore,
     private val nowSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    /**
+     * Runs once the server has CONFIRMED a deletion (204), after the session
+     * is cleared, under the same lock, on [io]. The app destroys the device
+     * key here (core:security DeviceProofKey.discard). It never runs on any
+     * other outcome: the key is what a retry of an unconfirmed deletion needs.
+     * A failure in it does not change the outcome, which the server decided.
+     */
+    private val onAccountDeleted: () -> Unit = {},
 ) {
     private val lock = Mutex()
 
@@ -178,6 +186,7 @@ public class IdentityAuthenticator(
                 is IdentityResult.Success -> {
                     // Erased on the server: a session left behind only fails its next refresh.
                     runCatching { store.clear() }
+                    runCatching { onAccountDeleted() }
                     AccountDeletionOutcome.Deleted
                 }
                 is IdentityResult.Failure -> if (result.error == IdentityError.SessionEnded) {

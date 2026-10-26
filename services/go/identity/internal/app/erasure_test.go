@@ -290,8 +290,20 @@ func TestDeleteAccount_TheNumberCanSignUpAgain(t *testing.T) {
 	if err := e.svc.DeleteAccountWithDeviceProof(ctx, e.sessA1.SessionID, e.sessA1.RefreshToken, "POST", e.deletionProof(t, e.kA1, "d1")); err != nil {
 		t.Fatal(err)
 	}
+	afterTheClockTicks()
 	again := e.enrolKey(ctx, t, "req_again", deviceKey(t))
 	if again.SessionID == e.sessA1.SessionID || again.SubscriberID != sid(rlMSISDN) {
 		t.Errorf("new session %+v", again)
+	}
+}
+
+// afterTheClockTicks waits until time.Now() has moved on. A sign-in that
+// began at the same clock reading as an erasure is treated as in flight
+// (UserSession.ErasureFence), and on a coarse clock (Windows) a test can
+// re-register within one tick; a real one takes an SMS round trip.
+func afterTheClockTicks() {
+	start := time.Now()
+	for !time.Now().After(start) {
+		time.Sleep(time.Millisecond)
 	}
 }
