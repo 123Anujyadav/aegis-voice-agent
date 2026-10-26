@@ -72,7 +72,10 @@ const (
 	EndpointOTPValidate = "otp_validate"
 	EndpointRefresh     = "token_refresh"
 	EndpointAccountDel  = "account_delete"
-	EndpointUnknown     = "unknown"
+	// EndpointDeletionCode and EndpointDeletionConfirm are web deletion's.
+	EndpointDeletionCode    = "account_deletion_code"
+	EndpointDeletionConfirm = "account_deletion_confirm"
+	EndpointUnknown         = "unknown"
 )
 
 // OutcomeSuccess is a request that received its 2xx response. Every other
@@ -209,6 +212,10 @@ func endpointFor(path string) string {
 		return EndpointRefresh
 	case routes.AccountDeletion:
 		return EndpointAccountDel
+	case routes.AccountDeletionCode:
+		return EndpointDeletionCode
+	case routes.AccountDeletionConfirm:
+		return EndpointDeletionConfirm
 	default:
 		return EndpointUnknown
 	}

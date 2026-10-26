@@ -140,12 +140,13 @@ func (r *Repository) SaveOtp(ctx context.Context, c *app.OtpChallenge) error {
 		return app.ErrMSISDNNotPseudonymised
 	}
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO identity_otp_challenges (request_id, msisdn_pseudonym, subscriber_id, code_hash, attempts, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO identity_otp_challenges (request_id, msisdn_pseudonym, subscriber_id, code_hash, attempts, expires_at, purpose)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (request_id) DO UPDATE SET
 			msisdn_pseudonym = EXCLUDED.msisdn_pseudonym, subscriber_id = EXCLUDED.subscriber_id,
-			code_hash = EXCLUDED.code_hash, attempts = EXCLUDED.attempts, expires_at = EXCLUDED.expires_at`,
-		c.RequestID, c.MSISDNPseudonym, c.SubscriberID, c.CodeHash, c.Attempts, us(c.ExpiresAt))
+			code_hash = EXCLUDED.code_hash, attempts = EXCLUDED.attempts, expires_at = EXCLUDED.expires_at,
+			purpose = EXCLUDED.purpose`,
+		c.RequestID, c.MSISDNPseudonym, c.SubscriberID, c.CodeHash, c.Attempts, us(c.ExpiresAt), storedPurpose(c.Purpose))
 	if err != nil {
 		return fmt.Errorf("pgstore: saving OTP challenge: %w", err)
 	}
@@ -155,16 +156,29 @@ func (r *Repository) SaveOtp(ctx context.Context, c *app.OtpChallenge) error {
 // GetOtp returns a fresh copy, or app.ErrInvalidOtp when there is none.
 func (r *Repository) GetOtp(ctx context.Context, requestID string) (*app.OtpChallenge, error) {
 	c := app.OtpChallenge{RequestID: requestID}
+	var purpose string
 	err := r.pool.QueryRow(ctx, `
-		SELECT msisdn_pseudonym, subscriber_id, code_hash, attempts, expires_at FROM identity_otp_challenges WHERE request_id = $1`,
-		requestID).Scan(&c.MSISDNPseudonym, &c.SubscriberID, &c.CodeHash, &c.Attempts, &c.ExpiresAt)
+		SELECT msisdn_pseudonym, subscriber_id, code_hash, attempts, expires_at, purpose FROM identity_otp_challenges WHERE request_id = $1`,
+		requestID).Scan(&c.MSISDNPseudonym, &c.SubscriberID, &c.CodeHash, &c.Attempts, &c.ExpiresAt, &purpose)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, app.ErrInvalidOtp
 	}
 	if err != nil {
 		return nil, fmt.Errorf("pgstore: reading OTP challenge: %w", err)
 	}
+	c.Purpose = app.OtpPurposeSignIn
+	if purpose == string(app.OtpPurposeAccountDeletion) {
+		c.Purpose = app.OtpPurposeAccountDeletion
+	}
 	return &c, nil
+}
+
+// storedPurpose is a challenge's purpose as 0009's column spells it.
+func storedPurpose(p app.OtpPurpose) string {
+	if p == app.OtpPurposeAccountDeletion {
+		return string(app.OtpPurposeAccountDeletion)
+	}
+	return "sign_in"
 }
 
 // DeleteOtp removes a challenge if present.

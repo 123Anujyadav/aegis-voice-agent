@@ -308,12 +308,36 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 8 {
-		t.Fatalf("chain has %d steps, want 8", len(chain))
+	if len(chain) != 9 {
+		t.Fatalf("chain has %d steps, want 9", len(chain))
 	}
 	for i, step := range chain {
 		if step.Version != i+1 {
 			t.Fatalf("step %d is version %d: the chain is not contiguous", i, step.Version)
+		}
+	}
+
+	// 0009 adds the challenge purpose (a default every existing row meets)
+	// and web deletion's two tables, and changes no data.
+	var code9 []string
+	for _, line := range strings.Split(chain[8].SQL, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+			code9 = append(code9, line)
+		}
+	}
+	v9 := strings.Join(code9, "\n")
+	for _, want := range []string{
+		"ADD COLUMN purpose TEXT NOT NULL DEFAULT 'sign_in'", "CHECK (purpose IN ('sign_in', 'account_deletion'))",
+		"CREATE TABLE identity_deletion_code_receipts", "CHECK (request_id ~ '^req_[0-9a-f]{64}$')",
+		"CREATE TABLE identity_deletion_code_budget",
+	} {
+		if !strings.Contains(v9, want) {
+			t.Errorf("0009 lacks %q", want)
+		}
+	}
+	for _, forbidden := range []string{"DELETE FROM", "UPDATE IDENTITY", "INSERT INTO", "TRUNCATE", "DROP "} {
+		if strings.Contains(strings.ToUpper(v9), forbidden) {
+			t.Errorf("0009 contains %q", forbidden)
 		}
 	}
 

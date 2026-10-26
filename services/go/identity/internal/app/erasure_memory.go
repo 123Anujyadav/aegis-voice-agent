@@ -23,6 +23,14 @@ func (m *MemoryIdentityRepository) EraseSubscriber(_ context.Context, e *Subscri
 		!time.Now().Before(requesting.ExpiresAt) || !equalHash(requesting.RefreshTokenHash, e.RequestingRefreshTokenHash) {
 		return ErrSessionConflict
 	}
+	m.eraseLocked(e)
+	m.erasureReceipts[e.RequestingSessionID] = erasureReceipt{thumbprint: e.DeviceKeyThumbprint, expiresAt: e.ReceiptExpiresAt}
+	return nil
+}
+
+// eraseLocked deletes every row of e.SubscriberID and records the erasure.
+// The caller holds the write lock.
+func (m *MemoryIdentityRepository) eraseLocked(e *SubscriberErasure) {
 	devices := map[string]struct{}{}
 	for id, s := range m.sessions {
 		if s.SubscriberID != e.SubscriberID {
@@ -50,8 +58,6 @@ func (m *MemoryIdentityRepository) EraseSubscriber(_ context.Context, e *Subscri
 	record := *e
 	record.Exceptions = append([]string(nil), e.Exceptions...)
 	m.erasures = append(m.erasures, record)
-	m.erasureReceipts[e.RequestingSessionID] = erasureReceipt{thumbprint: e.DeviceKeyThumbprint, expiresAt: e.ReceiptExpiresAt}
-	return nil
 }
 
 // ErasureReceipt implements ErasureRepository. An expired receipt is gone.

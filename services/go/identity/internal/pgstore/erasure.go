@@ -51,27 +51,8 @@ func (r *Repository) EraseSubscriber(ctx context.Context, e *app.SubscriberErasu
 		if err := lockSubscriberErasure(ctx, tx, e.SubscriberID); err != nil {
 			return err
 		}
-		// The device ids must be read before the sessions that name them go.
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM identity_device_attestations WHERE device_id IN (
-				SELECT 'dev_' || device_key_thumbprint FROM identity_sessions
-				WHERE subscriber_id = $1 AND device_key_thumbprint <> '')`, e.SubscriberID); err != nil {
-			return fmt.Errorf("pgstore: erasing device attestations: %w", err)
-		}
-		steps := []struct{ what, sql string }{
-			{"sessions", `DELETE FROM identity_sessions WHERE subscriber_id = $1`},
-			{"challenges", `DELETE FROM identity_otp_challenges WHERE subscriber_id = $1`},
-			{"delegations", `DELETE FROM identity_guardian_delegations WHERE subscriber_id = $1 OR guardian_id = $1`},
-		}
-		for _, s := range steps {
-			if _, err := tx.Exec(ctx, s.sql, e.SubscriberID); err != nil {
-				return fmt.Errorf("pgstore: erasing %s: %w", s.what, err)
-			}
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO identity_erasures (subscriber_id, requested_at, exceptions) VALUES ($1, $2, $3)`,
-			e.SubscriberID, us(e.RequestedAt), e.Exceptions); err != nil {
-			return fmt.Errorf("pgstore: recording the erasure: %w", err)
+		if err := eraseRows(ctx, tx, e); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO identity_erasure_receipts (session_id, device_key_thumbprint, expires_at) VALUES ($1, $2, $3)
@@ -81,6 +62,35 @@ func (r *Repository) EraseSubscriber(ctx context.Context, e *app.SubscriberErasu
 		}
 		return nil
 	})
+}
+
+// eraseRows deletes every row identity holds for e.SubscriberID and records
+// the erasure, inside the caller's transaction (which holds the subscriber's
+// erasure lock).
+func eraseRows(ctx context.Context, tx pgx.Tx, e *app.SubscriberErasure) error {
+	// The device ids must be read before the sessions that name them go.
+	if _, err := tx.Exec(ctx, `
+			DELETE FROM identity_device_attestations WHERE device_id IN (
+				SELECT 'dev_' || device_key_thumbprint FROM identity_sessions
+				WHERE subscriber_id = $1 AND device_key_thumbprint <> '')`, e.SubscriberID); err != nil {
+		return fmt.Errorf("pgstore: erasing device attestations: %w", err)
+	}
+	steps := []struct{ what, sql string }{
+		{"sessions", `DELETE FROM identity_sessions WHERE subscriber_id = $1`},
+		{"challenges", `DELETE FROM identity_otp_challenges WHERE subscriber_id = $1`},
+		{"delegations", `DELETE FROM identity_guardian_delegations WHERE subscriber_id = $1 OR guardian_id = $1`},
+	}
+	for _, s := range steps {
+		if _, err := tx.Exec(ctx, s.sql, e.SubscriberID); err != nil {
+			return fmt.Errorf("pgstore: erasing %s: %w", s.what, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+			INSERT INTO identity_erasures (subscriber_id, requested_at, exceptions) VALUES ($1, $2, $3)`,
+		e.SubscriberID, us(e.RequestedAt), e.Exceptions); err != nil {
+		return fmt.Errorf("pgstore: recording the erasure: %w", err)
+	}
+	return nil
 }
 
 // lockSubscriberErasure takes the subscriber's transaction-scoped erasure

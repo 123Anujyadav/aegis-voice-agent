@@ -1,4 +1,4 @@
-// Package httpapi is the identity service's HTTP surface: exactly four POST
+// Package httpapi is the identity service's HTTP surface: exactly six POST
 // endpoints (internal/routes), each a thin adapter over one IdentityService
 // method. No authentication, token or proof logic lives here: the proof is
 // handed to the service's DPoP verifier as it arrived, and tokens come only
@@ -48,7 +48,23 @@
 //	  400 ERR_INVALID_DPOP_PROOF (as above; the htu is the deletion URL),
 //	  401 ERR_INVALID_TOKEN (as for refresh; nothing is erased)
 //
-// All four: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
+//	POST /v1/account/deletion/code     {"msisdn": "+919876543210"}
+//	  202 {"requestId": "req_<64 hex>", "expiresInSeconds": 300}: THE SAME
+//	      for a number with and without an account; a code is sent only to
+//	      one with an account (app/web_erasure.go)
+//	  503 ERR_OTP_DELIVERY_UNAVAILABLE  no deletion-code sender or budget is
+//	      configured, or this hour's budget is spent: for every number alike
+//	  400 ERR_INVALID_MSISDN, 429 ERR_RATE_LIMITED (+ Retry-After; the
+//	      number's allowance is shared with sign-in)
+//
+//	POST /v1/account/deletion/confirm  {"requestId": "...", "code": "123456"}
+//	  204 (no body): the account is erased; also for a retry with the same
+//	      request id and code
+//	  401 ERR_INVALID_OTP (wrong, unknown, sign-in, or exhausted code; the
+//	      same whether or not the number has an account), 401 ERR_OTP_EXPIRED,
+//	  429 ERR_RATE_LIMITED, 503 ERR_OTP_DELIVERY_UNAVAILABLE (as above)
+//
+// All six: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
 // including the replay store, or the request ran out of time) and 500
 // ERR_INTERNAL. Neither ever accompanies a token.
 //
@@ -143,6 +159,10 @@ func (h *handler) route(w http.ResponseWriter, r *http.Request) {
 		serve = h.refresh
 	case routes.AccountDeletion:
 		serve = h.deleteAccount
+	case routes.AccountDeletionCode:
+		serve = h.requestDeletionCode
+	case routes.AccountDeletionConfirm:
+		serve = h.confirmDeletion
 	default:
 		h.problem(w, r, http.StatusNotFound, "ERR_NOT_FOUND")
 		return
@@ -186,6 +206,52 @@ func (h *handler) requestOtp(w http.ResponseWriter, r *http.Request) {
 		"requestId":        reqID,
 		"expiresInSeconds": int64(app.OtpLifetime / time.Second),
 	})
+}
+
+// requestDeletionCode starts a web deletion. Its answer must not depend on
+// whether the number has an account: the service guarantees the same
+// request id shape, and nothing here branches on it.
+func (h *handler) requestDeletionCode(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		MSISDN string `json:"msisdn"`
+	}
+	if !h.decode(w, r, &body) {
+		return
+	}
+	if body.MSISDN == "" {
+		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_MSISDN")
+		return
+	}
+	reqID, err := h.svc.RequestDeletionCode(r.Context(), body.MSISDN)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.ok(w, r, http.StatusAccepted, map[string]any{
+		"requestId":        reqID,
+		"expiresInSeconds": int64(app.OtpLifetime / time.Second),
+	})
+}
+
+// confirmDeletion erases the account with its deletion code.
+func (h *handler) confirmDeletion(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		RequestID string `json:"requestId"`
+		Code      string `json:"code"`
+	}
+	if !h.decode(w, r, &body) {
+		return
+	}
+	if !requestIDPattern.MatchString(body.RequestID) || !codePattern.MatchString(body.Code) {
+		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_INPUT")
+		return
+	}
+	if err := h.svc.ConfirmDeletion(r.Context(), body.RequestID, body.Code); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.m.record(r, OutcomeSuccess)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *handler) enroll(w http.ResponseWriter, r *http.Request) {
@@ -430,6 +496,8 @@ func (h *handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, app.ErrTokenReused), errors.Is(err, app.ErrInvalidToken),
 		errors.Is(err, app.ErrSessionNotDeviceBound), errors.Is(err, app.ErrDeviceProofRequired):
 		h.problem(w, r, http.StatusUnauthorized, "ERR_INVALID_TOKEN")
+	case errors.Is(err, app.ErrDeletionCodesUnavailable):
+		h.problem(w, r, http.StatusServiceUnavailable, "ERR_OTP_DELIVERY_UNAVAILABLE")
 	case errors.Is(err, app.ErrOtpDeliveryFailed):
 		h.problem(w, r, http.StatusServiceUnavailable, "ERR_OTP_DELIVERY_FAILED")
 	case errors.Is(err, dpop.ErrReplayUnavailable), errors.Is(err, app.ErrEnrollmentUnavailable),

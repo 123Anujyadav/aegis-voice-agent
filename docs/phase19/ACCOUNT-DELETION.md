@@ -105,11 +105,71 @@ There is no account table. A person is a **subscriber id**: `usr_` and 32 hex ch
 | R5 | ~~A sign-in in flight during the erasure can create a session afterwards~~ | **Fixed by F4 (#192).** | — | — |
 | R6 | **Carrier forwarding is not cleared before erasure (P-ID-4)** | Forwarding is not implemented. | Not applicable today. | Must be implemented with forwarding provisioning. |
 
-## 3. Web deletion: implementation-ready plan (NOT implemented, NOT deployed)
+## 3. Web deletion: server flow implemented and DORMANT (#193); page NOT built; nothing deployed
 
-Play requires a public web link through which a user can request deletion **without the app**. Nothing in this repository serves web pages today: there is no web app, and identity sends no CORS headers. Proving control of a phone number needs **SMS**, and no OTP provider exists (`otpdelivery.go`: "No SMS provider is implemented in this repository"). This plan uses identity's existing pieces and is buildable and testable locally with the existing fake sender. **It must not be deployed, and must not tell anyone a code was sent, until a provider is configured** (§6).
+Play requires a public web link through which a user can request deletion **without the app**. Proving control of a phone number needs **SMS**, and no OTP provider exists (`otpdelivery.go`: "No SMS provider is implemented in this repository").
 
-### 3.1 Server API (identity, new)
+### 3.0 Status (#193)
+
+**Implemented, in identity, and dormant:**
+- `POST /v1/account/deletion/code` and `/confirm` (`internal/app/web_erasure.go`, `internal/httpapi`), as specified in §3.1.
+- Migration `0009`:
+  - the challenge `purpose`;
+  - `identity_deletion_code_receipts`;
+  - `identity_deletion_code_budget`;
+  - housekeeping of both tables.
+- Sign-in and deletion now share **one** code check (`checkCode`).
+- A deletion code cannot sign in, and a sign-in code cannot delete.
+
+**Dormant:**
+- Deletion codes are issued only with a `DeletionCodeSender` **and** an hourly budget (`SetDeletionCodeBudget`). Production configures **neither**: no provider exists, and production configures no OTP sender at all.
+- Every request therefore answers 503 `ERR_OTP_DELIVERY_UNAVAILABLE`, for every number alike.
+- The only senders are test fakes:
+  - the recording senders in the unit tests;
+  - the end-to-end harness's stdout sender (`E2E-DELETION-CODE`).
+
+  **None is a production integration.**
+- Enabling it needs O13 (D5), E2 (a provider implementing `SendDeletionCode` with a registered DLT deletion template), and a budget chosen by the owner or SRE.
+
+**Tests (local, all executed):**
+- **Application, `web_erasure_test.go`** (10 tests):
+  - unavailable without a sender or budget;
+  - erasure on every device;
+  - a number without an account looks the same;
+  - purpose binding both ways;
+  - wrong codes, attempt exhaustion and expiry;
+  - the number's request limit and lockout shared with sign-in;
+  - the hourly budget;
+  - retry after a lost answer;
+  - concurrent confirms erasing once;
+  - an undelivered code withdrawn.
+- **Repository, on memory and PostgreSQL:**
+  - contract case `WebAccountErasure`;
+  - existing challenges default to sign-in, and the purpose CHECK holds;
+  - concurrent confirms consume once (forced interleaving);
+  - housekeeping;
+  - the migration chain pins 0009's scope.
+- **HTTP, `account_deletion_web_test.go`:**
+  - 503 unconfigured;
+  - same-shape 202 with and without an account, and only the account holder gets a code;
+  - 204, the retry, and the refusals;
+  - 429 shared with sign-in, and 503 once the budget is spent.
+- **End to end:** edge-api's lifecycle test, step 6d, runs the real identity binary on PostgreSQL:
+  - a second number enrols;
+  - deletion codes are requested for it and for the already-erased number, and the answers have the same shape;
+  - exactly one code arrives;
+  - it fails against the other request;
+  - confirm → 204, retry → 204, refresh → 401;
+  - no code reaches the number without an account.
+
+**The page is NOT built: a concrete blocker, not an omission.**
+- The repository has **no web stack and no static hosting**.
+- `package.json` states Node exists only for tooling, and that `web/` is reserved for the admin console "in a later phase". The frontend stack is an owner decision (readiness §4, §7).
+- `infra/` has no ingress or static-asset hosting.
+- Building the page now would mean choosing that stack and its hosting. The page's specification (§3.2: steps, states, wording, accessibility, data minimization) is complete, and the API it calls is implemented and tested.
+- **Minimum next step after E10 and the stack decision:** one static HTML page with no framework and no third-party script. It is served same-origin with identity (§3.3), and makes two `fetch` calls with the states of §3.2. A browser test runs against the local identity with the fake sender (§3.4).
+
+### 3.1 Server API (identity; implemented in #193 as specified here)
 
 | Step | Endpoint | Behaviour |
 |---|---|---|
@@ -185,7 +245,9 @@ Play requires a public web link through which a user can request deletion **with
 
 ### 3.5 What blocks it
 
-- An SMS/OTP provider, plus India DLT registration **including the deletion template** (E2).
+- **For the page:** the frontend stack (owner) and hosting (E10); §3.0.
+- **For enabling the implemented server flow:** O13 (D5) and an hourly budget value (owner or SRE).
+- An SMS/OTP provider, plus India DLT registration **including the deletion template** (E2), with an adapter implementing `DeletionCodeSender`.
 - A domain, hosting and TLS for the page (new E10; cost unverified).
 - The owner's choice of web approach (D5) and of a bot challenge.
 - The privacy policy URL.
@@ -249,7 +311,7 @@ Every row is **open**. A recommendation is engineering's reading of the existing
 | D2 | What the erasure record keeps, and for how long | **Privacy/legal review** | Open: **privacy/legal review** | Keep the content (it is what the domain specifies); set an end date on legal advice | Owner on DPDP legal advice (E9) |
 | D3 | Audit-log retention in practice | **Privacy/legal review**; **governance** (ADR-0012) if a period is set | Open: **privacy/legal review** | Keep ADR-0012's LEGAL_HOLD; ask legal for a concrete period | Owner on legal advice (E9); an ADR-0012 amendment if it changes |
 | D4 | A fresh SMS code before deletion | Owner approval | Open | No SMS step-up. Optionally, the phone's own screen-lock check before the final confirmation. | Owner (security/product) |
-| D5 | Web deletion approach | Owner approval; external (E2, E10) | Open | Self-service OTP (§3), **plus** a support channel for a lost number | Owner; depends on E2 and E10 |
+| D5 | Web deletion approach | Owner approval; external (E2, E10) | Open. The self-service server side is **built and dormant** (#193); building it approves nothing. | Self-service OTP (§3), **plus** a support channel for a lost number | Owner; depends on E2 and E10 |
 | D6 | Device-attestation retention | Owner approval (retention) | Open (**latent**: none are written today) | Delete an attestation once no session uses its key, plus a margin | Owner (retention) |
 | D7 | Immediate deletion or a grace period | Owner approval | Open | Immediate (current), while identity holds no user content | Owner (product) |
 | D8 | UX spec A53d's "type the last four digits" confirmation | Owner approval (UX spec) | Open: **the spec cannot be implemented as written** | Keep the explicit dialog; amend A53d, or decide to keep the last four digits on the phone | Owner (UX spec) |

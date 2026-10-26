@@ -65,6 +65,7 @@ const (
 	e2eRefreshURL = "https://identity.e2e.test/v1/token/refresh"
 	e2eOrigin     = "https://edge.e2e.test"
 	e2eNumber     = "+919876500042"
+	e2eNumber2    = "+919876500043"
 	whoamiPath    = "/v1/e2e-test-only/whoami"
 	slowPath      = "/v1/e2e-test-only/slow"
 )
@@ -184,11 +185,13 @@ func buildIdentity(t *testing.T) string {
 
 // identityChild is identity running as a child process.
 type identityChild struct {
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	codes  chan string
-	stderr *syncBuffer
-	exited chan error
+	cmd   *exec.Cmd
+	stdin io.WriteCloser
+	codes chan string
+	// deletionCodes are account-deletion codes (identity's web deletion).
+	deletionCodes chan string
+	stderr        *syncBuffer
+	exited        chan error
 }
 
 type syncBuffer struct {
@@ -222,7 +225,10 @@ func startIdentity(t *testing.T, bin string, env []string) *identityChild {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &identityChild{cmd: cmd, stdin: stdin, codes: make(chan string, 4), stderr: &syncBuffer{}, exited: make(chan error, 1)}
+	c := &identityChild{
+		cmd: cmd, stdin: stdin, codes: make(chan string, 4), deletionCodes: make(chan string, 4),
+		stderr: &syncBuffer{}, exited: make(chan error, 1),
+	}
 	cmd.Stderr = c.stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -234,6 +240,9 @@ func startIdentity(t *testing.T, bin string, env []string) *identityChild {
 		for sc.Scan() {
 			if code, ok := strings.CutPrefix(sc.Text(), "E2E-OTP "); ok {
 				c.codes <- code
+			}
+			if code, ok := strings.CutPrefix(sc.Text(), "E2E-DELETION-CODE "); ok {
+				c.deletionCodes <- code
 			}
 		}
 		c.exited <- cmd.Wait()
@@ -581,11 +590,11 @@ func TestE2E_IdentityTokenAdmittedByEdgeThroughTheRealLifecycle(t *testing.T) {
 	// (at most 15 minutes): docs/phase19/ACCOUNT-DELETION.md states it.
 	deleteURL := strings.TrimSuffix(e2eRefreshURL, "/v1/token/refresh") + "/v1/account/delete"
 	delBody := fmt.Sprintf(`{"sessionId":%q,"refreshToken":%q}`, sessionID, refreshToken)
-	if code, body := postJSON(t, idBase+"/v1/account/delete", delBody, proof(t, device, "POST", deleteURL, "")); code != http.StatusNoContent {
-		t.Fatalf("account deletion: %d %v", code, body)
+	if c, b := postJSON(t, idBase+"/v1/account/delete", delBody, proof(t, device, "POST", deleteURL, "")); c != http.StatusNoContent {
+		t.Fatalf("account deletion: %d %v", c, b)
 	}
-	if code, _ := postJSON(t, idBase+"/v1/token/refresh", delBody, proof(t, device, "POST", e2eRefreshURL, "")); code != http.StatusUnauthorized {
-		t.Errorf("refresh of the erased session: %d, want 401", code)
+	if c, _ := postJSON(t, idBase+"/v1/token/refresh", delBody, proof(t, device, "POST", e2eRefreshURL, "")); c != http.StatusUnauthorized {
+		t.Errorf("refresh of the erased session: %d, want 401", c)
 	}
 	if lifetime := tokClaims.EXP - tokClaims.IAT; lifetime <= 0 || lifetime > 15*60 {
 		t.Errorf("access token lifetime %ds, want at most 900s: the residual window after deletion", lifetime)
@@ -604,6 +613,63 @@ func TestE2E_IdentityTokenAdmittedByEdgeThroughTheRealLifecycle(t *testing.T) {
 	wantRefused("after deletion, the old token with the phone's new key", edgeGet(t, edgeBase, httpapi.MePath, map[string]string{
 		"Authorization": "DPoP " + token, "DPoP": proof(t, newDeviceKey, "GET", e2eOrigin+httpapi.MePath, token),
 	}), 401, "ERR_INVALID_DPOP_PROOF", "invalid_dpop_proof")
+
+	// 6d. WEB ACCOUNT DELETION (identity's /v1/account/deletion/*), through the
+	// real binary on PostgreSQL. A second number enrols; a deletion is started
+	// for it and for the number erased in 6c, which now has no account. Both
+	// answers are the same shape; only the number with an account gets a code.
+	// The right code erases it (204), a retry is 204 again, and its session
+	// can no longer refresh.
+	code, body = postJSON(t, idBase+"/v1/otp/request", `{"msisdn":"`+e2eNumber2+`"}`, "")
+	if code != 202 {
+		t.Fatalf("OTP request (second number): %d %v", code, body)
+	}
+	reqID2, _ := body["requestId"].(string)
+	var otp2 string
+	select {
+	case otp2 = <-id.codes:
+	case <-time.After(20 * time.Second):
+		t.Fatal("no OTP was delivered to the second number")
+	}
+	device2, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	code, body = postJSON(t, idBase+"/v1/otp/validate", fmt.Sprintf(`{"requestId":%q,"code":%q}`, reqID2, otp2), proof(t, device2, "POST", e2eEnrolURL, ""))
+	if code != 200 {
+		t.Fatalf("enrolment (second number): %d", code)
+	}
+	session2 := fmt.Sprintf(`{"sessionId":%q,"refreshToken":%q}`, body["sessionId"], body["refreshToken"])
+
+	codeWith, withAccount := postJSON(t, idBase+"/v1/account/deletion/code", `{"msisdn":"`+e2eNumber2+`"}`, "")
+	codeWithout, withoutAccount := postJSON(t, idBase+"/v1/account/deletion/code", `{"msisdn":"`+e2eNumber+`"}`, "")
+	webReqID, _ := withAccount["requestId"].(string)
+	otherReqID, _ := withoutAccount["requestId"].(string)
+	if codeWith != 202 || codeWithout != 202 || len(webReqID) != len(otherReqID) || len(withAccount) != len(withoutAccount) ||
+		withAccount["expiresInSeconds"] != withoutAccount["expiresInSeconds"] {
+		t.Fatalf("deletion-code answers differ: %d %v / %d %v", codeWith, withAccount, codeWithout, withoutAccount)
+	}
+	var deletionCode string
+	select {
+	case deletionCode = <-id.deletionCodes:
+	case <-time.After(20 * time.Second):
+		t.Fatal("no deletion code was delivered to the number with an account")
+	}
+	if c, _ := postJSON(t, idBase+"/v1/account/deletion/confirm", fmt.Sprintf(`{"requestId":%q,"code":%q}`, otherReqID, deletionCode), ""); c != 401 {
+		t.Errorf("the code confirmed the request of a number without an account: %d", c)
+	}
+	if c, b := postJSON(t, idBase+"/v1/account/deletion/confirm", fmt.Sprintf(`{"requestId":%q,"code":%q}`, webReqID, deletionCode), ""); c != 204 {
+		t.Fatalf("web deletion confirm: %d %v", c, b)
+	}
+	if c, _ := postJSON(t, idBase+"/v1/account/deletion/confirm", fmt.Sprintf(`{"requestId":%q,"code":%q}`, webReqID, deletionCode), ""); c != 204 {
+		t.Errorf("web deletion retry: %d, want 204", c)
+	}
+	if c, _ := postJSON(t, idBase+"/v1/token/refresh", session2, proof(t, device2, "POST", e2eRefreshURL, "")); c != 401 {
+		t.Errorf("refresh after web deletion: %d, want 401", c)
+	}
+	select {
+	case extra := <-id.deletionCodes:
+		_ = extra
+		t.Error("a deletion code was sent to the number without an account")
+	case <-time.After(500 * time.Millisecond):
+	}
 
 	// 7. Shutdown with an authenticated request IN FLIGHT.
 	type result struct {

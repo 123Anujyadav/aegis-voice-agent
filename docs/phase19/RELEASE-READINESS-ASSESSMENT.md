@@ -240,7 +240,8 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 | Target API 36; R8 release and staging builds; upload-key signing; version validation | **Done** | #145–#148, #154 (§1, §6) |
 | `INTERNET` declared; release permission set pinned in CI | **Done** | #187; `android/app/release-permissions.txt` |
 | In-app account deletion (server and app) | **Done**; security-reviewed, with three defects fixed (#191) | `ACCOUNT-DELETION.md` §2, §2a, §4 |
-| Web deletion endpoints and page | **Open**: plan ready, blocked on O13, E2 and E10 | `ACCOUNT-DELETION.md` §3 |
+| Web deletion server flow | **Done, dormant (#193):** endpoints, migration `0009`, and tests including end to end on PostgreSQL. Answers 503 until a deletion-code sender and a budget are configured; production has neither. | `ACCOUNT-DELETION.md` §3.0 |
+| Web deletion page | **Blocked:** no web stack or static hosting exists (`web/` is reserved for the admin console; the frontend stack is an owner decision), plus E10 | `ACCOUNT-DELETION.md` §3.0 |
 | Device key destroyed after a confirmed deletion (R3) | **Done (#192)**, verified in real Keystore on the Android 15 emulator | `ACCOUNT-DELETION.md` §2a F5 |
 | A sign-in in flight cannot outlive a deletion (R5) | **Done (#192)**, with PostgreSQL concurrency tests | `ACCOUNT-DELETION.md` §2a F4 |
 | Server-side access-token revocation after deletion | **Not implemented; owner decision D9** (ADR-0010 amendment). The token is unusable by the app once its key is destroyed; it is not revoked by the server (≤ 15 min). | `ACCOUNT-DELETION.md` §5 D9 |

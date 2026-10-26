@@ -41,7 +41,7 @@
 | O10 | The erasure record's content and retention (D2) | §5 D2 | Keep the content; set an end date **on legal advice** (E9) |
 | O11 | A concrete period for the audit log's LEGAL_HOLD (D3) | §5 D3 | Ask legal; a period needs an ADR-0012 amendment |
 | O12 | Step-up before deletion (D4) | §5 D4 | No SMS step-up; optionally the phone's screen-lock check |
-| O13 | Web deletion approach (D5) | §5 D5, §3 | Self-service OTP, plus support for a lost number |
+| O13 | Web deletion approach (D5) | §5 D5, §3 | Self-service OTP, plus support for a lost number. Its server side is built and **dormant** (#193); enabling it is this decision plus E2 and a budget value. |
 | O14 | Device-attestation retention (D6) | §5 D6 | Delete once no session uses the key, plus a margin; before E1 is wired |
 | O15 | Immediate deletion or a grace period (D7) | §5 D7 | Immediate while identity holds no user content |
 | O16 | UX spec A53d "type the last four digits" (D8) | §5 D8 | Amend A53d to the explicit confirmation |
@@ -56,7 +56,7 @@
 | O6 / E9 | The device-history table, and re-enrolment detection that survives housekeeping |
 | E6 | The design for per-source rate limiting |
 | O1 (if `client_id` is chosen) | The two-step `client_id` rollout (ADR-0029 analysis §5) |
-| O13 + E2 + E10 | The web deletion endpoints, migration `0009` and the page (`ACCOUNT-DELETION.md` §3); its server side can be built and tested with the fake sender before E2/E10 land |
+| O13 + E2 + E10 | **Server side done (#193, dormant).** Remaining: a provider adapter implementing `DeletionCodeSender`, the budget configuration, and the page, once the frontend stack and hosting are decided (`ACCOUNT-DELETION.md` §3.0) |
 | O14 | Attestation housekeeping (D6) |
 | O12 (if screen lock is chosen) | `BiometricPrompt` with device credential before the deletion confirmation |
 
