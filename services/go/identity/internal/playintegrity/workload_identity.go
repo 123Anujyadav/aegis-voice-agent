@@ -67,8 +67,13 @@ func NewWorkloadIdentityTokens(ctx context.Context, credentialConfig []byte, cli
 
 // AccessToken returns a current access token, refreshed by the underlying
 // source when it nears expiry. The context bounds the wait; the exchange
-// itself is bounded by the HTTP client's own timeout.
+// itself is bounded by the HTTP client's own timeout. A caller whose context
+// is already done is refused before anything starts: otherwise a fetch that
+// completes at once (a cached token) would race ctx.Done in the select.
 func (w *WorkloadIdentityTokens) AccessToken(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("%w: %w", ErrAccessToken, err)
+	}
 	type result struct {
 		token *oauth2.Token
 		err   error
