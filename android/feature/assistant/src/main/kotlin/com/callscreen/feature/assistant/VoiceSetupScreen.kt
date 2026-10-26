@@ -25,9 +25,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
-import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.AegisTopAppBar
-import com.callscreen.core.ui.components.StatusChipVariant
 
 @Composable
 public fun VoiceSetupScreen(
@@ -57,7 +55,7 @@ public fun VoiceSetupScreen(
                     color = CallScreenTheme.colors.content.primary
                 )
                 Text(
-                    text = "Voice responses are generated using low-latency streaming TTS.",
+                    text = AssistantCopy.VOICES_INTRO,
                     style = CallScreenTheme.typography.bodyMedium,
                     color = CallScreenTheme.colors.content.secondary
                 )
@@ -83,8 +81,9 @@ public fun VoiceSetupScreen(
             }
 
             AegisPrimaryButton(
-                text = "Audition & Save Voice",
+                text = AssistantCopy.SAVE_UNAVAILABLE,
                 onClick = onSaveVoiceClick,
+                enabled = false,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
@@ -126,7 +125,6 @@ private fun VoiceOptionCard(
                 )
             }
             if (isSelected) {
-                AegisStatusChip(text = "Active", variant = StatusChipVariant.AIHandled)
             }
         }
     }

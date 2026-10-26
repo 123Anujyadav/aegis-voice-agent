@@ -44,7 +44,7 @@ public fun LiveAiScreeningScreen(
 ) {
     val sampleTranscript = remember {
         listOf(
-            TranscriptItem("Aegis AI Assistant", "Hello, I am screening this call for Abhik. Please state your name and purpose of calling.", "10:42:01", true),
+            TranscriptItem("Aegis AI Assistant", "Hello, I am screening this call for the person you called. Please state your name and purpose of calling.", "10:42:01", true),
             TranscriptItem("Caller", "Hi, I am calling from National Bank regarding an urgent security update on your account.", "10:42:05", false),
             TranscriptItem("Aegis AI Assistant", "Please verify your caller ID or department reference code.", "10:42:10", true)
         )

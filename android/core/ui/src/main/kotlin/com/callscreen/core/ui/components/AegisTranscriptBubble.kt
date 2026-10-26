@@ -77,7 +77,7 @@ private fun AegisTranscriptBubblePreview() {
     CallScreenTheme {
         AegisTranscriptBubble(
             sender = "Aegis AI Assistant",
-            message = "Hello, I am screening this call for Abhik. Please state your name and purpose of calling.",
+            message = "Hello, I am screening this call for the person you called. Please state your name and purpose of calling.",
             timestamp = "10:43:12 AM",
             isAiAssistant = true
         )

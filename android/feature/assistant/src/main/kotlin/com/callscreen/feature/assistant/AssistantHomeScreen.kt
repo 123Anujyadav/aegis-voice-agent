@@ -22,14 +22,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,10 +45,9 @@ public fun AssistantHomeScreen(
     onTabSelected: (AegisTab) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var isReceptionistEnabled by remember { mutableStateOf(true) }
 
     Scaffold(
-        topBar = { AegisTopAppBar(title = "AI Receptionist Settings") },
+        topBar = { AegisTopAppBar(title = "Assistant") },
         bottomBar = { AegisBottomBar(currentTab = AegisTab.Assistant, onTabSelected = onTabSelected) }
     ) { paddingValues ->
         LazyColumn(
@@ -80,25 +73,18 @@ public fun AssistantHomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Autonomous Screening",
+                                text = AssistantCopy.SCREENING_TITLE,
                                 style = CallScreenTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = CallScreenTheme.colors.content.primary
                             )
                             Text(
-                                text = "AI will answer unknown calls on your behalf",
+                                text = AssistantCopy.SCREENING_UNAVAILABLE,
                                 style = CallScreenTheme.typography.bodyMedium,
                                 color = CallScreenTheme.colors.content.secondary
                             )
                         }
-                        Switch(
-                            checked = isReceptionistEnabled,
-                            onCheckedChange = { isReceptionistEnabled = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = CallScreenTheme.colors.action.primary.content,
-                                checkedTrackColor = CallScreenTheme.colors.action.primary.fill
-                            )
-                        )
+                        AegisStatusChip(text = AssistantCopy.NOT_AVAILABLE, variant = StatusChipVariant.Fraud)
                     }
                 }
             }
@@ -115,8 +101,8 @@ public fun AssistantHomeScreen(
             item {
                 AssistantSettingCard(
                     icon = Icons.Default.RecordVoiceOver,
-                    title = "AI Voice & Pitch Setup",
-                    description = "Choose voice model (ElevenLabs / Cartesia) and tone.",
+                    title = "Assistant voice",
+                    description = AssistantCopy.VOICE_CARD,
                     onClick = onVoiceSetupClick
                 )
             }
@@ -124,8 +110,8 @@ public fun AssistantHomeScreen(
             item {
                 AssistantSettingCard(
                     icon = Icons.Default.Mic,
-                    title = "Interactive Voice Session",
-                    description = "Test screening prompts in real-time voice chat mode.",
+                    title = "Voice test session",
+                    description = AssistantCopy.SESSION_CARD,
                     onClick = onStartVoiceChatClick
                 )
             }
@@ -189,4 +175,23 @@ private fun AssistantHomeScreenPreview() {
     CallScreenTheme {
         AssistantHomeScreen()
     }
+}
+
+/**
+ * What the assistant can honestly say today. Screening by the assistant needs
+ * carrier forwarding (ADR-0002 Stage 2), which is not available yet, so there
+ * is no switch: a toggle that changes nothing and saves nothing would mislead.
+ */
+internal object AssistantCopy {
+    const val SCREENING_TITLE = "Assistant screening"
+    const val SCREENING_UNAVAILABLE =
+        "Not available yet. The assistant answers unknown callers only through call forwarding, which isn't set up yet."
+    const val NOT_AVAILABLE = "Not available yet"
+    const val VOICE_CARD = "See the voices planned for the assistant. Choosing one isn't available yet."
+    const val SESSION_CARD = "Not available yet."
+    const val VOICES_INTRO = "These are the voices planned for the assistant. Choosing one isn't available yet, and nothing is saved."
+    const val SAVE_UNAVAILABLE = "Saving a voice isn't available yet"
+    const val SESSION_UNAVAILABLE = "Voice sessions aren't available yet."
+    const val NO_MICROPHONE =
+        "The app doesn't use your microphone. Voice input will ask for microphone access first, and only when you turn it on."
 }

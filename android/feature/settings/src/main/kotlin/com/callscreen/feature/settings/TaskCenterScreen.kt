@@ -19,6 +19,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.callscreen.core.telephony.screening.ContactsAccess
+import com.callscreen.core.telephony.screening.ScreeningRole
+import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,26 +38,34 @@ import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.AegisTopAppBar
 import com.callscreen.core.ui.components.StatusChipVariant
 
+public enum class TaskStatus { DONE, TO_DO, NOT_AVAILABLE }
+
 public data class TaskItem(
     val title: String,
     val description: String,
-    val isCompleted: Boolean
+    val status: TaskStatus,
 )
+
+/** The Settings tab: setup steps computed from this phone's actual state, rechecked on each return. */
+@Composable
+public fun TaskCenterRoute() {
+    val context = LocalContext.current
+    var tasks by remember { mutableStateOf(SetupTasks.of(ScreeningRoleStatus.UNAVAILABLE, contactsAccess = false)) }
+    LifecycleResumeEffect(Unit) {
+        tasks = SetupTasks.of(ScreeningRole.status(context), ContactsAccess.granted(context))
+        onPauseOrDispose {}
+    }
+    TaskCenterScreen(tasks = tasks)
+}
 
 @Composable
 public fun TaskCenterScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tasks: List<TaskItem> = emptyList(),
 ) {
-    val tasks = remember {
-        listOf(
-            TaskItem("Update Fraud Database", "Download latest India spam telemetry signatures.", true),
-            TaskItem("Verify Family Contacts", "Confirm David's Senior Mode emergency bypass number.", false),
-            TaskItem("Microphone Calibration", "Audition noise suppression for outdoor call screening.", false)
-        )
-    }
 
     Scaffold(
-        topBar = { AegisTopAppBar(title = "Task Center & Action Checklist") }
+        topBar = { AegisTopAppBar(title = "Setup") }
     ) { paddingValues ->
         Column(
             modifier = modifier
@@ -60,7 +76,7 @@ public fun TaskCenterScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Recommended System Tasks",
+                text = "What is set up on this phone",
                 style = CallScreenTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary
@@ -81,9 +97,13 @@ public fun TaskCenterScreen(
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Icon(
-                                imageVector = if (task.isCompleted) Icons.Default.CheckCircle else Icons.Default.PendingActions,
+                                imageVector = if (task.status == TaskStatus.DONE) Icons.Default.CheckCircle else Icons.Default.PendingActions,
                                 contentDescription = null,
-                                tint = if (task.isCompleted) CallScreenTheme.colors.status.success.text else CallScreenTheme.colors.status.warning.text
+                                tint = if (task.status == TaskStatus.DONE) {
+                                    CallScreenTheme.colors.status.success.text
+                                } else {
+                                    CallScreenTheme.colors.status.warning.text
+                                }
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -99,8 +119,12 @@ public fun TaskCenterScreen(
                                 )
                             }
                             AegisStatusChip(
-                                text = if (task.isCompleted) "Done" else "Pending",
-                                variant = if (task.isCompleted) StatusChipVariant.Verified else StatusChipVariant.Spam
+                                text = SetupTasks.label(task.status),
+                                variant = when (task.status) {
+                                    TaskStatus.DONE -> StatusChipVariant.Verified
+                                    TaskStatus.TO_DO -> StatusChipVariant.Spam
+                                    TaskStatus.NOT_AVAILABLE -> StatusChipVariant.Fraud
+                                }
                             )
                         }
                     }
@@ -114,6 +138,6 @@ public fun TaskCenterScreen(
 @Composable
 private fun TaskCenterScreenPreview() {
     CallScreenTheme {
-        TaskCenterScreen()
+        TaskCenterScreen(tasks = SetupTasks.of(ScreeningRoleStatus.NOT_HELD, contactsAccess = false))
     }
 }
