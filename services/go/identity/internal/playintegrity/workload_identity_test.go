@@ -223,9 +223,16 @@ func TestWorkloadIdentity_TheCallersDeadlineBoundsTheWait(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Cache a token, so each later fetch completes at once: a cancelled
+	// caller must still be refused rather than race the fetch.
+	if _, err := ts.AccessToken(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := ts.AccessToken(ctx); !errors.Is(err, ErrAccessToken) || !errors.Is(err, context.Canceled) {
-		t.Fatalf("err = %v, want ErrAccessToken wrapping context.Canceled", err)
+	for range 2000 {
+		if _, err := ts.AccessToken(ctx); !errors.Is(err, ErrAccessToken) || !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want ErrAccessToken wrapping context.Canceled", err)
+		}
 	}
 }
