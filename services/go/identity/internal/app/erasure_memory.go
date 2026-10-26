@@ -13,11 +13,16 @@ type erasureReceipt struct {
 
 var _ ErasureRepository = (*MemoryIdentityRepository)(nil)
 
-// EraseSubscriber implements ErasureRepository: the same erasure as pgstore's,
-// under the repository lock (all or nothing).
+// EraseSubscriber implements ErasureRepository: the same check and erasure as
+// pgstore's, under the repository lock (all or nothing).
 func (m *MemoryIdentityRepository) EraseSubscriber(_ context.Context, e *SubscriberErasure) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	requesting, ok := m.sessions[e.RequestingSessionID]
+	if !ok || requesting.IsRevoked || requesting.SubscriberID != e.SubscriberID ||
+		!time.Now().Before(requesting.ExpiresAt) || !equalHash(requesting.RefreshTokenHash, e.RequestingRefreshTokenHash) {
+		return ErrSessionConflict
+	}
 	devices := map[string]struct{}{}
 	for id, s := range m.sessions {
 		if s.SubscriberID != e.SubscriberID {

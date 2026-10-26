@@ -66,15 +66,22 @@ public object AccountDeletionCopy {
     public const val NOT_CONFIGURED: String = "Accounts are not available in this version of the app, so there is no account to delete."
     public const val BACK: String = "Back"
 
+    /**
+     * Each message says only what the phone knows. A refusal proves that this
+     * request deleted nothing, not that an earlier request whose answer was
+     * lost did not: so no message says "nothing was deleted".
+     */
     public fun message(message: DeletionMessage): String = when (message) {
         DeletionMessage.NO_CONFIRMATION ->
             "We could not confirm the deletion. Check your connection and try again. If it already went through, trying again confirms it."
-        DeletionMessage.SERVICE_UNAVAILABLE -> "The service is unavailable right now. Nothing was deleted. Try again later."
-        DeletionMessage.TOO_MANY_ATTEMPTS -> "Too many attempts. Nothing was deleted. Wait a while and try again."
+        DeletionMessage.SERVICE_UNAVAILABLE -> "The service is unavailable right now, so the deletion is not confirmed. Try again later."
+        DeletionMessage.TOO_MANY_ATTEMPTS -> "Too many attempts, so the deletion is not confirmed. Wait a while and try again."
         DeletionMessage.DEVICE_CHECK_FAILED ->
-            "This phone could not prove it is the one you signed in on. Nothing was deleted. Check the phone's date and time, then try again."
+            "This phone could not prove it is the one you signed in on, so the deletion is not confirmed. " +
+                "Check the phone's date and time, then try again."
         DeletionMessage.SESSION_ENDED ->
-            "This phone's sign-in had already ended, so it could not delete the account and has been signed out. Sign in again to delete it."
+            "This phone's sign-in has ended, so it cannot delete or confirm deleting the account, and it has been signed out. " +
+                "If the account still exists, sign in again to delete it."
         DeletionMessage.UNEXPECTED -> "Something went wrong. Nothing was confirmed as deleted. Try again."
     }
 }

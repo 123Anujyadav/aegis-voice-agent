@@ -265,13 +265,18 @@ func TestDeleteAccount_RepeatIsIdempotentForTheSameKeyOnly(t *testing.T) {
 	}
 
 	// An expired receipt answers nothing.
+	stored, err := e.repo.GetSession(ctx, e.sessB.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := e.repo.EraseSubscriber(ctx, &SubscriberErasure{
-		SubscriberID: sid(otherMSISDN), RequestedAt: time.Now(), RequestingSessionID: "sess_old",
-		DeviceKeyThumbprint: thumbprint(t, e.kB), ReceiptExpiresAt: time.Now().Add(-time.Second),
+		SubscriberID: sid(otherMSISDN), RequestedAt: time.Now(), RequestingSessionID: e.sessB.SessionID,
+		RequestingRefreshTokenHash: stored.RefreshTokenHash,
+		DeviceKeyThumbprint:        thumbprint(t, e.kB), ReceiptExpiresAt: time.Now().Add(-time.Second),
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, found, _ := e.repo.ErasureReceipt(ctx, "sess_old"); found {
+	if _, found, _ := e.repo.ErasureReceipt(ctx, e.sessB.SessionID); found {
 		t.Error("an expired receipt was found")
 	}
 }

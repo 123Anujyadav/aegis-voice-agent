@@ -75,7 +75,7 @@ From the ADRs. These must be added to the Data safety form and the policy **when
 
 ## 6. Questions the owner must answer before submitting
 
-1. **Account deletion (Play policy).** **Update:** in-app deletion is implemented in #188 (identity `POST /v1/account/delete`) and #189 (Android); web deletion is designed but not built. See `ACCOUNT-DELETION.md` for the per-data semantics and the remaining decisions. The original question follows. Sign-in creates an account, but there is no account-deletion path: identity has only `/v1/otp/request`, `/v1/otp/validate` and `/v1/token/refresh`, and no in-app sign-out or delete screen. **Options:**
+1. **Account deletion (Play policy).** **Update:** in-app deletion is implemented in #188 (identity `POST /v1/account/delete`) and #189 (Android), and security-reviewed in #191; web deletion has an implementation-ready plan but is not built. See `ACCOUNT-DELETION.md` for the per-data semantics, the review, the web plan (§3) and the decision register D1–D8 (§5). The original question follows. Sign-in creates an account, but there is no account-deletion path: identity has only `/v1/otp/request`, `/v1/otp/validate` and `/v1/token/refresh`, and no in-app sign-out or delete screen. **Options:**
    - (a) Add an identity deletion endpoint, an in-app "Delete account", and a web deletion page before launch.
    - (b) Launch with sign-in disabled, so no account exists.
 

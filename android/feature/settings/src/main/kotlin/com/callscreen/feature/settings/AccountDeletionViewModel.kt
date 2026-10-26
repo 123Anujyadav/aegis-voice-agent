@@ -55,7 +55,10 @@ public enum class DeletionMessage {
     TOO_MANY_ATTEMPTS,
     DEVICE_CHECK_FAILED,
 
-    /** The server ended this phone's session before the request: nothing was deleted by it. */
+    /**
+     * The server no longer accepts this phone's session. This request deleted
+     * nothing; an earlier one whose answer was lost may have.
+     */
     SESSION_ENDED,
     UNEXPECTED,
 }

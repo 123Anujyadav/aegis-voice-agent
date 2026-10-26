@@ -2,6 +2,7 @@ package pgstore
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"time"
@@ -13,9 +14,10 @@ import (
 
 var _ app.ErasureRepository = (*Repository)(nil)
 
-// EraseSubscriber implements app.ErasureRepository in one transaction: every
-// row identity holds for the subscriber is deleted, and the erasure record
-// (LEGAL_HOLD) and its receipt are written; or nothing changes.
+// EraseSubscriber implements app.ErasureRepository in one transaction: the
+// requesting session is locked and re-checked, then every row identity holds
+// for the subscriber is deleted, and the erasure record (LEGAL_HOLD) and its
+// receipt are written; or nothing changes.
 //
 // Deleted: identity_sessions (superseded refresh-token hashes follow by
 // ON DELETE CASCADE), identity_otp_challenges, the device attestations of the
@@ -24,6 +26,25 @@ var _ app.ErasureRepository = (*Repository)(nil)
 // log, rate-limit and replay rows that expire on their own (app.ErasureExceptions).
 func (r *Repository) EraseSubscriber(ctx context.Context, e *app.SubscriberErasure) error {
 	return inTx(ctx, r.pool, func(tx pgx.Tx) error {
+		// The requesting session is locked and re-checked first: a concurrent
+		// deletion, rotation or revocation since the caller read it means this
+		// request erases nothing (app.ErrSessionConflict).
+		var subscriber, tokenHash string
+		var revoked bool
+		var expiresAt time.Time
+		err := tx.QueryRow(ctx, `
+			SELECT subscriber_id, refresh_token_hash, is_revoked, expires_at FROM identity_sessions
+			WHERE session_id = $1 FOR UPDATE`, e.RequestingSessionID).Scan(&subscriber, &tokenHash, &revoked, &expiresAt)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrSessionConflict
+		}
+		if err != nil {
+			return fmt.Errorf("pgstore: locking the requesting session: %w", err)
+		}
+		if revoked || subscriber != e.SubscriberID || !time.Now().Before(expiresAt) ||
+			subtle.ConstantTimeCompare([]byte(tokenHash), []byte(e.RequestingRefreshTokenHash)) != 1 {
+			return app.ErrSessionConflict
+		}
 		// The device ids must be read before the sessions that name them go.
 		if _, err := tx.Exec(ctx, `
 			DELETE FROM identity_device_attestations WHERE device_id IN (

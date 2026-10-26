@@ -490,10 +490,14 @@ func TestE2E_IdentityTokenAdmittedByEdgeThroughTheRealLifecycle(t *testing.T) {
 	if code != 200 || body["tokenType"] != "DPoP" || token == "" {
 		t.Fatalf("enrolment: %d (token issued: %v)", code, token != "")
 	}
+	sessionID, _ := body["sessionId"].(string)
+	refreshToken, _ := body["refreshToken"].(string)
 	jkt, _ := accesstoken.ThumbprintP256(&device.PublicKey)
 	var tokClaims struct {
 		Sub string `json:"sub"`
 		JTI string `json:"jti"`
+		IAT int64  `json:"iat"`
+		EXP int64  `json:"exp"`
 		Cnf struct {
 			JKT string `json:"jkt"`
 		} `json:"cnf"`
@@ -567,6 +571,30 @@ func TestE2E_IdentityTokenAdmittedByEdgeThroughTheRealLifecycle(t *testing.T) {
 	}
 	wantRefused("/v1/me replayed proof", edgeGet(t, edgeBase, httpapi.MePath, meHdr), 401, "ERR_INVALID_DPOP_PROOF", "invalid_dpop_proof")
 	wantRefused("/v1/me without credentials", edgeGet(t, edgeBase, httpapi.MePath, nil), 401, "ERR_UNAUTHENTICATED", "")
+
+	// 6c. ACCOUNT DELETION AND THE ACCESS TOKEN ALREADY ISSUED. identity
+	// erases the account (POST /v1/account/delete, its URL derived from the
+	// refresh URL's origin), and the session can no longer be refreshed. But
+	// edge-api never consults sessions (ADR-0029): an access token issued
+	// before the erasure is still ADMITTED until it expires. This asserts that
+	// residual window as it is, and that it is bounded by the token's lifetime
+	// (at most 15 minutes): docs/phase19/ACCOUNT-DELETION.md states it.
+	deleteURL := strings.TrimSuffix(e2eRefreshURL, "/v1/token/refresh") + "/v1/account/delete"
+	delBody := fmt.Sprintf(`{"sessionId":%q,"refreshToken":%q}`, sessionID, refreshToken)
+	if code, body := postJSON(t, idBase+"/v1/account/delete", delBody, proof(t, device, "POST", deleteURL, "")); code != http.StatusNoContent {
+		t.Fatalf("account deletion: %d %v", code, body)
+	}
+	if code, _ := postJSON(t, idBase+"/v1/token/refresh", delBody, proof(t, device, "POST", e2eRefreshURL, "")); code != http.StatusUnauthorized {
+		t.Errorf("refresh of the erased session: %d, want 401", code)
+	}
+	if lifetime := tokClaims.EXP - tokClaims.IAT; lifetime <= 0 || lifetime > 15*60 {
+		t.Errorf("access token lifetime %ds, want at most 900s: the residual window after deletion", lifetime)
+	}
+	afterProof := proof(t, device, "GET", e2eOrigin+httpapi.MePath, token)
+	if r := edgeGet(t, edgeBase, httpapi.MePath, map[string]string{"Authorization": "DPoP " + token, "DPoP": afterProof}); r.code != 200 || r.body["subject"] != tokClaims.Sub {
+		t.Errorf("after deletion, the unexpired access token: %d %s; this test pins the documented residual window "+
+			"(if edge-api now refuses it, update ACCOUNT-DELETION.md and this assertion)", r.code, r.raw)
+	}
 
 	// 7. Shutdown with an authenticated request IN FLIGHT.
 	type result struct {

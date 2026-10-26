@@ -878,8 +878,9 @@ type SecurityEvent struct {
 	RequestID string
 	// LockedUntil is set on EventOtpLockout only.
 	LockedUntil time.Time
-	// SessionID is set on EventRefreshTokenReused only: the revoked session's
-	// own random identifier (sess_…), which references nobody.
+	// SessionID is set on EventRefreshTokenReused (the revoked session) and
+	// EventAccountDeleted (the session that requested the erasure): a random
+	// identifier (sess_…) that references nobody once the session is gone.
 	SessionID string
 }
 

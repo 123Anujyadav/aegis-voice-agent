@@ -1,6 +1,6 @@
 # External dependencies and owner decisions: tracker
 
-- **As of:** 2026-10-25, `main` at `e89ae2d`.
+- **As of:** 2026-10-25, `main` at `e89ae2d`; account-deletion rows (E10, O9–O16) added 2026-10-26 at `ff96fea`.
 - **Credentials and costs, per service:** [CREDENTIALS-AND-ACCOUNTS.md](CREDENTIALS-AND-ACCOUNTS.md).
 - **What it lists:** everything authentication and identity work is waiting
   on that the repository cannot supply itself. None of it blocks the other
@@ -22,7 +22,8 @@
 | E6 | **Trusted-proxy model:** how the ALB sets `X-Forwarded-For`, and which hops are trusted | SRE | Rate limiting per source address (ADR-0010 §10) | Nothing. **Forwarding headers are not trusted anywhere.** | Document the ALB topology and the number of trusted hops. Only then can per-source limits be designed. |
 | E7 | **FCM project and credentials** | Owner | Notifying the prior device on re-enrolment (SIM-swap review §4) | `FcmPushDispatcher` interface and mock only | Create the project, then provision credentials as a Secret |
 | E8 | **External cryptographic review / penetration test** of `accesstoken`, `dpop` and the refresh path | Owner (spend) | Treating production issuance as reviewed | One in-process independent review (ADR-0029 §6). Tests are not proof of security. | Commission it |
-| E9 | **Privacy review** (DPDP Act) | Owner | Device-history retention R and audit attribution (SIM-swap review §2–§3) | — | Set R, and decide how audit records are attributed |
+| E9 | **Privacy review** (DPDP Act) | Owner | Device-history retention R and audit attribution (SIM-swap review §2–§3); **the erasure record's and audit log's retention (O10, O11)** | — | Set R, and decide how audit records are attributed. Add `ACCOUNT-DELETION.md` §5 D1–D3 to the brief. |
+| E10 | **Public web deletion page:** a domain, static hosting and TLS; the Play Console "Delete account URL"; a privacy policy URL; optionally a bot challenge | Owner | Play's web deletion requirement (`ACCOUNT-DELETION.md` §3) | An implementation-ready plan (§3: API, page states, accessibility, monitoring, tests with the fake sender). No page, no CORS, no deletion-code endpoint yet. | Choose the domain and host (cost unverified), decide O13, and complete E2 including a **deletion** DLT template. Nothing is published from this repository. |
 
 ## 2. Owner decisions
 
@@ -36,6 +37,14 @@
 | O6 | Device-history retention R | SIM-swap review §2 | Choose after the privacy review (E9) |
 | O7 | Ratify ADR-0031 (Play Integrity at issuance: request binding, header, tier recording) | `docs/adr/0031-play-integrity-at-issuance.md` | Ratify. It carries out the accepted ADR-0010 §5(b) and changes no permission. |
 | O8 | What a `restricted` (and `unverified`) session may do | ADR-0010 §5(b); ADR-0031 D31.5 | A product decision. Until it is made, the tier is recorded and audited, never enforced. |
+| O9 | May an erased number sign up again? (D1; the code conflicts with INV-ID-7) | `ACCOUNT-DELETION.md` §5 D1 | Allow (current); amend INV-ID-7 to tombstone the subscriber **id**, reached through random ids (O2) |
+| O10 | The erasure record's content and retention (D2) | §5 D2 | Keep the content; set an end date **on legal advice** (E9) |
+| O11 | A concrete period for the audit log's LEGAL_HOLD (D3) | §5 D3 | Ask legal; a period needs an ADR-0012 amendment |
+| O12 | Step-up before deletion (D4) | §5 D4 | No SMS step-up; optionally the phone's screen-lock check |
+| O13 | Web deletion approach (D5) | §5 D5, §3 | Self-service OTP, plus support for a lost number |
+| O14 | Device-attestation retention (D6) | §5 D6 | Delete once no session uses the key, plus a margin; before E1 is wired |
+| O15 | Immediate deletion or a grace period (D7) | §5 D7 | Immediate while identity holds no user content |
+| O16 | UX spec A53d "type the last four digits" (D8) | §5 D8 | Amend A53d to the explicit confirmation |
 
 ## 3. Engineering work that is ready once each item lands
 
@@ -46,5 +55,8 @@
 | O6 / E9 | The device-history table, and re-enrolment detection that survives housekeeping |
 | E6 | The design for per-source rate limiting |
 | O1 (if `client_id` is chosen) | The two-step `client_id` rollout (ADR-0029 analysis §5) |
+| O13 + E2 + E10 | The web deletion endpoints, migration `0009` and the page (`ACCOUNT-DELETION.md` §3); its server side can be built and tested with the fake sender before E2/E10 land |
+| O14 | Attestation housekeeping (D6) |
+| O12 (if screen lock is chosen) | `BiometricPrompt` with device credential before the deletion confirmation |
 
 **No longer waiting:** per-session issued-hash history for refresh reuse was listed here behind D30.2. It is **implemented**: migration `0007_superseded_refresh_tokens`, refresh analysis §3. It did not need D30.2, because a history row never outlives its 24-hour session. It is tested in `services/go/identity/internal/app/refresh_reuse_test.go`, including `TestRefreshReuse_ATokenNeverHeldRevokesNothing`.

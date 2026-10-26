@@ -48,6 +48,13 @@ import (
 // proof from the same device key: the erasure leaves a receipt for that until
 // the session would have expired, then housekeeping deletes it.
 //
+// The checks are made twice: first on the session as read, then again by the
+// repository INSIDE the erasure transaction, on the locked requesting session
+// (current refresh token, unrevoked, unexpired). A request that lost a race
+// (a concurrent deletion of the same session, a concurrent rotation or
+// revocation) erases nothing; it is answered from the receipt, so two
+// concurrent deletions of one session record one erasure and both succeed.
+//
 // NOT DONE, because nothing exists yet: clearing carrier forwarding before the
 // erasure (P-ID-4), and erasure in other contexts' stores.
 
@@ -76,9 +83,14 @@ type SubscriberErasure struct {
 	// RequestingSessionID and DeviceKeyThumbprint form the receipt that
 	// answers a repeated request; ReceiptExpiresAt is when it may go.
 	RequestingSessionID string
-	DeviceKeyThumbprint string
-	ReceiptExpiresAt    time.Time
-	Exceptions          []string
+	// RequestingRefreshTokenHash is the hash of the refresh token the request
+	// presented. The repository erases only if the requesting session still
+	// holds it, unrevoked and unexpired, and belongs to SubscriberID;
+	// otherwise it changes nothing and returns ErrSessionConflict.
+	RequestingRefreshTokenHash string
+	DeviceKeyThumbprint        string
+	ReceiptExpiresAt           time.Time
+	Exceptions                 []string
 }
 
 // ErasureRepository is the storage of account erasure. The pgstore and
@@ -86,7 +98,9 @@ type SubscriberErasure struct {
 type ErasureRepository interface {
 	// EraseSubscriber deletes everything identity holds for e.SubscriberID
 	// (see the package documentation of erasure above), records the erasure
-	// and its receipt, all in one transaction: all or nothing.
+	// and its receipt, all in one transaction: all or nothing. It first locks
+	// the requesting session and re-checks it (see RequestingRefreshTokenHash);
+	// if that fails it returns ErrSessionConflict and changes nothing.
 	EraseSubscriber(ctx context.Context, e *SubscriberErasure) error
 	// ErasureReceipt returns the device key thumbprint of an erased session's
 	// receipt, and false if there is none (never erased, or expired).
@@ -149,14 +163,21 @@ func (s *IdentityService) DeleteAccountWithDeviceProof(ctx context.Context, sess
 	}
 
 	now := time.Now()
-	if err := repo.EraseSubscriber(ctx, &SubscriberErasure{
-		SubscriberID:        session.SubscriberID,
-		RequestedAt:         now,
-		RequestingSessionID: session.SessionID,
-		DeviceKeyThumbprint: session.DeviceKeyThumbprint,
-		ReceiptExpiresAt:    session.ExpiresAt,
-		Exceptions:          ErasureExceptions,
-	}); err != nil {
+	err = repo.EraseSubscriber(ctx, &SubscriberErasure{
+		SubscriberID:               session.SubscriberID,
+		RequestedAt:                now,
+		RequestingSessionID:        session.SessionID,
+		RequestingRefreshTokenHash: session.RefreshTokenHash,
+		DeviceKeyThumbprint:        session.DeviceKeyThumbprint,
+		ReceiptExpiresAt:           session.ExpiresAt,
+		Exceptions:                 ErasureExceptions,
+	})
+	if errors.Is(err, ErrSessionConflict) {
+		// The session changed after it was read. If a concurrent request by
+		// this key erased it, this one is answered as that one was.
+		return receiptAnswer(ctx, repo, sessionID, verified.JKT)
+	}
+	if err != nil {
 		return err
 	}
 	s.audit(SecurityEvent{Type: EventAccountDeleted, At: now, SessionID: session.SessionID})
@@ -181,6 +202,20 @@ func (s *IdentityService) repeatedDeletion(ctx context.Context, repo ErasureRepo
 		return err
 	}
 	if verified.JKT != thumbprint {
+		return ErrInvalidToken
+	}
+	return nil
+}
+
+// receiptAnswer answers a request whose proof was already verified (by key
+// jkt) but whose session changed before it could be erased: a success only if
+// the session was erased with a receipt for the same key.
+func receiptAnswer(ctx context.Context, repo ErasureRepository, sessionID, jkt string) error {
+	thumbprint, found, err := repo.ErasureReceipt(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if !found || thumbprint != jkt {
 		return ErrInvalidToken
 	}
 	return nil
