@@ -16,6 +16,15 @@
 #   CS_UPLOAD_KEY_ALIAS                the key's alias (not sensitive)
 #   CS_UPLOAD_KEY_PASSWORD             the key's password
 #
+# The public endpoint configuration (NOT secrets; the release workflow reads
+# them from the play-release Environment's variables). A release must carry
+# all four, or the build fails naming each one (build-logic ReleaseEndpoints):
+# without them the app stops at sign-in and connects unpinned.
+#   CS_IDENTITY_BASE_URL, CS_EDGE_API_BASE_URL   https origins
+#   CS_IDENTITY_CERT_PINS, CS_EDGE_API_CERT_PINS  two or more sha256/ pins each
+#   CS_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER        optional (unset: no integrity
+#                                                 tokens; sessions are unverified)
+#
 # Output: app/build/outputs/bundle/release/app-release.aab (relative to
 # android/), its SHA-256, and the signer certificate's SHA-256 fingerprint
 # (public). The keystore is written only to a private temporary directory and
@@ -59,8 +68,18 @@ if [ -z "$expected" ]; then
   exit 1
 fi
 
+# Passed as Gradle properties, each as one quoted argument; the build checks
+# them (ReleaseEndpoints and the app's own patterns) before anything is built.
+endpoint_args=(
+  "-Pcallscreen.requireReleaseEndpoints=true"
+  "-Pcallscreen.identityBaseUrl=${CS_IDENTITY_BASE_URL:-}"
+  "-Pcallscreen.edgeApiBaseUrl=${CS_EDGE_API_BASE_URL:-}"
+  "-Pcallscreen.identityCertPins=${CS_IDENTITY_CERT_PINS:-}"
+  "-Pcallscreen.edgeApiCertPins=${CS_EDGE_API_CERT_PINS:-}"
+  "-Pcallscreen.playIntegrityCloudProjectNumber=${CS_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER:-}"
+)
 echo "== building the release bundle (versionCode $CS_VERSION_CODE, versionName $CS_VERSION_NAME)"
-(cd "$repo_root/android" && CS_UPLOAD_KEYSTORE_FILE="$keystore" ./gradlew --no-daemon --stacktrace :app:bundleRelease)
+(cd "$repo_root/android" && CS_UPLOAD_KEYSTORE_FILE="$keystore" ./gradlew --no-daemon --stacktrace "${endpoint_args[@]}" :app:bundleRelease)
 
 bundle="$repo_root/android/app/build/outputs/bundle/release/app-release.aab"
 if [ ! -s "$bundle" ]; then

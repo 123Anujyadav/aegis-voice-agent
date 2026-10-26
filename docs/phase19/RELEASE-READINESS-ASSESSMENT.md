@@ -164,8 +164,9 @@ The decision is the owner's.
 - **What it needs from the owner:**
   1. an upload key (generated offline);
   2. the `play-release` Environment's protection (required reviewers);
-  3. the four secrets below.
-- **Until then:** it fails at its first check, naming the missing secrets, and builds nothing.
+  3. the four secrets below;
+  4. **the release's public endpoint configuration (#194):** the Environment **variables** `CALLSCREEN_IDENTITY_BASE_URL`, `CALLSCREEN_EDGE_API_BASE_URL`, `CALLSCREEN_IDENTITY_CERT_PINS`, `CALLSCREEN_EDGE_API_CERT_PINS`, and optionally `CALLSCREEN_PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER`. They are public values, not secrets.
+- **Until then:** it fails at its first check, naming the missing secrets, and builds nothing. With the secrets but without the four endpoint variables, the build fails naming each one (`ReleaseEndpoints`). Before #194, a release built with no hosts would have shipped an app that stops at phone verification ("Sign-in is not available in this build"), with nothing behind it reachable, and unpinned.
 
 **How the keys relate** ([Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756)):
 - The **app signing key** is held by Google. It signs the APKs delivered to users, and new apps are enrolled by default.
@@ -229,7 +230,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 | No test accepted an exactly-64-character `CS_VERSION_NAME` | **Resolved** by #150 (squash `ee08c0a`, head `feb45d9`) | `nameLengthBoundsAreInclusive()` accepts names of exactly 1 and 64 characters, and the 0- and 65-character rejections are unchanged. The `pr-android` job 120907314040 log lists `ReleaseVersionTest > nameLengthBoundsAreInclusive() PASSED`. Post-merge `main` `ee08c0a`: 9/9 green. |
 | Stale `android.suppressUnsupportedCompileSdk=35` in `android/gradle.properties` | **Resolved** by #151 (squash `0208a88`, head `e4f2c49`) | The block is removed, and nothing else references the property. The `pr-android` job 120915500024 log has no compileSdk warning, and `:app:minifyStagingWithR8` ran. |
 
-## 8. Google Play launch checklist (as of 2026-10-26, `main` `ff96fea`)
+## 8. Google Play launch checklist (as of 2026-10-26, `main` `93fe2cb`; roadmap counts in `ROADMAP-INVENTORY.md`)
 
 **Not claimed: Play readiness.** Each line is open unless it says done, and each cites its evidence. Nothing has been submitted to Play Console and nothing has been published.
 
@@ -239,6 +240,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 |---|---|---|
 | Target API 36; R8 release and staging builds; upload-key signing; version validation | **Done** | #145–#148, #154 (§1, §6) |
 | `INTERNET` declared; release permission set pinned in CI | **Done** | #187; `android/app/release-permissions.txt` |
+| A release cannot be built without its endpoint configuration (identity and edge-api origins, two pins each) | **Done (#194)**; `pr-android` proves both the passing and the failing path | build-logic `ReleaseEndpoints`; §6 |
 | In-app account deletion (server and app) | **Done**; security-reviewed, with three defects fixed (#191) | `ACCOUNT-DELETION.md` §2, §2a, §4 |
 | Web deletion server flow | **Done, dormant (#193):** endpoints, migration `0009`, and tests including end to end on PostgreSQL. Answers 503 until a deletion-code sender and a budget are configured; production has neither. | `ACCOUNT-DELETION.md` §3.0 |
 | Web deletion page | **Blocked:** no web stack or static hosting exists (`web/` is reserved for the admin console; the frontend stack is an owner decision), plus E10 | `ACCOUNT-DELETION.md` §3.0 |
@@ -264,7 +266,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 | Item | Evidence |
 |---|---|
 | SMS/OTP provider and India DLT, **including a deletion template** (E2). Nobody can enrol without it. | `otpdelivery.go`; `ACCOUNT-DELETION.md` §3.5 |
-| Identity and edge-api hosts, deployed with migrations through `0008`; certificate pins | §7 |
+| Identity and edge-api hosts, deployed with migrations through `0009`; certificate pins; and the release workflow's endpoint variables (§6) | §7 |
 | A domain and hosting for the web deletion page, and the privacy policy URL (E10) | `ACCOUNT-DELETION.md` §3.3 |
 | Play Integrity: the Cloud project number (client) and the verifier's credential (server) | §7 |
 | FCM (only if notifications ship) | §7 |
@@ -282,7 +284,7 @@ Re-verified against the repository on 2026-10-24, last at `main` `0208a88`.
 
 | Item | Evidence or input |
 |---|---|
-| Developer account, app entry, Play App Signing, upload key into the `play-release` Environment | §6 |
+| Developer account, app entry, Play App Signing, upload key into the `play-release` Environment, and its endpoint variables | §6 |
 | Data safety form | Inputs: `ANDROID-DATA-INVENTORY.md` §6 Q2–Q5 (owner confirms) |
 | Delete-account URL | Needs E10 |
 | Privacy policy URL | Needs the policy (8.2) and hosting |
