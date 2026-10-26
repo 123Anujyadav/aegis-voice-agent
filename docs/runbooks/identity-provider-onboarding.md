@@ -31,7 +31,11 @@
    - the business registered as a Principal Entity on a DLT platform;
    - its **sender id (header)** registered;
    - the **OTP message template** registered as content, with the code as its
-     variable.
+     variable;
+   - a **second template for account-deletion codes**
+     (`docs/phase19/ACCOUNT-DELETION.md` §3.1), registered the same way, if
+     web deletion will be enabled (O13). A deletion message is a different
+     template, and an unregistered one is blocked.
 
    Messages that do not match a registered template are blocked by carriers.
    The exact registration steps belong to the chosen DLT operator and provider;
@@ -50,6 +54,12 @@
 - **Map the provider's errors** to a plain error: their text may echo the number.
 - **Build the sender in `cmd/server`** with `Observe` wired to the metrics, and
   set it with `SetOtpSender`. Until this is done, nothing changes.
+- **Web deletion (#193), separately:** implement `app.DeletionCodeSender` for
+  the deletion template, set it with `SetDeletionCodeSender`, and wire an hourly
+  budget (`SetDeletionCodeBudget`; the value is the owner's or SRE's). Without
+  both, `/v1/account/deletion/*` answers 503 for every number.
+- **The owner's ordered setup checklist** for internal testing is
+  `docs/phase19/INTERNAL-TESTING-SETUP.md` (step A).
 
 **Before claiming delivery works:** a live test from a staging environment to a
 real handset on each provider, including the failover path.

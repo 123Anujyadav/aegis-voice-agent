@@ -34,7 +34,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 
 - **Current phase:** Phase 19, the release programme (`docs/phase19/`). **67 PRs have been merged in it:** #123–#181 and #186–#193, from `git log d764117..93fe2cb`.
 - **Completion criteria:** none defined (conflict 3).
-- **Proposed criteria, NOT approved (OD-10):** Phase 19 is complete when:
+- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-10-26: no document records an approval, and this section is the only place they are written. Phase 19 is complete when:
   - a Play **internal-testing** release can be built by `release-android.yml` from a protected Environment;
   - testers can sign in and use on-device screening against deployed staging hosts;
   - every §4.1 internal-testing item is done.
@@ -93,7 +93,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 | OD-8 | The frontend stack (also blocks C1) | Readiness §4, §7 |
 | OD-9 | Workload identity federation approval for the verifier (memo §12 B1) | Readiness §7; Play Integrity memo §12 |
 | OD-10 | Phase 19 completion criteria (§2) | This inventory, conflict 3 |
-| OD-11 | The F14 banner's first sentence, "Another app is now screening your calls", is a UX-spec text the app cannot verify, and it is false when the subscriber simply turned screening off. Recommended: amend F14 to a sentence true in both cases, for example "This app is no longer screening your calls." | Validation doc §4.3 (#195) |
+| OD-11 | The F14 banner's first sentence, "Another app is now screening your calls", is a UX-spec text the app cannot verify, and it is false when the subscriber simply turned screening off. **Proposed amendment in Appendix A (not applied, awaiting your OK).** | Validation doc §4.3 (#195) |
 
 ### 3.4 Privacy and legal review: 6 pending
 
@@ -146,6 +146,8 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 
 ### 4.1 Play internal testing (the next milestone)
 
+**The owner's step-by-step checklist, in dependency order, is `INTERNAL-TESTING-SETUP.md`.**
+
 For a release that testers can actually use: sign in, then set up screening. The milestone needs:
 - **Code:** nothing more is required.
   - The release path is complete and tested: signing, version validation, and, since #194, the refusal to build without hosts and pins.
@@ -183,3 +185,37 @@ Everything in §4.1, plus:
 3. **OD-10:** approve Phase 19's completion criteria (§2), so that "done" is defined.
 
 Nothing else is needed before internal testing. D1–D9 and the other owner decisions can wait for production. **No testing task is unblocked any more** (T1 is done, #195). Every remaining test needs a physical device, live hosts or an external account.
+
+## Appendix A. OD-11: proposed amendment to the F14 banner (NOT applied)
+
+**The problem:**
+- The A75 banner's first sentence, "Another app is now screening your calls.", is in `docs/ux/android/06-screens-onboarding-auth-permissions.md` (A75) and `08-user-flows.md` (F14).
+- The app shows the banner whenever it held the call screening role and no longer does. That happens in **two** cases:
+  - another app took the role;
+  - **the subscriber turned screening off, and no app holds it.**
+- **An app cannot tell which:** `RoleManager.getRoleHolders` is a system API.
+- So in the second case the sentence is **false**. Both cases are reproduced on the Android 15 emulator by `ScreeningStateAcrossScreensTest` (#195).
+
+**Assessment of the first proposal, "This app is no longer screening your calls.": NOT recommended.**
+- F14 itself says that when the role is lost, "forwarding-based screening CONTINUES to work — only the free on-device pre-filter is lost. **The copy says which.**"
+- That sentence would claim **all** screening stopped, which is untrue once forwarding exists, and it does not say which part stopped.
+
+**Recommended wording:** "On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back."
+- It is true in both cases;
+- it names exactly what is lost;
+- it matches the app's existing wording for the same state: the blocklist's "Blocking is off." and setup complete's "On-device blocking is off.";
+- the second sentence and the "Switch back" action are unchanged.
+
+**The exact change, ready to apply on your OK:**
+1. **`06-screens-onboarding-auth-permissions.md`, A75:**
+   - The trigger becomes "The app no longer holds the call screening role: another app took it, or the subscriber turned it off (Android does not tell an app which)."
+   - **Copy** becomes "On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back."
+2. **`08-user-flows.md`, F14:** the first box becomes "This app loses ROLE_CALL_SCREENING (another app takes it, or the subscriber turns it off)", and the banner text matches 1.
+3. **`android/feature/calls/.../ScreeningRoleBanner.kt`:** `ScreeningRoleBannerCopy.LOST` becomes the new text. `ScreeningRoleBannerCopyTest`, which reads the spec, then holds code and spec together unchanged.
+4. **`ScreeningRoleStatesTest`:** its banner string becomes "On-device blocking is off." The other device tests already assert only the unchanged second sentence.
+
+**Governance:**
+- `UX_FREEZE.md` §1 lists **copy wording as NOT frozen**.
+- Its §7 lets engineering change unfrozen items, with `docs/ux/` updated in the same PR.
+- `UX_FREEZE.md` itself is still "PROPOSED — awaiting approval".
+- So the repository's rules would permit this change without sign-off. **It is held for your explicit OK only because you asked to approve it.** No invariant is affected: the change makes the screen more truthful, not less.

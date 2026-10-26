@@ -142,6 +142,8 @@ The decision is the owner's.
 
 ## 5. Shortest path to a first Play internal-testing release
 
+**Superseded by the ordered owner checklist `INTERNAL-TESTING-SETUP.md` (2026-10-26).** The list below is kept as history.
+
 1. #145 (R8), #146 (app wiring), #147 (API 36) and #148 (version validation) are merged.
 2. **Owner/SRE:** choose the identity and edge hosts, and deploy staging.
 3. **Owner:** set up the Play Console account and app, the upload key (held
