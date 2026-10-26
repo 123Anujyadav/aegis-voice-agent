@@ -77,6 +77,30 @@ class IdentityLiveContractTest {
         assertEquals(IdentityResult.Failure(IdentityError.SessionEnded), client.refresh(sessionId, refreshed.refreshToken))
     }
 
+    @Test
+    @DisplayName("account deletion: only the enrolled key deletes, a retry is confirmed, and the session is gone")
+    fun accountDeletion() {
+        val device = DpopProofFactory(SoftwareProofKey())
+        val client = IdentityClient(baseUrl, DeviceProofs { method, htu -> device.proof(method, htu) }, httpClient = http)
+        val before = otpCodes().size
+        val challenge = success(client.requestOtp(DELETION_MSISDN))
+        val enrolled = success(client.enrol(challenge.requestId, otpFromServer(after = before)))
+        val sessionId = requireNotNull(enrolled.sessionId) { "enrolment returned no session" }
+
+        // Another key cannot delete the account, and its attempt erases nothing.
+        val other = DpopProofFactory(SoftwareProofKey())
+        val thief = IdentityClient(baseUrl, DeviceProofs { method, htu -> other.proof(method, htu) }, httpClient = http)
+        assertEquals(IdentityResult.Failure(IdentityError.InvalidDeviceProof), thief.deleteAccount(sessionId, enrolled.refreshToken))
+        val current = success(client.refresh(sessionId, enrolled.refreshToken))
+
+        assertEquals(IdentityResult.Success(Unit), client.deleteAccount(sessionId, current.refreshToken))
+        // A client that lost the answer retries and is told it is done; another key is not.
+        assertEquals(IdentityResult.Success(Unit), client.deleteAccount(sessionId, current.refreshToken))
+        assertEquals(IdentityResult.Failure(IdentityError.SessionEnded), thief.deleteAccount(sessionId, current.refreshToken))
+        // The session no longer exists.
+        assertEquals(IdentityResult.Failure(IdentityError.SessionEnded), client.refresh(sessionId, current.refreshToken))
+    }
+
     /** Every code the server's test OTP sender has written so far, in order. */
     private fun otpCodes(): List<String> =
         otpFile.takeIf { it.isFile }?.readLines()?.filter { it.startsWith(OTP_PREFIX) }?.map { it.removePrefix(OTP_PREFIX).trim() }
@@ -103,6 +127,9 @@ class IdentityLiveContractTest {
     private companion object {
         /** A syntactically valid E.164 number; nothing is sent to it. */
         const val MSISDN = "+919000000001"
+
+        /** Its own number, so its OTP rate limit is not shared with the lifecycle test. */
+        const val DELETION_MSISDN = "+919000000002"
         const val OTP_PREFIX = "E2E-OTP "
 
         fun wrong(code: String): String = code.map { if (it == '9') '0' else it + 1 }.joinToString("")

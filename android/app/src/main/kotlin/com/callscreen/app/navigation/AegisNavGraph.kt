@@ -34,6 +34,7 @@ import com.callscreen.feature.protection.ProtectionDashboardScreen
 import com.callscreen.feature.screening.EmergencyDetectionScreen
 import com.callscreen.feature.screening.FraudWarningScreen
 import com.callscreen.feature.screening.LiveAiScreeningScreen
+import com.callscreen.feature.settings.AccountDeletionRoute
 import com.callscreen.feature.settings.TaskCenterRoute
 import com.callscreen.feature.summary.ConversationMemoryScreen
 import com.callscreen.feature.summary.PostCallSummaryScreen
@@ -72,6 +73,7 @@ public object AegisDestinations {
     public const val ASSISTANT_HOME: String = "assistant_home"
     public const val VOICE_SETUP: String = "voice_setup"
     public const val TASK_CENTER: String = "task_center"
+    public const val ACCOUNT_DELETION: String = "account_deletion"
     public const val VOICE_CONVERSATION: String = "voice_conversation"
     public const val CONVERSATION_MEMORY: String = "conversation_memory"
     public const val BUSINESS_RECEPTIONIST_CONFIG: String = "business_receptionist_config"
@@ -185,7 +187,18 @@ public fun AegisNavGraph(
             VoiceSetupScreen(onSaveVoiceClick = { navController.popBackStack() })
         }
         composable(AegisDestinations.TASK_CENTER) {
-            TaskCenterRoute()
+            TaskCenterRoute(onDeleteAccountClick = { navController.navigate(AegisDestinations.ACCOUNT_DELETION) })
+        }
+        composable(AegisDestinations.ACCOUNT_DELETION) {
+            AccountDeletionRoute(
+                // The account is gone: nothing behind this screen applies any more.
+                onDeleted = {
+                    navController.navigate(AegisDestinations.WELCOME) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(AegisDestinations.VOICE_CONVERSATION) {
             VoiceConversationScreen(onEndSessionClick = { navController.popBackStack() })

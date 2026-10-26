@@ -27,7 +27,7 @@ import okhttp3.Response
  * - **The proof's htu** is [baseUrl] plus the route. In production that is
  *   identity's configured canonical URL (`CS_IDENTITY_ENROLLMENT_CANONICAL_URL`,
  *   `CS_IDENTITY_REFRESH_CANONICAL_URL`), which the app must be configured to
- *   match exactly.
+ *   match exactly. Deletion's is the refresh URL's origin plus its route.
  */
 public class IdentityClient(
     baseUrl: String,
@@ -87,6 +87,21 @@ public class IdentityClient(
         }
     }
 
+    /**
+     * Deletes the account of [sessionId]'s subscriber, on every device
+     * (docs/phase19/ACCOUNT-DELETION.md). Authenticated as a refresh is: the
+     * current [refreshToken] and a proof by the enrolled key. Success only on
+     * the server's 204. A retry after a lost answer is answered 204 again.
+     * No integrity token is sent: deletion does not use one.
+     */
+    public fun deleteAccount(sessionId: String, refreshToken: String): IdentityResult<Unit> {
+        if (!IdentityInput.sessionId(sessionId) || !IdentityInput.refreshToken(refreshToken)) return IdentityResult.Failure(IdentityError.InvalidInput)
+        val proof = proofs.proof(METHOD, origin + IdentityRoutes.ACCOUNT_DELETION)
+        return call(IdentityRoutes.ACCOUNT_DELETION, json.encodeToString(RefreshBody.serializer(), RefreshBody(sessionId, refreshToken)), proof) { status, _ ->
+            if (status == 204) Unit else null
+        }
+    }
+
     private fun tokens(access: String, type: String, expiresIn: Long, refresh: String): IssuedTokens? =
         if (access.isEmpty() || type != "DPoP" || expiresIn <= 0 || !IdentityInput.refreshToken(refresh)) {
             null
@@ -108,6 +123,7 @@ public class IdentityClient(
      */
     private fun integrityDue(route: String): Boolean {
         if (route == IdentityRoutes.ENROLMENT) return true
+        if (route == IdentityRoutes.ACCOUNT_DELETION) return false
         val last = lastIntegrityAttempt ?: return true
         val now = nowSeconds()
         return now < last || now - last >= refreshIntegrityIntervalSeconds
@@ -150,6 +166,8 @@ public class IdentityClient(
             val retryAfter = response.header("Retry-After")?.trim()?.toLongOrNull()?.takeIf { it >= 0 }
             return IdentityResult.Failure(IdentityError.fromProblem(problem.code, response.code, retryAfter))
         }
+        // 204 has no body and no content type; only deletion expects it.
+        if (response.code == 204) return success(204, "")?.let { IdentityResult.Success(it) } ?: IdentityResult.Failure(IdentityError.UnexpectedResponse(204))
         if (type != "application/json") return IdentityResult.Failure(IdentityError.UnexpectedResponse(response.code))
         val value = try {
             success(response.code, text)
