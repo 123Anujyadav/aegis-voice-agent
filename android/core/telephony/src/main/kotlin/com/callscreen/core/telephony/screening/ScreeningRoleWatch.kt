@@ -32,15 +32,22 @@ public class PreferencesFlag(context: Context, private val key: String) : Flag {
  */
 public class ScreeningRoleWatch(private val heldBefore: Flag) {
     /**
+     * Records that this app holds the role, when [status] says so. It must be
+     * called wherever the app can see the role held (each foreground, not only
+     * the Calls feed): a role granted and lost before the feed was ever shown
+     * would otherwise never count as held, and its loss would go unreported.
+     */
+    public fun observe(status: ScreeningRoleStatus) {
+        if (status == ScreeningRoleStatus.HELD && !heldBefore.get()) heldBefore.set()
+    }
+
+    /**
      * Whether the role was lost: this app held it once and does not now. A
      * subscriber who never granted it has nothing to lose; that case is the
      * onboarding prompt's, not this banner's.
      */
     public fun lost(status: ScreeningRoleStatus): Boolean {
-        if (status == ScreeningRoleStatus.HELD) {
-            if (!heldBefore.get()) heldBefore.set()
-            return false
-        }
-        return heldBefore.get()
+        observe(status)
+        return status != ScreeningRoleStatus.HELD && heldBefore.get()
     }
 }

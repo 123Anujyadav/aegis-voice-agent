@@ -8,8 +8,9 @@ import androidx.activity.enableEdgeToEdge
 import com.callscreen.app.navigation.AegisDestinations
 import com.callscreen.app.navigation.AegisNavGraph
 import com.callscreen.core.designsystem.theme.CallScreenTheme
-
-
+import com.callscreen.core.telephony.screening.PreferencesFlag
+import com.callscreen.core.telephony.screening.ScreeningRole
+import com.callscreen.core.telephony.screening.ScreeningRoleWatch
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -24,6 +25,17 @@ public class MainActivity : ComponentActivity() {
                 AegisNavGraph(startDestination = startDestination)
             }
         }
+    }
+
+    /**
+     * F14 needs to know the role was ever held. Recorded on every foreground,
+     * whichever screen is showing: a subscriber who turns blocking on from
+     * Protection and loses the role before opening the Calls feed must still
+     * be warned there.
+     */
+    override fun onResume() {
+        super.onResume()
+        ScreeningRoleWatch(PreferencesFlag(this, PreferencesFlag.HELD_BEFORE)).observe(ScreeningRole.status(this))
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
