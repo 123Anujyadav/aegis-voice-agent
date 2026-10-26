@@ -42,19 +42,20 @@ public fun VoiceConversationScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.padding(top = 24.dp)
             ) {
-                AegisStatusChip(text = "AI Listening...", variant = StatusChipVariant.AIHandled)
+                AegisStatusChip(text = AssistantCopy.NOT_AVAILABLE, variant = StatusChipVariant.Fraud)
                 Text(
-                    text = "Say something to test Aegis response",
+                    text = AssistantCopy.SESSION_UNAVAILABLE + " " + AssistantCopy.NO_MICROPHONE,
                     style = CallScreenTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = CallScreenTheme.colors.content.primary
                 )
             }
 
-            AegisVoiceOrb()
+            // Not listening: the microphone is never used here.
+            AegisVoiceOrb(isListening = false)
 
             AegisEmergencyButton(
-                text = "End Voice Session",
+                text = "Back",
                 onClick = onEndSessionClick,
                 modifier = Modifier.padding(bottom = 24.dp)
             )

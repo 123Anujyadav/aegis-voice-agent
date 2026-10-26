@@ -1,8 +1,10 @@
 package com.callscreen.app.navigation
 
 import androidx.compose.runtime.Composable
+import com.callscreen.BuildConfig
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -32,7 +34,7 @@ import com.callscreen.feature.protection.ProtectionDashboardScreen
 import com.callscreen.feature.screening.EmergencyDetectionScreen
 import com.callscreen.feature.screening.FraudWarningScreen
 import com.callscreen.feature.screening.LiveAiScreeningScreen
-import com.callscreen.feature.settings.TaskCenterScreen
+import com.callscreen.feature.settings.TaskCenterRoute
 import com.callscreen.feature.summary.ConversationMemoryScreen
 import com.callscreen.feature.summary.PostCallSummaryScreen
 import com.callscreen.feature.business.AiReceptionistConfigScreen
@@ -43,7 +45,6 @@ import com.callscreen.feature.business.ConversationTraceReplayScreen
 import com.callscreen.feature.business.AegisOpsDashboardScreen
 import com.callscreen.feature.business.CallRoutingRulesScreen
 import com.callscreen.feature.settings.ConsentVaultScreen
-
 
 public object AegisDestinations {
     public const val SPLASH: String = "splash"
@@ -81,15 +82,35 @@ public object AegisDestinations {
     public const val BUSINESS_OPS_DASHBOARD: String = "business_ops_dashboard"
     public const val BUSINESS_ROUTING_RULES: String = "business_routing_rules"
     public const val CONSENT_VAULT: String = "consent_vault"
+
+    /** Prototype destinations, registered only in debug builds (AegisNavGraph.includeDesignPreviews). */
+    public val DESIGN_PREVIEWS: Set<String> = setOf(
+        INCOMING_CALL,
+        LIVE_SCREENING,
+        POST_CALL_SUMMARY,
+        FRAUD_WARNING,
+        EMERGENCY_ALERT,
+        FRAUD_INTELLIGENCE,
+        FAMILY_SHIELD,
+        CONVERSATION_MEMORY,
+        BUSINESS_RECEPTIONIST_CONFIG,
+        BUSINESS_ROUTING_BUILDER,
+        BUSINESS_AI_OPS_STUDIO,
+        BUSINESS_DASHBOARD,
+        BUSINESS_CONVERSATION_TRACE,
+        BUSINESS_OPS_DASHBOARD,
+        BUSINESS_ROUTING_RULES,
+        CONSENT_VAULT,
+    )
 }
-
-
 
 @Composable
 public fun AegisNavGraph(
     navController: NavHostController = rememberNavController(),
     startDestination: String = AegisDestinations.SPLASH,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Debug builds only: the prototype screens, framed as design previews (see [designPreviews]). */
+    includeDesignPreviews: Boolean = BuildConfig.DEBUG,
 ) {
     NavHost(
         navController = navController,
@@ -137,34 +158,10 @@ public fun AegisNavGraph(
         }
         composable(AegisDestinations.CALLS_FEED) {
             CallsFeedRoute(
-                onCallClick = { navController.navigate(AegisDestinations.POST_CALL_SUMMARY) },
+                // A call's summary is a design preview until call records exist; nothing to open in a release build.
+                onCallClick = { if (includeDesignPreviews) navController.navigate(AegisDestinations.POST_CALL_SUMMARY) },
                 onTabSelected = { tab -> handleTabClick(navController, tab) },
             )
-        }
-        composable(AegisDestinations.INCOMING_CALL) {
-            IncomingCallScreen(
-                onScreenWithAiClick = { navController.navigate(AegisDestinations.LIVE_SCREENING) },
-                onAnswerClick = {},
-                onDeclineClick = { navController.popBackStack() }
-            )
-        }
-        composable(AegisDestinations.LIVE_SCREENING) {
-            LiveAiScreeningScreen(
-                onTakeOverClick = {},
-                onEndCallClick = { navController.navigate(AegisDestinations.POST_CALL_SUMMARY) }
-            )
-        }
-        composable(AegisDestinations.POST_CALL_SUMMARY) {
-            PostCallSummaryScreen(
-                onSaveContactClick = { navController.navigate(AegisDestinations.CALLS_FEED) },
-                onBlockReportClick = { navController.navigate(AegisDestinations.CALLS_FEED) }
-            )
-        }
-        composable(AegisDestinations.FRAUD_WARNING) {
-            FraudWarningScreen(onTerminateAndBlockClick = { navController.navigate(AegisDestinations.CALLS_FEED) })
-        }
-        composable(AegisDestinations.EMERGENCY_ALERT) {
-            EmergencyDetectionScreen(onConnectImmediatelyClick = { navController.navigate(AegisDestinations.CALLS_FEED) })
         }
         composable(AegisDestinations.PROTECTION_DASHBOARD) {
             ProtectionDashboardScreen(
@@ -176,12 +173,7 @@ public fun AegisNavGraph(
         composable(AegisDestinations.CALLER_LIST) {
             CallerListRoute()
         }
-        composable(AegisDestinations.FRAUD_INTELLIGENCE) {
-            FraudIntelligenceScreen()
-        }
-        composable(AegisDestinations.FAMILY_SHIELD) {
-            FamilyShieldScreen()
-        }
+        if (includeDesignPreviews) designPreviews(navController)
         composable(AegisDestinations.ASSISTANT_HOME) {
             AssistantHomeScreen(
                 onVoiceSetupClick = { navController.navigate(AegisDestinations.VOICE_SETUP) },
@@ -193,45 +185,116 @@ public fun AegisNavGraph(
             VoiceSetupScreen(onSaveVoiceClick = { navController.popBackStack() })
         }
         composable(AegisDestinations.TASK_CENTER) {
-            TaskCenterScreen()
+            TaskCenterRoute()
         }
         composable(AegisDestinations.VOICE_CONVERSATION) {
             VoiceConversationScreen(onEndSessionClick = { navController.popBackStack() })
         }
-        composable(AegisDestinations.CONVERSATION_MEMORY) {
+    }
+}
+
+/**
+ * The prototype screens: every value on them is sample data, and none is
+ * backed by an API or stored data (docs/phase19/PROTOTYPE-SCREENS-AUDIT.md).
+ * Nothing in the app navigates to them except one another, so they are
+ * registered only in debug builds, each under a visible "design preview"
+ * label. A release build cannot open them.
+ */
+private fun NavGraphBuilder.designPreviews(navController: NavHostController) {
+    composable(AegisDestinations.INCOMING_CALL) {
+        DesignPreview {
+            IncomingCallScreen(
+                onScreenWithAiClick = { navController.navigate(AegisDestinations.LIVE_SCREENING) },
+                onAnswerClick = {},
+                onDeclineClick = { navController.popBackStack() }
+            )
+        }
+    }
+    composable(AegisDestinations.LIVE_SCREENING) {
+        DesignPreview {
+            LiveAiScreeningScreen(
+                onTakeOverClick = {},
+                onEndCallClick = { navController.navigate(AegisDestinations.POST_CALL_SUMMARY) }
+            )
+        }
+    }
+    composable(AegisDestinations.POST_CALL_SUMMARY) {
+        DesignPreview {
+            PostCallSummaryScreen(
+                onSaveContactClick = { navController.navigate(AegisDestinations.CALLS_FEED) },
+                onBlockReportClick = { navController.navigate(AegisDestinations.CALLS_FEED) }
+            )
+        }
+    }
+    composable(AegisDestinations.FRAUD_WARNING) {
+        DesignPreview {
+            FraudWarningScreen(onTerminateAndBlockClick = { navController.navigate(AegisDestinations.CALLS_FEED) })
+        }
+    }
+    composable(AegisDestinations.EMERGENCY_ALERT) {
+        DesignPreview {
+            EmergencyDetectionScreen(onConnectImmediatelyClick = { navController.navigate(AegisDestinations.CALLS_FEED) })
+        }
+    }
+    composable(AegisDestinations.FRAUD_INTELLIGENCE) {
+        DesignPreview {
+            FraudIntelligenceScreen()
+        }
+    }
+    composable(AegisDestinations.FAMILY_SHIELD) {
+        DesignPreview {
+            FamilyShieldScreen()
+        }
+    }
+    composable(AegisDestinations.CONVERSATION_MEMORY) {
+        DesignPreview {
             ConversationMemoryScreen()
         }
-        composable(AegisDestinations.BUSINESS_RECEPTIONIST_CONFIG) {
+    }
+    composable(AegisDestinations.BUSINESS_RECEPTIONIST_CONFIG) {
+        DesignPreview {
             AiReceptionistConfigScreen(onBackClick = { navController.popBackStack() })
         }
-        composable(AegisDestinations.BUSINESS_ROUTING_BUILDER) {
+    }
+    composable(AegisDestinations.BUSINESS_ROUTING_BUILDER) {
+        DesignPreview {
             CallRoutingBuilderScreen(onBackClick = { navController.popBackStack() })
         }
-        composable(AegisDestinations.BUSINESS_AI_OPS_STUDIO) {
+    }
+    composable(AegisDestinations.BUSINESS_AI_OPS_STUDIO) {
+        DesignPreview {
             AiOpsStudioScreen(onBackClick = { navController.popBackStack() })
         }
-        composable(AegisDestinations.BUSINESS_DASHBOARD) {
+    }
+    composable(AegisDestinations.BUSINESS_DASHBOARD) {
+        DesignPreview {
             BusinessDashboardScreen(
                 onBackClick = { navController.popBackStack() },
                 onConfigureClick = { navController.navigate(AegisDestinations.BUSINESS_RECEPTIONIST_CONFIG) }
             )
         }
-        composable(AegisDestinations.BUSINESS_CONVERSATION_TRACE) {
+    }
+    composable(AegisDestinations.BUSINESS_CONVERSATION_TRACE) {
+        DesignPreview {
             ConversationTraceReplayScreen(onBackClick = { navController.popBackStack() })
         }
-        composable(AegisDestinations.BUSINESS_OPS_DASHBOARD) {
+    }
+    composable(AegisDestinations.BUSINESS_OPS_DASHBOARD) {
+        DesignPreview {
             AegisOpsDashboardScreen(onBackClick = { navController.popBackStack() })
         }
-        composable(AegisDestinations.BUSINESS_ROUTING_RULES) {
+    }
+    composable(AegisDestinations.BUSINESS_ROUTING_RULES) {
+        DesignPreview {
             CallRoutingRulesScreen(onBackClick = { navController.popBackStack() })
         }
-        composable(AegisDestinations.CONSENT_VAULT) {
+    }
+    composable(AegisDestinations.CONSENT_VAULT) {
+        DesignPreview {
             ConsentVaultScreen(onBackClick = { navController.popBackStack() })
         }
     }
 }
-
-
 
 private fun handleTabClick(navController: NavHostController, tab: AegisTab) {
     when (tab) {

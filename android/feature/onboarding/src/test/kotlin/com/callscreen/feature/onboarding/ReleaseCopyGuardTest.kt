@@ -28,6 +28,12 @@ class ReleaseCopyGuardTest {
         "412 reports" to "no threat feed exists",
         "Sarah (Wife)" to "sample call records",
         "without speaking" to "every caller hears the announcement (ADR-0012)",
+        "AI will answer unknown calls on your behalf" to "assistant screening needs forwarding, not available",
+        "AI Listening" to "the microphone is never used",
+        "Audition & Save Voice" to "nothing auditions or saves a voice",
+        "David's Senior Mode" to "a sample person in the Settings tab",
+        "spam telemetry signatures" to "no fraud database is downloaded",
+        "screening this call for Abhik" to "a real person's name in sample text",
     )
 
     @Test

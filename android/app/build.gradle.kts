@@ -104,4 +104,7 @@ dependencies {
 
     // Instrumented tests: the system role and permission dialogs live in another app.
     androidTestImplementation(libs.androidx.test.uiautomator)
+    // Screens rendered on the JVM with Robolectric (provided by callscreen.android.compose).
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.junit4)
 }
