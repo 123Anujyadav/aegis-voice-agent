@@ -111,7 +111,11 @@ class ProtectionListsTest {
         assertEquals("Courier", store.entries(ListType.ALLOW).single().label)
 
         // A33: remove it from the allowed list, then undo within 5 seconds.
+        // The label's keyboard may still be open, and Back would only close it: close it first,
+        // then wait for Protection before opening the other list.
+        Espresso.closeSoftKeyboard()
         Espresso.pressBack()
+        compose.awaitText("Protection Dashboard")
         openList("Allowed numbers")
         compose.onNodeWithText("If you don't answer, your carrier may still forward the call to be screened.").assertExists()
         compose.onNode(hasContentDescription("Courier, $spoken", substring = true)).assertExists()

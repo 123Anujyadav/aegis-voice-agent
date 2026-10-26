@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  core:network provides the app's HTTP client, used for its only server calls:
+  identity (sign-in and token refresh, here) and edge-api (core:auth), over
+  HTTPS, to the hosts set at build time. Android
+  refuses sockets to an app without INTERNET ("socket failed: EPERM"), so the
+  permission is declared here, by the module that uses it. It is a normal
+  permission: no prompt, and it grants network access only.
+
+  Until #187 no module declared it, so every server call failed on a device
+  (NetworkPermissionTest).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>
