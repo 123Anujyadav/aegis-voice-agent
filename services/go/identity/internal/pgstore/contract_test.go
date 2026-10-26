@@ -89,6 +89,7 @@ var contract = []struct {
 	{"VerificationReservationsAndLockout", testVerificationLock},
 	{"SessionRoundTripExpiryAndRevocation", testSessionRoundTrip},
 	{"AccountErasure", testErasure},
+	{"WebAccountErasure", testWebErasure},
 	{"ReplaceSessionIsACompareAndSwap", testReplaceCAS},
 	{"SupersededTokensAreRecordedByTheSwapOnly", testSupersededTokens},
 	{"RevocationCannotBeUndone", testRevocationSticky},

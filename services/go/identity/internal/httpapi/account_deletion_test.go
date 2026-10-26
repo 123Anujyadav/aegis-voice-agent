@@ -51,6 +51,12 @@ func TestHTTP_AccountDeletionRefusals(t *testing.T) {
 	}
 
 	r.svc.SetAccountDeletionProofVerifier(nil)
+	// Re-enrolling the erased number: a sign-in that begins at the erasure's
+	// own clock reading counts as in flight (app.UserSession.ErasureFence),
+	// and a coarse clock (Windows) can give both one reading.
+	for start := time.Now(); !time.Now().After(start); {
+		time.Sleep(time.Millisecond)
+	}
 	sid2, rt2 := r.enrol(t, k)
 	wantProblem(t, r.post(t, routes.AccountDeletion, refreshBody(sid2, rt2), proof(t, k, k, "f", "POST", deleteURL, time.Now())), 503, "ERR_TEMPORARILY_UNAVAILABLE")
 }

@@ -267,9 +267,23 @@ type GuardianDelegation struct {
 	GrantedAt    time.Time `json:"grantedAt"`
 }
 
+// OtpPurpose is what a one-time code may be used for. A code is accepted only
+// for the purpose it was issued for.
+type OtpPurpose string
+
+const (
+	// OtpPurposeSignIn is the zero value: every challenge issued before
+	// purposes existed is a sign-in challenge.
+	OtpPurposeSignIn OtpPurpose = ""
+	// OtpPurposeAccountDeletion is a web account-deletion code (web_erasure.go).
+	OtpPurposeAccountDeletion OtpPurpose = "account_deletion"
+)
+
 // OtpChallenge is one issued one-time code, stored only as its HMAC.
 type OtpChallenge struct {
 	RequestID string `json:"requestId"`
+	// Purpose binds the code to sign-in or to account deletion.
+	Purpose OtpPurpose `json:"purpose,omitempty"`
 	// MSISDNPseudonym keys the number's rate-limit and lockout state
 	// (MSISDNPseudonym). The raw number is never stored.
 	MSISDNPseudonym string `json:"-"`
@@ -407,6 +421,10 @@ type MemoryIdentityRepository struct {
 	// erasures and erasureReceipts are account erasure (erasure.go).
 	erasures        []SubscriberErasure
 	erasureReceipts map[string]erasureReceipt
+	// Web deletion (web_erasure_memory.go): receipts by request id, and
+	// deletion-code requests per hour.
+	deletionReceipts map[string]deletionReceipt
+	deletionRequests map[time.Time]int
 }
 
 // otpRateState is one MSISDN's rate-limit state: the times of its OTP requests
@@ -551,7 +569,9 @@ func NewMemoryIdentityRepository() *MemoryIdentityRepository {
 		delegations: make(map[string]*GuardianDelegation),
 		otpRates:    make(map[string]*otpRateState),
 
-		erasureReceipts: make(map[string]erasureReceipt),
+		erasureReceipts:  make(map[string]erasureReceipt),
+		deletionReceipts: make(map[string]deletionReceipt),
+		deletionRequests: make(map[time.Time]int),
 	}
 }
 
@@ -1002,6 +1022,11 @@ type IdentityService struct {
 	// the deletion URL). Nil, the default, means deletion is not configured
 	// and is refused (erasure.go).
 	deletionProof *dpop.Verifier
+	// Web account deletion (web_erasure.go): the code sender, the hourly
+	// budget, and how a send is dispatched (nil: a goroutine).
+	deletionCodes    DeletionCodeSender
+	deletionBudget   int
+	deletionDispatch func(func())
 
 	// otpSender delivers one-time codes. Nil — the default, and the only value
 	// production code sets today — means no delivery exists; see SetOtpSender.
@@ -1519,70 +1544,15 @@ func (s *IdentityService) validateOtp(ctx context.Context, requestID, code, devi
 		return nil, err
 	}
 
-	// THE ATTEMPT LIMIT IS ENFORCED HERE, NOT BY THE DELETE BELOW.
-	//
-	// Exhaustion used to be enforced solely by deleting the challenge once the
-	// counter reached the limit, and every DeleteOtp call discards its error with
-	// `_ =`. A delete that failed therefore left the challenge in place with
-	// Attempts at or above the limit, and nothing on this path read Attempts on
-	// entry — so the next call evaluated the supplied code as though the budget
-	// were untouched, and the caller had unlimited further guesses.
-	//
-	// Reading the persisted counter makes the control independent of whether any
-	// cleanup succeeded. The comparison below is not reached for an exhausted
-	// challenge, so an attacker gains nothing by guessing against one.
-	if challenge.Attempts >= maxOtpAttempts {
-		// Best effort: reclaim the record. If this fails the guard above still
-		// refuses the challenge on every subsequent call, which is the point.
-		_ = s.repo.DeleteOtp(ctx, requestID) //nolint:errcheck // best effort: the attempt guard refuses this challenge whether or not it is deleted
-		// ErrInvalidOtp, deliberately, and NOT a distinct "exhausted" error.
-		// Telling a caller that a challenge is exhausted rather than simply
-		// wrong discloses the state of someone else's login attempt, and no
-		// stronger error for this condition exists in this package.
+	// A challenge issued for another purpose (an account-deletion code) is
+	// answered exactly as a missing one: it cannot sign in.
+	if challenge.Purpose != OtpPurposeSignIn {
 		return nil, ErrInvalidOtp
 	}
 
-	// EXPIRY IS CHECKED BEFORE THE CODE IS COMPARED, AND THAT ORDER IS THE
-	// BEHAVIOUR, NOT AN ACCIDENT.
-	//
-	// An expired challenge returns ErrExpiredOtp whether the submitted code was
-	// right or wrong: the comparison below is never reached, so an expired
-	// challenge cannot consume an attempt and cannot be brute-forced after the
-	// window closes.
-	//
-	// The error is distinct from ErrInvalidOtp because
-	// docs/domain/10-identity.md requires it: "Expiry and wrong-code are
-	// distinct outcomes — collapsing them makes an expired code look like user
-	// error." A user who waited too long needs a new code; a user who mistyped
-	// needs to retype. Returning one error for both told them the wrong thing.
-	//
-	// The delete stays best-effort: if it fails, this same check rejects the
-	// challenge on every later call, so nothing depends on it succeeding.
-	if time.Now().After(challenge.ExpiresAt) {
-		_ = s.repo.DeleteOtp(ctx, requestID) //nolint:errcheck // best effort: the expiry check refuses this challenge whether or not it is deleted
-		return nil, ErrExpiredOtp
-	}
-
-	// hmac.Equal, not `!=`. Both operands are HMAC digests rather than the raw
-	// code, so a timing oracle here is weak — but hmac.Equal is already the
-	// package's own constant-time primitive (crypto/hmac is imported for
-	// hashString), and string comparison short-circuits on the first differing
-	// byte. Using the constant-time form costs nothing and removes the question.
-	// PER-NUMBER FAILED-VERIFICATION LIMIT. Reached only for a challenge that
-	// exists, is not exhausted and has not expired, so missing and expired
-	// challenges are never counted. The reservation is taken BEFORE the code
-	// is compared, atomically: it is what bounds how many codes are ever
-	// evaluated for a number, however many requests race. A wrong code keeps
-	// it as a counted failure; any other outcome releases it or, on success,
-	// resets the number.
-	reservedAt := s.now()
-	reservationID, err := s.repo.ReserveOtpVerification(ctx, challenge.MSISDNPseudonym, reservedAt, s.ratePolicy)
+	reservationID, err := s.checkCode(ctx, challenge, requestID, code)
 	if err != nil {
 		return nil, err
-	}
-
-	if !hmac.Equal([]byte(s.hashString(code)), []byte(challenge.CodeHash)) {
-		return nil, s.wrongCode(ctx, challenge, requestID, reservationID, reservedAt)
 	}
 
 	// FAIL CLOSED. THE CODE BEING CORRECT IS NOT SUFFICIENT TO AUTHENTICATE.
@@ -1707,6 +1677,80 @@ func (s *IdentityService) validateOtp(ctx context.Context, requestID, code, devi
 	issued := cloneSession(session)
 	issued.RefreshToken = refreshToken
 	return issued, nil
+}
+
+// checkCode is the code check sign-in and account deletion share, on a
+// challenge already read: the attempt guard, expiry, the number's
+// failed-verification reservation (the shared lockout), and the constant-time
+// comparison, which counts a wrong code. On success it returns the
+// reservation, which the caller resets on use or releases.
+func (s *IdentityService) checkCode(ctx context.Context, challenge *OtpChallenge, requestID, code string) (uint64, error) {
+	// THE ATTEMPT LIMIT IS ENFORCED HERE, NOT BY THE DELETE BELOW.
+	//
+	// Exhaustion used to be enforced solely by deleting the challenge once the
+	// counter reached the limit, and every DeleteOtp call discards its error with
+	// `_ =`. A delete that failed therefore left the challenge in place with
+	// Attempts at or above the limit, and nothing on this path read Attempts on
+	// entry — so the next call evaluated the supplied code as though the budget
+	// were untouched, and the caller had unlimited further guesses.
+	//
+	// Reading the persisted counter makes the control independent of whether any
+	// cleanup succeeded. The comparison below is not reached for an exhausted
+	// challenge, so an attacker gains nothing by guessing against one.
+	if challenge.Attempts >= maxOtpAttempts {
+		// Best effort: reclaim the record. If this fails the guard above still
+		// refuses the challenge on every subsequent call, which is the point.
+		_ = s.repo.DeleteOtp(ctx, requestID) //nolint:errcheck // best effort: the attempt guard refuses this challenge whether or not it is deleted
+		// ErrInvalidOtp, deliberately, and NOT a distinct "exhausted" error.
+		// Telling a caller that a challenge is exhausted rather than simply
+		// wrong discloses the state of someone else's login attempt, and no
+		// stronger error for this condition exists in this package.
+		return 0, ErrInvalidOtp
+	}
+
+	// EXPIRY IS CHECKED BEFORE THE CODE IS COMPARED, AND THAT ORDER IS THE
+	// BEHAVIOUR, NOT AN ACCIDENT.
+	//
+	// An expired challenge returns ErrExpiredOtp whether the submitted code was
+	// right or wrong: the comparison below is never reached, so an expired
+	// challenge cannot consume an attempt and cannot be brute-forced after the
+	// window closes.
+	//
+	// The error is distinct from ErrInvalidOtp because
+	// docs/domain/10-identity.md requires it: "Expiry and wrong-code are
+	// distinct outcomes — collapsing them makes an expired code look like user
+	// error." A user who waited too long needs a new code; a user who mistyped
+	// needs to retype. Returning one error for both told them the wrong thing.
+	//
+	// The delete stays best-effort: if it fails, this same check rejects the
+	// challenge on every later call, so nothing depends on it succeeding.
+	if time.Now().After(challenge.ExpiresAt) {
+		_ = s.repo.DeleteOtp(ctx, requestID) //nolint:errcheck // best effort: the expiry check refuses this challenge whether or not it is deleted
+		return 0, ErrExpiredOtp
+	}
+
+	// hmac.Equal, not `!=`. Both operands are HMAC digests rather than the raw
+	// code, so a timing oracle here is weak — but hmac.Equal is already the
+	// package's own constant-time primitive (crypto/hmac is imported for
+	// hashString), and string comparison short-circuits on the first differing
+	// byte. Using the constant-time form costs nothing and removes the question.
+	// PER-NUMBER FAILED-VERIFICATION LIMIT. Reached only for a challenge that
+	// exists, is not exhausted and has not expired, so missing and expired
+	// challenges are never counted. The reservation is taken BEFORE the code
+	// is compared, atomically: it is what bounds how many codes are ever
+	// evaluated for a number, however many requests race. A wrong code keeps
+	// it as a counted failure; any other outcome releases it or, on success,
+	// resets the number.
+	reservedAt := s.now()
+	reservationID, err := s.repo.ReserveOtpVerification(ctx, challenge.MSISDNPseudonym, reservedAt, s.ratePolicy)
+	if err != nil {
+		return 0, err
+	}
+
+	if !hmac.Equal([]byte(s.hashString(code)), []byte(challenge.CodeHash)) {
+		return 0, s.wrongCode(ctx, challenge, requestID, reservationID, reservedAt)
+	}
+	return reservationID, nil
 }
 
 // msisdnPseudonym is MSISDNPseudonym under this service's HMAC key.

@@ -25,6 +25,13 @@ const e2eProcessEnv = "AEGIS_E2E_IDENTITY_PROCESS"
 // test framework's.
 const e2eOtpPrefix = "E2E-OTP "
 
+// e2eDeletionCodePrefix marks an account-deletion code (app/web_erasure.go),
+// and e2eDeletionBudget is the harness's hourly cap: both test-only.
+const (
+	e2eDeletionCodePrefix = "E2E-DELETION-CODE "
+	e2eDeletionBudget     = 20
+)
+
 // stdoutOtpSender stands in for an SMS provider, which does not exist (see
 // app.RequestOtp): it hands each code to the parent process over the stdout
 // pipe, and nowhere else.
@@ -34,6 +41,15 @@ func (s *stdoutOtpSender) SendOtp(_ context.Context, _, code string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, err := fmt.Fprintf(os.Stdout, "%s%s\n", e2eOtpPrefix, code)
+	return err
+}
+
+// SendDeletionCode hands an account-deletion code to the parent the same way,
+// under its own prefix (a deletion message is its own DLT template).
+func (s *stdoutOtpSender) SendDeletionCode(_ context.Context, _, code string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := fmt.Fprintf(os.Stdout, "%s%s\n", e2eDeletionCodePrefix, code)
 	return err
 }
 
@@ -84,7 +100,12 @@ func e2eServe(t *testing.T) {
 	openIdentity = func(ctx context.Context, c bootstrap.ActivationConfig, now func() time.Time) (*bootstrap.Runtime, error) {
 		rt, err := orig(ctx, c, now)
 		if rt != nil {
-			rt.Service.SetOtpSender(&stdoutOtpSender{}) // test-only: production configures none
+			sender := &stdoutOtpSender{}
+			rt.Service.SetOtpSender(sender) // test-only: production configures none
+			// Web account deletion, test-only likewise: no provider sends
+			// deletion codes, so production configures neither.
+			rt.Service.SetDeletionCodeSender(sender)
+			rt.Service.SetDeletionCodeBudget(e2eDeletionBudget)
 		}
 		return rt, err
 	}
