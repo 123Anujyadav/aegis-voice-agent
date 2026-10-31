@@ -1,6 +1,6 @@
 # Roadmap inventory: phases, remaining work and release prerequisites
 
-- **As of:** 2026-11-01, `main` `726ca1c` (#200). Post-merge CI on `726ca1c`, and before it on `cef3695` (#199): "Aegis AI CI Pipeline", `pr-security` and `hardening` all succeeded. Open and not merged: #201 (this refresh) and #202 (C16). Previous refresh: 2026-10-26, `93fe2cb`.
+- **As of:** 2026-11-01, `main` `f51565a` (#202). Post-merge CI on `f51565a`: "Aegis AI CI Pipeline", `pr-security`, `hardening`, `android-identity-contract` and `pr-android` all succeeded; `hardening` also succeeded on `726ca1c` and `cef3695`. Previous refresh: 2026-10-26, `93fe2cb`.
 - **Method:** every count below is of items **defined in a named document or verified in the repository**. Nothing is estimated. Where documents conflict, the conflict is reported (§1), with the source treated as authoritative.
 - **Not claimed:** that Phase 19 is complete, or that the app is ready for Google Play.
 
@@ -34,16 +34,17 @@ The repository uses three different meanings of "phase". None defines a phase af
 
 ## 2. Where the project is
 
-- **Current phase:** Phase 19, the release programme (`docs/phase19/`). **74 PRs have been merged in it:** #123–#181 and #186–#200, from `git log d764117..726ca1c`. #182–#185 are Dependabot PRs, still open. Merged since the previous refresh:
+- **Current phase:** Phase 19, the release programme (`docs/phase19/`). **75 PRs have been merged in it:** #123–#181 and #186–#200, and #202, from `git log d764117..f51565a`. #201 is this refresh. #182–#185 are Dependabot PRs, still open. Merged since the previous refresh:
   - #194: release endpoint preflight; this inventory;
   - #195: F14 "held before" fix and device tests across screens;
   - #196: internal-testing setup checklist; OD-11 proposal; deletion template in the provider runbook;
   - #197: provider-neutral seam for deletion codes (C3's seam; the adapter itself is still blocked);
   - #198: an undelivered sign-in code is withdrawn even after the request ends; the SMS adapter contract and staging plan (C2's contract; the adapter itself is still blocked);
   - #199: governance amendment G0 (P2), conflict 7;
-  - #200: ADR-0032 (Proposed, high-risk) and its AI-performed review packet; conflict 6. It changes no accepted ADR or invariant, and no code.
+  - #200: ADR-0032 (Proposed, high-risk) and its AI-performed review packet; conflict 6. It changes no accepted ADR or invariant, and no code;
+  - #202: C16, the Android session lifecycle (done; §3.1).
 - **Completion criteria:** none defined (conflict 3).
-- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-11-01 on `726ca1c`: no document records an approval (ADR-0032 and its packet list OD-10 as an open owner decision), and this section is the only place they are written. Phase 19 is complete when:
+- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-11-01 on `f51565a`: no document records an approval (ADR-0032 and its packet list OD-10 as an open owner decision), and this section is the only place they are written. Phase 19 is complete when:
   - a Play **internal-testing** release can be built by `release-android.yml` from a protected Environment;
   - testers can sign in and use on-device screening against deployed staging hosts;
   - every §4.1 internal-testing item is done.
@@ -57,7 +58,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 - **O, owner decision:** needs the repository owner's decision.
 - **H, high-risk:** needs the owner's decision **and** an independent human review (rule 8). No reviewer exists, so every H item is blocked on G0a (§3.7).
 
-### 3.1 Coding: 16 open; 1 routine and unblocked
+### 3.1 Coding: 16 open; 1 routine and unblocked (C17)
 
 | # | Task | Class | Blocked on | Source |
 |---|---|---|---|---|
@@ -76,7 +77,8 @@ The repository uses three different meanings of "phase". None defines a phase af
 | C13 | Per-source rate-limiting design | X | E6 | Tracker §3 |
 | C14 | `client_id` rollout | O | O1, only if `client_id` is chosen | Tracker §3 |
 | C15 | `BiometricPrompt` before the deletion confirmation | O | O12, only if screen lock is chosen | Tracker §3 |
-| C16 | Android session lifecycle: cold start routes a signed-in user to Calls from local session state, onboarding leaves the back stack, and a signed-out notice appears once. Client only: no network refresh at launch, no global sign-out, no change to refresh-token revocation. | **R** | Nothing. **In progress:** PR #202, open. Not done until it is merged and verified on `main` | UX `02-navigation-graph.md` §2.2, A73 |
+| C16 | Android session lifecycle: cold start routes a signed-in user to Calls from local session state, onboarding leaves the back stack, and a signed-out notice appears once. Client only: no network refresh at launch, no global sign-out, no change to refresh-token revocation. | **R** | **Done.** #202, `main` `f51565a`. Includes the fix for a corrupt session file crashing every launch, found by an AI-performed review and reproduced on an emulator before the fix. **Tests:** `SessionRoutingTest` 8, `SessionNavigationTest` 8 and `SessionWiringTest` 6 (over the real authenticator, client and encrypted store), 244 unit tests in all; emulator API 35 16/16. Post-merge CI green. **Not covered:** a signed-in cold start against deployed hosts (X5) | UX `02-navigation-graph.md` §2.2, A73 |
+| C17 | Android calls edge-api `GET /v1/me` through `EdgeGraph` (DPoP), so that a session identity has ended is noticed and shows A73. A temporary failure (network, timeout, 5xx) never signs the user out. No network refresh at every launch | **R** | Nothing. **Not started** (next) | `EdgeApiClient.me()` in `core:auth` (#144); UX A73 |
 
 **Completed, not counted above:** the release endpoint preflight (#194), the F14 "held before" fix (#195), the deletion-code seam (#197) and the sign-in code withdrawal fix (#198). #197 and #198 prepare C3 and C2 but do not complete them.
 
@@ -149,7 +151,7 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 
 | Category | Open | Of which unblocked now |
 |---|---|---|
-| Coding | 16 | 1 (C16, routine, in progress in PR #202) |
+| Coding | 16 | 1 (C17, routine). C16 done (#202) |
 | Testing | 4 (T2 has 12 cases) | 0 |
 | Owner decisions | 27 | — |
 | Privacy/legal reviews | 6 | — |
