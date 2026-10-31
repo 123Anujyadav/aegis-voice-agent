@@ -18,6 +18,7 @@
     <application
         android:name="com.callscreen.app.CallScreenApplication"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -32,6 +33,10 @@
           product would mean call metadata and contact information leaving the
           India region — a direct conflict with the data-residency requirement
           in Phase 1 assumption A2 and with DPDP obligations.
+
+          On Android 12+ allowBackup="false" no longer stops a device-to-device
+          transfer, so dataExtractionRules excludes every domain from both cloud
+          backup and device transfer (res/xml/data_extraction_rules.xml).
 
           It is set here, once, at the shell, rather than being left to whichever
           module first happens to think about it.
