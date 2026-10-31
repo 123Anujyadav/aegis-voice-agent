@@ -3,6 +3,7 @@ package com.callscreen.app.session
 import com.callscreen.app.navigation.AegisDestinations
 import com.callscreen.core.auth.SessionEndCause
 import com.callscreen.core.auth.SessionState
+import kotlinx.coroutines.CancellationException
 
 /**
  * Where the session sends the app (docs/ux/android/02-navigation-graph.md
@@ -19,6 +20,24 @@ internal object SessionRouting {
      */
     fun afterSplash(hasStoredSession: Boolean): String =
         if (hasStoredSession) AegisDestinations.CALLS_FEED else AegisDestinations.WELCOME
+
+    /**
+     * Where the splash screen goes for [session]. A session store that cannot
+     * be read at all (a corrupt or unreadable file) routes as no session, to
+     * onboarding, instead of crashing every launch. That concerns this phone
+     * only: the session state is left as it was, nothing is sent, and nothing
+     * claims the server ended the session. Cancellation is never swallowed.
+     */
+    suspend fun afterSplash(session: SessionSignals): String {
+        val stored = try {
+            session.hasStoredSession()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+        return afterSplash(stored)
+    }
 
     /**
      * The cause to show on the signed-out notice for a change from [previous]

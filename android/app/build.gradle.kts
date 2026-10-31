@@ -107,4 +107,6 @@ dependencies {
     // Screens rendered on the JVM with Robolectric (provided by callscreen.android.compose).
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.junit4)
+    // The session wiring test runs the real IdentityClient against a local fake of identity.
+    testImplementation(libs.okhttp.mockwebserver)
 }

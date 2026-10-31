@@ -11,6 +11,7 @@ import com.callscreen.app.navigation.AegisNavGraph
 import com.callscreen.core.auth.SessionEndCause
 import com.callscreen.core.auth.SessionState
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.Assert.assertEquals
@@ -35,8 +36,15 @@ class SessionNavigationTest {
 
     private class FakeSession(private val stored: Boolean, initial: SessionState) : SessionSignals {
         val flow = MutableStateFlow(initial)
-        override val state: StateFlow<SessionState> = flow
+        override suspend fun state(): StateFlow<SessionState> = flow
         override suspend fun hasStoredSession(): Boolean = stored
+    }
+
+    /** A session store that cannot be read at all, as DataStore throws for a corrupt file. */
+    private class UnreadableSession : SessionSignals {
+        val flow = MutableStateFlow<SessionState>(SessionState.Unknown)
+        override suspend fun state(): StateFlow<SessionState> = flow
+        override suspend fun hasStoredSession(): Boolean = throw IOException("corrupt session file")
     }
 
     private fun graph(start: String, session: SessionSignals): NavHostController {
@@ -72,6 +80,17 @@ class SessionNavigationTest {
         val nav = graph(AegisDestinations.SPLASH, FakeSession(stored = false, initial = SessionState.SignedOut(SessionEndCause.NOT_SIGNED_IN)))
         afterSplash()
         assertEquals(listOf(AegisDestinations.WELCOME), nav.routes())
+    }
+
+    @Test
+    fun anUnreadableSessionStoreGoesToWelcomeInsteadOfCrashing() {
+        val session = UnreadableSession()
+        val nav = graph(AegisDestinations.SPLASH, session)
+        afterSplash()
+        assertEquals(listOf(AegisDestinations.WELCOME), nav.routes())
+        // Routing only: nothing claims the server ended the session.
+        assertEquals(SessionState.Unknown, session.flow.value)
+        compose.onNodeWithText(SignedOutCopy.TITLE).assertDoesNotExist()
     }
 
     @Test

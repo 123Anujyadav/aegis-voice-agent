@@ -3,8 +3,13 @@ package com.callscreen.app.session
 import com.callscreen.app.navigation.AegisDestinations
 import com.callscreen.core.auth.SessionEndCause
 import com.callscreen.core.auth.SessionState
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
@@ -19,6 +24,28 @@ class SessionRoutingTest {
     fun afterSplash() {
         assertEquals(AegisDestinations.CALLS_FEED, SessionRouting.afterSplash(hasStoredSession = true))
         assertEquals(AegisDestinations.WELCOME, SessionRouting.afterSplash(hasStoredSession = false))
+    }
+
+    private class Throwing(private val error: Exception) : SessionSignals {
+        override suspend fun state(): StateFlow<SessionState> = SessionSignals.None.state()
+        override suspend fun hasStoredSession(): Boolean = throw error
+    }
+
+    @Test
+    @DisplayName("a session store that cannot be read routes to onboarding instead of failing the launch")
+    fun unreadableStoreRoutesAsNoSession() = runBlocking {
+        for (error in listOf(IOException("corrupt session file"), IllegalStateException("unreadable"), SecurityException("denied"))) {
+            assertEquals(AegisDestinations.WELCOME, SessionRouting.afterSplash(Throwing(error)), "$error")
+        }
+        assertEquals(AegisDestinations.WELCOME, SessionRouting.afterSplash(SessionSignals.None))
+    }
+
+    @Test
+    @DisplayName("cancellation is never swallowed by the splash guard")
+    fun cancellationPropagates() {
+        assertThrows(CancellationException::class.java) {
+            runBlocking { SessionRouting.afterSplash(Throwing(CancellationException("left the splash"))) }
+        }
     }
 
     @Test

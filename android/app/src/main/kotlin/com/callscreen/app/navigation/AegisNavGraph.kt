@@ -52,7 +52,9 @@ import com.callscreen.feature.business.ConversationTraceReplayScreen
 import com.callscreen.feature.business.AegisOpsDashboardScreen
 import com.callscreen.feature.business.CallRoutingRulesScreen
 import com.callscreen.feature.settings.ConsentVaultScreen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 public object AegisDestinations {
     public const val SPLASH: String = "splash"
@@ -132,15 +134,19 @@ public fun AegisNavGraph(
 ) {
     // A session that goes away while the app is in use shows A73, once. The
     // first value collected is the current one, so starting (or recreating
-    // the activity) never counts as a change.
+    // the activity) never counts as a change. Navigation stays on the main
+    // thread whichever thread the session is read on.
     LaunchedEffect(session, navController) {
-        var previous = session.state.value
-        session.state.collect { current ->
-            val cause = SessionRouting.signedOutNotice(previous, current, navController.currentDestination?.route)
-            previous = current
-            if (cause != null) {
-                navController.navigate(AegisDestinations.signedOut(cause)) {
-                    popUpTo(navController.graph.id) { inclusive = true }
+        withContext(Dispatchers.Main.immediate) {
+            val state = session.state()
+            var previous = state.value
+            state.collect { current ->
+                val cause = SessionRouting.signedOutNotice(previous, current, navController.currentDestination?.route)
+                previous = current
+                if (cause != null) {
+                    navController.navigate(AegisDestinations.signedOut(cause)) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
                 }
             }
         }
@@ -154,9 +160,10 @@ public fun AegisNavGraph(
             val scope = rememberCoroutineScope()
             SplashScreen(
                 onSplashFinished = {
-                    // Calls for a phone holding a session, onboarding otherwise (02-navigation-graph §2.2).
-                    scope.launch {
-                        val next = SessionRouting.afterSplash(session.hasStoredSession())
+                    // Calls for a phone holding a session, onboarding otherwise
+                    // (02-navigation-graph §2.2); an unreadable store counts as none.
+                    scope.launch(Dispatchers.Main.immediate) {
+                        val next = SessionRouting.afterSplash(session)
                         navController.navigate(next) { popUpTo(AegisDestinations.SPLASH) { inclusive = true } }
                     }
                 },

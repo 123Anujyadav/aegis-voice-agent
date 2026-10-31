@@ -19,12 +19,16 @@ import javax.inject.Inject
 @AndroidEntryPoint
 public class MainActivity : ComponentActivity() {
 
-    /** The app's one identity flow (IdentityModule); its authenticator is null when sign-in is unavailable. */
+    /**
+     * The app's one identity flow (IdentityModule); its authenticator is null
+     * when sign-in is unavailable. Lazy: building it (an HTTP client and the
+     * session store) waits for the session's first use, off the main thread.
+     */
     @Inject
-    public lateinit var identity: IdentityGraph
+    public lateinit var identity: dagger.Lazy<IdentityGraph>
 
     /** The stored session, for the cold-start route and the signed-out notice. Local state only. */
-    private val session: SessionSignals by lazy { SessionSignals.of(identity.authenticator) }
+    private val session: SessionSignals by lazy { SessionSignals.of { identity.get().authenticator } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
