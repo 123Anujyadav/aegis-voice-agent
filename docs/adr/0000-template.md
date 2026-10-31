@@ -7,7 +7,10 @@
 
 - **Status:** Proposed
 - **Date:** YYYY-MM-DD
-- **Deciders:** _names or team handles_
+- **Deciders:** _the repository owner (see `README.md`, "Approval")_
+- **Independent human review:** _for a high-risk ADR: required before
+  acceptance; record it in the Approval record. "Not yet available" keeps the
+  ADR Proposed._
 - **Consulted:** _people whose expertise was sought_
 - **Informed:** _people who need to know the outcome_
 
@@ -86,6 +89,26 @@ _Description._
 
 - **Good:** _…_
 - **Bad:** _…_
+
+## Approval record
+
+_Required before the Status becomes Accepted. For a high-risk ADR every row
+is required; see `README.md`, "Approval". An AI-performed review never fills
+the independent human review row, and is listed under AI involvement._
+
+| Field                    | Record                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Decision                 | _accept, amend or reject; the exact scope accepted_                                                    |
+| Classification           | _high-risk or not, and why_                                                                            |
+| Version                  | _commit SHA; the ADR file's SHA-256_                                                                   |
+| Review trigger           | _for a superseding ADR: the trigger that fired, and its evidence_                                      |
+| Owner decision           | _date; how it was given; the pull request; conditions_                                                 |
+| Independent human review | _name and GitHub account; independence statement; date; commit reviewed; verdict and conditions; link_ |
+| Invariant sign-offs      | _per invariant: old and new wording, signer, date_                                                     |
+| Other approvals          | _privacy and legal, Security, SRE: who, when, link_                                                    |
+| AI involvement           | _what AI drafted or reviewed, labelled "AI-performed"_                                                 |
+| Does not                 | _what this acceptance does not authorise_                                                              |
+| Supersedes               | _ADR-NNNN §N, or "nothing"_                                                                            |
 
 ## References
 

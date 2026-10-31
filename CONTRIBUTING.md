@@ -159,6 +159,13 @@ boundaries.** Not a hard failure.
 - Small PRs. Spanning more than five top-level directories needs justification.
 - CODEOWNERS approval is required and is not a formality — those owners are
   accountable for that code.
+- **A pull request that records a high-risk decision** (accepting an ADR, or
+  superseding or deprecating one) or an invariant sign-off needs the owner's
+  decision and an independent human review, recorded on the pull request or
+  linked from the ADR's approval record (`docs/adr/README.md`, "Approval").
+  Without the review, the ADR stays Proposed.
+- **AI-performed reviews are labelled as such.** They are evidence, never the
+  independent human review, an approval or a sign-off.
 - Style is never a review topic. Formatters own it; if you are arguing about
   whitespace, the formatter configuration is the thing to change.
 - **Flaky tests are quarantined within 24 hours and fixed or deleted within a
