@@ -307,4 +307,91 @@ class IdentityAuthenticatorTest {
         auth.signOut()
         assertEquals(AuthState.SignedOut(SignedOutReason.NOT_SIGNED_IN), auth.accessToken())
     }
+
+    private fun out(cause: SessionEndCause) = SessionState.SignedOut(cause)
+
+    @Test
+    @DisplayName("session state is Unknown until the store is read, then follows every read, write and clear")
+    fun sessionStateFollowsTheStore() = runBlocking {
+        val auth = authenticator()
+        assertEquals(SessionState.Unknown, auth.sessionState.value)
+        assertFalse(auth.isSignedIn())
+        assertEquals(out(SessionEndCause.NOT_SIGNED_IN), auth.sessionState.value)
+        server.enqueue(enrolled())
+        auth.enrol(requestId, "123456")
+        assertEquals(SessionState.SignedIn, auth.sessionState.value)
+        assertTrue(auth.isSignedIn())
+        assertEquals(SessionState.SignedIn, auth.sessionState.value)
+        auth.signOut()
+        assertEquals(out(SessionEndCause.SIGNED_OUT_ON_THIS_DEVICE), auth.sessionState.value)
+        assertEquals(1, server.requestCount, "observing the session sent something")
+    }
+
+    @Test
+    @DisplayName("a wrong code, or a transient refresh failure, leaves the session state as it was")
+    fun sessionStateUnchangedByFailuresThatKeepTheStore() = runBlocking {
+        val auth = authenticator()
+        server.enqueue(problem(401, "ERR_INVALID_OTP"))
+        auth.enrol(requestId, "123456")
+        assertEquals(SessionState.Unknown, auth.sessionState.value)
+        server.enqueue(enrolled())
+        auth.enrol(requestId, "123456")
+        now += 10_000
+        server.enqueue(problem(503, "ERR_TEMPORARILY_UNAVAILABLE"))
+        assertEquals(AuthState.Unavailable(IdentityError.TemporarilyUnavailable), auth.accessToken())
+        assertEquals(SessionState.SignedIn, auth.sessionState.value)
+    }
+
+    @Test
+    @DisplayName("an ended, unrecoverable or unstorable session is SignedOut with its cause")
+    fun sessionStateSignedOutCauses() = runBlocking {
+        val ended = authenticator()
+        server.enqueue(enrolled())
+        ended.enrol(requestId, "123456")
+        now += 10_000
+        server.enqueue(problem(401, "ERR_INVALID_TOKEN"))
+        ended.accessToken()
+        assertEquals(out(SessionEndCause.SESSION_ENDED), ended.sessionState.value)
+
+        val corrupted = authenticator()
+        server.enqueue(enrolled())
+        corrupted.enrol(requestId, "123456")
+        blobs.bytes!!.let { it[it.size - 1] = (it[it.size - 1].toInt() xor 0x01).toByte() }
+        assertFalse(corrupted.isSignedIn())
+        assertEquals(out(SessionEndCause.STORED_SESSION_UNRECOVERABLE), corrupted.sessionState.value)
+
+        val unstorable = authenticator()
+        server.enqueue(enrolled())
+        blobs.failWrites = true
+        assertEquals(EnrolOutcome.StorageFailed, unstorable.enrol(requestId, "123456"))
+        assertEquals(out(SessionEndCause.STORAGE_FAILED), unstorable.sessionState.value)
+        blobs.failWrites = false
+
+        val unstorableRefresh = authenticator()
+        server.enqueue(enrolled())
+        unstorableRefresh.enrol(requestId, "123456")
+        now += 10_000
+        server.enqueue(refreshed())
+        blobs.failWrites = true
+        unstorableRefresh.accessToken()
+        blobs.failWrites = false
+        assertEquals(out(SessionEndCause.STORAGE_FAILED), unstorableRefresh.sessionState.value)
+    }
+
+    @Test
+    @DisplayName("deletion: confirmed is ACCOUNT_DELETED, refused is SESSION_ENDED, unconfirmed stays SignedIn")
+    fun sessionStateAfterDeletion() = runBlocking {
+        val auth = signedIn()
+        server.enqueue(problem(503, "ERR_TEMPORARILY_UNAVAILABLE"))
+        assertEquals(AccountDeletionOutcome.Failed(IdentityError.TemporarilyUnavailable), auth.deleteAccount())
+        assertEquals(SessionState.SignedIn, auth.sessionState.value)
+        server.enqueue(MockResponse().setResponseCode(204))
+        assertEquals(AccountDeletionOutcome.Deleted, auth.deleteAccount())
+        assertEquals(out(SessionEndCause.ACCOUNT_DELETED), auth.sessionState.value)
+
+        val refused = signedIn()
+        server.enqueue(problem(401, "ERR_INVALID_TOKEN"))
+        assertEquals(AccountDeletionOutcome.SessionEnded, refused.deleteAccount())
+        assertEquals(out(SessionEndCause.SESSION_ENDED), refused.sessionState.value)
+    }
 }
