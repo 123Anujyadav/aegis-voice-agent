@@ -1,6 +1,6 @@
 # Roadmap inventory: phases, remaining work and release prerequisites
 
-- **As of:** 2026-10-31, `main` `cef3695` (#199). Post-merge CI on `cef3695` when this was written: "Aegis AI CI Pipeline" and `pr-security` succeeded; `hardening` was still running. Previous refresh: 2026-10-26, `93fe2cb`.
+- **As of:** 2026-11-01, `main` `726ca1c` (#200). Post-merge CI on `726ca1c`, and before it on `cef3695` (#199): "Aegis AI CI Pipeline", `pr-security` and `hardening` all succeeded. Open and not merged: #201 (this refresh) and #202 (C16). Previous refresh: 2026-10-26, `93fe2cb`.
 - **Method:** every count below is of items **defined in a named document or verified in the repository**. Nothing is estimated. Where documents conflict, the conflict is reported (§1), with the source treated as authoritative.
 - **Not claimed:** that Phase 19 is complete, or that the app is ready for Google Play.
 
@@ -29,20 +29,21 @@ The repository uses three different meanings of "phase". None defines a phase af
 5. **Stale statements:**
    - `ARCHITECTURE_FREEZE.md` says compileSdk 35, but the build is on 36 since #147. It is a frozen historical record, so it is not edited.
    - Readiness §8.3 said migrations "through `0008`". It is `0009` since #193, and is corrected in #194.
-6. **Sign-in direction versus the accepted architecture.** On 2026-10-31 the owner set a new direction: passwordless email code first, Sign in with Google as an alternative, SMS deferred to phone-ownership verification. It is written up as **ADR-0032, Proposed** (PR #200, open). **Accepted ADR-0010 still makes the phone number the identity and SMS the sign-in.** ADR-0032 is high-risk and has no independent human reviewer, so it stays Proposed (§3.7). **Until it is accepted, this inventory follows the accepted architecture:** C2, E2 and OD-1 keep their SMS wording.
+6. **Sign-in direction versus the accepted architecture.** On 2026-10-31 the owner set a new direction: passwordless email code first, Sign in with Google as an alternative, SMS deferred to phone-ownership verification. It is written up as **ADR-0032, Proposed**, merged as a Proposed record in #200 (`726ca1c`). Merging it accepted nothing. **Accepted ADR-0010 still makes the phone number the identity and SMS the sign-in.** ADR-0032 is high-risk and has no independent human reviewer, so it stays Proposed (§3.7). **Until it is accepted, this inventory follows the accepted architecture:** C2, E2 and OD-1 keep their SMS wording.
 7. **Who approves architecture decisions: resolved.** No rule said who approves an ADR, and no architecture team exists. **#199 (2026-10-31) adopted governance option P2** (`ARCHITECTURE_FREEZE.md` §6.1; `docs/adr/README.md`, "Approval"): the repository owner decides; a **high-risk** decision also needs an **independent human review**, and stays Proposed without one; AI-performed reviews never count as that review.
 
 ## 2. Where the project is
 
-- **Current phase:** Phase 19, the release programme (`docs/phase19/`). **73 PRs have been merged in it:** #123–#181 and #186–#199, from `git log d764117..cef3695`. Merged since the previous refresh:
+- **Current phase:** Phase 19, the release programme (`docs/phase19/`). **74 PRs have been merged in it:** #123–#181 and #186–#200, from `git log d764117..726ca1c`. #182–#185 are Dependabot PRs, still open. Merged since the previous refresh:
   - #194: release endpoint preflight; this inventory;
   - #195: F14 "held before" fix and device tests across screens;
   - #196: internal-testing setup checklist; OD-11 proposal; deletion template in the provider runbook;
   - #197: provider-neutral seam for deletion codes (C3's seam; the adapter itself is still blocked);
   - #198: an undelivered sign-in code is withdrawn even after the request ends; the SMS adapter contract and staging plan (C2's contract; the adapter itself is still blocked);
-  - #199: governance amendment G0 (P2), conflict 7.
+  - #199: governance amendment G0 (P2), conflict 7;
+  - #200: ADR-0032 (Proposed, high-risk) and its AI-performed review packet; conflict 6. It changes no accepted ADR or invariant, and no code.
 - **Completion criteria:** none defined (conflict 3).
-- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-10-31 on `cef3695`: no document records an approval, and this section is the only place they are written. Phase 19 is complete when:
+- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-11-01 on `726ca1c`: no document records an approval (ADR-0032 and its packet list OD-10 as an open owner decision), and this section is the only place they are written. Phase 19 is complete when:
   - a Play **internal-testing** release can be built by `release-android.yml` from a protected Environment;
   - testers can sign in and use on-device screening against deployed staging hosts;
   - every §4.1 internal-testing item is done.
@@ -75,7 +76,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 | C13 | Per-source rate-limiting design | X | E6 | Tracker §3 |
 | C14 | `client_id` rollout | O | O1, only if `client_id` is chosen | Tracker §3 |
 | C15 | `BiometricPrompt` before the deletion confirmation | O | O12, only if screen lock is chosen | Tracker §3 |
-| C16 | Android session lifecycle: cold start routes a signed-in user to Calls from local session state, onboarding leaves the back stack, and a signed-out notice appears once. Client only: no network refresh at launch, no global sign-out, no change to refresh-token revocation. | **R** | Nothing. **In progress** (its own PR); not done until merged | UX `02-navigation-graph.md` §2.2, A73 |
+| C16 | Android session lifecycle: cold start routes a signed-in user to Calls from local session state, onboarding leaves the back stack, and a signed-out notice appears once. Client only: no network refresh at launch, no global sign-out, no change to refresh-token revocation. | **R** | Nothing. **In progress:** PR #202, open. Not done until it is merged and verified on `main` | UX `02-navigation-graph.md` §2.2, A73 |
 
 **Completed, not counted above:** the release endpoint preflight (#194), the F14 "held before" fix (#195), the deletion-code seam (#197) and the sign-in code withdrawal fix (#198). #197 and #198 prepare C3 and C2 but do not complete them.
 
@@ -148,7 +149,7 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 
 | Category | Open | Of which unblocked now |
 |---|---|---|
-| Coding | 16 | 1 (C16, routine, in progress) |
+| Coding | 16 | 1 (C16, routine, in progress in PR #202) |
 | Testing | 4 (T2 has 12 cases) | 0 |
 | Owner decisions | 27 | — |
 | Privacy/legal reviews | 6 | — |
@@ -161,7 +162,7 @@ Each needs the owner's decision **and** an independent human review. **No review
 
 | # | Decision | State | Source |
 |---|---|---|---|
-| H1 | **ADR-0032:** email code and Google sign-in; supersedes ADR-0010 §5(a); changes INV-ID-1, INV-ID-2, INV-ID-7, INV-ID-8 | Proposed (PR #200, open). Its packet lists 16 decision cards (A1–A9, S1–S4, X1–X3), 15 owner decisions and the privacy and legal items, all open | `docs/adr/0032-…` and `docs/adr/reviews/0032-…` (in #200) |
+| H1 | **ADR-0032:** email code and Google sign-in; supersedes ADR-0010 §5(a); changes INV-ID-1, INV-ID-2, INV-ID-7, INV-ID-8 | Proposed; merged as a Proposed record in #200 (`726ca1c`), which accepted nothing. Its packet lists 16 decision cards (A1–A9, S1–S4, X1–X3), 15 owner decisions and the privacy and legal items, all open | `docs/adr/0032-…` and `docs/adr/reviews/0032-…` (on `main` since #200) |
 | H2 | **ADR-0010 amendment for server-side access-token revocation** (O17; C10) | Not drafted | `ACCOUNT-DELETION.md` §5 D9 |
 | H3 | **ADR-0012 amendment for server-side call-list sync** (OD-2; C7) | Not drafted | Validation doc §6 |
 | H4–H6 | **Ratifying ADR-0029, ADR-0030 and ADR-0031** (O1, O2, O7) | Conditional: high-risk **if the owner classifies them so** (`docs/adr/README.md`, "Reading historical records"). Their current status and effect on implementation are unchanged | Each ADR's status |
