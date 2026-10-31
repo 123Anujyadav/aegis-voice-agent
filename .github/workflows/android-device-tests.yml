@@ -1,0 +1,76 @@
+# =============================================================================
+# The app's instrumented tests on an Android emulator (API 35), nightly and on
+# demand. pr-android.yml only compiles them; until this workflow, every device
+# result was a local run (production-readiness F6).
+#
+# Not on every pull request: an emulator run takes a runner for most of half
+# an hour. It runs on a pull request only when this workflow, its script or
+# the instrumented tests change, so a change to any of them is proven before
+# merge; ci-gate then waits for it like any other triggered workflow.
+#
+# Toolchain: the runner's JDK 17 and Android SDK, as pr-android.yml. The
+# emulator is driven by tools/scripts/android-device-tests.sh with the SDK's
+# own tools; no third-party action runs with the checkout.
+# =============================================================================
+name: android-device-tests
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/android-device-tests.yml"
+      - "tools/scripts/android-device-tests.sh"
+      - "android/app/src/androidTest/**"
+
+concurrency:
+  group: android-device-tests-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  device-tests:
+    name: Instrumented tests on an emulator (API 35)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use the runner's JDK 17 and Android SDK
+        run: |
+          test -n "${JAVA_HOME_17_X64:-}" || { echo "::error::JDK 17 is not preinstalled on this image"; exit 1; }
+          test -d "${ANDROID_HOME:-}" || { echo "::error::the Android SDK is not preinstalled on this image"; exit 1; }
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+
+      # Hardware acceleration for the emulator: the runner exposes /dev/kvm,
+      # but only to root until this rule opens it.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Instrumented tests (emulator, API 35)
+        run: tools/scripts/android-device-tests.sh
+
+      # The HTML report and per-test results, and the emulator log and
+      # logcat, which is where a crash or a boot failure shows.
+      - name: Keep the test reports and device logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-device-test-reports
+          path: |
+            android/app/build/reports/androidTests/connected/
+            android/app/build/outputs/androidTest-results/connected/
+            android/app/build/device-test-logs/
+          if-no-files-found: ignore
+          retention-days: 14
