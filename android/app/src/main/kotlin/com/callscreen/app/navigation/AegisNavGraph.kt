@@ -10,10 +10,14 @@ import com.callscreen.app.session.SignedOutScreen
 import com.callscreen.core.auth.SessionEndCause
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.callscreen.core.telephony.prefilter.ListType
 import com.callscreen.core.telephony.screening.ScreeningRole
@@ -150,6 +154,17 @@ public fun AegisNavGraph(
                 }
             }
         }
+    }
+    // Once the splash has routed, and each time the app returns to the
+    // foreground, the session is confirmed with the server when a check is
+    // due (SessionCheck: at most hourly, never on every launch). Never during
+    // the splash: a check may refresh the token under the authenticator's
+    // lock, which the splash's local read would then wait for.
+    val route = navController.currentBackStackEntryAsState().value?.destination?.route
+    val pastSplash = route != null && route != AegisDestinations.SPLASH
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(session, pastSplash, lifecycle) {
+        if (pastSplash) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { session.confirmIfDue() }
     }
     NavHost(
         navController = navController,
