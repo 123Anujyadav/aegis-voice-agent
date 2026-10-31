@@ -316,6 +316,24 @@ class IdentityClientTest {
     }
 
     @Test
+    @DisplayName("a device key that cannot sign (Keystore failure) sends nothing and is DeviceProofUnavailable, never an exception")
+    fun deviceProofFailure() {
+        val failures = listOf(
+            java.security.ProviderException("keystore unavailable"),
+            java.security.KeyStoreException("locked"),
+            IllegalStateException("key invalidated"),
+        )
+        for (failure in failures) {
+            val client = IdentityClient(origin(), DeviceProofs { _, _ -> throw failure })
+            val unavailable = IdentityResult.Failure(IdentityError.DeviceProofUnavailable)
+            assertEquals(unavailable, client.enrol(requestId, "123456"), "$failure")
+            assertEquals(unavailable, client.refresh(sessionId, refreshToken), "$failure")
+            assertEquals(unavailable, client.deleteAccount(sessionId, refreshToken), "$failure")
+        }
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     @DisplayName("a request is never resent with the same single-use proof when a reused connection drops after sending it")
     fun noTransparentResend() {
         // The first call leaves a pooled connection; the server reads the
