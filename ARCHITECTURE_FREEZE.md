@@ -154,6 +154,87 @@ decision to restore service. Do it, then file a superseding ADR or a revert
 within five working days. An undocumented emergency deviation becomes permanent
 architecture by accident, which is how systems rot.
 
+### 6.1 · Governance amendment G0: who approves (2026-10-31)
+
+This amendment **adds to** the rules above. Rules 1–5 keep their original
+wording and are read together with it. How approvals are recorded is in
+[`docs/adr/README.md`, "Approval"](docs/adr/README.md#approval).
+
+- **Direction:** governance option P2, selected by the repository owner on
+  2026-10-31.
+- **Adoption:** this text takes effect when the repository owner merges it.
+  That merge is the owner's adoption. No AI-performed review is that approval.
+- **Applies from 2026-10-31,** prospectively. Earlier acceptance records are
+  neither rewritten nor reopened.
+- **Why:** no architecture team exists. `.github/CODEOWNERS` assigns every
+  path, `/docs/adr/` included, to the repository owner until teams exist, and
+  no rule said who may approve an ADR or how that approval is recorded.
+
+**How rules 3 and 5 are read** until the owner amends this section, for
+example when an architecture team is established:
+
+- **Rule 3, "architecture-team approval"**, means the repository owner's
+  recorded decision. A high-risk decision also needs the independent human
+  review of rule 8.
+- **Rule 5, "explicit sign-off"**, means the repository owner's sign-off,
+  recorded separately for each invariant in the ADR's approval record. A change
+  to an invariant in §3, or to a domain invariant, is always high-risk.
+
+**Rules added:**
+
+**Rule 6. The repository owner holds final human architecture authority.**
+Only the owner accepts, rejects, amends, supersedes or deprecates an ADR,
+signs off an invariant, makes the final classification of a decision as
+high-risk or not, decides a question reserved to the owner, or changes these
+rules.
+
+**Rule 7. Claude Code is the delegated Technical Lead for routine,
+reversible, in-scope engineering decisions** within the approved project
+direction: decisions below the decision line (§1) that are clearly outside
+the high-risk definition. It may propose ADRs of any kind.
+
+- It treats work as routine only when the work is **clearly outside** the
+  high-risk definition. When it is uncertain, the work is high-risk and goes to
+  the owner.
+- An ADR it decides under delegation must be clearly outside that definition.
+  It is marked "Proposed: decided under owner delegation" and stays Proposed
+  until the owner ratifies it. If the owner classifies it as high-risk, it
+  becomes a plain proposal.
+- A **high-risk** ADR it writes is only a proposal: plain "Proposed", with no
+  effect on implementation until it is accepted under rule 8.
+- It may not accept, reject, supersede or deprecate an ADR; sign off an
+  invariant; make the final classification of a decision; make a decision
+  reserved to the owner, including legal, privacy and security-governance
+  decisions; act as the independent human reviewer of any decision; or change
+  these rules.
+
+**Rule 8. A high-risk architecture decision needs an independent human
+review** before the owner accepts it, or supersedes or deprecates an ADR on
+its basis, in addition to the owner's decision. "High-risk" is defined in
+`docs/adr/README.md`, "Approval".
+
+**Rule 9. An AI-performed review is always labelled as one.** It is
+evidence. It never satisfies rule 8, and it is never an approval or a sign-off.
+
+**Rule 10. Without the required human review, a high-risk decision stays
+Proposed.** No decision is accepted on the grounds that no reviewer was
+available.
+
+**Rule 11. Records are not silently rewritten.** An accepted ADR or a
+historical record keeps its text. A correction or an interpretation is added as
+a dated note or a new record, as this amendment is.
+
+**Rule 12. Routine work continues** where it does not depend on an
+unresolved high-risk decision. Work that depends on one waits for it.
+
+**Interpretation of historical records** (recorded here; the records
+themselves are not edited):
+
+- **"Lead Staff Engineer"**, the decider named in ADR-0001 to ADR-0012, refers
+  to the repository owner, who confirmed this on 2026-10-31.
+- **A review a record calls "independent"** without naming a human reviewer is
+  read as an AI-performed review.
+
 ---
 
 ## 7 · Where things are

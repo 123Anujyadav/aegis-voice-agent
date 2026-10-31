@@ -67,6 +67,111 @@ Scaffold a new one with:
 task docs:adr TITLE="short title"
 ```
 
+## Approval
+
+The rules are `ARCHITECTURE_FREEZE.md` §6 and its governance amendment §6.1
+(2026-10-31). This section says how they are applied and recorded.
+
+### Who decides
+
+| Role                                      | May                                                                                                                                                                                               | May not                                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Repository owner**                      | Accept, reject, amend, supersede or deprecate an ADR; sign off an invariant; make the final classification of a decision as high-risk or not; decide owner-reserved questions; change these rules | Count their own decision as the independent human review                                                                                                                                                                                                                  |
+| **Independent human reviewer**            | Review a high-risk ADR at a stated commit and record a verdict                                                                                                                                    | Be the repository owner, or anyone who drafted the decision; decide in the owner's place                                                                                                                                                                                  |
+| **Claude Code, delegated Technical Lead** | Propose ADRs and their classification; make routine, reversible, in-scope engineering decisions clearly outside the high-risk definition; perform and record AI-performed reviews                 | Accept, reject, supersede or deprecate an ADR; sign off an invariant; make the final classification of a decision; make an owner-reserved decision, including legal, privacy and security-governance decisions; act as the independent human reviewer; change these rules |
+
+- **An ADR Claude Code decides under delegation** must be clearly outside the
+  high-risk definition. It is marked "Proposed: decided under owner
+  delegation" until the owner ratifies it, and becomes a plain proposal if the
+  owner classifies it as high-risk.
+- **A high-risk ADR** Claude Code writes is plain "Proposed". It has no effect
+  on implementation until it is accepted through this process.
+
+### High-risk decisions
+
+A decision is **high-risk** if it:
+
+- changes, narrows or reinterprets a frozen invariant
+  (`ARCHITECTURE_FREEZE.md` §3) or a domain invariant (`docs/domain/`);
+- supersedes, amends or deprecates an Accepted ADR, in whole or in part;
+- changes the authentication or authorisation model, a trust boundary, or how
+  identities, sessions or keys work;
+- changes personal-data collection, residency, retention or erasure;
+- adds an external vendor with lock-in that processes personal data.
+
+**When genuinely uncertain, it is high-risk.** The ADR's author proposes the
+classification. The owner's classification is final, and the owner may
+reclassify a decision at any time. A decision classified as not high-risk
+records the reason in its approval record.
+
+### What counts as an independent human review
+
+- It is made by a **person**, never an AI system, who records their own
+  verdict.
+- That person is **not the repository owner** and **did not draft or
+  co-draft** the decision.
+- It reviews an **exact version**: the commit SHA named in the record.
+- It is recorded **under the reviewer's own identity**: a GitHub review on the
+  pull request, or a review record the reviewer wrote, linked from the ADR.
+- It states a **verdict** (approve, approve with conditions, or reject) and
+  any conditions.
+
+### AI-performed reviews
+
+- **Always labelled** "AI-performed review", with the tool, the date and the
+  commit reviewed.
+- **Useful evidence, never a substitute.** An AI-performed review never
+  satisfies the independent human review, and is never an approval or a
+  sign-off.
+
+### When the required human review is unavailable
+
+- The ADR **stays Proposed**. Its status may say "Proposed: awaiting
+  independent human review".
+- **Routine work that does not depend on the decision continues.** Work that
+  depends on it waits.
+- No ADR is accepted because a reviewer could not be found.
+
+### The approval record
+
+Every ADR accepted from 2026-10-31 records its approval in its own "Approval
+record" section (see `0000-template.md`). For a high-risk ADR every row is
+required:
+
+| Field                    | What it records                                                                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decision                 | Accept, amend or reject, and the exact scope accepted                                                                                                     |
+| Classification           | High-risk or not, and why                                                                                                                                 |
+| Version                  | The commit SHA, and the ADR file's SHA-256, that were decided on                                                                                          |
+| Review trigger           | For a superseding ADR: the trigger that fired, and its observable evidence (`ARCHITECTURE_FREEZE.md` §6, rule 2)                                          |
+| Owner decision           | The date, how it was given, the pull request that records it, and any conditions                                                                          |
+| Independent human review | The reviewer's name and GitHub account, a statement of independence, the date, the commit reviewed, the verdict, the conditions, and a link to the review |
+| Invariant sign-offs      | For each invariant: the current wording, the new wording, who signed off, and the date                                                                    |
+| Other approvals          | Privacy and legal, Security or SRE, where required: who, when, and a link                                                                                 |
+| AI involvement           | What was drafted or reviewed by AI, labelled as AI-performed                                                                                              |
+| Does not                 | What the acceptance does not authorise                                                                                                                    |
+| Supersedes               | The ADR and section superseded; that ADR then gets a "Superseded by" note                                                                                 |
+
+Deprecating an ADR adds a dated note to it carrying the same fields; its
+original text is not changed.
+
+### Reading historical records
+
+Interpretations recorded here; the historical files are **not** edited
+(`ARCHITECTURE_FREEZE.md` §6.1, rule 11):
+
+- **"Lead Staff Engineer"**, the decider in ADR-0001 to ADR-0012, refers to the
+  repository owner, who confirmed this on 2026-10-31.
+- **A review a record calls "independent"** without naming a human reviewer is
+  read as an AI-performed review.
+- **ADRs already marked Accepted keep that status.** These rules apply to
+  decisions taken from 2026-10-31 and are not applied retroactively.
+- **ADR-0029, ADR-0030 and ADR-0031 keep their status**, "Proposed: decided
+  under owner delegation", and the effect on implementation they state. Their
+  future ratification follows this process if the owner classifies it as
+  high-risk. Each changes how authentication, sessions or keys work, so that
+  classification is expected.
+
 ## Format
 
 Every ADR from 0002 onward uses the 17-section structure: Context · Problem
