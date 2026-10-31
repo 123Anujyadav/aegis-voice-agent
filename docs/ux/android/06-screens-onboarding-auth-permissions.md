@@ -631,6 +631,33 @@ attack.
 **Analytics** — `android.auth.reauthenticated` · `android.auth.device_enrolled`
 (`replaced_device`) · `android.auth.session_revoked` (`reason`).
 
+**A73 as built (C16)** — The first implementation, and where it differs from the
+copy above. The navigation is the graph's: full screen, the whole back stack
+cleared, re-authentication the only exit
+([`02 §2.3`](02-navigation-graph.md#23-interrupt-routes)).
+
+- **When** — Once, when a session stored on this phone goes away while the app
+  is in use: identity ended it, it was signed out on this device, the stored
+  session can no longer be opened, or rotated tokens could not be saved. A
+  confirmed account deletion does not show it: the deletion screen reports its
+  own outcome.
+- **Reason line** — Only when the app knows it: "You signed out." or "We
+  couldn't verify this device." A session identity ended shows no reason,
+  because the app cannot tell expiry, revocation and a sign-in elsewhere apart;
+  "signed in elsewhere" waits until it can.
+- **Still-working line** — "Screening is still active on your account" needs the
+  account's forwarding state, which the app cannot read yet. Until it can, the
+  screen says **"On-device blocking is still on."** when the app holds the call
+  screening role, which stays true without a session.
+- **Exit** — One action, **Sign in**, which opens `A01` Welcome: onboarding is
+  the re-authentication path until `A15` exists.
+- **Cold start** — A stored session that cannot be opened, or a session file
+  that cannot be read at all, starts at onboarding without `A73`: no session
+  was in use, so none ended. Nothing is sent, and nothing claims that identity
+  ended the session.
+- **Not built yet** — Clearing cached transcripts, contacts and search history
+  at sign-out, and the `android.auth.session_revoked` event.
+
 ---
 
 ## A47 · Microphone rationale · A74 · Permission recovery · A75 · Screening role lost

@@ -7,14 +7,28 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.callscreen.app.navigation.AegisDestinations
 import com.callscreen.app.navigation.AegisNavGraph
+import com.callscreen.app.di.IdentityGraph
+import com.callscreen.app.session.SessionSignals
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.screening.PreferencesFlag
 import com.callscreen.core.telephony.screening.ScreeningRole
 import com.callscreen.core.telephony.screening.ScreeningRoleWatch
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 public class MainActivity : ComponentActivity() {
+
+    /**
+     * The app's one identity flow (IdentityModule); its authenticator is null
+     * when sign-in is unavailable. Lazy: building it (an HTTP client and the
+     * session store) waits for the session's first use, off the main thread.
+     */
+    @Inject
+    public lateinit var identity: dagger.Lazy<IdentityGraph>
+
+    /** The stored session, for the cold-start route and the signed-out notice. Local state only. */
+    private val session: SessionSignals by lazy { SessionSignals.of { identity.get().authenticator } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,7 +36,7 @@ public class MainActivity : ComponentActivity() {
         val startDestination = startDestinationFor(intent.getStringExtra(START_DESTINATION_EXTRA), BuildConfig.DEBUG)
         setContent {
             CallScreenTheme {
-                AegisNavGraph(startDestination = startDestination)
+                AegisNavGraph(startDestination = startDestination, session = session)
             }
         }
     }
@@ -44,7 +58,7 @@ public class MainActivity : ComponentActivity() {
         val startDestination = startDestinationFor(intent.getStringExtra(START_DESTINATION_EXTRA), BuildConfig.DEBUG)
         setContent {
             CallScreenTheme {
-                AegisNavGraph(startDestination = startDestination)
+                AegisNavGraph(startDestination = startDestination, session = session)
             }
         }
     }
