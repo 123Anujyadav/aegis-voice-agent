@@ -1324,11 +1324,29 @@ func (s *IdentityService) RequestOtp(ctx context.Context, msisdn string) (string
 	// error is not returned: its text is the provider's and may echo the number.
 	if s.otpSender != nil {
 		if err := s.otpSender.SendOtp(ctx, msisdn, code); err != nil {
-			_ = s.repo.DeleteOtp(ctx, reqID) //nolint:errcheck // best effort: an undelivered code expires anyway, and the request still counts
+			s.withdrawUndeliveredOtp(ctx, reqID)
 			return "", ErrOtpDeliveryFailed
 		}
 	}
 	return reqID, nil
+}
+
+// otpWithdrawTimeout bounds withdrawing an undelivered challenge. The request
+// may already be past its handler deadline, and its answer still has to be
+// written before the server's write deadline.
+const otpWithdrawTimeout = 2 * time.Second
+
+// withdrawUndeliveredOtp deletes a challenge whose code was not handed on.
+//
+// It runs DETACHED from ctx, bounded by otpWithdrawTimeout. Delivery often
+// fails precisely because ctx ended: the request deadline cut the provider
+// failover short, or the client went away (otpdelivery abandons the send). A
+// store call on that context fails before it reaches the store — pgx checks
+// the context first — so the challenge would stay live for its whole lifetime.
+func (s *IdentityService) withdrawUndeliveredOtp(ctx context.Context, reqID string) {
+	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), otpWithdrawTimeout)
+	defer cancel()
+	_ = s.repo.DeleteOtp(wctx, reqID) //nolint:errcheck // best effort: an undelivered code expires anyway, and the request still counts
 }
 
 // maxOtpAttempts is how many WRONG codes a challenge tolerates before it is

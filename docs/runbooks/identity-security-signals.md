@@ -74,6 +74,7 @@
 | `edge_api_auth_requests_total{outcome="unavailable"}` | > 1% of requests over 5 min. **Page.** | edge-api cannot reach the replay store, so every protected request fails closed with 503 (ADR-0029 analysis §3) | Check PostgreSQL. **Do not bypass replay protection** to restore service. |
 | `identity_auth_requests_total{outcome="temporarily_unavailable"}` | > 1% over 5 min | identity dependencies are failing (the database or the replay store) | As above |
 | `identity_otp_deliveries_total{outcome=~"failed\|timeout"}` | Per provider, over 5% of attempts | The provider is degraded. Failover is carrying traffic. | See the provider onboarding runbook, §3 |
+| `identity_deletion_code_deliveries_total{outcome=~"failed\|timeout"}` | Per provider, over 5% of attempts, once web deletion is enabled | Account-deletion codes are not being delivered: often a rejected deletion template | Check the deletion template's registration with the provider |
 
 ## 4. What these signals cannot tell you
 

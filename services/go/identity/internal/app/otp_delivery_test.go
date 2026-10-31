@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The OTP delivery boundary: the raw number and the code reach the sender and
@@ -75,6 +76,57 @@ func TestOtpDelivery_FailureWithdrawsTheChallengeAndHidesTheCause(t *testing.T) 
 	}
 	if st := m.otpRates[mp("+919876543210")]; st == nil || len(st.requests) != 1 {
 		t.Error("a failed delivery did not count against the number's allowance")
+	}
+}
+
+// contextBoundRepo refuses a delete on an ended context, as pgx does before it
+// reaches the database.
+type contextBoundRepo struct{ *MemoryIdentityRepository }
+
+func (r contextBoundRepo) DeleteOtp(ctx context.Context, requestID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return r.MemoryIdentityRepository.DeleteOtp(ctx, requestID)
+}
+
+// waitingSender is a provider chain still trying when the request ends: it
+// returns only when its context does, as otpdelivery does on abandonment.
+type waitingSender struct{}
+
+func (waitingSender) SendOtp(ctx context.Context, _, _ string) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// Delivery that ends because the REQUEST ended (its deadline, or the client
+// going away) still withdraws the challenge: the withdrawal does not run on
+// the ended context.
+func TestOtpDelivery_WithdrawnEvenWhenTheRequestHasEnded(t *testing.T) {
+	for name, end := range map[string]func() (context.Context, context.CancelFunc){
+		"deadline": func() (context.Context, context.CancelFunc) {
+			return context.WithTimeout(context.Background(), 50*time.Millisecond)
+		},
+		"client gone": func() (context.Context, context.CancelFunc) {
+			ctx, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(50*time.Millisecond, cancel)
+			return ctx, cancel
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := NewMemoryIdentityRepository()
+			svc := NewIdentityService(contextBoundRepo{m}, testRefreshKey)
+			svc.SetOtpSender(waitingSender{})
+			ctx, cancel := end()
+			defer cancel()
+			reqID, err := svc.RequestOtp(ctx, "+919876543210")
+			if !errors.Is(err, ErrOtpDeliveryFailed) || reqID != "" {
+				t.Fatalf("(%q, %v), want ErrOtpDeliveryFailed and no request id", reqID, err)
+			}
+			if len(m.otps) != 0 {
+				t.Error("the undelivered challenge is still live: it was withdrawn on the ended context")
+			}
+		})
 	}
 }
 
