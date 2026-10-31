@@ -1,6 +1,6 @@
 # Roadmap inventory: phases, remaining work and release prerequisites
 
-- **As of:** 2026-10-26, `main` `93fe2cb` (post-merge CI 156/156 green), plus #194.
+- **As of:** 2026-10-31, `main` `cef3695` (#199). Post-merge CI on `cef3695` when this was written: "Aegis AI CI Pipeline" and `pr-security` succeeded; `hardening` was still running. Previous refresh: 2026-10-26, `93fe2cb`.
 - **Method:** every count below is of items **defined in a named document or verified in the repository**. Nothing is estimated. Where documents conflict, the conflict is reported (§1), with the source treated as authoritative.
 - **Not claimed:** that Phase 19 is complete, or that the app is ready for Google Play.
 
@@ -29,12 +29,20 @@ The repository uses three different meanings of "phase". None defines a phase af
 5. **Stale statements:**
    - `ARCHITECTURE_FREEZE.md` says compileSdk 35, but the build is on 36 since #147. It is a frozen historical record, so it is not edited.
    - Readiness §8.3 said migrations "through `0008`". It is `0009` since #193, and is corrected in #194.
+6. **Sign-in direction versus the accepted architecture.** On 2026-10-31 the owner set a new direction: passwordless email code first, Sign in with Google as an alternative, SMS deferred to phone-ownership verification. It is written up as **ADR-0032, Proposed** (PR #200, open). **Accepted ADR-0010 still makes the phone number the identity and SMS the sign-in.** ADR-0032 is high-risk and has no independent human reviewer, so it stays Proposed (§3.7). **Until it is accepted, this inventory follows the accepted architecture:** C2, E2 and OD-1 keep their SMS wording.
+7. **Who approves architecture decisions: resolved.** No rule said who approves an ADR, and no architecture team exists. **#199 (2026-10-31) adopted governance option P2** (`ARCHITECTURE_FREEZE.md` §6.1; `docs/adr/README.md`, "Approval"): the repository owner decides; a **high-risk** decision also needs an **independent human review**, and stays Proposed without one; AI-performed reviews never count as that review.
 
 ## 2. Where the project is
 
-- **Current phase:** Phase 19, the release programme (`docs/phase19/`). **67 PRs have been merged in it:** #123–#181 and #186–#193, from `git log d764117..93fe2cb`.
+- **Current phase:** Phase 19, the release programme (`docs/phase19/`). **73 PRs have been merged in it:** #123–#181 and #186–#199, from `git log d764117..cef3695`. Merged since the previous refresh:
+  - #194: release endpoint preflight; this inventory;
+  - #195: F14 "held before" fix and device tests across screens;
+  - #196: internal-testing setup checklist; OD-11 proposal; deletion template in the provider runbook;
+  - #197: provider-neutral seam for deletion codes (C3's seam; the adapter itself is still blocked);
+  - #198: an undelivered sign-in code is withdrawn even after the request ends; the SMS adapter contract and staging plan (C2's contract; the adapter itself is still blocked);
+  - #199: governance amendment G0 (P2), conflict 7.
 - **Completion criteria:** none defined (conflict 3).
-- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-10-26: no document records an approval, and this section is the only place they are written. Phase 19 is complete when:
+- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-10-31 on `cef3695`: no document records an approval, and this section is the only place they are written. Phase 19 is complete when:
   - a Play **internal-testing** release can be built by `release-android.yml` from a protected Environment;
   - testers can sign in and use on-device screening against deployed staging hosts;
   - every §4.1 internal-testing item is done.
@@ -42,27 +50,34 @@ The repository uses three different meanings of "phase". None defines a phase af
 
 ## 3. Phase 19 remaining work, by category
 
-### 3.1 Coding: 15 open, all blocked or conditional
+**Classes used below** (`ARCHITECTURE_FREEZE.md` §6.1):
+- **R, routine:** within the approved direction, reversible, clearly outside the high-risk definition. Claude Code may carry it out (rule 7).
+- **X, external:** needs an account, a provider, hardware or a deployed host.
+- **O, owner decision:** needs the repository owner's decision.
+- **H, high-risk:** needs the owner's decision **and** an independent human review (rule 8). No reviewer exists, so every H item is blocked on G0a (§3.7).
 
-| # | Task | Blocked on | Source |
-|---|---|---|---|
-| C1 | Web deletion page | Frontend stack (owner) and E10 | `ACCOUNT-DELETION.md` §3.0 |
-| C2 | Sign-in SMS provider adapter (`OtpSender`) | E2 | Readiness §7 |
-| C3 | Deletion-code provider adapter (`DeletionCodeSender`) and budget configuration | E2, O13, a budget value | Tracker §3 |
-| C4 | Wire the Play Integrity verifier into identity | O7 (ADR-0031), E1, memo §12 B1 | Tracker §3; readiness §7 |
-| C5 | FCM integration | E7 | Readiness §7 |
-| C6 | Attestation housekeeping | O14 | Tracker §3 |
-| C7 | Server-side call-list sync | OD-2 (needs an ADR-0012 amendment) | Readiness §2b; validation doc §6 |
-| C8 | Forwarding provisioning | DID pool and carrier matrix (X4) | Readiness §2a, §8.1 |
-| C9 | A reviewer sign-in path for Play review | OD-1 | Readiness §8.1 |
-| C10 | Server-side access-token revocation | O17 (ADR-0010 amendment) | `ACCOUNT-DELETION.md` §5 D9 |
-| C11 | `pgstore` subscriber directory (D30.3) | O2 | Tracker §3 |
-| C12 | Device-history table and re-enrolment detection | O6, E9 | Tracker §3 |
-| C13 | Per-source rate-limiting design | E6 | Tracker §3 |
-| C14 | `client_id` rollout | O1, only if `client_id` is chosen | Tracker §3 |
-| C15 | `BiometricPrompt` before the deletion confirmation | O12, only if screen lock is chosen | Tracker §3 |
+### 3.1 Coding: 16 open; 1 routine and unblocked
 
-**Completed, not counted above:** the release endpoint preflight (#194), and the F14 "held before" fix (#195).
+| # | Task | Class | Blocked on | Source |
+|---|---|---|---|---|
+| C1 | Web deletion page | O, X | Frontend stack (OD-8) and E10 | `ACCOUNT-DELETION.md` §3.0 |
+| C2 | Sign-in SMS provider adapter (`OtpSender`) | X | E2. Contract defined in #198 | Readiness §7 |
+| C3 | Deletion-code provider adapter (`DeletionCodeSender`) and budget configuration | X, O | E2, O13, a budget value. Seam in #197 | Tracker §3 |
+| C4 | Wire the Play Integrity verifier into identity | O, X | O7 (ADR-0031), E1, memo §12 B1 | Tracker §3; readiness §7 |
+| C5 | FCM integration | X | E7 | Readiness §7 |
+| C6 | Attestation housekeeping | O | O14 | Tracker §3 |
+| C7 | Server-side call-list sync | O, H | OD-2 (needs an ADR-0012 amendment, which is high-risk) | Readiness §2b; validation doc §6 |
+| C8 | Forwarding provisioning | X | DID pool and carrier matrix (X4) | Readiness §2a, §8.1 |
+| C9 | A reviewer sign-in path for Play review | O | OD-1 | Readiness §8.1 |
+| C10 | Server-side access-token revocation | O, H | O17 (an ADR-0010 amendment, which is high-risk) | `ACCOUNT-DELETION.md` §5 D9 |
+| C11 | `pgstore` subscriber directory (D30.3) | O | O2 (see §3.7 on ratifying ADR-0030) | Tracker §3 |
+| C12 | Device-history table and re-enrolment detection | O, X | O6, E9 | Tracker §3 |
+| C13 | Per-source rate-limiting design | X | E6 | Tracker §3 |
+| C14 | `client_id` rollout | O | O1, only if `client_id` is chosen | Tracker §3 |
+| C15 | `BiometricPrompt` before the deletion confirmation | O | O12, only if screen lock is chosen | Tracker §3 |
+| C16 | Android session lifecycle: cold start routes a signed-in user to Calls from local session state, onboarding leaves the back stack, and a signed-out notice appears once. Client only: no network refresh at launch, no global sign-out, no change to refresh-token revocation. | **R** | Nothing. **In progress** (its own PR); not done until merged | UX `02-navigation-graph.md` §2.2, A73 |
+
+**Completed, not counted above:** the release endpoint preflight (#194), the F14 "held before" fix (#195), the deletion-code seam (#197) and the sign-in code withdrawal fix (#198). #197 and #198 prepare C3 and C2 but do not complete them.
 
 ### 3.2 Testing: 4 open, 0 unblocked
 
@@ -74,12 +89,12 @@ The repository uses three different meanings of "phase". None defines a phase af
 | T4 | Play Integrity verdicts from a Play-installed build | Blocked: E1, X1 | Readiness §8.4 |
 | T5 | Run the signing-key rotation runbook once in staging | Blocked: E3 (SRE) | Tracker E3 |
 
-### 3.3 Owner decisions: 26 pending (none approved)
+### 3.3 Owner decisions: 27 pending (none approved)
 
 - **Tracker O1–O17 (17),** less O10 and O11, which are in §3.4: **15.**
   - O9–O17 are the account-deletion decisions D1–D9.
   - No row records an approval (checked: the tracker contains no "approved", "ratified" or "decided" entry).
-- **Defined in other Phase 19 documents and not in the tracker (11):**
+- **Defined in other Phase 19 documents and not in the tracker (12):**
 
 | # | Decision | Source |
 |---|---|---|
@@ -94,6 +109,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 | OD-9 | Workload identity federation approval for the verifier (memo §12 B1) | Readiness §7; Play Integrity memo §12 |
 | OD-10 | Phase 19 completion criteria (§2) | This inventory, conflict 3 |
 | OD-11 | The F14 banner's first sentence, "Another app is now screening your calls", is a UX-spec text the app cannot verify, and it is false when the subscriber simply turned screening off. **Proposed amendment in Appendix A (not applied, awaiting your OK).** | Validation doc §4.3 (#195) |
+| OD-12 | **Identify an independent human reviewer** (gate G0a). Without one, every high-risk decision stays Proposed (§3.7) | `ARCHITECTURE_FREEZE.md` §6.1, rules 8 and 10 |
 
 ### 3.4 Privacy and legal review: 6 pending
 
@@ -132,11 +148,25 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 
 | Category | Open | Of which unblocked now |
 |---|---|---|
-| Coding | 15 | 0 |
+| Coding | 16 | 1 (C16, routine, in progress) |
 | Testing | 4 (T2 has 12 cases) | 0 |
-| Owner decisions | 26 | — |
+| Owner decisions | 27 | — |
 | Privacy/legal reviews | 6 | — |
 | External dependencies | 15 | — |
+| High-risk decisions (§3.7) | 3, plus 3 conditional | 0: all need an independent human reviewer (OD-12) |
+
+### 3.7 High-risk architecture decisions (P2)
+
+Each needs the owner's decision **and** an independent human review. **No reviewer has been identified (OD-12, gate G0a), so each stays Proposed or unstarted.** Claude Code may draft proposals and analyses for them, labelled as AI-performed, but cannot decide them.
+
+| # | Decision | State | Source |
+|---|---|---|---|
+| H1 | **ADR-0032:** email code and Google sign-in; supersedes ADR-0010 §5(a); changes INV-ID-1, INV-ID-2, INV-ID-7, INV-ID-8 | Proposed (PR #200, open). Its packet lists 16 decision cards (A1–A9, S1–S4, X1–X3), 15 owner decisions and the privacy and legal items, all open | `docs/adr/0032-…` and `docs/adr/reviews/0032-…` (in #200) |
+| H2 | **ADR-0010 amendment for server-side access-token revocation** (O17; C10) | Not drafted | `ACCOUNT-DELETION.md` §5 D9 |
+| H3 | **ADR-0012 amendment for server-side call-list sync** (OD-2; C7) | Not drafted | Validation doc §6 |
+| H4–H6 | **Ratifying ADR-0029, ADR-0030 and ADR-0031** (O1, O2, O7) | Conditional: high-risk **if the owner classifies them so** (`docs/adr/README.md`, "Reading historical records"). Their current status and effect on implementation are unchanged | Each ADR's status |
+
+**The approval rules themselves** (#199) were adopted by the owner's merge. That needed no independent review, because rule 6 reserves changes to the rules to the owner.
 
 **Not counted:**
 - **Phase 15** (7 blocker groups plus #35 and #44) and **Phase 16** (7 blocked rows, plus its own decision log): they are tracked in their own documents, and none is a Play prerequisite.
@@ -155,6 +185,7 @@ For a release that testers can actually use: sign in, then set up screening. The
   - X1 and X2: Play Console, the upload key and the Environment's secrets and variables;
   - X5 with E3 and E4: staging hosts, keys, the database and pins;
   - **E2**: without an SMS provider nobody can sign in, and the app stops at phone verification.
+    - **Email sign-in (ADR-0032) does not remove E2 yet.** It is Proposed and high-risk (§3.7, H1); it would need G0a, its approvals and an implementation first.
 - **Owner decisions:** none of D1–D9 blocks an internal-testing build. The owner chooses the providers and hosts for E2 and X5. These are choices, not policy decisions.
 - **Verify at submission:** whether Play requires the Data safety form, a privacy policy URL or the account-deletion URL before an internal-testing track can be published. **Not verified here.**
 
@@ -183,6 +214,8 @@ Everything in §4.1, plus:
 1. **E2:** choose an SMS/OTP provider and begin India DLT registration. It blocks every sign-in. It is an external dependency, and its cost is unverified.
 2. **X5:** choose where staging identity and edge-api run, so their origins and pins can be set as the Environment variables (#194).
 3. **OD-10:** approve Phase 19's completion criteria (§2), so that "done" is defined.
+
+**Only if internal testing should use email sign-in instead of SMS:** OD-12 (an independent human reviewer), then ADR-0032's approvals (§3.7, H1) and its implementation. That path is longer than E2.
 
 Nothing else is needed before internal testing. D1–D9 and the other owner decisions can wait for production. **No testing task is unblocked any more** (T1 is done, #195). Every remaining test needs a physical device, live hosts or an external account.
 
