@@ -1,7 +1,13 @@
 package com.callscreen.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import com.callscreen.BuildConfig
+import com.callscreen.app.session.SessionRouting
+import com.callscreen.app.session.SessionSignals
+import com.callscreen.app.session.SignedOutScreen
+import com.callscreen.core.auth.SessionEndCause
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraphBuilder
@@ -46,6 +52,7 @@ import com.callscreen.feature.business.ConversationTraceReplayScreen
 import com.callscreen.feature.business.AegisOpsDashboardScreen
 import com.callscreen.feature.business.CallRoutingRulesScreen
 import com.callscreen.feature.settings.ConsentVaultScreen
+import kotlinx.coroutines.launch
 
 public object AegisDestinations {
     public const val SPLASH: String = "splash"
@@ -85,6 +92,13 @@ public object AegisDestinations {
     public const val BUSINESS_ROUTING_RULES: String = "business_routing_rules"
     public const val CONSENT_VAULT: String = "consent_vault"
 
+    internal const val SIGNED_OUT_CAUSE_ARG: String = "cause"
+
+    /** A73, the signed-out notice; the argument is a SessionEndCause name. */
+    public const val SIGNED_OUT: String = "signed_out/{$SIGNED_OUT_CAUSE_ARG}"
+
+    public fun signedOut(cause: SessionEndCause): String = "signed_out/${cause.name}"
+
     /** Prototype destinations, registered only in debug builds (AegisNavGraph.includeDesignPreviews). */
     public val DESIGN_PREVIEWS: Set<String> = setOf(
         INCOMING_CALL,
@@ -113,14 +127,40 @@ public fun AegisNavGraph(
     modifier: Modifier = Modifier,
     /** Debug builds only: the prototype screens, framed as design previews (see [designPreviews]). */
     includeDesignPreviews: Boolean = BuildConfig.DEBUG,
+    /** The stored session, for the cold-start route and the signed-out notice. None: no session handling. */
+    session: SessionSignals = SessionSignals.None,
 ) {
+    // A session that goes away while the app is in use shows A73, once. The
+    // first value collected is the current one, so starting (or recreating
+    // the activity) never counts as a change.
+    LaunchedEffect(session, navController) {
+        var previous = session.state.value
+        session.state.collect { current ->
+            val cause = SessionRouting.signedOutNotice(previous, current, navController.currentDestination?.route)
+            previous = current
+            if (cause != null) {
+                navController.navigate(AegisDestinations.signedOut(cause)) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                }
+            }
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier
     ) {
         composable(AegisDestinations.SPLASH) {
-            SplashScreen(onSplashFinished = { navController.navigate(AegisDestinations.WELCOME) })
+            val scope = rememberCoroutineScope()
+            SplashScreen(
+                onSplashFinished = {
+                    // Calls for a phone holding a session, onboarding otherwise (02-navigation-graph §2.2).
+                    scope.launch {
+                        val next = SessionRouting.afterSplash(session.hasStoredSession())
+                        navController.navigate(next) { popUpTo(AegisDestinations.SPLASH) { inclusive = true } }
+                    }
+                },
+            )
         }
         composable(AegisDestinations.WELCOME) {
             WelcomeScreen(onGetStartedClick = { navController.navigate(AegisDestinations.SIM_DETECTION) })
@@ -154,7 +194,12 @@ public fun AegisNavGraph(
         composable(AegisDestinations.SETUP_COMPLETE) {
             val context = LocalContext.current
             SetupCompleteScreen(
-                onGoToHomeClick = { navController.navigate(AegisDestinations.CALLS_FEED) },
+                // Onboarding exits permanently: Back from Calls never returns to it.
+                onGoToHomeClick = {
+                    navController.navigate(AegisDestinations.CALLS_FEED) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
                 blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
             )
         }
@@ -202,6 +247,19 @@ public fun AegisNavGraph(
         }
         composable(AegisDestinations.VOICE_CONVERSATION) {
             VoiceConversationScreen(onEndSessionClick = { navController.popBackStack() })
+        }
+        composable(AegisDestinations.SIGNED_OUT) { entry ->
+            val context = LocalContext.current
+            val name = entry.arguments?.getString(AegisDestinations.SIGNED_OUT_CAUSE_ARG)
+            SignedOutScreen(
+                cause = SessionEndCause.entries.firstOrNull { it.name == name },
+                blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
+                onSignInClick = {
+                    navController.navigate(AegisDestinations.WELCOME) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
+            )
         }
     }
 }

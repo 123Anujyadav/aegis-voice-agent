@@ -10,6 +10,9 @@ import com.callscreen.core.network.identity.OtpChallenge
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -94,6 +97,9 @@ public sealed interface AccountDeletionOutcome {
  *   which matches the server's 60 s clock-skew allowance. Session lifetime and
  *   backoff remain owner decisions.
  * - **Nothing is logged.**
+ * - **[sessionState] follows the store.** It is updated, under the same lock,
+ *   whenever the store is read, written or cleared. It routes the app; it
+ *   never authorises anything.
  */
 public class IdentityAuthenticator(
     private val client: IdentityClient,
@@ -110,6 +116,10 @@ public class IdentityAuthenticator(
     private val onAccountDeleted: () -> Unit = {},
 ) {
     private val lock = Mutex()
+    private val session = MutableStateFlow<SessionState>(SessionState.Unknown)
+
+    /** Whether a session is stored on this phone (see [SessionState]). Observing it sends nothing. */
+    public val sessionState: StateFlow<SessionState> = session.asStateFlow()
 
     /** Requests a code for [msisdn]. */
     public suspend fun requestCode(msisdn: String): IdentityResult<OtpChallenge> =
@@ -124,7 +134,13 @@ public class IdentityAuthenticator(
                     val tokens = result.value
                     val sessionId = tokens.sessionId ?: return@withContext EnrolOutcome.Failed(IdentityError.UnexpectedResponse(200))
                     val stored = StoredSession(sessionId, tokens.accessToken, tokens.refreshToken, nowSeconds() + tokens.expiresInSeconds)
-                    if (persist(stored)) EnrolOutcome.Enrolled else EnrolOutcome.StorageFailed
+                    if (persist(stored)) {
+                        session.value = SessionState.SignedIn
+                        EnrolOutcome.Enrolled
+                    } else {
+                        session.value = SessionState.SignedOut(SessionEndCause.STORAGE_FAILED)
+                        EnrolOutcome.StorageFailed
+                    }
                 }
             }
         }
@@ -133,7 +149,7 @@ public class IdentityAuthenticator(
     /** A valid access token, refreshing it first if it is about to expire. */
     public suspend fun accessToken(): AuthState = lock.withLock {
         withContext(io) {
-            when (val read = store.read()) {
+            when (val read = readStore()) {
                 StoredSessionResult.Absent -> AuthState.SignedOut(SignedOutReason.NOT_SIGNED_IN)
                 StoredSessionResult.Unrecoverable -> AuthState.SignedOut(SignedOutReason.STORED_SESSION_UNRECOVERABLE)
                 is StoredSessionResult.Present ->
@@ -157,7 +173,7 @@ public class IdentityAuthenticator(
      */
     public suspend fun refreshAfterRejection(rejectedAccessToken: String): AuthState = lock.withLock {
         withContext(io) {
-            when (val read = store.read()) {
+            when (val read = readStore()) {
                 StoredSessionResult.Absent -> AuthState.SignedOut(SignedOutReason.NOT_SIGNED_IN)
                 StoredSessionResult.Unrecoverable -> AuthState.SignedOut(SignedOutReason.STORED_SESSION_UNRECOVERABLE)
                 is StoredSessionResult.Present ->
@@ -168,7 +184,7 @@ public class IdentityAuthenticator(
 
     /** Whether a session is stored on this phone and can be opened. Nothing is sent. */
     public suspend fun isSignedIn(): Boolean = lock.withLock {
-        withContext(io) { store.read() is StoredSessionResult.Present }
+        withContext(io) { readStore() is StoredSessionResult.Present }
     }
 
     /**
@@ -180,17 +196,19 @@ public class IdentityAuthenticator(
      */
     public suspend fun deleteAccount(): AccountDeletionOutcome = lock.withLock {
         withContext(io) {
-            val session = (store.read() as? StoredSessionResult.Present)?.session
+            val stored = (readStore() as? StoredSessionResult.Present)?.session
                 ?: return@withContext AccountDeletionOutcome.NotSignedIn
-            when (val result = client.deleteAccount(session.sessionId, session.refreshToken)) {
+            when (val result = client.deleteAccount(stored.sessionId, stored.refreshToken)) {
                 is IdentityResult.Success -> {
                     // Erased on the server: a session left behind only fails its next refresh.
                     runCatching { store.clear() }
+                    session.value = SessionState.SignedOut(SessionEndCause.ACCOUNT_DELETED)
                     runCatching { onAccountDeleted() }
                     AccountDeletionOutcome.Deleted
                 }
                 is IdentityResult.Failure -> if (result.error == IdentityError.SessionEnded) {
                     runCatching { store.clear() }
+                    session.value = SessionState.SignedOut(SessionEndCause.SESSION_ENDED)
                     AccountDeletionOutcome.SessionEnded
                 } else {
                     AccountDeletionOutcome.Failed(result.error)
@@ -201,7 +219,10 @@ public class IdentityAuthenticator(
 
     /** Signs out on this device: the stored session is removed. (Identity has no sign-out endpoint.) */
     public suspend fun signOut() {
-        lock.withLock { withContext(io) { store.clear() } }
+        lock.withLock {
+            withContext(io) { store.clear() }
+            session.value = SessionState.SignedOut(SessionEndCause.SIGNED_OUT_ON_THIS_DEVICE)
+        }
     }
 
     private suspend fun refresh(session: StoredSession): AuthState =
@@ -209,7 +230,13 @@ public class IdentityAuthenticator(
             is IdentityResult.Success -> {
                 val t = result.value
                 val next = StoredSession(session.sessionId, t.accessToken, t.refreshToken, nowSeconds() + t.expiresInSeconds)
-                if (persist(next)) AuthState.Authenticated(t.accessToken) else AuthState.SignedOut(SignedOutReason.STORAGE_FAILED)
+                if (persist(next)) {
+                    this.session.value = SessionState.SignedIn
+                    AuthState.Authenticated(t.accessToken)
+                } else {
+                    this.session.value = SessionState.SignedOut(SessionEndCause.STORAGE_FAILED)
+                    AuthState.SignedOut(SignedOutReason.STORAGE_FAILED)
+                }
             }
             is IdentityResult.Failure -> when (result.error) {
                 IdentityError.SessionEnded, IdentityError.InvalidDeviceProof -> signedOut(SignedOutReason.SESSION_ENDED)
@@ -235,7 +262,17 @@ public class IdentityAuthenticator(
 
     private suspend fun signedOut(reason: SignedOutReason): AuthState {
         runCatching { store.clear() }
+        session.value = SessionState.SignedOut(SessionEndCause.of(reason))
         return AuthState.SignedOut(reason)
+    }
+
+    /** Reads the store and records what it holds in [sessionState]. */
+    private suspend fun readStore(): StoredSessionResult = store.read().also { read ->
+        session.value = when (read) {
+            is StoredSessionResult.Present -> SessionState.SignedIn
+            StoredSessionResult.Absent -> SessionState.SignedOut(SessionEndCause.NOT_SIGNED_IN)
+            StoredSessionResult.Unrecoverable -> SessionState.SignedOut(SessionEndCause.STORED_SESSION_UNRECOVERABLE)
+        }
     }
 
     public companion object {
