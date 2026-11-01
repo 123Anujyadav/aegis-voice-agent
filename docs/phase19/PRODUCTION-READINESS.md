@@ -202,7 +202,11 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - R8 and resource shrinking on release and staging;
   - `profileinstaller` present, but no baseline profile.
 - **Automated tests:** the minified staging build and an "R8 actually minified" check.
-- **Emulator:** API 35 (in CI with @F6@, and by hand) and API 28 (by hand).
+- **Emulator:** in CI (`android-device-tests.yml`), all on the default emulator profile (320×640, 1536 MB):
+  - API 35: @EMU35@;
+  - API 28 (Android 9): @EMU28@;
+  - API 26 (Android 8.0, minSdk): @EMU26@.
+  - By hand earlier: API 35 and API 28.
 - **Physical device:** none.
   - API 36 has never run on any device.
   - The minified build has never run.
@@ -262,6 +266,8 @@ Defects and gaps found on 2026-11-01 that the inventory did not track. **Class**
 | F10 | **No baseline profile**, although `profileinstaller` is a dependency | `android/settings.gradle.kts` | R | Open; needs a device |
 | F11 | **Identity does not audit a refresh with the current token and another key's proof,** the signature of a stolen token used without the key | `acceptRefreshProof` (`identity.go`) | H (part of F1 option E) | Proposed with F1 |
 | F12 | **identity started with no configuration reports ready.** With no `CS_IDENTITY_*` variable it boots "inactive": no application port, and `/readyz` answers **200** ("degraded"). It fails closed, since nothing is served, but a production pod that lost its configuration would pass its readiness probe. edge-api refuses to start instead. Shown by the image smoke check | `services/go/identity/cmd/server/identity.go` (`configureIdentity`, `errIdentityInactive`) | O (it changes identity's documented activation contract) | Open (OD-15). Option: when the platform's `Environment` setting (`packages/go/platform/config.go`; default `development`) is `staging` or `production`, an inactive identity refuses to start |
+| F13 | **`ProtectionListsTest` failed intermittently on the API 28 emulator** (3 of 12 runs), waiting 15 s for Protection after Back. Cause, from the device logs: a **test race**. `Espresso.closeSoftKeyboard()` does nothing while a requested keyboard is still appearing; in every failure the label field's keyboard became visible 5–60 ms after Back, which then closed the keyboard instead of navigating, as Android does. Not an app defect. Found by the CI emulator (F6) | `ProtectionListsTest`; API 28 runs listed in #209 | R | @F13@ |
+| F14 | **The four held Dependabot PRs (#182–#185) re-run full CI whenever Dependabot rebases them.** On 2026-11-01 at 15:35 all four were rebased; #184 and #185 alone queued about 186 `pr-go` jobs, and other CI waited behind them for the account's concurrent-job limit | `gh run list` on 2026-11-01; `.github/dependabot.yml` (`github-actions`, no `rebase-strategy`) | O (the PRs are owner-held) | Open. Options: decide #182–#185, or set `rebase-strategy: disabled` for that ecosystem. Not changed; their runs were not cancelled |
 
 ### 4.1 Recommended answers to the owner decisions in this document
 
