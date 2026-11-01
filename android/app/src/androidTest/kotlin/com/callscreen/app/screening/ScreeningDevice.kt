@@ -65,6 +65,13 @@ internal object ScreeningDevice {
         java.io.ByteArrayOutputStream().also { ui.dumpWindowHierarchy(it) }.toString("UTF-8").take(maxChars)
     }.getOrElse { "(window hierarchy unavailable: ${it.javaClass.simpleName})" }
 
+    /** Whether the input method is shown, from the system's own record (dumpsys input_method). */
+    fun keyboardState(): String = runCatching {
+        shell("dumpsys input_method").lines()
+            .filter { it.contains("mInputShown") || it.contains("mShowRequested") || it.contains("mCurFocusedWindow") }
+            .joinToString(" | ") { it.trim() }
+    }.getOrElse { "(unavailable: ${it.javaClass.simpleName})" }
+
     /** A screenshot and the window hierarchy, in the app's external cache (adb-pullable), for a failing step. */
     fun capture(name: String) {
         val dir = instrumentation.targetContext.externalCacheDir ?: return
@@ -110,8 +117,9 @@ internal fun AndroidComposeTestRule<*, *>.awaitText(text: String, substring: Boo
         // the message carries the evidence: the merged and unmerged Compose
         // trees, and the windows UI Automator sees (dialogs, keyboard).
         throw AssertionError(
-            "\"$text\" did not appear. Screen:\n" + onAllNodes(isRoot()).printToString() +
-                "\nUnmerged:\n" + onAllNodes(isRoot(), useUnmergedTree = true).printToString() +
+            "\"$text\" did not appear. Screen:\n" + onAllNodes(isRoot()).printToString(maxDepth = Int.MAX_VALUE) +
+                "\nUnmerged:\n" + onAllNodes(isRoot(), useUnmergedTree = true).printToString(maxDepth = Int.MAX_VALUE) +
+                "\nKeyboard: " + ScreeningDevice.keyboardState() +
                 "\nWindows:\n" + ScreeningDevice.windowHierarchy(),
             e,
         )
