@@ -19,6 +19,10 @@ sdk="${ANDROID_HOME:?ANDROID_HOME is not set}"
 bin="${sdk}/cmdline-tools/latest/bin"
 adb="${sdk}/platform-tools/adb"
 avd="aegis-ci-${api}"
+# One AVD directory for avdmanager and the emulator: recent command-line tools
+# default to an XDG directory the emulator does not search.
+export ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-${HOME}/.android/avd}"
+mkdir -p "${ANDROID_AVD_HOME}"
 # Diagnostics the workflow keeps: the emulator's log and logcat. Test data
 # only; the app under test holds no real session or account.
 out="${DEVICE_TEST_LOGS:-${PWD}/android/app/build/device-test-logs}"
@@ -30,6 +34,7 @@ echo "::group::system image ${image}"
 yes | "${bin}/sdkmanager" --licenses >/dev/null || true
 "${bin}/sdkmanager" --install "${image}" "emulator" "platform-tools" >/dev/null
 echo no | "${bin}/avdmanager" create avd --force --name "${avd}" --package "${image}"
+test -f "${ANDROID_AVD_HOME}/${avd}.ini" || { echo "::error::avdmanager did not create ${avd} in ${ANDROID_AVD_HOME}"; exit 1; }
 echo "::endgroup::"
 
 log="${out}/emulator.log"
@@ -43,16 +48,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Boot, bounded: 5 minutes for adb to see the device and 10 for the boot,
-# then fail with the emulator's own log. Unbounded, a crashed emulator would
+# Boot, bounded: 15 minutes, and at once if the emulator exits. Either way
+# the failure shows the emulator's own log. Unbounded, a dead emulator would
 # hold the runner until the job timeout.
-if ! timeout 300 "${adb}" wait-for-device; then
-    echo "::error::the emulator did not come up in 5 minutes"
-    tail -50 "${log}"
-    exit 1
-fi
 booted=""
-for _ in $(seq 1 120); do
+for _ in $(seq 1 180); do
+    if ! kill -0 "${emulator_pid}" 2>/dev/null; then
+        echo "::error::the emulator exited before it finished booting"
+        tail -50 "${log}"
+        exit 1
+    fi
     if [ "$("${adb}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
         booted=yes
         break
@@ -60,7 +65,7 @@ for _ in $(seq 1 120); do
     sleep 5
 done
 if [ -z "${booted}" ]; then
-    echo "::error::the emulator did not finish booting in 10 minutes"
+    echo "::error::the emulator did not finish booting in 15 minutes"
     tail -50 "${log}"
     exit 1
 fi
