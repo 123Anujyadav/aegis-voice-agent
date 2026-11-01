@@ -1,0 +1,100 @@
+# =============================================================================
+# Android dependency vulnerability audit (production-readiness F9).
+#
+# govulncheck covers the Go modules and pip-audit the Python lock; nothing
+# checked the libraries the Android app ships, apart from Dependabot alerts.
+# This audits exactly what the release build resolves (:app's
+# releaseRuntimeClasspath, every module's runtime libraries included) against
+# the OSV database, with OSV-Scanner.
+#
+# The build has no lockfile. tools/ci/android-lock-release.init.gradle.kts
+# turns dependency locking on for this run only, and --write-locks records the
+# resolved versions in android/app/gradle.lockfile, in the CI checkout. The
+# repository's build is unchanged.
+#
+# OSV-Scanner (Apache-2.0, free) is a release binary pinned by version and
+# SHA-256, as pip-audit is pinned by hashes. It queries the public OSV
+# database with package names and versions only. No third-party action runs.
+#
+# Triggers: a PR or a push to main that changes what the app depends on or how
+# it is audited; and nightly, because a new advisory can affect unchanged
+# dependencies. A scheduled failure reports a new advisory without blocking
+# unrelated PRs.
+# =============================================================================
+name: android-deps-audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/gradle/libs.versions.toml"
+      - "android/**/*.gradle.kts"
+      - "tools/ci/android-lock-release.init.gradle.kts"
+      - ".github/workflows/android-deps-audit.yml"
+  pull_request:
+    paths:
+      - "android/gradle/libs.versions.toml"
+      - "android/**/*.gradle.kts"
+      - "tools/ci/android-lock-release.init.gradle.kts"
+      - ".github/workflows/android-deps-audit.yml"
+  merge_group:
+  schedule:
+    - cron: "47 4 * * *"
+
+concurrency:
+  group: android-deps-audit-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  OSV_SCANNER_VERSION: "2.7.0"
+  # osv-scanner_linux_amd64 of that release, as listed in its
+  # osv-scanner_SHA256SUMS.
+  OSV_SCANNER_SHA256: "160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b"
+
+jobs:
+  audit:
+    name: Android dependency vulnerabilities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Use the runner's JDK 17 and Android SDK
+        run: |
+          test -n "${JAVA_HOME_17_X64:-}" || { echo "::error::JDK 17 is not preinstalled on this image"; exit 1; }
+          test -d "${ANDROID_HOME:-}" || { echo "::error::the Android SDK is not preinstalled on this image"; exit 1; }
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+
+      - name: Record what the release build resolves
+        working-directory: android
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --no-configuration-cache --quiet \
+            --init-script ../tools/ci/android-lock-release.init.gradle.kts \
+            :app:dependencies --configuration releaseRuntimeClasspath --write-locks >/dev/null
+          # Fail closed: an empty or missing lockfile would audit nothing.
+          count="$(grep -cE '^[^#=][^=]*:[^=]*:[^=]*=.*releaseRuntimeClasspath' app/gradle.lockfile || true)"
+          echo "release runtime libraries: ${count}"
+          test "${count}" -ge 50 || { echo "::error::the lockfile lists ${count} release libraries; expected the full release classpath"; exit 1; }
+
+      - name: Install OSV-Scanner (version- and checksum-pinned)
+        run: |
+          set -euo pipefail
+          bin="${RUNNER_TEMP}/osv-scanner"
+          curl -sSfL --retry 3 -o "${bin}" \
+            "https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SCANNER_SHA256}  ${bin}" | sha256sum -c -
+          chmod +x "${bin}"
+          "${bin}" --version
+
+      - name: Audit
+        run: |
+          "${RUNNER_TEMP}/osv-scanner" scan source --lockfile android/app/gradle.lockfile
