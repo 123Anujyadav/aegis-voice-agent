@@ -1,0 +1,82 @@
+# =============================================================================
+# Container images of identity and edge-api: built and smoke-checked, never
+# pushed.
+#
+# Nothing in CI built a service image, so nothing showed that the services the
+# app depends on can be packaged at all (production-readiness §3.8). This
+# builds each from docker/go/Dockerfile exactly as Taskfile's docker:build
+# does, then runs tools/scripts/image-smoke.sh: non-root, the binary starts in
+# the scratch image, and the service behaves as documented with no
+# configuration.
+#
+# No registry login, no push, no secrets: publishing an image is a deployment
+# decision (X5). The runner's own Docker builds; no third-party action runs.
+#
+# The base images are pinned by exact tag, not yet by digest (see the
+# Dockerfile's note); this workflow does not change that.
+# =============================================================================
+name: container-images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docker/go/Dockerfile"
+      - "go.work"
+      - "go.work.sum"
+      - "packages/go/**"
+      - "services/go/identity/**"
+      - "services/go/edge-api/**"
+      - "tools/scripts/image-smoke.sh"
+      - ".github/workflows/container-images.yml"
+  pull_request:
+    paths:
+      - "docker/go/Dockerfile"
+      - "go.work"
+      - "go.work.sum"
+      - "packages/go/**"
+      - "services/go/identity/**"
+      - "services/go/edge-api/**"
+      - "tools/scripts/image-smoke.sh"
+      - ".github/workflows/container-images.yml"
+  merge_group:
+
+concurrency:
+  group: container-images-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: Image (${{ matrix.service }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [identity, edge-api]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build (not pushed)
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          commit="${GITHUB_SHA::7}"
+          echo "COMMIT=${commit}" >> "$GITHUB_ENV"
+          echo "IMAGE=ci/${SERVICE}:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          DOCKER_BUILDKIT=1 docker build -f docker/go/Dockerfile \
+            --build-arg SERVICE="${SERVICE}" \
+            --build-arg VERSION=ci \
+            --build-arg COMMIT="${commit}" \
+            --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "ci/${SERVICE}:${GITHUB_SHA}" .
+
+      - name: Smoke checks
+        run: tools/scripts/image-smoke.sh "${{ matrix.service }}" "${IMAGE}" "${COMMIT}"
