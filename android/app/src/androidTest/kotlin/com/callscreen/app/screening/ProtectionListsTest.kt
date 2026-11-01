@@ -112,9 +112,10 @@ class ProtectionListsTest {
         assertEquals("Courier", store.entries(ListType.ALLOW).single().label)
 
         // A33: remove it from the allowed list, then undo within 5 seconds.
-        // The label's keyboard may still be open, and Back would only close it: close it first,
-        // then wait for Protection before opening the other list.
-        Espresso.closeSoftKeyboard()
+        // The label's keyboard may still be open, or still on its way up, and Back would only
+        // close it: close it and wait until the system records it hidden, then wait for
+        // Protection before opening the other list.
+        ScreeningDevice.closeKeyboard()
         Espresso.pressBack()
         compose.awaitText("Protection Dashboard", timeoutMillis = 15_000) // navigation is slow on the API 28 emulator
         openList("Allowed numbers")

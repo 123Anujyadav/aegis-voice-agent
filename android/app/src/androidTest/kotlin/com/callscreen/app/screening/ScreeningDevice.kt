@@ -1,6 +1,8 @@
 package com.callscreen.app.screening
 
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import android.util.Log
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
@@ -12,6 +14,7 @@ import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.lifecycle.Lifecycle
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -28,6 +31,7 @@ import java.util.regex.Pattern
  * bypassed or faked.
  */
 internal object ScreeningDevice {
+    private const val TAG = "ScreeningDevice"
     const val ROLE = "android.app.role.CALL_SCREENING"
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     val pkg: String get() = instrumentation.targetContext.packageName
@@ -64,6 +68,41 @@ internal object ScreeningDevice {
     fun windowHierarchy(maxChars: Int = 8_000): String = runCatching {
         java.io.ByteArrayOutputStream().also { ui.dumpWindowHierarchy(it) }.toString("UTF-8").take(maxChars)
     }.getOrElse { "(window hierarchy unavailable: ${it.javaClass.simpleName})" }
+
+    /**
+     * Closes the keyboard, and returns only once the system records it hidden
+     * with no show pending. Espresso's closeSoftKeyboard() does nothing while a
+     * keyboard that a field requested is still on its way up, and a Back
+     * pressed then closes that keyboard instead of reaching the app. On the API
+     * 28 emulator that happened in 3 of 12 runs of ProtectionListsTest: the
+     * label field's keyboard became visible 5 to 60 ms after Back, and in all
+     * 9 passing runs it was visible before Back. If the system's record does
+     * not carry these fields, this is closeSoftKeyboard() alone.
+     */
+    fun closeKeyboard(timeoutMillis: Long = 5_000) {
+        val deadline = SystemClock.uptimeMillis() + timeoutMillis
+        var hiddenReads = 0
+        while (true) {
+            val record = shell("dumpsys input_method")
+            val shown = Regex("mInputShown=(true|false)").find(record)?.groupValues?.get(1)
+            val requested = Regex("mShowRequested=(true|false)").find(record)?.groupValues?.get(1)
+            Log.i(TAG, "keyboard: mInputShown=$shown mShowRequested=$requested")
+            if (shown == null || requested == null) {
+                Espresso.closeSoftKeyboard()
+                return
+            }
+            if (shown == "true" || requested == "true") {
+                hiddenReads = 0
+                Espresso.closeSoftKeyboard()
+            } else if (++hiddenReads >= 3) {
+                return
+            }
+            if (SystemClock.uptimeMillis() >= deadline) {
+                throw AssertionError("the keyboard did not settle closed: ${keyboardState()}")
+            }
+            SystemClock.sleep(100)
+        }
+    }
 
     /** Whether the input method is shown, from the system's own record (dumpsys input_method). */
     fun keyboardState(): String = runCatching {
