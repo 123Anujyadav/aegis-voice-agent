@@ -72,9 +72,13 @@ class IdentityAuthenticatorTest {
     @AfterEach
     fun stop() = server.shutdown()
 
+    /** When set, the device key cannot sign: what a Keystore failure looks like to the client. */
+    private var keyFails = false
+
     private fun authenticator(): IdentityAuthenticator {
         val http = IdentityClient.defaultHttpClient().newBuilder().readTimeout(500, TimeUnit.MILLISECONDS).build()
-        val client = IdentityClient(server.url("/").toString(), DeviceProofs { _, _ -> "proof" }, httpClient = http)
+        val proofs = DeviceProofs { _, _ -> if (keyFails) throw java.security.ProviderException("keystore unavailable") else "proof" }
+        val client = IdentityClient(server.url("/").toString(), proofs, httpClient = http)
         return IdentityAuthenticator(client, store, nowSeconds = { now }, io = Dispatchers.IO)
     }
 
@@ -190,6 +194,24 @@ class IdentityAuthenticatorTest {
             assertEquals(AuthState.Unavailable(error), auth.accessToken())
             assertTrue(stored() is StoredSessionResult.Present, "a transient failure cleared the session")
         }
+        server.enqueue(refreshed())
+        assertTrue(auth.accessToken() is AuthState.Authenticated, "the kept session did not refresh later")
+    }
+
+    @Test
+    @DisplayName("a device key that cannot sign keeps the session: nothing is sent, and the next refresh works")
+    fun deviceProofFailureKeepsTheSession() = runBlocking {
+        server.enqueue(enrolled())
+        val auth = authenticator()
+        auth.enrol(requestId, "123456")
+        now += 10_000
+        keyFails = true
+        assertEquals(AuthState.Unavailable(IdentityError.DeviceProofUnavailable), auth.accessToken())
+        assertTrue(stored() is StoredSessionResult.Present, "a key failure cleared the session")
+        assertEquals(SessionState.SignedIn, auth.sessionState.value)
+        assertEquals(AccountDeletionOutcome.Failed(IdentityError.DeviceProofUnavailable), auth.deleteAccount())
+        assertEquals(1, server.requestCount, "a request was sent without a proof")
+        keyFails = false
         server.enqueue(refreshed())
         assertTrue(auth.accessToken() is AuthState.Authenticated, "the kept session did not refresh later")
     }
