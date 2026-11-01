@@ -1,6 +1,8 @@
 package com.callscreen.app.screening
 
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import android.util.Log
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasContentDescription
@@ -12,6 +14,7 @@ import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.lifecycle.Lifecycle
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -28,6 +31,7 @@ import java.util.regex.Pattern
  * bypassed or faked.
  */
 internal object ScreeningDevice {
+    private const val TAG = "ScreeningDevice"
     const val ROLE = "android.app.role.CALL_SCREENING"
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     val pkg: String get() = instrumentation.targetContext.packageName
@@ -55,6 +59,57 @@ internal object ScreeningDevice {
 
     fun contactsGranted(): Boolean =
         instrumentation.targetContext.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == 0
+
+    /**
+     * The window hierarchy as UI Automator sees it: every window on screen,
+     * including system dialogs and the keyboard, which the Compose tree does
+     * not show. Capped, for an assertion message.
+     */
+    fun windowHierarchy(maxChars: Int = 8_000): String = runCatching {
+        java.io.ByteArrayOutputStream().also { ui.dumpWindowHierarchy(it) }.toString("UTF-8").take(maxChars)
+    }.getOrElse { "(window hierarchy unavailable: ${it.javaClass.simpleName})" }
+
+    /**
+     * Closes the keyboard, and returns only once the system records it hidden
+     * with no show pending. Espresso's closeSoftKeyboard() does nothing while a
+     * keyboard that a field requested is still on its way up, and a Back
+     * pressed then closes that keyboard instead of reaching the app. On the API
+     * 28 emulator that happened in 3 of 12 runs of ProtectionListsTest: the
+     * label field's keyboard became visible 5 to 60 ms after Back, and in all
+     * 9 passing runs it was visible before Back. If the system's record does
+     * not carry these fields, this is closeSoftKeyboard() alone.
+     */
+    fun closeKeyboard(timeoutMillis: Long = 5_000) {
+        val deadline = SystemClock.uptimeMillis() + timeoutMillis
+        var hiddenReads = 0
+        while (true) {
+            val record = shell("dumpsys input_method")
+            val shown = Regex("mInputShown=(true|false)").find(record)?.groupValues?.get(1)
+            val requested = Regex("mShowRequested=(true|false)").find(record)?.groupValues?.get(1)
+            Log.i(TAG, "keyboard: mInputShown=$shown mShowRequested=$requested")
+            if (shown == null || requested == null) {
+                Espresso.closeSoftKeyboard()
+                return
+            }
+            if (shown == "true" || requested == "true") {
+                hiddenReads = 0
+                Espresso.closeSoftKeyboard()
+            } else if (++hiddenReads >= 3) {
+                return
+            }
+            if (SystemClock.uptimeMillis() >= deadline) {
+                throw AssertionError("the keyboard did not settle closed: ${keyboardState()}")
+            }
+            SystemClock.sleep(100)
+        }
+    }
+
+    /** Whether the input method is shown, from the system's own record (dumpsys input_method). */
+    fun keyboardState(): String = runCatching {
+        shell("dumpsys input_method").lines()
+            .filter { it.contains("mInputShown") || it.contains("mShowRequested") || it.contains("mCurFocusedWindow") }
+            .joinToString(" | ") { it.trim() }
+    }.getOrElse { "(unavailable: ${it.javaClass.simpleName})" }
 
     /** A screenshot and the window hierarchy, in the app's external cache (adb-pullable), for a failing step. */
     fun capture(name: String) {
@@ -96,8 +151,17 @@ internal fun AndroidComposeTestRule<*, *>.awaitText(text: String, substring: Boo
         }
     } catch (e: ComposeTimeoutException) {
         ScreeningDevice.capture("await-${text.take(20).replace(Regex("[^A-Za-z0-9]"), "_")}")
-        // Say what was on screen instead, so a failure explains itself.
-        throw AssertionError("\"$text\" did not appear. Screen:\n" + onAllNodes(isRoot()).printToString(), e)
+        // Say what was on screen instead, so a failure explains itself. The
+        // screenshot stays on the device and is uninstalled with the app, so
+        // the message carries the evidence: the merged and unmerged Compose
+        // trees, and the windows UI Automator sees (dialogs, keyboard).
+        throw AssertionError(
+            "\"$text\" did not appear. Screen:\n" + onAllNodes(isRoot()).printToString(maxDepth = Int.MAX_VALUE) +
+                "\nUnmerged:\n" + onAllNodes(isRoot(), useUnmergedTree = true).printToString(maxDepth = Int.MAX_VALUE) +
+                "\nKeyboard: " + ScreeningDevice.keyboardState() +
+                "\nWindows:\n" + ScreeningDevice.windowHierarchy(),
+            e,
+        )
     }
 }
 
