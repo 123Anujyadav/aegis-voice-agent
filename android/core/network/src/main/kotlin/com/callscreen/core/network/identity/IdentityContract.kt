@@ -84,6 +84,13 @@ public sealed interface IdentityError {
     /** No answer: connection failure, timeout, or the device is offline. */
     public data object Network : IdentityError
 
+    /**
+     * This phone could not sign the request: its device key failed (for
+     * example Android Keystore was unavailable). Nothing was sent, and it says
+     * nothing about the session.
+     */
+    public data object DeviceProofUnavailable : IdentityError
+
     public companion object {
         /** The error for a problem [code] with HTTP [status]; unknown codes are UnexpectedResponse. */
         public fun fromProblem(code: String?, status: Int, retryAfterSeconds: Long?): IdentityError = when (code) {

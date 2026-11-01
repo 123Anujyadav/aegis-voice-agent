@@ -3,6 +3,7 @@ package com.callscreen.app.session
 import com.callscreen.core.auth.IdentityAuthenticator
 import com.callscreen.core.auth.SessionEndCause
 import com.callscreen.core.auth.SessionState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,13 @@ public interface SessionSignals {
     public suspend fun hasStoredSession(): Boolean
 
     /**
+     * Confirms the session with the server if a check is due (SessionCheck).
+     * Best effort: it never throws, and only identity's "session ended"
+     * changes [state].
+     */
+    public suspend fun confirmIfDue() {}
+
+    /**
      * No session handling: a build with no identity server, or a test that
      * hosts the graph on its own. Nothing is ever stored, so the app starts
      * at onboarding exactly as before, and no notice is ever shown.
@@ -48,26 +56,43 @@ public interface SessionSignals {
     public companion object {
         /**
          * The app's session over its one authenticator, found by
-         * [authenticator] on [io] the first time either member is used, so
+         * [authenticator] on [io] the first time a member is used, so
          * building the identity flow (its HTTP client and session store)
          * never runs on the main thread at launch. Behaves as [None] when
-         * [authenticator] returns null (sign-in unavailable).
+         * [authenticator] returns null (sign-in unavailable). [check], found
+         * the same way, confirms the session with the server; null (no
+         * edge-api configured) means no check.
          */
-        public fun of(io: CoroutineDispatcher = Dispatchers.IO, authenticator: () -> IdentityAuthenticator?): SessionSignals =
-            FromAuthenticator(io, authenticator)
+        internal fun of(
+            io: CoroutineDispatcher = Dispatchers.IO,
+            check: () -> SessionCheck? = { null },
+            authenticator: () -> IdentityAuthenticator?,
+        ): SessionSignals = FromAuthenticator(io, authenticator, check)
     }
 }
 
 private class FromAuthenticator(
     private val io: CoroutineDispatcher,
     find: () -> IdentityAuthenticator?,
+    findCheck: () -> SessionCheck?,
 ) : SessionSignals {
     // Synchronised: the splash and the notice may ask at the same time.
     private val found by lazy(find)
+    private val foundCheck by lazy(findCheck)
 
     private suspend fun authenticator(): IdentityAuthenticator? = withContext(io) { found }
 
     override suspend fun state(): StateFlow<SessionState> = authenticator()?.sessionState ?: SessionSignals.None.state()
 
     override suspend fun hasStoredSession(): Boolean = authenticator()?.isSignedIn() ?: false
+
+    override suspend fun confirmIfDue() {
+        try {
+            withContext(io) { foundCheck?.runIfDue() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Best effort: a check that cannot even start says nothing about the session.
+        }
+    }
 }

@@ -7,7 +7,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.callscreen.app.navigation.AegisDestinations
 import com.callscreen.app.navigation.AegisNavGraph
+import com.callscreen.app.di.EdgeGraph
 import com.callscreen.app.di.IdentityGraph
+import com.callscreen.app.session.PreferencesCheckRecord
+import com.callscreen.app.session.SessionCheck
 import com.callscreen.app.session.SessionSignals
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.screening.PreferencesFlag
@@ -27,8 +30,19 @@ public class MainActivity : ComponentActivity() {
     @Inject
     public lateinit var identity: dagger.Lazy<IdentityGraph>
 
-    /** The stored session, for the cold-start route and the signed-out notice. Local state only. */
-    private val session: SessionSignals by lazy { SessionSignals.of { identity.get().authenticator } }
+    /** edge-api's protected client (IdentityModule), for the session check. Lazy, like [identity]. */
+    @Inject
+    public lateinit var edge: dagger.Lazy<EdgeGraph>
+
+    /**
+     * The stored session, for the cold-start route and the signed-out notice,
+     * and the at-most-hourly check with the server (SessionCheck).
+     */
+    private val session: SessionSignals by lazy {
+        SessionSignals.of(check = { edge.get().client?.let { SessionCheck(it::me, PreferencesCheckRecord(applicationContext)) } }) {
+            identity.get().authenticator
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
