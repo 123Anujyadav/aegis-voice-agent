@@ -2,22 +2,24 @@
 <!--
   Application manifest.
 
-  PHASE 2 SCOPE: this declares the application class and the minimum needed for
-  the shell to build and install. No activities, services or permissions are
-  declared yet, because none exist yet — declaring a permission the app does not
-  use is both a Play Store policy risk and a privacy-review finding.
+  This declares the application class and its one activity. Components and
+  permissions arrive with the module that actually uses them, so that every
+  entry in the shipped manifest is traceable to the code that needs it:
+  core:telephony declares the CallScreeningService and READ_CONTACTS, and
+  core:network declares INTERNET; both are merged into this one. Declaring a
+  permission the app does not use is both a Play Store policy risk and a
+  privacy-review finding, and app/release-permissions.txt (checked in CI)
+  pins the merged list.
 
   In particular the telephony permissions (READ_PHONE_STATE, ANSWER_PHONE_CALLS)
-  are deliberately absent. Components and permissions arrive with the module
-  that actually uses them, so that every entry in the shipped manifest is
-  traceable to the code that needs it: the CallScreeningService is declared by
-  core:telephony's manifest and merged into this one.
+  are deliberately absent.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
         android:name="com.callscreen.app.CallScreenApplication"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -32,6 +34,10 @@
           product would mean call metadata and contact information leaving the
           India region — a direct conflict with the data-residency requirement
           in Phase 1 assumption A2 and with DPDP obligations.
+
+          On Android 12+ allowBackup="false" no longer stops a device-to-device
+          transfer, so dataExtractionRules excludes every domain from both cloud
+          backup and device transfer (res/xml/data_extraction_rules.xml).
 
           It is set here, once, at the shell, rather than being left to whichever
           module first happens to think about it.

@@ -25,7 +25,7 @@
 | **Third-party SDKs** (`releaseRuntimeClasspath`) | Google Play Integrity (`com.google.android.play:integrity`, with Play Services basement and tasks and Play Core common); OkHttp and Okio; Timber; AndroidX, Jetpack Compose, Hilt and Dagger; kotlinx. **No analytics, crash-reporting, advertising, attribution or Firebase SDK.** |
 | **Default configuration** | `callscreen.identityBaseUrl`, `callscreen.edgeApiBaseUrl` and `callscreen.playIntegrityCloudProjectNumber` are **empty**. A release built from `main` with defaults therefore **makes no network request at all**: sign-in reports itself unavailable, and no Play Integrity token is requested. The rows marked WHEN CONFIGURED describe a launch build with hosts set. |
 | **Logging** | A release build plants no Timber tree and no production code logs directly (`CallScreenApplication`, `ReleaseLoggingGuardTest`), so **it writes nothing to logcat**. |
-| **Backup** | `android:allowBackup="false"`, and the caller list is in `noBackupFilesDir`: nothing is copied to Google backup. |
+| **Backup** | `android:allowBackup="false"`, and the caller list is in `noBackupFilesDir`: nothing is copied to Google backup. On Android 12+, `android:dataExtractionRules` also excludes every domain from cloud backup and from device-to-device transfer (`res/xml/data_extraction_rules.xml`), which `allowBackup` alone no longer stops. |
 | **Defect fixed by #187** | `INTERNET` was missing, so on a device every server call failed with `socket failed: EPERM`. That was proven by `NetworkPermissionTest` on the Android 15 emulator, which fails without the permission and passes with it. |
 
 ## 2. Permissions and what triggers them
