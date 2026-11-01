@@ -104,8 +104,21 @@ env:
   # once per change, but nothing re-examined it on a schedule or with shuffled
   # repetition. Its real-PostgreSQL tests need a DSN this job does not provide,
   # so here they report SKIP (not PASS); they belong to a database job.
+  #
+  # The sign-in and session path (2026-11-01, production-readiness F5): the
+  # shared auth packages, then identity and edge-api. They hold the refresh
+  # single-flight and reuse detection, the DPoP replay reservation and the
+  # access-token verifier, all concurrent; pr-go.yml runs them under -race
+  # once per change only. Their real-PostgreSQL tests need a DSN this job does
+  # not provide, so they report SKIP here; identity-postgres.yml runs them.
   RACE_EXTRA_MODULES: >-
     services/go/telephony-gateway
+    packages/go/accesstoken
+    packages/go/dpop
+    packages/go/pgshared
+    packages/go/middleware
+    services/go/identity
+    services/go/edge-api
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -382,12 +395,58 @@ jobs:
         run: go test -count=1 -run TestVerification -v ./...
 
   # ---------------------------------------------------------------------------
+  # Fuzzing the parsers of untrusted input
+  # ---------------------------------------------------------------------------
+  # The fuzz targets existed, but plain `go test` runs only their seed corpus:
+  # nothing ever fuzzed. These parse what an attacker sends on every request:
+  # a DPoP proof and an access token (the sign-in and session path), and the
+  # W3C traceparent header. 45 seconds each on a pull request, 5 minutes
+  # nightly. A crashing input is kept as an artifact (testdata/fuzz) so it can
+  # be added to the seed corpus with the fix.
+  fuzz:
+    name: Fuzz (${{ matrix.target.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: dpop, dir: packages/go/dpop, func: FuzzVerify }
+          - { name: accesstoken, dir: packages/go/accesstoken, func: FuzzVerify }
+          - { name: traceparent, dir: packages/go/telemetry, func: FuzzParseTraceparent }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Fuzz
+        working-directory: ${{ matrix.target.dir }}
+        env:
+          FUZZ_FUNC: ${{ matrix.target.func }}
+          FUZZ_TIME: ${{ github.event_name == 'schedule' && '5m' || '45s' }}
+        run: go test -run='^$' -fuzz="^${FUZZ_FUNC}\$" -fuzztime="${FUZZ_TIME}" .
+
+      - name: Keep a crashing input
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fuzz-crasher-${{ matrix.target.name }}
+          path: ${{ matrix.target.dir }}/testdata/fuzz/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
   # Release gate
   # ---------------------------------------------------------------------------
   release-gate:
     name: Release gate
     runs-on: ubuntu-24.04
-    needs: [race, coverage, benchmarks, platform-verification]
+    needs: [race, coverage, benchmarks, platform-verification, fuzz]
     # Runs even when a dependency failed, so the gate reports WHICH gate failed
     # rather than being skipped and leaving a green-looking summary.
     if: always()
@@ -400,11 +459,13 @@ jobs:
           coverage='${{ needs.coverage.result }}'
           bench='${{ needs.benchmarks.result }}'
           platform='${{ needs.platform-verification.result }}'
+          fuzz='${{ needs.fuzz.result }}'
 
           printf '%-24s %s\n' "race detector" "${race}" \
                               "coverage" "${coverage}" \
                               "benchmarks" "${bench}" \
-                              "platform verification" "${platform}" | tee gate.txt
+                              "platform verification" "${platform}" \
+                              "fuzzing" "${fuzz}" | tee gate.txt
 
           {
             echo "### Release gate"
@@ -417,7 +478,7 @@ jobs:
           # Everything else fails closed: an inconclusive result is a failure,
           # not a pass, which is the same default-deny stance the governance
           # engine takes.
-          for result in "${race}" "${coverage}" "${platform}"; do
+          for result in "${race}" "${coverage}" "${platform}" "${fuzz}"; do
             case "${result}" in
               success) ;;
               *) echo "::error::release gate failed"; exit 1 ;;

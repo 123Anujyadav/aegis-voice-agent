@@ -33,11 +33,18 @@ class AccountDeletionViewModelTest {
         var deletions = 0
         var gate: CompletableDeferred<Unit>? = null
 
-        override suspend fun isSignedIn(): Boolean = signedIn
+        /** The stored session cannot be read, as with a corrupt session file. */
+        var readFails = false
+
+        override suspend fun isSignedIn(): Boolean {
+            if (readFails) throw IllegalStateException("unreadable session file")
+            return signedIn
+        }
 
         override suspend fun deleteAccount(): AccountDeletionOutcome {
             deletions++
             gate?.await()
+            if (readFails) throw IllegalStateException("unreadable session file")
             return outcome
         }
     }
@@ -67,6 +74,34 @@ class AccountDeletionViewModelTest {
         advanceUntilIdle()
         assertEquals(DeletionStep.DELETED, vm.state.value.step)
         assertEquals(1, service.deletions)
+    }
+
+    @Test
+    @DisplayName("a stored session that cannot be read shows not signed in, instead of crashing the app")
+    fun unreadableSessionAtOpen() = runTest(dispatcher) {
+        val vm = ready(FakeService().apply { readFails = true })
+        assertEquals(DeletionStep.NOT_SIGNED_IN, vm.state.value.step)
+        assertNull(vm.state.value.message)
+    }
+
+    @Test
+    @DisplayName("a deletion that fails to read the stored session says so and can be retried, instead of crashing the app")
+    fun unreadableSessionAtDeletion() = runTest(dispatcher) {
+        val service = FakeService()
+        val vm = ready(service)
+        vm.requestDeletion()
+        service.readFails = true
+        vm.confirm()
+        advanceUntilIdle()
+        assertEquals(DeletionStep.READY, vm.state.value.step)
+        assertEquals(DeletionMessage.UNEXPECTED, vm.state.value.message)
+
+        service.readFails = false
+        vm.requestDeletion()
+        vm.confirm()
+        advanceUntilIdle()
+        assertEquals(DeletionStep.DELETED, vm.state.value.step)
+        assertEquals(2, service.deletions)
     }
 
     @Test
