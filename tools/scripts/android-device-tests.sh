@@ -95,7 +95,9 @@ apk="app/build/outputs/apk/staging/app-staging.apk"
 test -s "${apk}" || { echo "::error::${apk} was not built"; exit 1; }
 pkg="com.callscreen.staging"
 "${adb}" install -r "${apk}"
-"${adb}" logcat -c
+# Clearing is best-effort: some emulator images refuse it ("failed to clear
+# the 'main' log"). The crash check below counts only this package's crashes.
+"${adb}" logcat -c || true
 "${adb}" logcat -b crash -c || true
 started="$("${adb}" shell am start -W -n "${pkg}/com.callscreen.app.MainActivity" | tr -d '\r')"
 echo "${started}"
@@ -110,7 +112,7 @@ for _ in $(seq 1 15); do
     fi
 done
 "${adb}" logcat -d >"${out}/staging-smoke-logcat.txt" 2>&1 || true
-crashes="$("${adb}" logcat -d -b crash | grep -c "FATAL EXCEPTION" || true)"
+crashes="$("${adb}" logcat -d -b crash | grep -c "Process: ${pkg}," || true)"
 test "${crashes}" = "0" || { echo "::error::the minified app logged ${crashes} fatal exception(s)"; "${adb}" logcat -d -b crash | tail -40; exit 1; }
 "${adb}" shell uiautomator dump /sdcard/staging-window.xml >/dev/null
 "${adb}" shell cat /sdcard/staging-window.xml >"${out}/staging-window.xml"
