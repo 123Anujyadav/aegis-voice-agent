@@ -181,7 +181,8 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - identity and edge-api expose metrics; tracing goes to a log exporter only.
 - **Automated tests:**
   - `container-images.yml` (@IMG@) builds the identity and edge-api images on every relevant PR and checks them: non-root, the static binary starts in the scratch image, the commit is logged, and each behaves as documented with no configuration. Nothing is pushed.
-  - Nothing deploys anything, and no alert rules exist.
+  - Nothing deploys anything.
+  - No alert rules exist anywhere. Under Accepted ADR-0013, dashboards and alert rules are operator artefacts kept outside this repository, so they wait on E5 (the observability backend). The signals they need exist: for example `identity_security_audit_failures_total`, which identity's code says should page.
   - **The base images are pinned by tag only.**
     - The Dockerfile leaves digests to Renovate (`pinDigests: true` in `renovate.json5`), but Renovate has never opened a PR in this repository.
     - Dependabot's `docker` entry has `open-pull-requests-limit: 0`.
@@ -291,6 +292,22 @@ These are recommendations from an AI-performed review, offered so that each deci
    - the high-risk decisions H1–H6 and F1, which wait on OD-12 (an independent human reviewer).
 3. **Routine work that can proceed now**, without owner input or paid services: the next actions marked "routine" in §3.
 
-## 6. Keeping this current
+## 6. Product capabilities (owner direction, 2026-11-01)
+
+The owner asked that seven capabilities be carried inside the existing plan, **not as a new phase**, and built only when their dependencies are ready. **The six-phase plan the owner refers to is not written in the repository.** The only "six phases" here are the completed hardening phases (`docs/hardening/FINAL_PRODUCTION_READINESS_REPORT.md`). So this section maps each capability to what exists and what it waits on, and assigns no phase. **OD-18:** the owner adds the six-phase plan to the repository, or names where it lives.
+
+| Capability | What exists | Waits on |
+|---|---|---|
+| **Multilingual: Hindi, English, Tamil, Telugu, Malayalam, Kannada** | **App:** only default strings (`res/values`), no translations. The release build keeps the locales `en, hi, bn, ta, te, mr` (`AndroidApplicationConventionPlugin.kt`, `localeFilters`), so **Malayalam and Kannada strings would be stripped**, and Bengali and Marathi, not in the owner's list, are kept. Typography already covers Indic scripts (`docs/design/03-typography.md`). **Voice:** accepted ADR-0005 targets Indian English, Hindi and Hinglish, with Bengali, Tamil, Telugu and Marathi as expansion; Malayalam and Kannada are not named | **OD-17:** the language set for the app (`localeFilters`) and for voice. **Conflict:** accepted ADR-0005 (Google Cloud STT v2, Deepgram, Sarvam) and ADR-0007 choose **paid** speech vendors, while the owner's rule is free and open-source only. Superseding an accepted ADR is the owner's, and vendors that process personal data are high-risk (§6.1) |
+| **Continuous learning and personalization** | No implementation | Consent records (OD-4); privacy-preserving memory; safe model improvement; ADR-0012 residency |
+| **Conversation outcome analytics** | `services/go/analytics` and `packages/go/evaluation` (from earlier phases) | Calls flowing through the voice pipeline. The telephony programme is owner-held, with staging **NO-GO** (`ROADMAP-INVENTORY.md` §1) |
+| **Privacy-preserving memory** | `packages/go/memory` and `docs/memory/` (consent is structural, INV-MEM-2) | Consent records (OD-4); invariants I2, I7, I8 |
+| **Automated evaluation pipeline** | `packages/go/evaluation`, `evalstore`, `evalsubjects`, and `docs/evaluation/` | Representative data, which needs calls and consent |
+| **Safe model improvement** | `packages/go/governance` | The evaluation pipeline and memory above; any training on subscriber data is a personal-data decision (high-risk) |
+| **Post-call reports and the required Android screens** | UX specifies `A27` (post-call summary) and the related screens (`docs/ux/android/03-screen-inventory.md`, `04-screens-screening-and-calls.md`). The app today screens with an on-device prefilter only; no call reaches an AI agent | The voice pipeline and telephony programme, then the screens |
+
+None of these is on the critical path in §5, and none is started by this document.
+
+## 7. Keeping this current
 
 Update this file in the same PR as any change to a status above, as the inventory is. A status moves to "staging-verified" or "production-verified" only with a recorded run: date, commit and host.
