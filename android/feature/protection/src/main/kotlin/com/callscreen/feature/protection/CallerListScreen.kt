@@ -38,6 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -283,6 +285,7 @@ internal fun EntryDetail(
 ) {
     val copy = CallerListCopy.of(entry.type)
     var label by remember(entry.number, entry.label) { mutableStateOf(entry.label.orEmpty()) }
+    val leaving = releasingKeyboard()
     // Scrolls: on a small screen the actions would otherwise be cut off below the fold.
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -329,11 +332,33 @@ internal fun EntryDetail(
             onClick = { onSaveLabel(label) },
             enabled = CallerLabel.normalise(label) != entry.label,
         )
-        TextButton(onClick = onMove, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        TextButton(onClick = leaving(onMove), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Text(copy.moveAction, style = CallScreenTheme.typography.titleMedium)
         }
-        TextButton(onClick = onRemove, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        TextButton(onClick = leaving(onRemove), modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Text(CallerListCopy.REMOVE, style = CallScreenTheme.typography.titleMedium)
+        }
+    }
+}
+
+/**
+ * Wraps an action that closes the sheet it is in. The sheet is a window of
+ * its own, removed as soon as the action runs; if one of its text fields
+ * still has focus and the keyboard, the input method restarts on a field
+ * whose window is going away. On Android 9 the keyboard then reappeared after
+ * the sheet closed, and a Back press in that moment could be lost (the API 28
+ * emulator run of ProtectionListsTest). Focus and the keyboard are released
+ * first, in the sheet's own window.
+ */
+@Composable
+private fun releasingKeyboard(): (() -> Unit) -> () -> Unit {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    return { action ->
+        {
+            focus.clearFocus(force = true)
+            keyboard?.hide()
+            action()
         }
     }
 }
@@ -372,6 +397,7 @@ private fun Unreadable(onDiscard: () -> Unit) {
 @Composable
 private fun AddNumber(copy: CallerListCopy, onSubmit: (String) -> Unit) {
     var number by remember { mutableStateOf("") }
+    val leaving = releasingKeyboard()
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(16.dp)) {
         OutlinedTextField(
             value = number,
@@ -381,7 +407,7 @@ private fun AddNumber(copy: CallerListCopy, onSubmit: (String) -> Unit) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             modifier = Modifier.fillMaxWidth(),
         )
-        AegisPrimaryButton(text = copy.addAction, onClick = { onSubmit(number) }, enabled = number.isNotBlank())
+        AegisPrimaryButton(text = copy.addAction, onClick = leaving { onSubmit(number) }, enabled = number.isNotBlank())
     }
 }
 
