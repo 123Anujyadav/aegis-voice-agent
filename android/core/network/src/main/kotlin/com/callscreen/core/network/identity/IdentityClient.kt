@@ -73,7 +73,7 @@ public class IdentityClient(
     /** Validates [code] for [requestId], enrolling this device's key. */
     public fun enrol(requestId: String, code: String): IdentityResult<IssuedTokens> {
         if (!IdentityInput.requestId(requestId) || !IdentityInput.code(code)) return IdentityResult.Failure(IdentityError.InvalidInput)
-        val proof = proofs.proof(METHOD, origin + IdentityRoutes.ENROLMENT)
+        val proof = proofFor(IdentityRoutes.ENROLMENT) ?: return IdentityResult.Failure(IdentityError.DeviceProofUnavailable)
         return call(IdentityRoutes.ENROLMENT, json.encodeToString(EnrolBody.serializer(), EnrolBody(requestId, code)), proof) { status, body ->
             if (status != 200) return@call null
             val r = json.decodeFromString(EnrolResponse.serializer(), body)
@@ -85,7 +85,7 @@ public class IdentityClient(
     /** Rotates [refreshToken] for [sessionId], returning a new access and refresh token. */
     public fun refresh(sessionId: String, refreshToken: String): IdentityResult<IssuedTokens> {
         if (!IdentityInput.sessionId(sessionId) || !IdentityInput.refreshToken(refreshToken)) return IdentityResult.Failure(IdentityError.InvalidInput)
-        val proof = proofs.proof(METHOD, origin + IdentityRoutes.REFRESH)
+        val proof = proofFor(IdentityRoutes.REFRESH) ?: return IdentityResult.Failure(IdentityError.DeviceProofUnavailable)
         return call(IdentityRoutes.REFRESH, json.encodeToString(RefreshBody.serializer(), RefreshBody(sessionId, refreshToken)), proof) { status, body ->
             if (status != 200) return@call null
             val r = json.decodeFromString(RefreshResponse.serializer(), body)
@@ -102,10 +102,21 @@ public class IdentityClient(
      */
     public fun deleteAccount(sessionId: String, refreshToken: String): IdentityResult<Unit> {
         if (!IdentityInput.sessionId(sessionId) || !IdentityInput.refreshToken(refreshToken)) return IdentityResult.Failure(IdentityError.InvalidInput)
-        val proof = proofs.proof(METHOD, origin + IdentityRoutes.ACCOUNT_DELETION)
+        val proof = proofFor(IdentityRoutes.ACCOUNT_DELETION) ?: return IdentityResult.Failure(IdentityError.DeviceProofUnavailable)
         return call(IdentityRoutes.ACCOUNT_DELETION, json.encodeToString(RefreshBody.serializer(), RefreshBody(sessionId, refreshToken)), proof) { status, _ ->
             if (status == 204) Unit else null
         }
+    }
+
+    /**
+     * This device's proof for [route], or null if the device key could not
+     * sign one (a Keystore or provider failure). The request is then not
+     * sent, instead of the failure escaping to the caller.
+     */
+    private fun proofFor(route: String): String? = try {
+        proofs.proof(METHOD, origin + route)
+    } catch (e: Exception) {
+        null
     }
 
     private fun tokens(access: String, type: String, expiresIn: Long, refresh: String): IssuedTokens? =

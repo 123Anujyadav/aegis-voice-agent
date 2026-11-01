@@ -152,5 +152,31 @@ func applicationHandler(a *auth.Authenticator, routes map[string]http.Handler, t
 	for pattern, h := range routes {
 		mux.Handle(pattern, h)
 	}
-	return middleware.SecurityHeadersMiddleware(middleware.CorrelationIDMiddleware(middleware.EdgeTraceMiddleware(tracer)(a.Middleware(mux))))
+	return withDeadlines(middleware.SecurityHeadersMiddleware(middleware.CorrelationIDMiddleware(middleware.EdgeTraceMiddleware(tracer)(a.Middleware(mux)))))
+}
+
+// Per-request bounds, as identity's (services/go/identity/internal/httpapi).
+// The listener sets only ReadHeaderTimeout and IdleTimeout, so without these a
+// slow client or a stalled replay store could hold a request open
+// indefinitely.
+const (
+	requestReadTimeout    = 10 * time.Second
+	requestWriteTimeout   = 15 * time.Second
+	requestHandlerTimeout = 10 * time.Second
+)
+
+// withDeadlines bounds each request: reading it, writing the response, and
+// the work in between. The handler's context ends after
+// requestHandlerTimeout, so a replay reservation that cannot finish in time
+// fails, and auth.Middleware answers 503 (fail closed), not a hung request.
+func withDeadlines(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rc := http.NewResponseController(w)
+		now := time.Now()
+		_ = rc.SetReadDeadline(now.Add(requestReadTimeout))   //nolint:errcheck // a writer without deadlines (http.ErrNotSupported) is still bounded by the handler timeout below
+		_ = rc.SetWriteDeadline(now.Add(requestWriteTimeout)) //nolint:errcheck // as above
+		ctx, cancel := context.WithTimeout(r.Context(), requestHandlerTimeout)
+		defer cancel()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }

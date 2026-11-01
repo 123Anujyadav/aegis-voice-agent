@@ -8,6 +8,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.callscreen.app.navigation.AegisDestinations
 import com.callscreen.app.navigation.AegisNavGraph
+import com.callscreen.core.auth.AccessTokenProofs
+import com.callscreen.core.auth.EdgeApiClient
 import com.callscreen.core.auth.EnrolOutcome
 import com.callscreen.core.auth.IdentityAuthenticator
 import com.callscreen.core.auth.SessionEndCause
@@ -73,16 +75,36 @@ class SessionWiringTest {
     }
 
     private lateinit var server: MockWebServer
+    private lateinit var edge: MockWebServer
     private val blobs = MemoryBlobs()
     private val key = MemoryKey()
 
     @Before
     fun start() {
         server = MockWebServer().apply { start(InetAddress.getByName("127.0.0.1"), 0) }
+        edge = MockWebServer().apply { start(InetAddress.getByName("127.0.0.1"), 0) }
     }
 
     @After
-    fun stop() = server.shutdown()
+    fun stop() {
+        server.shutdown()
+        edge.shutdown()
+    }
+
+    private class MemoryRecord(var at: Long?) : CheckRecord {
+        override fun last(): Long? = at
+        override fun record(atMillis: Long) { at = atMillis }
+    }
+
+    /** A session check over the real EdgeApiClient against a local fake of edge-api; due at once. */
+    private fun dueCheck(auth: IdentityAuthenticator, calls: AtomicInteger = AtomicInteger()): SessionCheck {
+        val http = IdentityClient.defaultHttpClient().newBuilder().readTimeout(2, TimeUnit.SECONDS).build()
+        val client = EdgeApiClient(edge.url("/").toString().trimEnd('/'), auth, AccessTokenProofs { _, _, _ -> "proof" }, http)
+        return SessionCheck({ calls.incrementAndGet(); client.me() }, MemoryRecord(0L))
+    }
+
+    private fun problem(status: Int, code: String) =
+        MockResponse().setResponseCode(status).setHeader("Content-Type", "application/problem+json").setBody("""{"code":"$code"}""")
 
     /** A fresh authenticator over the same phone's store: what a new process sees at launch. */
     private fun authenticator(): IdentityAuthenticator {
@@ -128,8 +150,8 @@ class SessionWiringTest {
     }
 
     // Unconfined: the notice's collector is attached by the time the graph is idle.
-    private fun signals(auth: IdentityAuthenticator?, io: CoroutineDispatcher = Dispatchers.Unconfined) =
-        SessionSignals.of(io) { auth }
+    private fun signals(auth: IdentityAuthenticator?, io: CoroutineDispatcher = Dispatchers.Unconfined, check: SessionCheck? = null) =
+        SessionSignals.of(io, check = { check }) { auth }
 
     @Test
     fun anEnrolledPhoneStartsAtCallsWithoutSendingAnything() {
@@ -197,5 +219,59 @@ class SessionWiringTest {
         }
         assertEquals(1, built.get())
         assertFalse("built on the main thread", onMain!!)
+    }
+
+    @Test
+    fun aCheckThatFindsTheSessionEndedShowsTheNotice() {
+        enrol()
+        val auth = authenticator()
+        runBlocking { auth.isSignedIn() }
+        // edge-api refuses the token, and identity then says the session ended.
+        edge.enqueue(problem(401, "ERR_INVALID_TOKEN"))
+        server.enqueue(problem(401, "ERR_INVALID_TOKEN"))
+        val nav = graph(AegisDestinations.CALLS_FEED, signals(auth, check = dueCheck(auth)))
+        compose.waitUntil(timeoutMillis = 5_000) {
+            shadowOf(Looper.getMainLooper()).idle()
+            nav.routes() == listOf(AegisDestinations.SIGNED_OUT)
+        }
+        assertEquals(SessionState.SignedOut(SessionEndCause.SESSION_ENDED), auth.sessionState.value)
+        assertEquals("/v1/me", edge.takeRequest().path)
+    }
+
+    @Test
+    fun aCheckThatCannotReachTheServerKeepsTheSession() {
+        enrol()
+        val auth = authenticator()
+        runBlocking { auth.isSignedIn() }
+        edge.enqueue(problem(503, "ERR_TEMPORARILY_UNAVAILABLE"))
+        val calls = AtomicInteger()
+        val nav = graph(AegisDestinations.CALLS_FEED, signals(auth, check = dueCheck(auth, calls)))
+        compose.waitUntil(timeoutMillis = 5_000) {
+            shadowOf(Looper.getMainLooper()).idle()
+            edge.requestCount == 1
+        }
+        compose.waitForIdle()
+        assertEquals(listOf(AegisDestinations.CALLS_FEED), nav.routes())
+        assertEquals(SessionState.SignedIn, auth.sessionState.value)
+        assertEquals(1, calls.get())
+    }
+
+    @Test
+    fun noCheckIsSentDuringTheSplash() {
+        enrol()
+        val auth = authenticator()
+        val calls = AtomicInteger()
+        edge.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody("""{"subject":"s","deviceKeyThumbprint":"t"}"""))
+        val nav = graph(AegisDestinations.SPLASH, signals(auth, check = dueCheck(auth, calls)))
+        compose.mainClock.advanceTimeBy(1_000)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("checked during the splash", 0, calls.get())
+        nav.afterSplashIs(AegisDestinations.CALLS_FEED)
+        compose.waitUntil(timeoutMillis = 5_000) {
+            shadowOf(Looper.getMainLooper()).idle()
+            edge.requestCount == 1
+        }
+        assertEquals(1, calls.get())
+        assertEquals(SessionState.SignedIn, auth.sessionState.value)
     }
 }
