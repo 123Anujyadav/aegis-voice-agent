@@ -104,8 +104,21 @@ env:
   # once per change, but nothing re-examined it on a schedule or with shuffled
   # repetition. Its real-PostgreSQL tests need a DSN this job does not provide,
   # so here they report SKIP (not PASS); they belong to a database job.
+  #
+  # The sign-in and session path (2026-11-01, production-readiness F5): the
+  # shared auth packages, then identity and edge-api. They hold the refresh
+  # single-flight and reuse detection, the DPoP replay reservation and the
+  # access-token verifier, all concurrent; pr-go.yml runs them under -race
+  # once per change only. Their real-PostgreSQL tests need a DSN this job does
+  # not provide, so they report SKIP here; identity-postgres.yml runs them.
   RACE_EXTRA_MODULES: >-
     services/go/telephony-gateway
+    packages/go/accesstoken
+    packages/go/dpop
+    packages/go/pgshared
+    packages/go/middleware
+    services/go/identity
+    services/go/edge-api
 
 jobs:
   # ---------------------------------------------------------------------------

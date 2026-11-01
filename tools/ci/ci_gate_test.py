@@ -622,6 +622,7 @@ class GateSimulationTest(unittest.TestCase):
     hardening = ".github/workflows/hardening.yml"
     lint = "golangci-lint (packages/go/outbox)"
     security = ".github/workflows/pr-security.yml"
+    images = ".github/workflows/container-images.yml"
 
     def scanned(self, runs: dict[str, dict]) -> dict[str, dict]:
         """Add the secret-scan run every PR starts (pr-security.yml, no path filter)."""
@@ -640,6 +641,8 @@ class GateSimulationTest(unittest.TestCase):
                     self.ci: _run(1, self.ci, "success"),
                     self.pr_go: _run(2, self.pr_go, "failure"),
                     self.hardening: _run(3, self.hardening, ran_hardening),
+                    # A Go package change also builds the service images.
+                    self.images: _run(4, self.images, "success"),
                 }
             ),
             {
