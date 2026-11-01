@@ -125,7 +125,7 @@ class SessionOnDeviceTest {
         .setHeader("Content-Type", "application/problem+json").setBody("""{"code":"$code"}""")
 
     private fun enrol(auth: IdentityAuthenticator) {
-        server.enqueue(tokens("access-1", "refresh-1"))
+        server.enqueue(tokens("access-1", REFRESH_1))
         assertEquals(EnrolOutcome.Enrolled, runBlocking { auth.enrol(REQUEST_ID, "123456") })
     }
 
@@ -137,13 +137,13 @@ class SessionOnDeviceTest {
 
         // Within the refresh margin of the expiry identity reported: one refresh.
         now += 900 - IdentityAuthenticator.REFRESH_MARGIN_SECONDS
-        server.enqueue(tokens("access-2", "refresh-2", sessionId = null))
+        server.enqueue(tokens("access-2", REFRESH_2, sessionId = null))
         val refreshed = auth.accessToken()
         assertTrue("$refreshed", refreshed is AuthState.Authenticated && refreshed.accessToken == "access-2")
         val refreshRequest = server.takeRequest()
         val refreshProof = verifiedProof(refreshRequest, IdentityRoutes.REFRESH)
         assertEquals("enrolment and refresh are signed by the same device key", enrolProof.thumbprint, refreshProof.thumbprint)
-        assertTrue("the rotated-away token was presented", refreshRequest.body.readUtf8().contains("\"refresh-1\""))
+        assertTrue("the rotated-away token was presented", refreshRequest.body.readUtf8().contains("\"$REFRESH_1\""))
 
         // A restarted process reads the sealed record back, with no request.
         val requests = server.requestCount
@@ -268,6 +268,10 @@ class SessionOnDeviceTest {
         const val SESSION_ALIAS = "callscreen.test.session-key"
         val REQUEST_ID = "req_" + "a".repeat(64)
         val SESSION_ID = "sess_" + "b".repeat(64)
+
+        /** Identity's refresh tokens are 64 lowercase hex characters; the client refuses anything else. */
+        val REFRESH_1 = "1".repeat(64)
+        val REFRESH_2 = "2".repeat(64)
 
         /** P-256's domain parameters, from a software key (no Keystore involved). */
         val P256 = (KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }
