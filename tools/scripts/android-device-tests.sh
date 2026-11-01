@@ -14,6 +14,7 @@
 set -euo pipefail
 
 api="${ANDROID_TEST_API:-35}"
+[[ "${api}" =~ ^[0-9]{2}$ ]] || { echo "::error::ANDROID_TEST_API must be a two-digit API level, got '${api}'"; exit 1; }
 image="system-images;android-${api};google_apis;x86_64"
 sdk="${ANDROID_HOME:?ANDROID_HOME is not set}"
 bin="${sdk}/cmdline-tools/latest/bin"

@@ -1,7 +1,12 @@
 # =============================================================================
-# The app's instrumented tests on an Android emulator (API 35), nightly and on
-# demand. pr-android.yml only compiles them; until this workflow, every device
-# result was a local run (production-readiness F6).
+# The app's instrumented tests on Android emulators, nightly and on demand.
+# pr-android.yml only compiles them; until this workflow, every device result
+# was a local run (production-readiness F6).
+#
+# API levels: nightly and on demand, 35 (the current platform), 28 (Android 9,
+# the last without the call-screening role) and 26 (minSdk). On a pull
+# request, 35 only. The tests suppress what an API level cannot do
+# (@SdkSuppress), so each level runs the cases that apply to it.
 #
 # Not on every pull request: an emulator run takes a runner for most of half
 # an hour. It runs on a pull request only when this workflow, its script or
@@ -18,6 +23,11 @@ on:
   schedule:
     - cron: "30 3 * * *"
   workflow_dispatch:
+    inputs:
+      api:
+        description: "One API level to run (for example 28); empty runs 35, 28 and 26"
+        required: false
+        default: ""
   pull_request:
     paths:
       - ".github/workflows/android-device-tests.yml"
@@ -33,11 +43,16 @@ permissions:
 
 jobs:
   device-tests:
-    name: Instrumented tests on an emulator (API 35)
+    name: Instrumented tests on an emulator (API ${{ matrix.api }})
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        api: ${{ fromJSON(github.event_name == 'pull_request' && '[35]' || inputs.api != '' && inputs.api != null && format('[{0}]', inputs.api) || '[35, 28, 26]') }}
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
+      ANDROID_TEST_API: ${{ matrix.api }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -58,7 +73,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Instrumented tests (emulator, API 35)
+      - name: Instrumented tests (emulator, API ${{ matrix.api }})
         run: tools/scripts/android-device-tests.sh
 
       # The HTML report and per-test results, and the emulator log and
@@ -67,7 +82,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: android-device-test-reports
+          name: android-device-test-reports-api${{ matrix.api }}
           path: |
             android/app/build/reports/androidTests/connected/
             android/app/build/outputs/androidTest-results/connected/
