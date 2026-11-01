@@ -1,6 +1,6 @@
 # Roadmap inventory: phases, remaining work and release prerequisites
 
-- **As of:** 2026-11-01, `main` `f51565a` (#202). Post-merge CI on `f51565a`: "Aegis AI CI Pipeline", `pr-security`, `hardening`, `android-identity-contract` and `pr-android` all succeeded; `hardening` also succeeded on `726ca1c` and `cef3695`. Previous refresh: 2026-10-26, `93fe2cb`.
+- **As of:** 2026-11-01, `main` `0d1ed04` (#209). Merged since the previous refresh: #201–#209. Post-merge CI is recorded per PR in `PRODUCTION-READINESS.md`.
 - **Method:** every count below is of items **defined in a named document or verified in the repository**. Nothing is estimated. Where documents conflict, the conflict is reported (§1), with the source treated as authoritative.
 - **Not claimed:** that Phase 19 is complete, or that the app is ready for Google Play.
 
@@ -34,7 +34,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 
 ## 2. Where the project is
 
-- **Current phase:** Phase 19, the release programme (`docs/phase19/`). **75 PRs have been merged in it:** #123–#181 and #186–#200, and #202, from `git log d764117..f51565a`. #201 is this refresh. #182–#185 are Dependabot PRs, still open. Merged since the previous refresh:
+- **Current phase:** Phase 19, the release programme (`docs/phase19/`). **83 PRs have been merged in it:** #123–#181 and #186–#209, from `git log d764117..0d1ed04`. The PR carrying this refresh is not counted. #182–#185 are Dependabot PRs, still open. Merged since the previous refresh:
   - #194: release endpoint preflight; this inventory;
   - #195: F14 "held before" fix and device tests across screens;
   - #196: internal-testing setup checklist; OD-11 proposal; deletion template in the provider runbook;
@@ -42,9 +42,17 @@ The repository uses three different meanings of "phase". None defines a phase af
   - #198: an undelivered sign-in code is withdrawn even after the request ends; the SMS adapter contract and staging plan (C2's contract; the adapter itself is still blocked);
   - #199: governance amendment G0 (P2), conflict 7;
   - #200: ADR-0032 (Proposed, high-risk) and its AI-performed review packet; conflict 6. It changes no accepted ADR or invariant, and no code;
-  - #202: C16, the Android session lifecycle (done; §3.1).
+  - #201: the previous refresh of this inventory;
+  - #202: C16, the Android session lifecycle (done; §3.1);
+  - #203: C17, the session check with edge-api `GET /v1/me` (done);
+  - #204: C18, a device key that cannot sign no longer crashes the app (done);
+  - #205: C19, edge-api request deadlines (done);
+  - #206: C20, C22 and C23: race runs over the auth path, instrumented tests on a CI emulator, the Android dependency audit and the image build (done);
+  - #207: C21 (backup and device-transfer rules), the deletion-screen crash guard and the on-device session test (done);
+  - #208: C24, fuzzing of the auth parsers (done);
+  - #209: the API 28 emulator failure of `ProtectionListsTest` (production-readiness F13), a keyboard race in the test, fixed in the test (done).
 - **Completion criteria:** none defined (conflict 3).
-- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-11-01 on `f51565a`: no document records an approval (ADR-0032 and its packet list OD-10 as an open owner decision), and this section is the only place they are written. Phase 19 is complete when:
+- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-11-01 on `0d1ed04`: no document records an approval (ADR-0032 and its packet list OD-10 as an open owner decision), and this section is the only place they are written. Phase 19 is complete when:
   - a Play **internal-testing** release can be built by `release-android.yml` from a protected Environment;
   - testers can sign in and use on-device screening against deployed staging hosts;
   - every §4.1 internal-testing item is done.
@@ -58,7 +66,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 - **O, owner decision:** needs the repository owner's decision.
 - **H, high-risk:** needs the owner's decision **and** an independent human review (rule 8). No reviewer exists, so every H item is blocked on G0a (§3.7).
 
-### 3.1 Coding: 16 open; 1 routine and unblocked (C17)
+### 3.1 Coding: 15 open; none routine and unblocked
 
 | # | Task | Class | Blocked on | Source |
 |---|---|---|---|---|
@@ -78,7 +86,14 @@ The repository uses three different meanings of "phase". None defines a phase af
 | C14 | `client_id` rollout | O | O1, only if `client_id` is chosen | Tracker §3 |
 | C15 | `BiometricPrompt` before the deletion confirmation | O | O12, only if screen lock is chosen | Tracker §3 |
 | C16 | Android session lifecycle: cold start routes a signed-in user to Calls from local session state, onboarding leaves the back stack, and a signed-out notice appears once. Client only: no network refresh at launch, no global sign-out, no change to refresh-token revocation. | **R** | **Done.** #202, `main` `f51565a`. Includes the fix for a corrupt session file crashing every launch, found by an AI-performed review and reproduced on an emulator before the fix. **Tests:** `SessionRoutingTest` 8, `SessionNavigationTest` 8 and `SessionWiringTest` 6 (over the real authenticator, client and encrypted store), 244 unit tests in all; emulator API 35 16/16. Post-merge CI green. **Not covered:** a signed-in cold start against deployed hosts (X5) | UX `02-navigation-graph.md` §2.2, A73 |
-| C17 | Android calls edge-api `GET /v1/me` through `EdgeGraph` (DPoP), so that a session identity has ended is noticed and shows A73. A temporary failure (network, timeout, 5xx) never signs the user out. No network refresh at every launch | **R** | Nothing. **Not started** (next) | `EdgeApiClient.me()` in `core:auth` (#144); UX A73 |
+| C17 | Android calls edge-api `GET /v1/me` through `EdgeGraph` (DPoP), so that a session identity has ended is noticed and shows A73. A temporary failure (network, timeout, 5xx) never signs the user out. No network refresh at every launch | **R** | **Done.** #203, `604e437`. At most hourly, never at launch or during the splash. **Tests:** `SessionCheckTest` 8, `SessionCheckWiringTest` 7 (the real authenticator and edge client against local servers), `SessionWiringTest` +3. **Not covered:** deployed hosts (X5) | `EdgeApiClient.me()` in `core:auth` (#144); UX A73 |
+| C18 | A device key that cannot sign (Android Keystore failure) no longer crashes the app: nothing is sent and the session is kept (`DeviceProofUnavailable`) | **R** | **Done.** #204, `d6cfa8d`. Production-readiness F2 | `PRODUCTION-READINESS.md` §4 |
+| C19 | edge-api bounds every request with read, write and handler deadlines; a stalled replay store answers 503 | **R** | **Done.** #205, `4a78f97`. F4 | `PRODUCTION-READINESS.md` §4 |
+| C20 | `hardening`'s repeated shuffled race runs cover identity, edge-api and the shared auth packages | **R** | **Done.** #206, `bba198d`. F5 | `PRODUCTION-READINESS.md` §4 |
+| C21 | Backup and device-transfer rules (`dataExtractionRules`) exclude all app data. Also: an unreadable stored session no longer crashes the deletion screen, and an on-device test of sign-in, refresh and edge-api `/v1/me` with Keystore keys | **R** | **Done.** #207, `3ef3b84`. F7 | `PRODUCTION-READINESS.md` §4 |
+| C22 | The instrumented tests run on emulators in CI (`android-device-tests.yml`): API 35 on PRs that change them; API 35, 28 and 26 nightly | **R** | **Done.** #206, `bba198d`; per-API results in `PRODUCTION-READINESS.md` §3.9. F6 | `PRODUCTION-READINESS.md` §4 |
+| C23 | The Android release dependencies are audited against OSV (`android-deps-audit.yml`); identity and edge-api images are built and smoke-checked, never pushed (`container-images.yml`) | **R** | **Done.** #206, `bba198d`. F9 | `PRODUCTION-READINESS.md` §3.8, §4 |
+| C24 | The DPoP, access-token and traceparent parsers are fuzzed in `hardening` (45 s per PR, 5 min nightly) and gate the release | **R** | **Done.** #208, `e08ade8`. Security testing | `PRODUCTION-READINESS.md` §3.7 |
 
 **Completed, not counted above:** the release endpoint preflight (#194), the F14 "held before" fix (#195), the deletion-code seam (#197) and the sign-in code withdrawal fix (#198). #197 and #198 prepare C3 and C2 but do not complete them.
 
@@ -92,12 +107,12 @@ The repository uses three different meanings of "phase". None defines a phase af
 | T4 | Play Integrity verdicts from a Play-installed build | Blocked: E1, X1 | Readiness §8.4 |
 | T5 | Run the signing-key rotation runbook once in staging | Blocked: E3 (SRE) | Tracker E3 |
 
-### 3.3 Owner decisions: 27 pending (none approved)
+### 3.3 Owner decisions: 33 pending (none approved)
 
 - **Tracker O1–O17 (17),** less O10 and O11, which are in §3.4: **15.**
   - O9–O17 are the account-deletion decisions D1–D9.
   - No row records an approval (checked: the tracker contains no "approved", "ratified" or "decided" entry).
-- **Defined in other Phase 19 documents and not in the tracker (12):**
+- **Defined in other Phase 19 documents and not in the tracker (18):**
 
 | # | Decision | Source |
 |---|---|---|
@@ -113,6 +128,12 @@ The repository uses three different meanings of "phase". None defines a phase af
 | OD-10 | Phase 19 completion criteria (§2) | This inventory, conflict 3 |
 | OD-11 | The F14 banner's first sentence, "Another app is now screening your calls", is a UX-spec text the app cannot verify, and it is false when the subscriber simply turned screening off. **Proposed amendment in Appendix A (not applied, awaiting your OK).** | Validation doc §4.3 (#195) |
 | OD-12 | **Identify an independent human reviewer** (gate G0a). Without one, every high-risk decision stays Proposed (§3.7) | `ARCHITECTURE_FREEZE.md` §6.1, rules 8 and 10 |
+| OD-13 | A corrupt session **file** is never recovered: DataStore has no corruption handler (production-readiness F3). Recovering means discarding the unreadable file, as the app already does for an unreadable record | `PRODUCTION-READINESS.md` §4 |
+| OD-14 | No sign-out action in the app (F8): whether to add one, and where | `PRODUCTION-READINESS.md` §4 |
+| OD-15 | identity started with no configuration boots inactive and reports ready (F12): whether staging and production should refuse to start instead | `PRODUCTION-READINESS.md` §4 |
+| OD-16 | How container base images are kept current: Renovate (configured with `pinDigests`, never active; an external app) or Dependabot `docker` update PRs (limit 0 today). Digest pinning follows | `PRODUCTION-READINESS.md` §3.8 |
+| OD-17 | The language set: Hindi, English, Tamil, Telugu, Malayalam and Kannada (owner, 2026-11-01) against the app's `localeFilters` (`en, hi, bn, ta, te, mr`) and ADR-0005's voice languages; and the conflict between the free-only rule and the paid speech vendors of Accepted ADR-0005 and ADR-0007 | `PRODUCTION-READINESS.md` §6; `SPEECH-PROVIDER-POLICY-CONFLICT.md` |
+| OD-18 | The held Dependabot PRs #182–#185: decide them, or stop Dependabot rebasing them (`rebase-strategy: disabled` for `github-actions`). Each rebase re-runs full CI; on 2026-11-01 two of them queued about 186 `pr-go` jobs ahead of other work (production-readiness F14) | `PRODUCTION-READINESS.md` §4 |
 
 ### 3.4 Privacy and legal review: 6 pending
 
@@ -151,12 +172,12 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 
 | Category | Open | Of which unblocked now |
 |---|---|---|
-| Coding | 16 | 1 (C17, routine). C16 done (#202) |
+| Coding | 15 | 0. C16–C24 done (#202–#208); the F13 test race fixed (#209). Routine work outside this list: `PRODUCTION-READINESS.md` §3 |
 | Testing | 4 (T2 has 12 cases) | 0 |
-| Owner decisions | 27 | — |
+| Owner decisions | 33 | — |
 | Privacy/legal reviews | 6 | — |
 | External dependencies | 15 | — |
-| High-risk decisions (§3.7) | 3, plus 3 conditional | 0: all need an independent human reviewer (OD-12) |
+| High-risk decisions (§3.7) | 4, plus 3 conditional | 0: all need an independent human reviewer (OD-12) |
 
 ### 3.7 High-risk architecture decisions (P2)
 
@@ -168,6 +189,7 @@ Each needs the owner's decision **and** an independent human review. **No review
 | H2 | **ADR-0010 amendment for server-side access-token revocation** (O17; C10) | Not drafted | `ACCOUNT-DELETION.md` §5 D9 |
 | H3 | **ADR-0012 amendment for server-side call-list sync** (OD-2; C7) | Not drafted | Validation doc §6 |
 | H4–H6 | **Ratifying ADR-0029, ADR-0030 and ADR-0031** (O1, O2, O7) | Conditional: high-risk **if the owner classifies them so** (`docs/adr/README.md`, "Reading historical records"). Their current status and effect on implementation are unchanged | Each ADR's status |
+| H7 | **When a refused refresh proof ends the session** (production-readiness F1, with F11) | Proposed (A + B + E); not implemented | `F1-REFRESH-PROOF-REJECTION.md` |
 
 **The approval rules themselves** (#199) were adopted by the owner's merge. That needed no independent review, because rule 6 reserves changes to the rules to the owner.
 

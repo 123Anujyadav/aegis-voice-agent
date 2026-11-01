@@ -1,6 +1,6 @@
 # Production readiness tracker
 
-- **As of:** 2026-11-01, `main` `@MAIN@`.
+- **As of:** 2026-11-01, `main` `0d1ed04`.
 - **Verdict: not production-ready.** Nothing has been deployed anywhere, no physical device has run the app, and no Play release exists. Builds and CI passing are not readiness (§1).
 - **Method:** every entry cites the code, test, workflow or document it rests on. It comes from an audit of the repository at `7f60bac`, re-checked against each later merge. Nothing is estimated, and there are no percentages.
 - **IDs:** task and blocker IDs are the ones defined in [`ROADMAP-INVENTORY.md`](ROADMAP-INVENTORY.md) (C, T, OD, L, E, X, H) and [`EXTERNAL-DEPENDENCIES.md`](EXTERNAL-DEPENDENCIES.md) (O). This document does not redefine them. F-numbers are this document's own findings (§4).
@@ -12,7 +12,7 @@
 |---|---|---|
 | **Implemented** | Code on `main` | Most areas (§2) |
 | **Automated tests** | Run in CI on every relevant PR and on `main`: unit, Robolectric, real PostgreSQL, and the live contract against local binaries | Backend; Android JVM and Robolectric tests; `android-identity-contract` |
-| **Emulator** | The instrumented tests (`app/src/androidTest`) on an Android emulator: in CI by `android-device-tests.yml` (@F6@), or by hand | @EMU_SCOPE@ |
+| **Emulator** | The instrumented tests (`app/src/androidTest`) on an Android emulator: in CI by `android-device-tests.yml` (#206, `bba198d`), or by hand | Screening, the network-permission check, the Keystore key, and sign-in, refresh and edge-api `GET /v1/me` with real Keystore keys against a local HTTPS fake of identity (`SessionOnDeviceTest`, #207). Not against real hosts |
 | **Physical device** | Any run on a real phone | **None** (X3) |
 | **Staging-verified** | Exercised on deployed staging hosts | **None.** No staging hosts exist (X5) |
 | **Production-verified** | Exercised in production | **None** |
@@ -24,15 +24,15 @@ A runbook is not evidence that an operation works. Every runbook in `docs/runboo
 | # | Area | Implemented | Automated tests | Emulator | Physical device | Staging | Production |
 |---|---|---|---|---|---|---|---|
 | 1 | Authentication and account lifecycle | Yes, except SMS delivery | CI | — | None | None | None |
-| 2 | Android session and edge-api integration | Yes | CI | @EMU_SESSION@ | None | None | None |
+| 2 | Android session and edge-api integration | Yes | CI | `SessionOnDeviceTest` (#207): API 35, 26 and 28 in CI | None | None | None |
 | 3 | DPoP and device-key security | Yes | CI | Keystore key test | None | None | None |
 | 4 | Phone verification and calling permissions | Partly: no code can be delivered (E2) | CI | Role tests | None | None | None |
 | 5 | Call screening and reliability | Yes, on-device prefilter | CI | Instrumented and manual cases | None | n/a, on-device | None |
 | 6 | Account deletion and data erasure | In-app yes; web flow built but dormant | CI | — | None | None | None |
 | 7 | Backend security and API correctness | Yes, with gaps (§3.7) | CI | n/a | n/a | None | None |
 | 8 | Infrastructure, deployment and observability | Templates only | Partial | n/a | n/a | **Nothing deployed** | None |
-| 9 | Android compatibility and performance | Yes, no baseline profile | CI: the minified build | API 35, API 28 | None | n/a | None |
-| 10 | Automated tests and failure recovery | Yes | CI | @F6@ | None | None | None |
+| 9 | Android compatibility and performance | Yes, no baseline profile | CI: the minified build | API 35, 28 and 26 in CI | None | n/a | None |
+| 10 | Automated tests and failure recovery | Yes | CI | #206, `bba198d` | None | None | None |
 | 11 | Play Store, privacy and release validation | Bundle build only | CI with a throwaway key | — | None | Never run for real | None |
 
 ## 3. Areas
@@ -50,8 +50,8 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
 - **Automated tests:**
   - unit, HTTP and real-PostgreSQL suites (`identity-postgres.yml`, including the identity-to-edge lifecycle test);
   - the Android client's live contract (`android-identity-contract.yml`);
-  - the repeated shuffled race run (`hardening.yml`, @C20@).
-- **Emulator:** @EMU_31@
+  - the repeated shuffled race run (`hardening.yml`, #206, `bba198d`).
+- **Emulator:** `SessionOnDeviceTest` (#207): enrolment and refresh signed by a real Keystore key, the session sealed by a real Keystore AES key, against a local HTTPS fake of identity. Passed on API 35, 28 and 26 in CI. Not against a real identity host
 - **Physical device:** none.
 - **Staging and production:** none.
 - **Blocker:**
@@ -68,12 +68,12 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - an encrypted session store and single-flight refresh (`IdentityAuthenticator`);
   - cold-start routing and the A73 notice (C16, #202);
   - session confirmation with `GET /v1/me`, at most hourly and never at launch, where a temporary failure never signs the user out (C17, #203);
-  - a Keystore failure while signing keeps the session instead of crashing (C18, @C18@).
+  - a Keystore failure while signing keeps the session instead of crashing (C18, #204, `d6cfa8d`).
 - **Automated tests:**
   - JVM and Robolectric suites in `pr-android`;
   - `SessionCheckWiringTest`, which runs the real authenticator and edge client against local servers;
   - the live contract (`EdgeLiveContractTest`).
-- **Emulator:** @EMU_32@
+- **Emulator:** `SessionOnDeviceTest` (#207): enrolment, refresh, a restart and edge-api `GET /v1/me` with a token-bound proof, on API 35, 28 and 26 in CI; local fakes, not real hosts
 - **Physical device:** none.
 - **Staging and production:** none (T3 is blocked on X5 and E2).
 - **Blocker:**
@@ -88,11 +88,11 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - a non-exportable Keystore P-256 key, in StrongBox when available, destroyed after a confirmed deletion;
   - server checks of `htm`, `htu`, `ath`, `iat` and `jkt`;
   - a shared PostgreSQL replay store that fails closed (`packages/go/dpop`, `services/go/edge-api/internal/auth`);
-  - edge-api per-request deadlines, so a stalled replay store answers 503 (C19, @C19@).
+  - edge-api per-request deadlines, so a stalled replay store answers 503 (C19, #205, `4a78f97`).
 - **Automated tests:**
   - Go unit tests and real-PostgreSQL replay tests across instances;
   - Android unit tests;
-  - the race runs (@C20@).
+  - the race runs (#206, `bba198d`).
 - **Emulator:** `DeviceKeyKeystoreTest`.
 - **Physical device:** none. Real StrongBox hardware has never been exercised.
 - **Staging and production:** none. Key rotation has never been exercised (T5, E3).
@@ -143,8 +143,8 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - erasure in identity (migration `0008`);
   - the web deletion flow, built but dormant (`0009`);
   - the device key destroyed after a confirmed deletion;
-  - app data excluded from cloud backup and from device-to-device transfer (C21, @C21@);
-  - an unreadable stored session no longer crashes the deletion screen: it shows "not signed in" and deletes nothing (@C21@).
+  - app data excluded from cloud backup and from device-to-device transfer (C21, #207, `3ef3b84`);
+  - an unreadable stored session no longer crashes the deletion screen: it shows "not signed in" and deletes nothing (#207, `3ef3b84`).
 - **Automated tests:**
   - unit, HTTP, real-PostgreSQL and end-to-end lifecycle tests;
   - the live contract (`IdentityLiveContractTest.accountDeletion`);
@@ -166,7 +166,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
 - **Automated tests:** on every PR:
   - gitleaks;
   - govulncheck, golangci-lint and pip-audit;
-  - the Android dependency audit (F9, @F9@);
+  - the Android dependency audit (F9, #206, `bba198d`: OSV-Scanner 2.7.0, 133 release libraries, no advisories);
   - Dependabot.
 - **Staging and production:** none.
 - **Blocker:** C13/E6: there is no per-source rate limiting, and edge-api has none at all.
@@ -181,7 +181,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - There is no Terraform.
   - identity and edge-api expose metrics; tracing goes to a log exporter only.
 - **Automated tests:**
-  - `container-images.yml` (@IMG@) builds the identity and edge-api images on every relevant PR and checks them: non-root, the static binary starts in the scratch image, the commit is logged, and each behaves as documented with no configuration. Nothing is pushed.
+  - `container-images.yml` (#206, `bba198d`) builds the identity and edge-api images on every relevant PR and checks them: non-root, the static binary starts in the scratch image, the commit is logged, and each behaves as documented with no configuration. Nothing is pushed.
   - Nothing deploys anything.
   - No alert rules exist anywhere. Under Accepted ADR-0013, dashboards and alert rules are operator artefacts kept outside this repository, so they wait on E5 (the observability backend). The signals they need exist: for example `identity_security_audit_failures_total`, which identity's code says should page.
   - **The base images are pinned by tag only.**
@@ -203,9 +203,9 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - `profileinstaller` present, but no baseline profile.
 - **Automated tests:** the minified staging build and an "R8 actually minified" check.
 - **Emulator:** in CI (`android-device-tests.yml`), all on the default emulator profile (320×640, 1536 MB):
-  - API 35: @EMU35@;
-  - API 28 (Android 9): @EMU28@;
-  - API 26 (Android 8.0, minSdk): @EMU26@.
+  - API 35: 19/19 on #207's head `ad2e51a` (run 41291943846; merged as `3ef3b84`) and on `3e16208` (#209, run 41327024741);
+  - API 28 (Android 9): 15/15 in 3 of 3 runs on `3e16208` (#209: runs 41327011337, 41327014384, 41327017901), after the keyboard race in F13 was fixed; before that, 3 of 12 runs failed on F13;
+  - API 26 (Android 8.0, minSdk): 12/12 on `bba198d` (run 41290918130, the first run at minSdk) and 15/15 on `3e16208` (run 41327021294).
   - By hand earlier: API 35 and API 28.
 - **Physical device:** none.
   - API 36 has never run on any device.
@@ -223,8 +223,8 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - the required checks `ci-gate` and Build & Test (strict).
 - **Automated tests:**
   - fail-closed tests: store outages, replay-store failure, unavailable dependencies, a stalled replay store (C19);
-  - the race runs over the auth path (C20, @C20@);
-  - instrumented tests on an emulator (@F6@).
+  - the race runs over the auth path (C20, #206, `bba198d`);
+  - instrumented tests on an emulator (#206, `bba198d`).
 - **Staging and production:** none.
 - **Concurrency correctness** is covered:
   - **Refresh rotation:** concurrent refreshes rotate exactly once in the service (`app/refresh_race_test.go`, `app/refresh_proof_test.go`). On real PostgreSQL, rotation is a compare-and-swap that holds across two store instances (`pgstore/contract_test.go`, `ReplaceSessionIsACompareAndSwap`).
@@ -255,19 +255,19 @@ Defects and gaps found on 2026-11-01 that the inventory did not track. **Class**
 | # | Finding | Evidence | Class | Status |
 |---|---|---|---|---|
 | F1 | **A refused refresh proof signs the user out, whatever the reason:** a wrong phone clock, a server `htu` misconfiguration, or another key. Identity itself ends nothing on a refused proof | [`F1-REFRESH-PROOF-REJECTION.md`](F1-REFRESH-PROOF-REJECTION.md) | **H** | **Proposed** (H7): A + B + E. Not implemented |
-| F2 | **A Keystore failure while signing a proof crashed the app** | `IdentityClient.kt` | R | @C18@ |
-| F3 | **A corrupt session file is never recovered.** There is no `corruptionHandler`; outside the splash, enrolment would always fail to store | `core/datastore/.../AndroidSessionStorage.kt`; `EncryptedSessionStore.read` | O (it would delete the stored session) | Open (OD-13). The crashes it caused are guarded without deleting anything: the splash (#202) and the deletion screen (@C21@) |
-| F4 | **edge-api had no per-request deadline** | `packages/go/platform/server.go` | R | @C19@ |
-| F5 | **The repeated race runs excluded identity and edge-api** | `.github/workflows/hardening.yml` | R | @C20@ |
-| F6 | **Instrumented tests never ran in CI** | `pr-android.yml` (compiles only) | R | @F6@ |
-| F7 | **No `dataExtractionRules`:** on API 31+, `allowBackup="false"` does not stop device-to-device transfer | `AndroidManifest.xml` | R | @C21@ |
+| F2 | **A Keystore failure while signing a proof crashed the app** | `IdentityClient.kt` | R | #204, `d6cfa8d` |
+| F3 | **A corrupt session file is never recovered.** There is no `corruptionHandler`; outside the splash, enrolment would always fail to store | `core/datastore/.../AndroidSessionStorage.kt`; `EncryptedSessionStore.read` | O (it would delete the stored session) | Open (OD-13). The crashes it caused are guarded without deleting anything: the splash (#202) and the deletion screen (#207, `3ef3b84`) |
+| F4 | **edge-api had no per-request deadline** | `packages/go/platform/server.go` | R | #205, `4a78f97` |
+| F5 | **The repeated race runs excluded identity and edge-api** | `.github/workflows/hardening.yml` | R | #206, `bba198d` |
+| F6 | **Instrumented tests never ran in CI** | `pr-android.yml` (compiles only) | R | #206, `bba198d` |
+| F7 | **No `dataExtractionRules`:** on API 31+, `allowBackup="false"` does not stop device-to-device transfer | `AndroidManifest.xml` | R | #207, `3ef3b84` |
 | F8 | **No sign-out action in the UI.** `IdentityAuthenticator.signOut()` has no production caller | `ANDROID-DATA-INVENTORY.md` | O (UX) | Open (OD-14) |
-| F9 | **No vulnerability scan of the Android dependencies**, only Dependabot alerts | `.github/workflows/` | R | @F9@ |
+| F9 | **No vulnerability scan of the Android dependencies**, only Dependabot alerts | `.github/workflows/` | R | #206, `bba198d`: OSV-Scanner 2.7.0, 133 release libraries, no advisories |
 | F10 | **No baseline profile**, although `profileinstaller` is a dependency | `android/settings.gradle.kts` | R | Open; needs a device |
 | F11 | **Identity does not audit a refresh with the current token and another key's proof,** the signature of a stolen token used without the key | `acceptRefreshProof` (`identity.go`) | H (part of F1 option E) | Proposed with F1 |
 | F12 | **identity started with no configuration reports ready.** With no `CS_IDENTITY_*` variable it boots "inactive": no application port, and `/readyz` answers **200** ("degraded"). It fails closed, since nothing is served, but a production pod that lost its configuration would pass its readiness probe. edge-api refuses to start instead. Shown by the image smoke check | `services/go/identity/cmd/server/identity.go` (`configureIdentity`, `errIdentityInactive`) | O (it changes identity's documented activation contract) | Open (OD-15). Option: when the platform's `Environment` setting (`packages/go/platform/config.go`; default `development`) is `staging` or `production`, an inactive identity refuses to start |
-| F13 | **`ProtectionListsTest` failed intermittently on the API 28 emulator** (3 of 12 runs), waiting 15 s for Protection after Back. Cause, from the device logs: a **test race**. `Espresso.closeSoftKeyboard()` does nothing while a requested keyboard is still appearing; in every failure the label field's keyboard became visible 5–60 ms after Back, which then closed the keyboard instead of navigating, as Android does. Not an app defect. Found by the CI emulator (F6) | `ProtectionListsTest`; API 28 runs listed in #209 | R | @F13@ |
-| F14 | **The four held Dependabot PRs (#182–#185) re-run full CI whenever Dependabot rebases them.** On 2026-11-01 at 15:35 all four were rebased; #184 and #185 alone queued about 186 `pr-go` jobs, and other CI waited behind them for the account's concurrent-job limit | `gh run list` on 2026-11-01; `.github/dependabot.yml` (`github-actions`, no `rebase-strategy`) | O (the PRs are owner-held) | Open. Options: decide #182–#185, or set `rebase-strategy: disabled` for that ecosystem. Not changed; their runs were not cancelled |
+| F13 | **`ProtectionListsTest` failed intermittently on the API 28 emulator** (3 of 12 runs), waiting 15 s for Protection after Back. Cause, from the device logs: a **test race**. `Espresso.closeSoftKeyboard()` does nothing while a requested keyboard is still appearing; in every failure the label field's keyboard became visible 5–60 ms after Back, which then closed the keyboard instead of navigating, as Android does. Not an app defect. Found by the CI emulator (F6) | `ProtectionListsTest`; API 28 runs listed in #209 | R | Fixed in the test (#209, `0d1ed04`): it was a test race, not an app defect. Evidence in #209: in all 3 failures the keyboard became visible after Back; in all 9 passes, before it |
+| F14 | **The four held Dependabot PRs (#182–#185) re-run full CI whenever Dependabot rebases them.** On 2026-11-01 at 15:35 all four were rebased; #184 and #185 alone queued about 186 `pr-go` jobs, and other CI waited behind them for the account's concurrent-job limit | `gh run list` on 2026-11-01; `.github/dependabot.yml` (`github-actions`, no `rebase-strategy`) | O (the PRs are owner-held) | Open (OD-18). Options: decide #182–#185, or set `rebase-strategy: disabled` for that ecosystem. Not changed; their runs were not cancelled |
 
 ### 4.1 Recommended answers to the owner decisions in this document
 
