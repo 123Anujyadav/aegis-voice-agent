@@ -2,7 +2,11 @@ package com.callscreen.app.security
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.callscreen.core.auth.AccessTokenProofs
 import com.callscreen.core.auth.AuthState
+import com.callscreen.core.auth.EdgeApiClient
+import com.callscreen.core.auth.EdgeIdentity
+import com.callscreen.core.auth.EdgeResult
 import com.callscreen.core.auth.EnrolOutcome
 import com.callscreen.core.auth.IdentityAuthenticator
 import com.callscreen.core.auth.SignedOutReason
@@ -18,6 +22,7 @@ import com.callscreen.core.security.dpop.KeystoreProofKeys
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
+import java.security.MessageDigest
 import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
@@ -50,7 +55,9 @@ import org.junit.runner.RunWith
  * - enrolment and refresh are signed by the same device key;
  * - the stored session survives a new authenticator (a process restart) and
  *   is read back without the network;
- * - a 503 keeps the stored session, and identity's ERR_INVALID_TOKEN clears it.
+ * - a 503 keeps the stored session, and identity's ERR_INVALID_TOKEN clears it;
+ * - edge-api's GET /v1/me carries the stored access token and a proof by the
+ *   same key, bound to that token (ath).
  *
  * Test key aliases are used, never the app's. The session file is the app's
  * own (DataStoreBlobStore has no other), so it is cleared before and after.
@@ -88,16 +95,18 @@ class SessionOnDeviceTest {
         proofKeys.delete()
     }
 
+    private val device get() = DeviceProofKey(proofKeys)
+
+    private fun http() = IdentityClient.defaultHttpClient().newBuilder()
+        .sslSocketFactory(trustTheServer.sslSocketFactory(), trustTheServer.trustManager)
+        .build()
+
     /** A new authenticator over the same Keystore keys and session file: what a restarted process builds. */
     private fun authenticator(): IdentityAuthenticator {
-        val device = DeviceProofKey(proofKeys)
-        val http = IdentityClient.defaultHttpClient().newBuilder()
-            .sslSocketFactory(trustTheServer.sslSocketFactory(), trustTheServer.trustManager)
-            .build()
         val client = IdentityClient(
             server.url("/").toString(),
             DeviceProofs { method, htu -> device.proofs().proof(method, htu) },
-            httpClient = http,
+            httpClient = http(),
         )
         return IdentityAuthenticator(client, EncryptedSessionStore(sessionKey, blobs), nowSeconds = { now })
     }
@@ -164,14 +173,42 @@ class SessionOnDeviceTest {
         assertEquals(IdentityError.TemporarilyUnavailable, (unavailable as AuthState.Unavailable).error)
     }
 
+    @Test
+    fun edgeApiGetsTheStoredTokenAndAProofBoundToIt() = runBlocking {
+        val auth = authenticator()
+        enrol(auth)
+        val enrolProof = verifiedProof(server.takeRequest(), IdentityRoutes.ENROLMENT)
+
+        // The fake serves edge-api's route too: one origin keeps the test to one server.
+        val edge = EdgeApiClient(
+            server.url("/").toString(),
+            auth,
+            AccessTokenProofs { method, htu, token -> device.proofs().proof(method, htu, token) },
+            http(),
+        )
+        server.enqueue(
+            MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+                .setBody(JSONObject().put("subject", "usr_1").put("deviceKeyThumbprint", "jkt_1").toString()),
+        )
+        assertEquals(EdgeResult.Success(EdgeIdentity("usr_1", "jkt_1")), edge.me())
+
+        val sent = server.takeRequest()
+        assertEquals("GET", sent.method)
+        assertEquals("/v1/me", sent.path)
+        assertEquals("the stored access token, in the DPoP scheme", "DPoP access-1", sent.getHeader("Authorization"))
+        val meProof = verifiedProof(sent, "/v1/me", method = "GET", accessToken = "access-1")
+        assertEquals("the same device key as at enrolment", enrolProof.thumbprint, meProof.thumbprint)
+    }
+
     private class Proof(val thumbprint: String)
 
     /**
-     * Verifies [request]'s DPoP proof as identity would: ES256 over the
-     * signing input, under the jwk in its header, for this request's method
-     * and URL. Returns the key's identity (x and y).
+     * Verifies [request]'s DPoP proof as the servers would: ES256 over the
+     * signing input, under the jwk in its header, for this request's [method]
+     * and URL; with [accessToken], ath binds that token, and without it there
+     * is no ath (identity's profile). Returns the key's identity (x and y).
      */
-    private fun verifiedProof(request: RecordedRequest, route: String): Proof {
+    private fun verifiedProof(request: RecordedRequest, route: String, method: String = "POST", accessToken: String? = null): Proof {
         val compact = assertNotNullValue(request.getHeader("DPoP"), "no DPoP header on $route")
         val parts = compact.split('.')
         assertEquals("a compact JWS", 3, parts.size)
@@ -179,7 +216,14 @@ class SessionOnDeviceTest {
         val claims = json(parts[1])
         assertEquals("dpop+jwt", header.string("typ"))
         assertEquals("ES256", header.string("alg"))
-        assertEquals("POST", claims.string("htm"))
+        assertEquals(method, claims.string("htm"))
+        if (accessToken == null) {
+            assertTrue("no ath at enrolment and refresh", !claims.has("ath"))
+        } else {
+            val ath = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(MessageDigest.getInstance("SHA-256").digest(accessToken.toByteArray(Charsets.US_ASCII)))
+            assertEquals("ath binds the presented token", ath, claims.string("ath"))
+        }
         assertEquals(server.url(route).toString(), claims.string("htu"))
         assertTrue("iat is the phone's time", kotlin.math.abs(claims.getLong("iat") - System.currentTimeMillis() / 1000) < 300)
 
