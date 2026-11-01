@@ -56,6 +56,15 @@ internal object ScreeningDevice {
     fun contactsGranted(): Boolean =
         instrumentation.targetContext.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == 0
 
+    /**
+     * The window hierarchy as UI Automator sees it: every window on screen,
+     * including system dialogs and the keyboard, which the Compose tree does
+     * not show. Capped, for an assertion message.
+     */
+    fun windowHierarchy(maxChars: Int = 8_000): String = runCatching {
+        java.io.ByteArrayOutputStream().also { ui.dumpWindowHierarchy(it) }.toString("UTF-8").take(maxChars)
+    }.getOrElse { "(window hierarchy unavailable: ${it.javaClass.simpleName})" }
+
     /** A screenshot and the window hierarchy, in the app's external cache (adb-pullable), for a failing step. */
     fun capture(name: String) {
         val dir = instrumentation.targetContext.externalCacheDir ?: return
@@ -96,8 +105,16 @@ internal fun AndroidComposeTestRule<*, *>.awaitText(text: String, substring: Boo
         }
     } catch (e: ComposeTimeoutException) {
         ScreeningDevice.capture("await-${text.take(20).replace(Regex("[^A-Za-z0-9]"), "_")}")
-        // Say what was on screen instead, so a failure explains itself.
-        throw AssertionError("\"$text\" did not appear. Screen:\n" + onAllNodes(isRoot()).printToString(), e)
+        // Say what was on screen instead, so a failure explains itself. The
+        // screenshot stays on the device and is uninstalled with the app, so
+        // the message carries the evidence: the merged and unmerged Compose
+        // trees, and the windows UI Automator sees (dialogs, keyboard).
+        throw AssertionError(
+            "\"$text\" did not appear. Screen:\n" + onAllNodes(isRoot()).printToString() +
+                "\nUnmerged:\n" + onAllNodes(isRoot(), useUnmergedTree = true).printToString() +
+                "\nWindows:\n" + ScreeningDevice.windowHierarchy(),
+            e,
+        )
     }
 }
 
