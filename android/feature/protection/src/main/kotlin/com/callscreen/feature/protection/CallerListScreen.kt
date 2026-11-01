@@ -343,12 +343,12 @@ internal fun EntryDetail(
 
 /**
  * Wraps an action that closes the sheet it is in. The sheet is a window of
- * its own, removed as soon as the action runs; if one of its text fields
- * still has focus and the keyboard, the input method restarts on a field
- * whose window is going away. On Android 9 the keyboard then reappeared after
- * the sheet closed, and a Back press in that moment could be lost (the API 28
- * emulator run of ProtectionListsTest). Focus and the keyboard are released
- * first, in the sheet's own window.
+ * its own, removed as soon as the action runs, while one of its text fields
+ * may still have focus and a keyboard on its way up. On the API 28 emulator
+ * (ProtectionListsTest, 2 of 6 runs), the keyboard requested by the label
+ * field became visible only after the sheet had closed and Back had been
+ * pressed, and the app did not return to Protection. Focus and the keyboard
+ * are released first, in the sheet's own window, so no keyboard outlives it.
  */
 @Composable
 private fun releasingKeyboard(): (() -> Unit) -> () -> Unit {
