@@ -143,7 +143,8 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - erasure in identity (migration `0008`);
   - the web deletion flow, built but dormant (`0009`);
   - the device key destroyed after a confirmed deletion;
-  - app data excluded from cloud backup and from device-to-device transfer (C21, @C21@).
+  - app data excluded from cloud backup and from device-to-device transfer (C21, @C21@);
+  - an unreadable stored session no longer crashes the deletion screen: it shows "not signed in" and deletes nothing (@C21@).
 - **Automated tests:**
   - unit, HTTP, real-PostgreSQL and end-to-end lifecycle tests;
   - the live contract (`IdentityLiveContractTest.accountDeletion`);
@@ -251,7 +252,7 @@ Defects and gaps found on 2026-11-01 that the inventory did not track. **Class**
 |---|---|---|---|---|
 | F1 | **A refused refresh proof signs the user out, whatever the reason:** a wrong phone clock, a server `htu` misconfiguration, or another key. Identity itself ends nothing on a refused proof | [`F1-REFRESH-PROOF-REJECTION.md`](F1-REFRESH-PROOF-REJECTION.md) | **H** | **Proposed** (H7): A + B + E. Not implemented |
 | F2 | **A Keystore failure while signing a proof crashed the app** | `IdentityClient.kt` | R | @C18@ |
-| F3 | **A corrupt session file is never recovered.** There is no `corruptionHandler`; outside the splash, enrolment would always fail to store | `core/datastore/.../AndroidSessionStorage.kt`; `EncryptedSessionStore.read` | O (it would delete the stored session) | Open (OD-13) |
+| F3 | **A corrupt session file is never recovered.** There is no `corruptionHandler`; outside the splash, enrolment would always fail to store | `core/datastore/.../AndroidSessionStorage.kt`; `EncryptedSessionStore.read` | O (it would delete the stored session) | Open (OD-13). The crashes it caused are guarded without deleting anything: the splash (#202) and the deletion screen (@C21@) |
 | F4 | **edge-api had no per-request deadline** | `packages/go/platform/server.go` | R | @C19@ |
 | F5 | **The repeated race runs excluded identity and edge-api** | `.github/workflows/hardening.yml` | R | @C20@ |
 | F6 | **Instrumented tests never ran in CI** | `pr-android.yml` (compiles only) | R | @F6@ |
@@ -294,17 +295,20 @@ These are recommendations from an AI-performed review, offered so that each deci
 
 ## 6. Product capabilities (owner direction, 2026-11-01)
 
-The owner asked that seven capabilities be carried inside the existing plan, **not as a new phase**, and built only when their dependencies are ready. **The six-phase plan the owner refers to is not written in the repository.** The only "six phases" here are the completed hardening phases (`docs/hardening/FINAL_PRODUCTION_READINESS_REPORT.md`). So this section maps each capability to what exists and what it waits on, and assigns no phase. **OD-18:** the owner adds the six-phase plan to the repository, or names where it lives.
+The owner asked that seven capabilities be carried inside the existing plan, **not as a new phase**, and built only when their dependencies are ready.
+- **Which phases:** a six-phase product plan is not recorded in the repository or in the working session's record. So each capability is placed in the stages the repository does define: Play internal testing (`ROADMAP-INVENTORY.md` §4.1), public production (§4.2), and the voice programme (the telephony P1 programme, owner-held, staging **NO-GO**, §1).
+- **Their order:** within the voice programme, what the first answered calls need comes at launch; what learns from calls comes after launch, once consent, memory and evaluation exist.
 
-| Capability | What exists | Waits on |
-|---|---|---|
-| **Multilingual: Hindi, English, Tamil, Telugu, Malayalam, Kannada** | **App:** only default strings (`res/values`), no translations. The release build keeps the locales `en, hi, bn, ta, te, mr` (`AndroidApplicationConventionPlugin.kt`, `localeFilters`), so **Malayalam and Kannada strings would be stripped**, and Bengali and Marathi, not in the owner's list, are kept. Typography already covers Indic scripts (`docs/design/03-typography.md`). **Voice:** accepted ADR-0005 targets Indian English, Hindi and Hinglish, with Bengali, Tamil, Telugu and Marathi as expansion; Malayalam and Kannada are not named | **OD-17:** the language set for the app (`localeFilters`) and for voice. **Conflict:** accepted ADR-0005 (Google Cloud STT v2, Deepgram, Sarvam) and ADR-0007 choose **paid** speech vendors, while the owner's rule is free and open-source only. Superseding an accepted ADR is the owner's, and vendors that process personal data are high-risk (§6.1) |
-| **Continuous learning and personalization** | No implementation | Consent records (OD-4); privacy-preserving memory; safe model improvement; ADR-0012 residency |
-| **Conversation outcome analytics** | `services/go/analytics` and `packages/go/evaluation` (from earlier phases) | Calls flowing through the voice pipeline. The telephony programme is owner-held, with staging **NO-GO** (`ROADMAP-INVENTORY.md` §1) |
-| **Privacy-preserving memory** | `packages/go/memory` and `docs/memory/` (consent is structural, INV-MEM-2) | Consent records (OD-4); invariants I2, I7, I8 |
-| **Automated evaluation pipeline** | `packages/go/evaluation`, `evalstore`, `evalsubjects`, and `docs/evaluation/` | Representative data, which needs calls and consent |
-| **Safe model improvement** | `packages/go/governance` | The evaluation pipeline and memory above; any training on subscriber data is a personal-data decision (high-risk) |
-| **Post-call reports and the required Android screens** | UX specifies `A27` (post-call summary) and the related screens (`docs/ux/android/03-screen-inventory.md`, `04-screens-screening-and-calls.md`). The app today screens with an on-device prefilter only; no call reaches an AI agent | The voice pipeline and telephony programme, then the screens |
+| Capability | Stage | What exists | Waits on |
+|---|---|---|---|
+| **Multilingual (app):** Hindi, English, Tamil, Telugu, Malayalam, Kannada | **Public production** (§4.2): translated screens are part of the release, not a new phase | Only default strings (`res/values`), no translations. The release keeps the locales `en, hi, bn, ta, te, mr` (`AndroidApplicationConventionPlugin.kt`, `localeFilters`), so **Malayalam and Kannada strings would be stripped**, and Bengali and Marathi, not in the owner's list, are kept. Typography covers Indic scripts (`docs/design/03-typography.md`) | **OD-17** (the language set and `localeFilters`); translations, an L-item for legal text |
+| **Multilingual (voice)** | **Voice programme, at launch** | ADR-0005 targets Indian English, Hindi and Hinglish, with Bengali, Tamil, Telugu and Marathi as expansion; Malayalam and Kannada are not named | **OD-17:** accepted ADR-0005 (Google Cloud STT v2, Deepgram, Sarvam) and ADR-0007 (ElevenLabs, Cartesia, Sarvam) choose **paid** speech vendors, while the owner's rule is free and open-source only. Verified free alternatives and options: [`SPEECH-PROVIDER-POLICY-CONFLICT.md`](SPEECH-PROVIDER-POLICY-CONFLICT.md) |
+| **Post-call reports and the required Android screens** | **Voice programme, at launch** (the screens ship with the first calls answered) | UX specifies `A27` (post-call summary) and related screens (`docs/ux/android/03-screen-inventory.md`, `04-screens-screening-and-calls.md`). Today the app screens with an on-device prefilter only; no call reaches an agent | Calls through the voice pipeline |
+| **Automated evaluation pipeline** | **Voice programme, before launch** (it measures the pipeline that launch depends on, including the OD-17 speech evaluation) | `packages/go/evaluation`, `evalstore`, `evalsubjects`, `docs/evaluation/` | Test recordings with consent; OD-17 option C |
+| **Conversation outcome analytics** | **Voice programme, at launch** | `services/go/analytics`, `packages/go/evaluation` | Calls; I7 (identifiers, not content, on Kafka) |
+| **Privacy-preserving memory** | **Voice programme, after launch** | `packages/go/memory`, `docs/memory/` (consent is structural, INV-MEM-2) | Consent records (OD-4); I2, I7, I8 |
+| **Continuous learning and personalization** | **Voice programme, after launch** | No implementation | Memory, evaluation and consent above; ADR-0012 |
+| **Safe model improvement** | **Voice programme, after launch** | `packages/go/governance` | The evaluation pipeline and memory; any training on subscriber data is a personal-data decision (high-risk, OD-12) |
 
 None of these is on the critical path in §5, and none is started by this document.
 
