@@ -8,10 +8,11 @@
 # request, 35 only. The tests suppress what an API level cannot do
 # (@SdkSuppress), so each level runs the cases that apply to it.
 #
-# Not on every pull request: an emulator run takes a runner for most of half
-# an hour. It runs on a pull request only when this workflow, its script or
-# the instrumented tests change, so a change to any of them is proven before
-# merge; ci-gate then waits for it like any other triggered workflow.
+# Not on every pull request: each API level takes a runner for about eight
+# minutes (7m25s for API 35 on 2026-11-01, boot included). It runs on a pull
+# request only when this workflow, its script or the instrumented tests
+# change, so a change to any of them is proven before merge; ci-gate then
+# waits for it like any other triggered workflow.
 #
 # Toolchain: the runner's JDK 17 and Android SDK, as pr-android.yml. The
 # emulator is driven by tools/scripts/android-device-tests.sh with the SDK's
