@@ -80,3 +80,43 @@ done
 
 cd android
 ./gradlew --no-daemon --stacktrace :app:connectedDebugAndroidTest
+
+# The minified build on the device. The instrumented tests above run the
+# debug build; nothing had ever run the R8-minified one (staging: release's
+# minification and resource shrinking, debug-signed), so a class R8 strips or
+# renames that Hilt, serialization or reflection needs would first fail on a
+# user's phone. This launches it with no configuration (sign-in is then
+# unavailable, as in any build without endpoints) and requires: the process
+# still alive after 15 s, no fatal exception in the crash buffer, and the
+# app's window on screen. A smoke check, not a test of features.
+echo "::group::minified staging build: launch smoke check"
+./gradlew --no-daemon --stacktrace :app:assembleStaging
+apk="app/build/outputs/apk/staging/app-staging.apk"
+test -s "${apk}" || { echo "::error::${apk} was not built"; exit 1; }
+pkg="com.callscreen.staging"
+"${adb}" install -r "${apk}"
+# Clearing is best-effort: some emulator images refuse it ("failed to clear
+# the 'main' log"). The crash check below counts only this package's crashes.
+"${adb}" logcat -c || true
+"${adb}" logcat -b crash -c || true
+started="$("${adb}" shell am start -W -n "${pkg}/com.callscreen.app.MainActivity" | tr -d '\r')"
+echo "${started}"
+grep -q "Status: ok" <<<"${started}" || { echo "::error::the minified app did not start"; exit 1; }
+for _ in $(seq 1 15); do
+    sleep 1
+    if [ -z "$("${adb}" shell pidof "${pkg}" | tr -d '\r')" ]; then
+        "${adb}" logcat -d >"${out}/staging-smoke-logcat.txt" 2>&1 || true
+        echo "::error::the minified app's process died within 15 s of launch"
+        "${adb}" logcat -d -b crash | tail -40
+        exit 1
+    fi
+done
+"${adb}" logcat -d >"${out}/staging-smoke-logcat.txt" 2>&1 || true
+crashes="$("${adb}" logcat -d -b crash | grep -c "Process: ${pkg}," || true)"
+test "${crashes}" = "0" || { echo "::error::the minified app logged ${crashes} fatal exception(s)"; "${adb}" logcat -d -b crash | tail -40; exit 1; }
+"${adb}" shell uiautomator dump /sdcard/staging-window.xml >/dev/null
+"${adb}" shell cat /sdcard/staging-window.xml >"${out}/staging-window.xml"
+grep -q "package=\"${pkg}\"" "${out}/staging-window.xml" || { echo "::error::the minified app's window is not on screen"; exit 1; }
+echo "minified staging build: launched, alive after 15 s, no fatal exception, window on screen"
+"${adb}" uninstall "${pkg}" >/dev/null || true
+echo "::endgroup::"

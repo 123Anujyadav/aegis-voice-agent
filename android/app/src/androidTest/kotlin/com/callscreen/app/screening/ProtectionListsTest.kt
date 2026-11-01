@@ -69,6 +69,19 @@ class ProtectionListsTest {
         compose.activity.setContent { CallScreenTheme { AegisNavGraph(startDestination = AegisDestinations.PROTECTION_DASHBOARD) } }
     }
 
+    /**
+     * After typing, the field's keyboard can still be on its way up on a slow
+     * emulator, and it pans the window (ADJUST_PAN) when it arrives. A tap
+     * computed before that lands elsewhere: on the API 28 emulator a tap on
+     * "Move to allowed numbers" landed on the sheet's scrim and dismissed it
+     * without moving the entry, and a Back closed a late keyboard instead of
+     * navigating. Every later step runs on a settled layout.
+     */
+    private fun settleKeyboard() {
+        compose.waitForIdle()
+        ScreeningDevice.closeKeyboard()
+    }
+
     private fun openList(title: String) {
         compose.scrolledTo(title).performClick()
         // The button is found by its accessible name, which is what TalkBack announces.
@@ -85,6 +98,7 @@ class ProtectionListsTest {
         compose.onNodeWithContentDescription("Add number").performClick()
         compose.awaitText("Phone number") // the add sheet opens asynchronously (slow on API 28)
         compose.onNodeWithText("Phone number").performTextInput("98765 00001")
+        settleKeyboard()
         compose.onNodeWithText("Block").performClick()
         compose.awaitDescription("$spoken, Added by you")
         assertEquals(ListType.BLOCK, store.entries(ListType.BLOCK).single().type)
@@ -101,6 +115,7 @@ class ProtectionListsTest {
         compose.onNode(hasContentDescription("$spoken, Added by you", substring = true)).performClick()
         compose.awaitText("Save label")
         compose.onNodeWithText("Label (optional)").performTextInput("Courier")
+        settleKeyboard()
         compose.onNodeWithText("Save label").performScrollTo().performClick()
         compose.awaitText("Label saved.")
         assertEquals("Courier", store.entries(ListType.BLOCK).single().label)
@@ -138,6 +153,7 @@ class ProtectionListsTest {
         compose.onNodeWithContentDescription("Add number").performClick()
         compose.awaitText("Phone number")
         compose.onNodeWithText("Phone number").performTextInput("112")
+        settleKeyboard()
         compose.onNodeWithText("Block").performClick()
         compose.awaitText("Enter a full phone number, with its area code.")
         assertEquals(emptyList<Any>(), store.entries(ListType.BLOCK))

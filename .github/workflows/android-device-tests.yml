@@ -8,6 +8,10 @@
 # request, 35 only. The tests suppress what an API level cannot do
 # (@SdkSuppress), so each level runs the cases that apply to it.
 #
+# After the tests, the script launches the R8-minified staging build on the
+# same emulator (a smoke check: alive after 15 s, no fatal exception, window
+# on screen); nothing else ever runs the minified app on a device.
+#
 # Not on every pull request: each API level takes a runner for about eight
 # minutes (7m25s for API 35 on 2026-11-01, boot included). It runs on a pull
 # request only when this workflow, its script or the instrumented tests
