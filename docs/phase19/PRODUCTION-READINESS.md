@@ -204,17 +204,18 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
 - **Automated tests:** the minified staging build and an "R8 actually minified" check.
 - **Emulator:** in CI (`android-device-tests.yml`), all on the default emulator profile (320×640, 1536 MB):
   - API 35: 19/19 on #207's head `ad2e51a` (run 41291943846; merged as `3ef3b84`) and on `3e16208` (#209, run 41327024741);
-  - API 28 (Android 9): 15/15 in 3 of 3 runs on `3e16208` (#209: runs 41327011337, 41327014384, 41327017901), after the keyboard race in F13 was fixed; before that, 3 of 12 runs failed on F13;
-  - API 26 (Android 8.0, minSdk): 12/12 on `bba198d` (run 41290918130, the first run at minSdk) and 15/15 on `3e16208` (run 41327021294).
+  - API 28 (Android 9): 15/15 in 3 of 3 runs on `3e16208` (#209), and again in 3 of 3 runs on `eaf550b` (#211: runs 41332401211, 41332404100, 41332406795) after a second symptom of the same keyboard race was fixed (F13);
+  - API 26 (Android 8.0, minSdk): 12/12 on `bba198d` (run 41290918130, the first run at minSdk), 15/15 on `3e16208` (run 41327021294) and 15/15 on `eaf550b` (run 41332409322).
+  - **The R8-minified staging build** (#211): launched on API 35 (run 41332404494), API 28 ×3 and API 26 on `eaf550b`, alive after 15 s, no fatal exception, window on screen. A launch smoke check, not a test of features.
   - By hand earlier: API 35 and API 28.
 - **Physical device:** none.
   - API 36 has never run on any device.
-  - The minified build has never run.
+  - The minified build has run only as a launch smoke check on emulators (#211), never on a phone.
 - **Staging and production:** none.
 - **Blocker:**
   - X3 (a physical phone);
   - F10 (no baseline profile; generating one needs a device).
-- **Next action:** routine: run the instrumented suite against the minified staging build on the CI emulator.
+- **Next action:** routine: extend the minified check from launch to the main screens (onboarding, Protection lists) on the CI emulator.
 
 ### 3.10 Automated tests and failure recovery
 
@@ -266,7 +267,7 @@ Defects and gaps found on 2026-11-01 that the inventory did not track. **Class**
 | F10 | **No baseline profile**, although `profileinstaller` is a dependency | `android/settings.gradle.kts` | R | Open; needs a device |
 | F11 | **Identity does not audit a refresh with the current token and another key's proof,** the signature of a stolen token used without the key | `acceptRefreshProof` (`identity.go`) | H (part of F1 option E) | Proposed with F1 |
 | F12 | **identity started with no configuration reports ready.** With no `CS_IDENTITY_*` variable it boots "inactive": no application port, and `/readyz` answers **200** ("degraded"). It fails closed, since nothing is served, but a production pod that lost its configuration would pass its readiness probe. edge-api refuses to start instead. Shown by the image smoke check | `services/go/identity/cmd/server/identity.go` (`configureIdentity`, `errIdentityInactive`) | O (it changes identity's documented activation contract) | Open (OD-15). Option: when the platform's `Environment` setting (`packages/go/platform/config.go`; default `development`) is `staging` or `production`, an inactive identity refuses to start |
-| F13 | **`ProtectionListsTest` failed intermittently on the API 28 emulator** (3 of 12 runs), waiting 15 s for Protection after Back. Cause, from the device logs: a **test race**. `Espresso.closeSoftKeyboard()` does nothing while a requested keyboard is still appearing; in every failure the label field's keyboard became visible 5–60 ms after Back, which then closed the keyboard instead of navigating, as Android does. Not an app defect. Found by the CI emulator (F6) | `ProtectionListsTest`; API 28 runs listed in #209 | R | Fixed in the test (#209, `0d1ed04`): it was a test race, not an app defect. Evidence in #209: in all 3 failures the keyboard became visible after Back; in all 9 passes, before it |
+| F13 | **`ProtectionListsTest` failed intermittently on the API 28 emulator.** Cause, from device logs and full screen dumps: a **test race**. The field's keyboard can still be arriving after the test types, and `Espresso.closeSoftKeyboard()` does nothing until it is visible. Two symptoms: a Back that closed the late keyboard instead of navigating (3 of 12 runs before #209), and a tap computed before the keyboard panned the window (`ADJUST_PAN`), which landed on the sheet's scrim and dismissed it without moving the entry (run 41330429579, after #209). Not an app defect. Found by the CI emulator (F6) | `ProtectionListsTest`; runs listed in #209 and #211 | R | Fixed in the test: #209 settles the keyboard before Back; #211 settles it after every text entry. In #211's acceptance runs the settle step met the keyboard in flight after each entry and closed it first |
 | F14 | **The four held Dependabot PRs (#182–#185) re-run full CI whenever Dependabot rebases them.** On 2026-11-01 at 15:35 all four were rebased; #184 and #185 alone queued about 186 `pr-go` jobs, and other CI waited behind them for the account's concurrent-job limit | `gh run list` on 2026-11-01; `.github/dependabot.yml` (`github-actions`, no `rebase-strategy`) | O (the PRs are owner-held) | Open (OD-18). Options: decide #182–#185, or set `rebase-strategy: disabled` for that ecosystem. Not changed; their runs were not cancelled |
 
 ### 4.1 Recommended answers to the owner decisions in this document
