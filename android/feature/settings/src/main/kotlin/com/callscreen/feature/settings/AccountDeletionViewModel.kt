@@ -6,6 +6,7 @@ import com.callscreen.core.auth.AccountDeletionOutcome
 import com.callscreen.core.network.identity.IdentityError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -89,7 +90,16 @@ public class AccountDeletionViewModel @Inject constructor(
     init {
         if (service.isConfigured) {
             viewModelScope.launch {
-                val signedIn = service.isSignedIn()
+                // A stored session that cannot be read (for example a corrupt
+                // file) is no session this phone can delete with: shown as not
+                // signed in, as the splash routes it. Nothing is cleared here.
+                val signedIn = try {
+                    service.isSignedIn()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    false
+                }
                 mutable.update {
                     if (it.step != DeletionStep.CHECKING) it else it.copy(step = if (signedIn) DeletionStep.READY else DeletionStep.NOT_SIGNED_IN)
                 }
@@ -112,9 +122,19 @@ public class AccountDeletionViewModel @Inject constructor(
         if (mutable.value.step != DeletionStep.CONFIRMING) return
         mutable.update { it.copy(step = DeletionStep.DELETING, message = null) }
         viewModelScope.launch {
-            val outcome = service.deleteAccount()
+            // The failure expected here is reading the stored session, which
+            // happens before anything is sent: report it and allow a retry,
+            // instead of letting it crash the app.
+            val outcome = try {
+                service.deleteAccount()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
             mutable.update {
                 when (outcome) {
+                    null -> it.copy(step = DeletionStep.READY, message = DeletionMessage.UNEXPECTED)
                     AccountDeletionOutcome.Deleted -> it.copy(step = DeletionStep.DELETED)
                     AccountDeletionOutcome.NotSignedIn -> it.copy(step = DeletionStep.NOT_SIGNED_IN)
                     AccountDeletionOutcome.SessionEnded -> it.copy(step = DeletionStep.NOT_SIGNED_IN, message = DeletionMessage.SESSION_ENDED)
