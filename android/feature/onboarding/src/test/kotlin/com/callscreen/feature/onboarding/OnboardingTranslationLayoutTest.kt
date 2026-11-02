@@ -36,6 +36,7 @@ class OnboardingTranslationLayoutTest(tag: String) {
     @Test
     fun welcome() {
         layout.show { WelcomeScreen() }
+        reachable(s(R.string.onboarding_welcome_language))
         reachable("Get Protected")
     }
 

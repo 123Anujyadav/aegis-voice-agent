@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
@@ -20,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,10 +38,27 @@ import com.callscreen.core.ui.components.AegisScreenColumn
 @Composable
 public fun WelcomeScreen(
     onGetStartedClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Opens A58l, so the app's language can be chosen before signing in. */
+    onLanguageClick: () -> Unit = {},
 ) {
     AegisScreenColumn(modifier = modifier) {
-        Spacer(modifier = Modifier.height(24.dp))
+        // A globe and the word "Language", top end: found by someone who cannot yet read
+        // the screen's language, before anything else is asked of them.
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onLanguageClick) {
+                Icon(
+                    imageVector = Icons.Default.Language,
+                    contentDescription = null,
+                    tint = CallScreenTheme.colors.content.secondary,
+                )
+                Text(
+                    text = stringResource(R.string.onboarding_welcome_language),
+                    color = CallScreenTheme.colors.content.secondary,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+        }
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

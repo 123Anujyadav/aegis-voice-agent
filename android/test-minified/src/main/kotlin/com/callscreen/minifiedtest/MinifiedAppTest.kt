@@ -119,6 +119,21 @@ class MinifiedAppTest {
     }
 
     /**
+     * Welcome's Language control opens the app-language screen (A58l) in the
+     * minified build, with the phone's language chosen and every language
+     * named in its own script; Back returns to Welcome. Nothing is chosen.
+     */
+    @Test
+    fun welcomeOpensTheAppLanguageScreenAndBackReturns() {
+        awaitText("Language").click()
+        awaitText("Phone's language")
+        reach("தமிழ்")
+        reach("ಕನ್ನಡ")
+        device.pressBack()
+        awaitText("Welcome to Aegis AI")
+    }
+
+    /**
      * Android 13 and later: with a per-app language set as Android's App
      * languages page sets it, the minified app starts in that language and
      * shows English, its fallback, for words it has no translation of (none

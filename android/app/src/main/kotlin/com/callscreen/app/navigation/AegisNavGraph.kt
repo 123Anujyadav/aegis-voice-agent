@@ -188,7 +188,10 @@ public fun AegisNavGraph(
             )
         }
         composable(AegisDestinations.WELCOME) {
-            WelcomeScreen(onGetStartedClick = { navController.navigate(AegisDestinations.SIM_DETECTION) })
+            WelcomeScreen(
+                onGetStartedClick = { navController.navigate(AegisDestinations.SIM_DETECTION) },
+                onLanguageClick = { navController.navigate(AegisDestinations.APP_LANGUAGE) },
+            )
         }
         composable(AegisDestinations.SIM_DETECTION) {
             SimDetectionRoute(onContinueClick = { navController.navigate(AegisDestinations.PHONE_VERIFICATION) })

@@ -266,6 +266,7 @@ is translated (`AppLanguageListTest`).
 
 **As built** — In the Settings tab (the setup checklist today) an **App
 language** section, above Account, shows the current choice and opens `A58l`.
+Before sign-in, Welcome (`A01`) has a **Language** control that opens it too.
 
 **Accessibility** — Rows are radio buttons in one group. Each language's own
 name is marked as that language, so a screen reader reads it with the right

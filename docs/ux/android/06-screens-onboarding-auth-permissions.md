@@ -58,7 +58,7 @@ app that does nothing, and nobody is held hostage to the next screen.
 
 **Inputs** — None.
 
-**Outputs** — Proceed to `A02`; open legal documents.
+**Outputs** — Proceed to `A02`; open legal documents; open `A58l` App language.
 
 **Components** — Illustration · `Text` (`display.sm` + `body.lg`) · `Button`
 (Primary) · `Text` (legal, `body.sm`).
@@ -73,8 +73,10 @@ what they want, and tells you." One sentence, no adjectives, no exclamation.
 recognises the number · region outside India → a clear statement that the
 product is India-only at launch, with no dead end.
 
-**Accessibility** — Single heading, single action. Legal links are real links,
-announced as such.
+**Accessibility** — Single heading, single primary action. Legal links are real
+links, announced as such. A secondary **Language** control (a globe and the
+word, top end; added 2026-11-03) opens `A58l`, so someone who cannot read the
+phone's language can change the app's before anything else is asked of them.
 
 **Loading / Empty / Error** — None.
 

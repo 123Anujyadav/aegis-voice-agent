@@ -1,7 +1,10 @@
 package com.callscreen.feature.onboarding
 
 import android.telephony.TelephonyManager
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onNodeWithText
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import org.junit.Assert.assertEquals
@@ -31,6 +34,16 @@ class HonestOnboardingUiTest {
         compose.onNodeWithText("before your phone rings", substring = true).assertDoesNotExist()
         compose.onNodeWithText("speech vectors", substring = true).assertDoesNotExist()
         compose.onNodeWithText("deepfake", substring = true, ignoreCase = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun welcomeOffersTheAppLanguageBeforeAnythingElse() {
+        var opened = 0
+        var started = 0
+        compose.setContent { CallScreenTheme { WelcomeScreen(onGetStartedClick = { started++ }, onLanguageClick = { opened++ }) } }
+        compose.onNode(hasText(s(R.string.onboarding_welcome_language)) and hasClickAction()).performClick()
+        assertEquals(1, opened)
+        assertEquals("choosing a language does not start onboarding", 0, started)
     }
 
     @Test
