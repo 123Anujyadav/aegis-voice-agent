@@ -63,7 +63,8 @@ public fun AegisFamilyCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
-                        contentDescription = "Avatar",
+                        // Decorative: the member's name is beside it.
+                        contentDescription = null,
                         tint = CallScreenTheme.colors.action.primary.fill,
                         modifier = Modifier.size(24.dp)
                     )

@@ -21,4 +21,7 @@ android {
 dependencies {
     implementation(projects.core.designsystem)
     implementation(libs.androidx.compose.material.icons.extended)
+    // Components rendered on the JVM with Robolectric (provided by callscreen.android.compose).
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.junit4)
 }

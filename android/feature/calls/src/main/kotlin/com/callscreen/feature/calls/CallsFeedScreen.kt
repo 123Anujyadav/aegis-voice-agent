@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisBottomBar
 import com.callscreen.core.ui.components.AegisCallCard
-import com.callscreen.core.ui.components.AegisFAB
 import com.callscreen.core.ui.components.AegisSearchBar
 import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.AegisTab
@@ -55,8 +54,8 @@ public fun CallsFeedScreen(
 
     Scaffold(
         topBar = { AegisTopAppBar(title = stringResource(R.string.calls_feed_title)) },
+        // No floating action button: the A20 spec has none, and the dial pad it showed did nothing (F19).
         bottomBar = { AegisBottomBar(currentTab = AegisTab.Calls, onTabSelected = onTabSelected) },
-        floatingActionButton = { AegisFAB(onClick = {}) }
     ) { paddingValues ->
         // One list holds everything, banner included: with large text or longer
         // translations, a fixed header could leave no room for the feed (F17).
@@ -75,6 +74,8 @@ public fun CallsFeedScreen(
                 AegisSearchBar(
                     query = searchQuery,
                     onQueryChange = { searchQuery = it },
+                    // It searches the feed's names and numbers, nothing else.
+                    placeholder = stringResource(R.string.calls_search),
                     // The spacing the fixed header had: 12 dp above and below.
                     modifier = Modifier.padding(top = if (roleLost) 2.dp else 12.dp, bottom = 2.dp),
                 )
