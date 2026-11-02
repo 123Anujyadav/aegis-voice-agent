@@ -66,12 +66,13 @@ public fun AssistantHomeScreen(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = CallScreenTheme.colors.surface.default)
                 ) {
-                    Row(
+                    // The status sits under the words, not beside them: beside them, with a
+                    // large font, the words took the whole row and pushed it out of view (F22).
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(20.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Column {
                             Text(
