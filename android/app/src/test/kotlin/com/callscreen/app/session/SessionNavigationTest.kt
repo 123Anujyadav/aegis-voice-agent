@@ -20,6 +20,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -33,6 +34,9 @@ class SessionNavigationTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /** The shipped English resource: res/values/strings.xml. */
+    private fun s(id: Int): String = RuntimeEnvironment.getApplication().getString(id)
 
     private class FakeSession(private val stored: Boolean, initial: SessionState) : SessionSignals {
         val flow = MutableStateFlow(initial)
@@ -90,7 +94,7 @@ class SessionNavigationTest {
         assertEquals(listOf(AegisDestinations.WELCOME), nav.routes())
         // Routing only: nothing claims the server ended the session.
         assertEquals(SessionState.Unknown, session.flow.value)
-        compose.onNodeWithText(SignedOutCopy.TITLE).assertDoesNotExist()
+        compose.onNodeWithText(s(SignedOutCopy.TITLE)).assertDoesNotExist()
     }
 
     @Test
@@ -122,7 +126,7 @@ class SessionNavigationTest {
         compose.waitForIdle()
         assertEquals(listOf(AegisDestinations.SIGNED_OUT), nav.routes())
         assertEquals(SessionEndCause.SESSION_ENDED.name, nav.currentBackStackEntry?.arguments?.getString("cause"))
-        compose.onNodeWithText(SignedOutCopy.TITLE).assertExists()
+        compose.onNodeWithText(s(SignedOutCopy.TITLE)).assertExists()
         val notice = nav.currentBackStackEntry
 
         // Another signed-out value is not a new change: no second notice.
@@ -131,7 +135,7 @@ class SessionNavigationTest {
         assertSame(notice, nav.currentBackStackEntry)
         assertEquals(listOf(AegisDestinations.SIGNED_OUT), nav.routes())
 
-        compose.onNodeWithText(SignedOutCopy.SIGN_IN).performClick()
+        compose.onNodeWithText(s(SignedOutCopy.SIGN_IN)).performClick()
         compose.waitForIdle()
         assertEquals(listOf(AegisDestinations.WELCOME), nav.routes())
     }

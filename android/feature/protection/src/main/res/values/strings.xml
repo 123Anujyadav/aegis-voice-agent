@@ -44,7 +44,6 @@
     <string name="protection_list_message_list_full">This list is full. Remove some numbers first.</string>
     <string name="protection_list_message_could_not_save">Couldn\'t save. Nothing changed.</string>
     <string name="protection_list_message_label_saved">Label saved.</string>
-    <string name="protection_list_message_invalid_label">A label can be up to %1$d characters of plain text.</string>
     <string name="protection_list_unreadable">Your blocked and allowed numbers can\'t be read on this phone, so no number is blocked. Nothing has been deleted.</string>
     <string name="protection_list_start_empty">Start again with empty lists</string>
     <string name="protection_list_undo">Undo</string>
@@ -70,4 +69,10 @@
     <string name="protection_notice_allow_contacts">Allow contacts access</string>
     <string name="protection_notice_contacts_denied">Contacts access is off. You can turn it on in Settings.</string>
     <string name="protection_notice_open_settings">Open settings</string>
+
+    <!-- The longest label, in characters: a count, so a plural in every language. -->
+    <plurals name="protection_list_message_invalid_label">
+        <item quantity="one">A label can be up to %1$d character of plain text.</item>
+        <item quantity="other">A label can be up to %1$d characters of plain text.</item>
+    </plurals>
 </resources>

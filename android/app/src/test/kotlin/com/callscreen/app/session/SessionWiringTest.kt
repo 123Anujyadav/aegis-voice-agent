@@ -39,6 +39,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
@@ -54,6 +55,9 @@ class SessionWiringTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /** The shipped English resource: res/values/strings.xml. */
+    private fun s(id: Int): String = RuntimeEnvironment.getApplication().getString(id)
 
     private class MemoryBlobs : BlobStore {
         var bytes: ByteArray? = null
@@ -181,7 +185,7 @@ class SessionWiringTest {
         nav.afterSplashIs(AegisDestinations.WELCOME)
         // The state is left as it was: no notice, and nothing says the server ended the session.
         assertEquals(SessionState.Unknown, auth.sessionState.value)
-        compose.onNodeWithText(SignedOutCopy.TITLE).assertDoesNotExist()
+        compose.onNodeWithText(s(SignedOutCopy.TITLE)).assertDoesNotExist()
         assertEquals("the launch sent a request", 1, server.requestCount)
     }
 
@@ -193,8 +197,8 @@ class SessionWiringTest {
         val nav = graph(AegisDestinations.CALLS_FEED, signals(auth))
         runBlocking { auth.signOut() }
         compose.waitUntil(timeoutMillis = 5_000) { nav.routes() == listOf(AegisDestinations.SIGNED_OUT) }
-        compose.onNodeWithText(SignedOutCopy.TITLE).assertExists()
-        compose.onNodeWithText(SignedOutCopy.YOU_SIGNED_OUT).assertExists()
+        compose.onNodeWithText(s(SignedOutCopy.TITLE)).assertExists()
+        compose.onNodeWithText(s(SignedOutCopy.YOU_SIGNED_OUT)).assertExists()
     }
 
     @Test

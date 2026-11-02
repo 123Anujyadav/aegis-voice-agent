@@ -1,22 +1,24 @@
 package com.callscreen.app.session
 
-import androidx.compose.foundation.background
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.callscreen.R
 import com.callscreen.core.auth.SessionEndCause
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
+import com.callscreen.core.ui.components.AegisScreenColumn
 
 /**
  * A73: tells this phone its session is over, without ambiguity. Shown once,
@@ -30,21 +32,15 @@ internal fun SignedOutScreen(
     onSignInClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(CallScreenTheme.colors.surface.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween,
-    ) {
+    // Scrolls when the words do not fit: a large font, or a longer translation.
+    AegisScreenColumn(modifier = modifier) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp),
             modifier = Modifier.padding(top = 48.dp),
         ) {
             Text(
-                text = SignedOutCopy.TITLE,
+                text = stringResource(SignedOutCopy.TITLE),
                 style = CallScreenTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary,
@@ -52,14 +48,14 @@ internal fun SignedOutScreen(
             )
             for (line in SignedOutCopy.lines(cause, blockingOn)) {
                 Text(
-                    text = line,
+                    text = stringResource(line),
                     style = CallScreenTheme.typography.bodyLarge,
                     color = CallScreenTheme.colors.content.secondary,
                 )
             }
         }
         AegisPrimaryButton(
-            text = SignedOutCopy.SIGN_IN,
+            text = stringResource(SignedOutCopy.SIGN_IN),
             onClick = onSignInClick,
             modifier = Modifier.padding(bottom = 16.dp),
         )
@@ -67,26 +63,28 @@ internal fun SignedOutScreen(
 }
 
 /**
- * A73's words. A reason is given only when the app actually knows it: a
- * session the server ended may have been signed in elsewhere, revoked or
- * expired, and the app cannot tell which, so it says none of them.
+ * A73's words, as string resources (res/values/strings.xml). A reason is
+ * given only when the app actually knows it: a session the server ended may
+ * have been signed in elsewhere, revoked or expired, and the app cannot tell
+ * which, so it says none of them.
  */
 internal object SignedOutCopy {
-    const val TITLE = "You're signed out on this device."
-    const val YOU_SIGNED_OUT = "You signed out."
-    const val NOT_VERIFIED = "We couldn't verify this device."
+    @StringRes val TITLE: Int = R.string.app_signed_out_title
+    @StringRes val YOU_SIGNED_OUT: Int = R.string.app_signed_out_you_signed_out
+    @StringRes val NOT_VERIFIED: Int = R.string.app_signed_out_not_verified
 
     /** A73's "screening is still active" line, for the screening this app does today: on the phone. */
-    const val BLOCKING_STILL_ON = "On-device blocking is still on."
-    const val SIGN_IN = "Sign in"
+    @StringRes val BLOCKING_STILL_ON: Int = R.string.app_signed_out_blocking_still_on
+    @StringRes val SIGN_IN: Int = R.string.app_signed_out_sign_in
 
-    fun reason(cause: SessionEndCause?): String? = when (cause) {
+    @StringRes
+    fun reason(cause: SessionEndCause?): Int? = when (cause) {
         SessionEndCause.SIGNED_OUT_ON_THIS_DEVICE -> YOU_SIGNED_OUT
         SessionEndCause.STORED_SESSION_UNRECOVERABLE -> NOT_VERIFIED
         else -> null
     }
 
-    fun lines(cause: SessionEndCause?, blockingOn: Boolean): List<String> =
+    fun lines(cause: SessionEndCause?, blockingOn: Boolean): List<Int> =
         listOfNotNull(reason(cause), if (blockingOn) BLOCKING_STILL_ON else null)
 }
 

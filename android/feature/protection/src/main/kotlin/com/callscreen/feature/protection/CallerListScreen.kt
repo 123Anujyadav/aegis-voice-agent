@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -406,13 +407,17 @@ private fun AddNumber(copy: CallerListCopy, onSubmit: (String) -> Unit) {
     }
 }
 
-/** The screens' words. Kept together so each list's wording is checked in one place. */
-/** A string resource with at most one number argument, resolved when the screen composes. */
-internal data class CopyText(@StringRes val id: Int, val number: Int? = null)
+/**
+ * Words resolved when the screen composes: a string resource, or, with a
+ * [count], a plurals resource for that count, so each language can say
+ * "1 character" and "40 characters" its own way.
+ */
+internal data class CopyText(val id: Int, val count: Int? = null)
 
 @Composable
-internal fun CopyText.text(): String = if (number != null) stringResource(id, number) else stringResource(id)
+internal fun CopyText.text(): String = if (count != null) pluralStringResource(id, count, count) else stringResource(id)
 
+/** The screens' words. Kept together so each list's wording is checked in one place. */
 internal class CallerListCopy private constructor(private val type: ListType) {
     @StringRes val title: Int = if (type == ListType.BLOCK) R.string.protection_list_blocked_title else R.string.protection_list_allowed_title
     @StringRes val addAction: Int = if (type == ListType.BLOCK) R.string.protection_list_add_block else R.string.protection_list_add_allow
@@ -454,7 +459,7 @@ internal class CallerListCopy private constructor(private val type: ListType) {
         ListMessage.COULD_NOT_SAVE -> CopyText(R.string.protection_list_message_could_not_save)
         ListMessage.UNREADABLE -> CopyText(UNREADABLE)
         ListMessage.LABEL_SAVED -> CopyText(R.string.protection_list_message_label_saved)
-        ListMessage.INVALID_LABEL -> CopyText(R.string.protection_list_message_invalid_label, CallerLabel.MAX_LENGTH)
+        ListMessage.INVALID_LABEL -> CopyText(R.plurals.protection_list_message_invalid_label, CallerLabel.MAX_LENGTH)
     }
 
     companion object {

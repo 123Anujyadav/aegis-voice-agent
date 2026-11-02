@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test
 class HardCodedTextGuardTest {
 
     private val migrated = listOf(
+        "app",
         "core/ui",
         "feature/assistant",
         "feature/calls",
@@ -31,9 +32,28 @@ class HardCodedTextGuardTest {
 
     /** Debug-only design previews inside a migrated module, never in a release build. */
     private val designPreviews = setOf(
+        // The label the debug build puts on every design preview.
+        "DesignPreview.kt",
         "FraudIntelligenceScreen.kt",
         "ConsentVaultScreen.kt",
         "IncomingCallScreen.kt",
+    )
+
+    /**
+     * Modules whose every screen is a debug-only design preview
+     * (AegisNavGraph.designPreviews): their words move to resources when the
+     * feature is built for release.
+     */
+    private val previewOnly = listOf(
+        "feature/business",
+        "feature/family",
+        "feature/screening",
+        "feature/summary",
+    )
+
+    /** Modules with composables but no words of their own: the theme. */
+    private val wordless = listOf(
+        "core/designsystem",
     )
 
     /**
@@ -80,5 +100,25 @@ class HardCodedTextGuardTest {
             }
         }
         assertEquals(emptyList<String>(), found)
+    }
+
+    @Test
+    @DisplayName("every module with a screen or component is migrated, wordless, or only a design preview")
+    fun everyModuleIsAccountedFor() {
+        val android = File("..").canonicalFile
+        val withUi = (listOf("app") + listOf("core", "feature").flatMap { group ->
+            File(android, group).listFiles().orEmpty().filter { it.isDirectory }.map { "$group/${it.name}" }
+        }).filter { module ->
+            File(android, "$module/src/main").walkTopDown().any { it.extension == "kt" && "@Composable" in it.readText() }
+        }
+        assertTrue("feature/onboarding" in withUi, "found only $withUi under $android")
+        assertEquals(emptyList<String>(), withUi - (migrated + previewOnly + wordless).toSet())
+        // A wordless module stays so.
+        val wordy = wordless.flatMap { module ->
+            File(android, "$module/src/main").walkTopDown().filter { it.extension == "kt" }.flatMap { file ->
+                shippedLines(file).filter { (_, line) -> userText.containsMatchIn(line) }.map { (i, _) -> "${file.relativeTo(android)}:${i + 1}" }
+            }.toList()
+        }
+        assertEquals(emptyList<String>(), wordy)
     }
 }
