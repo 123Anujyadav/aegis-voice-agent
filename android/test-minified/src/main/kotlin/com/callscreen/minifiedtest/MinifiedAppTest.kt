@@ -1,11 +1,12 @@
 package com.callscreen.minifiedtest
 
 import android.content.Intent
+import android.graphics.Rect
 import android.os.ParcelFileDescriptor
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
-import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
@@ -134,19 +135,35 @@ class MinifiedAppTest {
         }
 
     /**
-     * Waits for [text], scrolling the app's scrollable content down to it if
-     * it is below the fold: what a user can reach, not only what is drawn.
+     * Waits for [text], scrolling the app's content forward to it if it is
+     * below the fold: what a user can reach, not only what is drawn. It
+     * scrolls with the accessibility action (as TalkBack does), on the largest
+     * scrollable node, which is the screen's own container; a single-line text
+     * field also reports scrollable, and a swipe can land on it instead.
      */
     private fun reach(text: String): UiObject2 {
         device.wait(Until.findObject(By.pkg(PKG).depth(0)), TIMEOUT)
-        device.findObject(By.text(text))?.let { if (!it.visibleBounds.isEmpty) return it }
-        // The screen's own scroll container is the largest scrollable node: a single-line
-        // text field also reports scrollable (sideways), and scrolling it down does nothing.
-        val scrollable = device.findObjects(By.pkg(PKG).scrollable(true))
-            .maxByOrNull { it.visibleBounds.width().toLong() * it.visibleBounds.height() }
-            ?: fail("\"$text\" is not on screen and nothing on the screen scrolls.\n" + screen()).let { error("unreachable") }
-        scrollable.scrollUntil(Direction.DOWN, Until.findObject(By.text(text)))
+        repeat(MAX_SCROLLS) {
+            device.findObject(By.text(text))?.let { if (!it.visibleBounds.isEmpty) return it }
+            val container = largestScrollable()
+                ?: fail("\"$text\" is not on screen and nothing on the screen scrolls.\n" + screen()).let { error("unreachable") }
+            val moved = container.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            device.waitForIdle()
+            if (!moved) return awaitText(text)
+        }
         return awaitText(text)
+    }
+
+    private fun largestScrollable(): AccessibilityNodeInfo? {
+        val root = instrumentation.uiAutomation.rootInActiveWindow ?: return null
+        val found = mutableListOf<AccessibilityNodeInfo>()
+        val queue = ArrayDeque(listOf(root))
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            if (node.isScrollable && node.packageName == PKG) found += node
+            for (i in 0 until node.childCount) node.getChild(i)?.let { queue.addLast(it) }
+        }
+        return found.maxByOrNull { node -> Rect().also { node.getBoundsInScreen(it) }.let { it.width().toLong() * it.height() } }
     }
 
     /**
@@ -177,6 +194,7 @@ class MinifiedAppTest {
     private companion object {
         const val PKG = "com.callscreen.staging"
         const val TIMEOUT = 15_000L
+        const val MAX_SCROLLS = 6
 
         /** What R8 breaks at run time, as the log reports it. */
         val R8_FAILURES = listOf(
