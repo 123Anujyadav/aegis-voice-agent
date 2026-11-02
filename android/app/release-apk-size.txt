@@ -6,4 +6,8 @@
 #
 # 2026-11-02: the six release languages (en, hi, ta, te, ml, kn), measured
 # after dropping bn and mr and adding ml and kn (1,382,238 -> 1,382,326 bytes).
-1382326
+# 2026-11-02: A58l App language (the picker, LocaleManager and the app's own
+# setting): +17,140 bytes. The names' screen-reader language mark is set in
+# semantics, not through Text(AnnotatedString), which would have added ~20 KB
+# of rich-text layout code (the first version measured +33,524 bytes, over 2%).
+1399466

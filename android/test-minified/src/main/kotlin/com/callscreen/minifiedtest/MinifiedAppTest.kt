@@ -2,6 +2,7 @@ package com.callscreen.minifiedtest
 
 import android.content.Intent
 import android.graphics.Rect
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -15,6 +16,7 @@ import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -114,6 +116,31 @@ class MinifiedAppTest {
         // Back still leads where it did before.
         device.pressBack()
         awaitText("Your SIM")
+    }
+
+    /**
+     * Android 13 and later: with a per-app language set as Android's App
+     * languages page sets it, the minified app starts in that language and
+     * shows English, its fallback, for words it has no translation of (none
+     * yet). Android 8 to 12 keep the choice in the app, which only the debug
+     * build's tests can reach (AppLanguageOnDeviceTest).
+     */
+    @Test
+    fun anAppLanguageWithoutATranslationStartsInEnglish() {
+        assumeTrue("per-app languages need Android 13", Build.VERSION.SDK_INT >= 33)
+        try {
+            shell("cmd locale set-app-locales $PKG --locales ta")
+            val set = shell("cmd locale get-app-locales $PKG")
+            assertTrue("the app language was not set: $set", "ta" in set)
+            device.pressHome()
+            shell("am force-stop $PKG")
+            launch(clearTask = true)
+            awaitText("Welcome to Aegis AI")
+            awaitText("Get Protected")
+        } finally {
+            // No --locales: back to the phone's language.
+            shell("cmd locale set-app-locales $PKG")
+        }
     }
 
     private fun launch(clearTask: Boolean) {
