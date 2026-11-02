@@ -3,7 +3,6 @@ package com.callscreen.app
 import android.app.LocaleManager
 import android.content.Context
 import android.content.Intent
-import android.content.res.Resources
 import android.os.Build
 import android.os.LocaleList
 import androidx.compose.ui.semantics.Role
@@ -117,6 +116,9 @@ class AppLanguageOnDeviceTest {
     @Test
     fun aChosenLanguageReCreatesTheScreensInItAndKeepsThePlaceTheChoiceAndTheSession() {
         val scenario = launch(AegisDestinations.TASK_CENTER)
+        // The phone's language, read before choosing: on Android 13 and later even
+        // Resources.getSystem() reports the app's language while one is chosen.
+        val phone = language(scenario)
         val change = "Change app language"
         compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(change))
         compose.onNode(hasText(change) and hasClickAction()).performClick()
@@ -136,7 +138,7 @@ class AppLanguageOnDeviceTest {
         // Where the next process reads it.
         assertEquals(AppLanguage.TAMIL, AppLanguageSetting.selected(context))
         if (Build.VERSION.SDK_INT >= 33) {
-            assertEquals(LocaleList.forLanguageTags("ta"), context.getSystemService(LocaleManager::class.java).applicationLocales)
+            assertEquals(LocaleList.forLanguageTags("ta-IN"), context.getSystemService(LocaleManager::class.java).applicationLocales)
         } else {
             val file = File(context.applicationInfo.dataDir, "shared_prefs/callscreen_app_language.xml")
             assertTrue("the choice is not on disk", file.isFile && file.readText().contains(">ta<"))
@@ -158,7 +160,7 @@ class AppLanguageOnDeviceTest {
 
         // And the phone's language takes it back.
         compose.onNode(radio and hasText("Phone's language")).performClick()
-        awaitLanguage(again, Resources.getSystem().configuration.locales[0].language)
+        awaitLanguage(again, phone)
         assertEquals(null, AppLanguageSetting.selected(context))
         again.close()
     }

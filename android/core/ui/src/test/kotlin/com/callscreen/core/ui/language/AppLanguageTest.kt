@@ -15,6 +15,12 @@ class AppLanguageTest {
     }
 
     @Test
+    fun aChoiceAppliesTheLanguageInIndiaAndPlainEnglish() {
+        assertEquals(listOf("en", "hi-IN", "ta-IN", "te-IN", "ml-IN", "kn-IN"), AppLanguage.entries.map { it.locale.toLanguageTag() })
+        for (language in AppLanguage.entries) assertEquals(language, AppLanguage.of(language.locale))
+    }
+
+    @Test
     fun onlyEnglishHasItsScreensInItUntilAReviewedTranslationArrives() {
         // A language is marked translated in the same change that adds its reviewed
         // translation; TranslationConsistencyTest (app) then requires every string.

@@ -61,7 +61,7 @@ class AppLanguageSettingBeforeAndroid13Test {
         assertEquals(AppLanguage.TAMIL, AppLanguageSetting.selected(context))
 
         val wrapped = AppLanguageSetting.wrap(context)
-        assertEquals("ta", wrapped.resources.configuration.locales[0].language)
+        assertEquals("ta-IN", wrapped.resources.configuration.locales[0].toLanguageTag())
         assertEquals("number and date formats follow it", "ta", Locale.getDefault().language)
 
         // A new process reads the choice from this file (SharedPreferences are written by commit()).
@@ -131,7 +131,7 @@ class AppLanguageSettingAndroid13Test {
     fun theChoiceIsAndroidsPerAppLanguageAndTheAppKeepsNoCopy() {
         assertNull(AppLanguageSetting.selected(context))
         assertFalse("Android re-creates the activity itself", AppLanguageSetting.select(context, AppLanguage.TELUGU))
-        assertEquals(LocaleList.forLanguageTags("te"), manager.applicationLocales)
+        assertEquals(LocaleList.forLanguageTags("te-IN"), manager.applicationLocales)
         assertEquals(AppLanguage.TELUGU, AppLanguageSetting.selected(context))
         assertFalse(prefs().contains(AppLanguageSetting.KEY))
         assertSame("Android applies it, not the app", context, AppLanguageSetting.wrap(context))
@@ -153,7 +153,7 @@ class AppLanguageSettingAndroid13Test {
     fun aChoiceFromBeforeTheUpgradeMovesIntoAndroidsSettingOnce() {
         prefs().edit().putString(AppLanguageSetting.KEY, "kn").commit()
         AppLanguageSetting.migrate(context)
-        assertEquals(LocaleList.forLanguageTags("kn"), manager.applicationLocales)
+        assertEquals(LocaleList.forLanguageTags("kn-IN"), manager.applicationLocales)
         assertFalse(prefs().contains(AppLanguageSetting.KEY))
     }
 

@@ -26,12 +26,12 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.intl.LocaleList
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
@@ -94,7 +94,8 @@ public fun AppLanguageScreen(
             )
             Column(modifier = Modifier.selectableGroup()) {
                 LanguageRow(
-                    name = AnnotatedString(stringResource(R.string.settings_language_phone)),
+                    name = stringResource(R.string.settings_language_phone),
+                    nameLanguage = null,
                     detail = stringResource(R.string.settings_language_phone_detail),
                     note = null,
                     selected = selected == null,
@@ -104,7 +105,8 @@ public fun AppLanguageScreen(
                     val nativeName = language.nativeName()
                     val readerName = language.displayName(reader)
                     LanguageRow(
-                        name = nativeName(language),
+                        name = nativeName,
+                        nameLanguage = language,
                         // The name in the screens' language, unless it is the same word.
                         detail = readerName.takeIf { it != nativeName },
                         note = if (language.translated) null else stringResource(R.string.settings_language_not_translated),
@@ -118,17 +120,20 @@ public fun AppLanguageScreen(
 }
 
 /**
- * The language's own name, marked as being in that language, so a screen
- * reader reads "தமிழ்" with a Tamil voice instead of spelling it out in
- * the screens' language.
+ * Screen readers get [text] marked as being in [language], so "தமிழ்" is read
+ * with a Tamil voice instead of being spelled out in the screens' language.
+ * The text on screen stays plain: Text(AnnotatedString) would bring Compose's
+ * whole rich-text layout into the release build (about 20 KB compressed,
+ * caught by the APK size gate) for a mark only screen readers use.
  */
-internal fun nativeName(language: AppLanguage): AnnotatedString = buildAnnotatedString {
-    withStyle(SpanStyle(localeList = LocaleList(language.tag))) { append(language.nativeName()) }
+internal fun Modifier.readIn(language: AppLanguage, text: String): Modifier = clearAndSetSemantics {
+    this.text = AnnotatedString(text, listOf(AnnotatedString.Range(SpanStyle(localeList = LocaleList(language.tag)), 0, text.length)))
 }
 
 @Composable
 private fun LanguageRow(
-    name: AnnotatedString,
+    name: String,
+    nameLanguage: AppLanguage?,
     detail: String?,
     note: String?,
     selected: Boolean,
@@ -151,6 +156,7 @@ private fun LanguageRow(
         Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
             Text(
                 text = name,
+                modifier = if (nameLanguage == null) Modifier else Modifier.readIn(nameLanguage, name),
                 style = CallScreenTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary,

@@ -26,7 +26,16 @@ public enum class AppLanguage(public val tag: String, public val translated: Boo
     KANNADA("kn", translated = false),
     ;
 
-    public val locale: Locale get() = Locale.forLanguageTag(tag)
+    /**
+     * The locale a choice applies: the language in India, the product's
+     * market (ta-IN), and plain English. Android keeps its own Tamil, Telugu,
+     * Malayalam and Kannada strings under the Indian region (values-ta-rIN),
+     * and a language without a region does not match them: with a bare "ta",
+     * Android's own buttons and dialogs stayed English among Tamil screens
+     * (AppLanguageOnDeviceTest, Android 8). The app's translations are kept by
+     * language (values-ta), which matches either.
+     */
+    public val locale: Locale get() = Locale.forLanguageTag(if (this == ENGLISH) tag else "$tag-IN")
 
     /**
      * The language's name in itself ("हिन्दी", "தமிழ்"), from the platform's

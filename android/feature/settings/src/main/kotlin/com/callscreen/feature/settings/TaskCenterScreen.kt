@@ -35,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -180,10 +179,12 @@ private fun LanguageSection(language: AppLanguage?, onLanguageClick: () -> Unit)
             color = CallScreenTheme.colors.content.primary,
             modifier = Modifier.semantics { heading() },
         )
+        val name = language?.nativeName() ?: stringResource(R.string.settings_language_phone)
         Text(
-            text = if (language == null) AnnotatedString(stringResource(R.string.settings_language_phone)) else nativeName(language),
+            text = name,
             style = CallScreenTheme.typography.bodyMedium,
             color = CallScreenTheme.colors.content.secondary,
+            modifier = if (language == null) Modifier else Modifier.readIn(language, name),
         )
         if (language != null && !language.translated) {
             Text(
