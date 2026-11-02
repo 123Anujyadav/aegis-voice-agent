@@ -1,5 +1,6 @@
 package com.callscreen.feature.onboarding
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,21 +24,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
+import com.callscreen.core.ui.components.AegisScreenColumn
 import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.StatusChipVariant
-import com.callscreen.core.ui.components.AegisScreenColumn
 
 @Composable
 public fun AiScreeningSetupScreen(
     onContinueClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var selectedPersona by remember { mutableStateOf("Strict Protection") }
+    var selectedPersona by remember { mutableStateOf(Persona.STRICT) }
 
     AegisScreenColumn(modifier = modifier) {
         Column(
@@ -47,18 +49,18 @@ public fun AiScreeningSetupScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.Psychology,
-                contentDescription = "AI Persona",
+                contentDescription = stringResource(R.string.onboarding_ai_icon_description),
                 tint = CallScreenTheme.colors.status.ai.text,
                 modifier = Modifier.size(64.dp)
             )
             Text(
-                text = "AI Screening Persona",
+                text = stringResource(R.string.onboarding_ai_title),
                 style = CallScreenTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary
             )
             Text(
-                text = "Choose how the assistant will talk to unknown callers. Your choice isn't saved yet: the assistant needs call forwarding, which isn't available yet.",
+                text = stringResource(R.string.onboarding_ai_intro),
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.secondary
             )
@@ -67,33 +69,30 @@ public fun AiScreeningSetupScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.padding(top = 12.dp)
             ) {
-                PersonaCard(
-                    title = "Strict Protection",
-                    description = "Screens every unknown caller you don't answer, with high fraud sensitivity.",
-                    isSelected = selectedPersona == "Strict Protection",
-                    onSelect = { selectedPersona = "Strict Protection" }
-                )
-                PersonaCard(
-                    title = "Balanced Receptionist",
-                    description = "Politely asks purpose of call and takes messages for non-contacts.",
-                    isSelected = selectedPersona == "Balanced Receptionist",
-                    onSelect = { selectedPersona = "Balanced Receptionist" }
-                )
-                PersonaCard(
-                    title = "Silent Assistant",
-                    description = "Says only what every caller must be told, then takes a message.",
-                    isSelected = selectedPersona == "Silent Assistant",
-                    onSelect = { selectedPersona = "Silent Assistant" }
-                )
+                for (persona in Persona.entries) {
+                    PersonaCard(
+                        title = stringResource(persona.title),
+                        description = stringResource(persona.description),
+                        isSelected = selectedPersona == persona,
+                        onSelect = { selectedPersona = persona },
+                    )
+                }
             }
         }
 
         AegisPrimaryButton(
-            text = "Save & Continue",
+            text = stringResource(R.string.onboarding_ai_save),
             onClick = onContinueClick,
             modifier = Modifier.padding(bottom = 16.dp)
         )
     }
+}
+
+/** The assistant's personas, in the order shown. Not saved anywhere yet. */
+private enum class Persona(@StringRes val title: Int, @StringRes val description: Int) {
+    STRICT(R.string.onboarding_ai_strict_title, R.string.onboarding_ai_strict),
+    BALANCED(R.string.onboarding_ai_balanced_title, R.string.onboarding_ai_balanced),
+    SILENT(R.string.onboarding_ai_silent_title, R.string.onboarding_ai_silent),
 }
 
 @Composable
@@ -131,7 +130,7 @@ private fun PersonaCard(
                 )
             }
             if (isSelected) {
-                AegisStatusChip(text = "Selected", variant = StatusChipVariant.AIHandled)
+                AegisStatusChip(text = stringResource(R.string.onboarding_ai_selected), variant = StatusChipVariant.AIHandled)
             }
         }
     }

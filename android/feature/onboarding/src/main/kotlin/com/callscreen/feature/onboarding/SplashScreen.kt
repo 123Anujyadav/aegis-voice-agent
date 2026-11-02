@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -69,18 +70,18 @@ public fun SplashScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.Shield,
-                contentDescription = "Aegis Shield Logo",
+                contentDescription = stringResource(R.string.onboarding_splash_logo_description),
                 tint = CallScreenTheme.colors.action.secondary.fill,
                 modifier = Modifier.size(96.dp)
             )
             Text(
-                text = "Aegis AI",
+                text = stringResource(R.string.onboarding_brand_name),
                 style = CallScreenTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.inverse
             )
             Text(
-                text = "Autonomous Call Defense & Screening",
+                text = stringResource(R.string.onboarding_splash_tagline),
                 style = CallScreenTheme.typography.bodyLarge,
                 fontSize = 16.sp,
                 color = CallScreenTheme.colors.content.inverse.copy(alpha = 0.8f)

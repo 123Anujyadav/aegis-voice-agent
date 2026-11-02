@@ -1,5 +1,6 @@
 package com.callscreen.feature.onboarding
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -52,19 +54,19 @@ public fun WelcomeScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Shield,
-                    contentDescription = "Logo",
+                    contentDescription = stringResource(R.string.onboarding_welcome_logo_description),
                     tint = CallScreenTheme.colors.action.primary.content,
                     modifier = Modifier.size(44.dp)
                 )
             }
             Text(
-                text = "Welcome to Aegis AI",
+                text = stringResource(R.string.onboarding_welcome_title),
                 style = CallScreenTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary
             )
             Text(
-                text = WelcomeCopy.TAGLINE,
+                text = stringResource(WelcomeCopy.TAGLINE),
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.secondary,
                 modifier = Modifier.padding(horizontal = 8.dp)
@@ -76,18 +78,18 @@ public fun WelcomeScreen(
         ) {
             WelcomeFeatureCard(
                 icon = Icons.Default.RecordVoiceOver,
-                title = WelcomeCopy.SCREENING_TITLE,
-                description = WelcomeCopy.SCREENING,
+                title = stringResource(WelcomeCopy.SCREENING_TITLE),
+                description = stringResource(WelcomeCopy.SCREENING),
             )
             WelcomeFeatureCard(
                 icon = Icons.Default.Security,
-                title = WelcomeCopy.BLOCKING_TITLE,
-                description = WelcomeCopy.BLOCKING,
+                title = stringResource(WelcomeCopy.BLOCKING_TITLE),
+                description = stringResource(WelcomeCopy.BLOCKING),
             )
         }
 
         AegisPrimaryButton(
-            text = "Get Protected",
+            text = stringResource(R.string.onboarding_welcome_get_protected),
             onClick = onGetStartedClick,
             modifier = Modifier.padding(bottom = 16.dp)
         )
@@ -156,11 +158,9 @@ private fun WelcomeScreenPreview() {
  * not available yet. No deepfake or speech analysis exists, so none is claimed.
  */
 internal object WelcomeCopy {
-    const val TAGLINE = "Block the calls you don't want, and get help with the ones you don't recognise."
-    const val BLOCKING_TITLE = "On-device blocking"
-    const val BLOCKING = "Numbers you block are rejected on this phone before it rings, even offline."
-    const val SCREENING_TITLE = "Assistant screening"
-    const val SCREENING =
-        "Once call forwarding is set up, an assistant can answer unknown callers you don't pick up. " +
-            "Your phone always rings first."
+    @StringRes val TAGLINE: Int = R.string.onboarding_welcome_tagline
+    @StringRes val BLOCKING_TITLE: Int = R.string.onboarding_welcome_blocking_title
+    @StringRes val BLOCKING: Int = R.string.onboarding_welcome_blocking
+    @StringRes val SCREENING_TITLE: Int = R.string.onboarding_welcome_screening_title
+    @StringRes val SCREENING: Int = R.string.onboarding_welcome_screening
 }

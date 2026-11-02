@@ -37,18 +37,22 @@ class ReleaseCopyGuardTest {
     )
 
     @Test
-    @DisplayName("no production source contains a removed invented value or claim")
+    @DisplayName("no production source or string resource contains a removed invented value or claim")
     fun noneReturn() {
         // Unit tests run in the module directory: android/feature/onboarding.
         val android = File("../..").canonicalFile
-        val sources = android.walkTopDown()
+        val main = android.walkTopDown()
             .onEnter { it.name !in setOf("build", ".gradle", "test", "androidTest", "build-logic") }
-            .filter { it.isFile && it.extension == "kt" }
-            .filter { "${File.separator}main${File.separator}" in it.path }
+            .filter { it.isFile && "${File.separator}main${File.separator}" in it.path }
             .toList()
+        val sources = main.filter { it.extension == "kt" }
+        // The app's words live in string resources (res/values*/, every language), not only in Kotlin.
+        val strings = main.filter { it.extension == "xml" && it.parentFile?.name?.startsWith("values") == true }
         assertTrue(sources.size > 50, "found only ${sources.size} sources under $android")
-        val found = sources.flatMap { f ->
-            val text = f.readText()
+        assertTrue(strings.any { it.path.endsWith("feature${File.separator}onboarding${File.separator}src${File.separator}main${File.separator}res${File.separator}values${File.separator}strings.xml") }, "onboarding's strings.xml was not scanned")
+        val found = (sources + strings).flatMap { f ->
+            // As Android shows it: XML entities and resource escapes undone.
+            val text = f.readText().replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("\\'", "'").replace("\\\"", "\"")
             banned.filterKeys { it in text }.map { (value, why) -> "${f.relativeTo(android)}: \"$value\" ($why)" }
         }
         assertEquals(emptyList<String>(), found)

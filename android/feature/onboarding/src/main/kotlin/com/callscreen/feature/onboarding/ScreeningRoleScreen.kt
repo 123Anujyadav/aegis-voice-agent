@@ -2,6 +2,7 @@ package com.callscreen.feature.onboarding
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -33,18 +35,15 @@ import com.callscreen.core.ui.components.AegisPrimaryButton
  * are the spec's words exactly; a test holds them to it.
  */
 internal object ScreeningRoleCopy {
-    const val TITLE = "Screen calls on your phone"
-    val blocks: List<Pair<String, String>> = listOf(
-        "What Android will ask" to "Android will ask to make this app your caller ID & spam app.",
-        "What it enables" to "We can block numbers you've blocked, and let people you know ring through, " +
-            "without the call ever leaving your phone.",
-        "What we'll never do" to "We can't hear your calls. " +
-            "Android doesn't allow that for any app, including this one.",
-        "If you say no" to "Every unknown call gets forwarded, which may cost you carrier charges and means " +
-            "people you know get screened too.",
+    @StringRes val TITLE: Int = R.string.onboarding_role_title
+    val blocks: List<Pair<Int, Int>> = listOf(
+        R.string.onboarding_role_ask_label to R.string.onboarding_role_ask,
+        R.string.onboarding_role_enables_label to R.string.onboarding_role_enables,
+        R.string.onboarding_role_never_label to R.string.onboarding_role_never,
+        R.string.onboarding_role_declined_label to R.string.onboarding_role_declined,
     )
-    const val CONTINUE = "Continue"
-    const val NOT_NOW = "Not now"
+    @StringRes val CONTINUE: Int = R.string.onboarding_role_continue
+    @StringRes val NOT_NOW: Int = R.string.onboarding_role_not_now
 }
 
 /**
@@ -88,7 +87,7 @@ internal fun ScreeningRoleScreen(
                 .padding(top = 24.dp),
         ) {
             Text(
-                text = ScreeningRoleCopy.TITLE,
+                text = stringResource(ScreeningRoleCopy.TITLE),
                 style = CallScreenTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary,
@@ -97,14 +96,14 @@ internal fun ScreeningRoleScreen(
             for ((label, line) in ScreeningRoleCopy.blocks) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = label,
+                        text = stringResource(label),
                         style = CallScreenTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = CallScreenTheme.colors.content.primary,
                         modifier = Modifier.semantics { heading() },
                     )
                     Text(
-                        text = line,
+                        text = stringResource(line),
                         style = CallScreenTheme.typography.bodyLarge,
                         color = CallScreenTheme.colors.content.secondary,
                     )
@@ -115,7 +114,7 @@ internal fun ScreeningRoleScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(top = 16.dp, bottom = 16.dp),
         ) {
-            AegisPrimaryButton(text = ScreeningRoleCopy.CONTINUE, onClick = onContinueClick)
+            AegisPrimaryButton(text = stringResource(ScreeningRoleCopy.CONTINUE), onClick = onContinueClick)
             // Not visually suppressed, and at least 48 dp (A09 accessibility rules).
             TextButton(
                 onClick = onNotNowClick,
@@ -124,7 +123,7 @@ internal fun ScreeningRoleScreen(
                     .heightIn(min = 48.dp),
             ) {
                 Text(
-                    text = ScreeningRoleCopy.NOT_NOW,
+                    text = stringResource(ScreeningRoleCopy.NOT_NOW),
                     style = CallScreenTheme.typography.titleMedium,
                     color = CallScreenTheme.colors.content.primary,
                 )

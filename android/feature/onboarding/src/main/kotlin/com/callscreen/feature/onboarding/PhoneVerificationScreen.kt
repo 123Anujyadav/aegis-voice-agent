@@ -19,6 +19,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -76,21 +78,21 @@ public fun PhoneVerificationScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.PhonelinkRing,
-                contentDescription = "Phone Verification",
+                contentDescription = stringResource(R.string.onboarding_phone_icon_description),
                 tint = CallScreenTheme.colors.action.primary.fill,
                 modifier = Modifier.size(72.dp),
             )
             Text(
-                text = if (!enteringCode) "Enter Phone Number" else "Enter Verification Code",
+                text = if (!enteringCode) stringResource(R.string.onboarding_phone_title_number) else stringResource(R.string.onboarding_phone_title_code),
                 style = CallScreenTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary,
             )
             Text(
                 text = if (!enteringCode) {
-                    "Aegis AI binds your mobile identity securely on-device."
+                    stringResource(R.string.onboarding_phone_subtitle_number)
                 } else {
-                    "We sent a 6-digit code to ${state.number}"
+                    stringResource(R.string.onboarding_phone_subtitle_code, state.number)
                 },
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.secondary,
@@ -99,7 +101,7 @@ public fun PhoneVerificationScreen(
             OutlinedTextField(
                 value = if (!enteringCode) state.number else state.code,
                 onValueChange = if (!enteringCode) onNumberChange else onCodeChange,
-                label = { Text(if (!enteringCode) "Mobile number, with country code" else "6-digit code") },
+                label = { Text(if (!enteringCode) stringResource(R.string.onboarding_phone_label_number) else stringResource(R.string.onboarding_phone_label_code)) },
                 enabled = !state.submitting,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = if (!enteringCode) KeyboardType.Phone else KeyboardType.NumberPassword),
@@ -115,20 +117,20 @@ public fun PhoneVerificationScreen(
 
             state.message?.let { message ->
                 Text(
-                    text = describe(message, state.retryAfterSeconds),
+                    text = describe(message, state.retryAfterSeconds).text(),
                     style = CallScreenTheme.typography.bodyMedium,
                     color = CallScreenTheme.colors.content.secondary,
                 )
             }
 
             if (enteringCode) {
-                TextButton(onClick = onResendCode, enabled = !state.submitting) { Text("Send a new code") }
-                TextButton(onClick = onEditNumber, enabled = !state.submitting) { Text("Change number") }
+                TextButton(onClick = onResendCode, enabled = !state.submitting) { Text(stringResource(R.string.onboarding_phone_resend)) }
+                TextButton(onClick = onEditNumber, enabled = !state.submitting) { Text(stringResource(R.string.onboarding_phone_change_number)) }
             }
         }
 
         AegisPrimaryButton(
-            text = if (!enteringCode) "Send Verification Code" else "Verify & Continue",
+            text = if (!enteringCode) stringResource(R.string.onboarding_phone_send) else stringResource(R.string.onboarding_phone_verify),
             onClick = if (!enteringCode) onSubmitNumber else onSubmitCode,
             enabled = state.message != VerificationMessage.NOT_CONFIGURED &&
                 (!enteringCode || state.code.length == PhoneVerificationViewModel.CODE_LENGTH),
@@ -138,19 +140,35 @@ public fun PhoneVerificationScreen(
     }
 }
 
-/** User-facing text for [message]. Never includes a code, a token or server text. */
-internal fun describe(message: VerificationMessage, retryAfterSeconds: Long?): String = when (message) {
-    VerificationMessage.NOT_CONFIGURED -> "Sign-in is not available in this build."
-    VerificationMessage.INVALID_NUMBER -> "Enter your number with its country code, for example +91 98765 43210."
-    VerificationMessage.INVALID_CODE -> "That code is not right. Check it and try again."
-    VerificationMessage.CODE_EXPIRED -> "That code has expired. Send a new code."
+/**
+ * User-facing text for a message: a string resource, or a plural with a
+ * number of seconds. It has no text argument, so it can never carry a code, a
+ * token or server text.
+ */
+internal data class MessageText(val id: Int, val seconds: Long? = null)
+
+internal fun describe(message: VerificationMessage, retryAfterSeconds: Long?): MessageText = when (message) {
+    VerificationMessage.NOT_CONFIGURED -> MessageText(R.string.onboarding_phone_message_not_configured)
+    VerificationMessage.INVALID_NUMBER -> MessageText(R.string.onboarding_phone_message_invalid_number)
+    VerificationMessage.INVALID_CODE -> MessageText(R.string.onboarding_phone_message_invalid_code)
+    VerificationMessage.CODE_EXPIRED -> MessageText(R.string.onboarding_phone_message_code_expired)
     VerificationMessage.TOO_MANY_ATTEMPTS ->
-        if (retryAfterSeconds != null) "Too many attempts. Try again in $retryAfterSeconds seconds." else "Too many attempts. Try again later."
-    VerificationMessage.DELIVERY_UNAVAILABLE -> "We could not send a code right now. Try again later."
-    VerificationMessage.OFFLINE -> "No connection. Check your network and try again."
-    VerificationMessage.SERVICE_UNAVAILABLE -> "The service is busy. Try again in a moment."
-    VerificationMessage.COULD_NOT_SAVE -> "Your sign-in could not be saved on this device. Request a new code."
-    VerificationMessage.UNEXPECTED -> "Something went wrong. Try again."
+        if (retryAfterSeconds != null) {
+            MessageText(R.plurals.onboarding_phone_message_retry_in, retryAfterSeconds)
+        } else {
+            MessageText(R.string.onboarding_phone_message_too_many_attempts)
+        }
+    VerificationMessage.DELIVERY_UNAVAILABLE -> MessageText(R.string.onboarding_phone_message_delivery_unavailable)
+    VerificationMessage.OFFLINE -> MessageText(R.string.onboarding_phone_message_offline)
+    VerificationMessage.SERVICE_UNAVAILABLE -> MessageText(R.string.onboarding_phone_message_service_unavailable)
+    VerificationMessage.COULD_NOT_SAVE -> MessageText(R.string.onboarding_phone_message_could_not_save)
+    VerificationMessage.UNEXPECTED -> MessageText(R.string.onboarding_phone_message_unexpected)
+}
+
+@Composable
+internal fun MessageText.text(): String = when (val n = seconds) {
+    null -> stringResource(id)
+    else -> pluralStringResource(id, n.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), n)
 }
 
 @Preview

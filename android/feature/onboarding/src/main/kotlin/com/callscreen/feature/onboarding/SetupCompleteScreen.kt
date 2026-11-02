@@ -1,5 +1,6 @@
 package com.callscreen.feature.onboarding
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -44,14 +46,14 @@ public fun SetupCompleteScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = "Success",
+                    contentDescription = stringResource(R.string.onboarding_complete_icon_description),
                     tint = CallScreenTheme.colors.status.success.text,
                     modifier = Modifier.size(56.dp)
                 )
             }
 
             Text(
-                text = SetupCompleteCopy.TITLE,
+                text = stringResource(SetupCompleteCopy.TITLE),
                 style = CallScreenTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary
@@ -59,7 +61,7 @@ public fun SetupCompleteScreen(
 
             for (line in SetupCompleteCopy.lines(blockingOn)) {
                 Text(
-                    text = line,
+                    text = stringResource(line),
                     style = CallScreenTheme.typography.bodyLarge,
                     color = CallScreenTheme.colors.content.secondary
                 )
@@ -67,7 +69,7 @@ public fun SetupCompleteScreen(
         }
 
         AegisPrimaryButton(
-            text = "Go to Calls Feed",
+            text = stringResource(R.string.onboarding_complete_go_to_calls),
             onClick = onGoToHomeClick,
             modifier = Modifier.padding(bottom = 16.dp)
         )
@@ -84,11 +86,11 @@ private fun SetupCompleteScreenPreview() {
 
 /** A14's words: what is actually on, never "protection active" when it is not. */
 internal object SetupCompleteCopy {
-    const val TITLE = "Setup finished"
-    const val BLOCKING_ON = "On-device blocking is on for the numbers you block."
-    const val BLOCKING_OFF = "On-device blocking is off. You can turn it on from Protection, Blocked numbers."
-    const val SCREENING = "Screening unknown callers with the assistant needs call forwarding, which isn't available yet."
+    @StringRes val TITLE: Int = R.string.onboarding_complete_title
+    @StringRes val BLOCKING_ON: Int = R.string.onboarding_complete_blocking_on
+    @StringRes val BLOCKING_OFF: Int = R.string.onboarding_complete_blocking_off
+    @StringRes val SCREENING: Int = R.string.onboarding_complete_screening
 
-    fun lines(blockingOn: Boolean): List<String> = listOf(if (blockingOn) BLOCKING_ON else BLOCKING_OFF, SCREENING)
+    fun lines(blockingOn: Boolean): List<Int> = listOf(if (blockingOn) BLOCKING_ON else BLOCKING_OFF, SCREENING)
 }
 
