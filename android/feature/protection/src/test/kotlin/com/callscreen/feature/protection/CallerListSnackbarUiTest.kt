@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.telephony.callerlist.CallerLabel
 import com.callscreen.core.telephony.callerlist.CallerListEntry
 import com.callscreen.core.telephony.callerlist.ListSource
 import com.callscreen.core.telephony.prefilter.E164Number
@@ -116,5 +117,40 @@ class CallerListSnackbarUiTest {
             }
         }
         compose.onNodeWithText(s(CallerListCopy.FORWARDING_CAVEAT)).assertExists()
+    }
+
+    @Test
+    fun theLabelLimitIsCountedInTheShippedPlural() {
+        compose.setContent {
+            CallScreenTheme {
+                CallerListScreen(
+                    state = CallerListState(ListType.BLOCK, loading = false, message = ListMessage.INVALID_LABEL),
+                    notice = null,
+                    onNoticeAction = {},
+                    onQueryChange = {},
+                    onAdd = {},
+                    onRemove = {},
+                    onSetLabel = { _, _ -> },
+                    onMove = {},
+                    onUndo = {},
+                    onMessageShown = {},
+                    onDiscardUnreadable = {},
+                )
+            }
+        }
+        val resources = RuntimeEnvironment.getApplication().resources
+        val limit = CallerLabel.MAX_LENGTH
+        compose.onNodeWithText(
+            resources.getQuantityString(R.plurals.protection_list_message_invalid_label, limit, limit),
+        ).assertExists()
+        // English: "character" for one, "characters" otherwise.
+        assertEquals(
+            "A label can be up to 1 character of plain text.",
+            resources.getQuantityString(R.plurals.protection_list_message_invalid_label, 1, 1),
+        )
+        assertEquals(
+            "A label can be up to $limit characters of plain text.",
+            resources.getQuantityString(R.plurals.protection_list_message_invalid_label, limit, limit),
+        )
     }
 }
