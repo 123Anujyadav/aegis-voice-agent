@@ -1,5 +1,6 @@
 package com.callscreen.app
 
+import android.content.Context
 import android.os.Bundle
 import com.callscreen.BuildConfig
 import androidx.activity.ComponentActivity
@@ -16,6 +17,7 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.screening.PreferencesFlag
 import com.callscreen.core.telephony.screening.ScreeningRole
 import com.callscreen.core.telephony.screening.ScreeningRoleWatch
+import com.callscreen.core.ui.language.AppLanguageSetting
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -44,8 +46,15 @@ public class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Android 8–12: the app language chosen in A58l (Android 13 and later apply it themselves). */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguageSetting.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A language chosen before the phone was upgraded to Android 13 moves into Android's setting.
+        AppLanguageSetting.migrate(this)
         enableEdgeToEdge()
         val startDestination = startDestinationFor(intent.getStringExtra(START_DESTINATION_EXTRA), BuildConfig.DEBUG)
         setContent {

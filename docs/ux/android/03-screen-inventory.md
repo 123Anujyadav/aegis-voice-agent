@@ -113,6 +113,7 @@ its identifier may not.
 | `A56` | Business | Full | Yes | Business | [07](07-screens-settings-premium-business.md) |
 | `A57` | Accessibility | Full | Yes | — | [07](07-screens-settings-premium-business.md) |
 | `A58` | Appearance | Full | Yes | — | [07](07-screens-settings-premium-business.md) |
+| `A58l` | App language | Full | Yes | — | [07](07-screens-settings-premium-business.md) |
 | `A59` | Devices and sessions | Full | Yes | — | [07](07-screens-settings-premium-business.md) |
 | `A65` | About and legal | Full | Yes | — | [07](07-screens-settings-premium-business.md) |
 

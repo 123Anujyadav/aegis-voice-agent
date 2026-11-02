@@ -1,6 +1,7 @@
 package com.callscreen.app
 
 import com.callscreen.BuildConfig
+import com.callscreen.core.ui.language.AppLanguage
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -121,6 +122,29 @@ class TranslationConsistencyTest {
         }
         assertEquals(emptyList<String>(), unpackaged)
         assertEquals(listOf("hi", "kn", null, null), listOf("values-hi", "values-b+kn+Knda", "values-night", "values-v27").map(::language))
+    }
+
+    /** What [language]'s translation in [res] lacks of English: names of strings and plurals. */
+    private fun missing(res: File, language: String): List<String> {
+        val englishFile = File(res, "values/strings.xml")
+        if (!englishFile.isFile) return emptyList()
+        val english = read(englishFile)
+        val file = File(res, "values-$language/strings.xml")
+        val translated = if (file.isFile) read(file) else Resources(emptyMap(), emptySet(), emptyMap())
+        val where = "${res.parentFile?.parentFile?.parentFile?.name}/values-$language"
+        return (english.strings.keys - english.untranslatable - translated.strings.keys).map { "$where: $it" } +
+            (english.plurals.keys - translated.plurals.keys).map { "$where: plurals $it" }
+    }
+
+    @Test
+    @DisplayName("a language marked translated has every release string, so no screen mixes it with English")
+    fun translatedLanguagesAreComplete() {
+        // AppLanguage.translated is what the language picker tells people. A language
+        // still awaiting its translation may be partial: the picker says so.
+        val dirs = resourceDirs()
+        val incomplete = AppLanguage.entries.filter { it.translated && it != AppLanguage.ENGLISH }
+            .flatMap { language -> dirs.flatMap { missing(it, language.tag) } }
+        assertEquals(emptyList<String>(), incomplete)
     }
 
     @Test

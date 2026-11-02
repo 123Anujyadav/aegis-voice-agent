@@ -45,6 +45,7 @@ import com.callscreen.feature.screening.EmergencyDetectionScreen
 import com.callscreen.feature.screening.FraudWarningScreen
 import com.callscreen.feature.screening.LiveAiScreeningScreen
 import com.callscreen.feature.settings.AccountDeletionRoute
+import com.callscreen.feature.settings.AppLanguageRoute
 import com.callscreen.feature.settings.TaskCenterRoute
 import com.callscreen.feature.summary.ConversationMemoryScreen
 import com.callscreen.feature.summary.PostCallSummaryScreen
@@ -87,6 +88,8 @@ public object AegisDestinations {
     public const val VOICE_SETUP: String = "voice_setup"
     public const val TASK_CENTER: String = "task_center"
     public const val ACCOUNT_DELETION: String = "account_deletion"
+    /** A58l, the app's language (not the assistant's on calls). */
+    public const val APP_LANGUAGE: String = "app_language"
     public const val VOICE_CONVERSATION: String = "voice_conversation"
     public const val CONVERSATION_MEMORY: String = "conversation_memory"
     public const val BUSINESS_RECEPTIONIST_CONFIG: String = "business_receptionist_config"
@@ -254,7 +257,13 @@ public fun AegisNavGraph(
             VoiceSetupScreen(onSaveVoiceClick = { navController.popBackStack() })
         }
         composable(AegisDestinations.TASK_CENTER) {
-            TaskCenterRoute(onDeleteAccountClick = { navController.navigate(AegisDestinations.ACCOUNT_DELETION) })
+            TaskCenterRoute(
+                onLanguageClick = { navController.navigate(AegisDestinations.APP_LANGUAGE) },
+                onDeleteAccountClick = { navController.navigate(AegisDestinations.ACCOUNT_DELETION) },
+            )
+        }
+        composable(AegisDestinations.APP_LANGUAGE) {
+            AppLanguageRoute()
         }
         composable(AegisDestinations.ACCOUNT_DELETION) {
             AccountDeletionRoute(

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.screening.ScreeningRoleStatus
+import com.callscreen.core.ui.language.AppLanguage
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -96,6 +97,23 @@ class SettingsLargeTextTest {
         large { TaskCenterScreen(tasks = SetupTasks.of(ScreeningRoleStatus.NOT_HELD, contactsAccess = false)) }
         reachable(s(R.string.settings_task_forwarding_unavailable))
         reachable(s(AccountDeletionCopy.TITLE))
+    }
+
+    @Test
+    fun theLanguageEntryStaysReachable() {
+        large { TaskCenterScreen(tasks = SetupTasks.of(ScreeningRoleStatus.NOT_HELD, contactsAccess = false), language = AppLanguage.MALAYALAM) }
+        reachable(AppLanguage.MALAYALAM.nativeName())
+        reachable(s(R.string.settings_language_change))
+    }
+
+    @Test
+    fun everyLanguageCanBeFoundAndChosen() {
+        large { AppLanguageScreen(selected = AppLanguage.TAMIL, onSelect = {}) }
+        reachable(s(R.string.settings_language_intro))
+        reachable(s(R.string.settings_language_phone))
+        for (language in AppLanguage.entries) reachable(language.nativeName())
+        // The last row's English name, under its own.
+        reachable("Kannada")
     }
 
     @Test

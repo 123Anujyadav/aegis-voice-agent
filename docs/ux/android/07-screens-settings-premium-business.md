@@ -143,7 +143,7 @@ Configuration of the **Screening Agent**. The section header says so:
 
 **Structure** — Account · **Forwarding** · Privacy and data · Notifications ·
 Premium · Business *(conditional)* · Assistant *(link back)* · Accessibility ·
-Appearance · About.
+Appearance · App language · About.
 
 **Notable** — Forwarding is **second**, above Privacy, because it is the one
 setting that can silently break everything (Invariant U2). Each row shows its
@@ -235,6 +235,43 @@ by retention can't be listed."
 `setting`) · `android.settings.accessibility_pref_changed` (`pref`) ·
 `android.settings.theme_changed` (`theme`) ·
 `android.settings.diagnostics_generated`.
+
+---
+
+## A58l · App language
+
+Added 2026-11-02 at the owner's request (UX_FREEZE §7: a new screen, written
+here in the same change; design review pending).
+
+**Purpose** — The language of the app's screens. It is **not** the language the
+assistant speaks and understands on calls (`A43`), and choosing one never
+changes the other. The screen says so in its first line.
+
+**Structure** — One choice among seven rows: **Phone's language** (the default:
+the phone's language when the app has it, otherwise English), then the owner's
+six languages in order: English, Hindi, Tamil, Telugu, Malayalam, Kannada (the
+packaged set, `android/app/release-locales.txt`). Each row names the language in
+its own script, from the platform's locale data, so a reader finds theirs
+whatever the screens are in. Under it is the name in the screens' language.
+**A language without a reviewed translation says "Not translated yet. Screens
+stay in English."** and can still be chosen.
+
+**Behaviour** — A choice applies at once, and the screens are re-created in it.
+Android 13 and later keep it as Android's per-app language: it survives restarts
+and updates, and it is the same setting as the system's App languages page.
+Android 8 to 12 keep it in the app. Re-creating is a configuration change: the
+place in the app, its state and the session are kept. Any word a language lacks
+is shown in English. Android's App languages page lists a language only once it
+is translated (`AppLanguageListTest`).
+
+**As built** — In the Settings tab (the setup checklist today) an **App
+language** section, above Account, shows the current choice and opens `A58l`.
+
+**Accessibility** — Rows are radio buttons in one group. Each language's own
+name is marked as that language, so a screen reader reads it with the right
+voice.
+
+**Analytics** — None yet.
 
 ---
 
