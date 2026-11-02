@@ -1,7 +1,10 @@
 package com.callscreen.feature.settings
 
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToNode
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 import org.junit.Assert.assertEquals
@@ -45,6 +48,8 @@ class SetupTasksTest {
     fun theScreenShowsTheComputedTasksAndNoSampleOnes() {
         compose.setContent { CallScreenTheme { TaskCenterScreen(tasks = SetupTasks.of(ScreeningRoleStatus.NOT_HELD, false)) } }
         compose.onNodeWithText(s(SetupTasks.BLOCKING)).assertExists()
+        // The list composes what is on screen: bring the forwarding row into view.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(s(R.string.settings_task_forwarding_unavailable)))
         compose.onNodeWithText(s(SetupTasks.FORWARDING)).assertExists()
         compose.onNodeWithText(s(R.string.settings_task_forwarding_unavailable)).assertExists()
         compose.onNodeWithText("Not available", ignoreCase = true).assertExists()
