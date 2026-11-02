@@ -140,7 +140,10 @@ class MinifiedAppTest {
     private fun reach(text: String): UiObject2 {
         device.wait(Until.findObject(By.pkg(PKG).depth(0)), TIMEOUT)
         device.findObject(By.text(text))?.let { if (!it.visibleBounds.isEmpty) return it }
-        val scrollable = device.findObject(By.pkg(PKG).scrollable(true))
+        // The screen's own scroll container is the largest scrollable node: a single-line
+        // text field also reports scrollable (sideways), and scrolling it down does nothing.
+        val scrollable = device.findObjects(By.pkg(PKG).scrollable(true))
+            .maxByOrNull { it.visibleBounds.width().toLong() * it.visibleBounds.height() }
             ?: fail("\"$text\" is not on screen and nothing on the screen scrolls.\n" + screen()).let { error("unreachable") }
         scrollable.scrollUntil(Direction.DOWN, Until.findObject(By.text(text)))
         return awaitText(text)
@@ -160,6 +163,7 @@ class MinifiedAppTest {
             val label = node.text ?: node.contentDescription ?: continue
             append("  ").append(kind).append(" \"").append(label.take(80)).append("\" visible=").append(node.visibleBounds)
             if (node.isClickable) append(" clickable")
+            if (node.isScrollable) append(" scrollable")
             if (!node.isEnabled) append(" disabled")
             append('\n')
         }
