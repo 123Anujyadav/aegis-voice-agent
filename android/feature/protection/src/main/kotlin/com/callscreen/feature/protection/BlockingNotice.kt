@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.callscreen.core.designsystem.theme.CallScreenTheme
@@ -32,18 +34,13 @@ import com.callscreen.core.telephony.screening.ScreeningRole
 
 /** The blocklist's notice about whether blocks take effect, and its one action. */
 internal object BlockingNoticeCopy {
-    const val UNSUPPORTED =
-        "This version of Android doesn't let apps block calls, so numbers on this list aren't blocked on this phone."
-    const val ROLE_NOT_HELD =
-        "Blocking is off. Numbers on this list won't be blocked until this app is your caller ID & spam app."
-    const val TURN_ON = "Turn on blocking"
-    const val CONTACTS =
-        "Numbers saved in your contacts ring without being checked, so blocking one of them here has no effect. " +
-            "To block saved contacts too, allow contacts access. This app doesn't read or upload your contacts: " +
-            "Android uses the permission only to let it check calls from them."
-    const val ALLOW_CONTACTS = "Allow contacts access"
-    const val CONTACTS_DENIED = "Contacts access is off. You can turn it on in Settings."
-    const val OPEN_SETTINGS = "Open settings"
+    @StringRes val UNSUPPORTED: Int = R.string.protection_notice_unsupported
+    @StringRes val ROLE_NOT_HELD: Int = R.string.protection_notice_role_not_held
+    @StringRes val TURN_ON: Int = R.string.protection_notice_turn_on
+    @StringRes val CONTACTS: Int = R.string.protection_notice_contacts
+    @StringRes val ALLOW_CONTACTS: Int = R.string.protection_notice_allow_contacts
+    @StringRes val CONTACTS_DENIED: Int = R.string.protection_notice_contacts_denied
+    @StringRes val OPEN_SETTINGS: Int = R.string.protection_notice_open_settings
 }
 
 /** What the notice holds: whether blocks apply here, and whether contacts access was just refused. */
@@ -92,18 +89,19 @@ private fun appSettings(context: Context): Intent =
 /** Nothing when every block takes effect; otherwise what is missing, honestly, and the action that fixes it. */
 @Composable
 internal fun BlockingNotice(state: BlockingNoticeState, onAction: () -> Unit, modifier: Modifier = Modifier) {
-    val (text, action) = when (state.status) {
+    // The notice's paragraphs, then its action: each paragraph is its own string to translate.
+    val (paragraphs, action) = when (state.status) {
         BlockingStatus.ACTIVE -> return
-        BlockingStatus.UNSUPPORTED -> BlockingNoticeCopy.UNSUPPORTED to null
-        BlockingStatus.ROLE_NOT_HELD -> BlockingNoticeCopy.ROLE_NOT_HELD to BlockingNoticeCopy.TURN_ON
+        BlockingStatus.UNSUPPORTED -> listOf(BlockingNoticeCopy.UNSUPPORTED) to null
+        BlockingStatus.ROLE_NOT_HELD -> listOf(BlockingNoticeCopy.ROLE_NOT_HELD) to BlockingNoticeCopy.TURN_ON
         BlockingStatus.ACTIVE_EXCEPT_CONTACTS ->
             if (state.contactsDenied) {
-                val denied = "${BlockingNoticeCopy.CONTACTS}\n${BlockingNoticeCopy.CONTACTS_DENIED}"
-                denied to BlockingNoticeCopy.OPEN_SETTINGS
+                listOf(BlockingNoticeCopy.CONTACTS, BlockingNoticeCopy.CONTACTS_DENIED) to BlockingNoticeCopy.OPEN_SETTINGS
             } else {
-                BlockingNoticeCopy.CONTACTS to BlockingNoticeCopy.ALLOW_CONTACTS
+                listOf(BlockingNoticeCopy.CONTACTS) to BlockingNoticeCopy.ALLOW_CONTACTS
             }
     }
+    val text = paragraphs.map { stringResource(it) }.joinToString("\n")
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -117,7 +115,7 @@ internal fun BlockingNotice(state: BlockingNoticeState, onAction: () -> Unit, mo
             )
             if (action != null) {
                 TextButton(onClick = onAction, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text(action, style = CallScreenTheme.typography.titleMedium)
+                    Text(stringResource(action), style = CallScreenTheme.typography.titleMedium)
                 }
             }
         }

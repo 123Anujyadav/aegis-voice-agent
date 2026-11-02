@@ -1,5 +1,6 @@
 package com.callscreen.feature.protection
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -44,7 +46,7 @@ public fun ProtectionDashboardScreen(
     onAllowedNumbersClick: () -> Unit = {},
 ) {
     Scaffold(
-        topBar = { AegisTopAppBar(title = "Protection Dashboard") },
+        topBar = { AegisTopAppBar(title = stringResource(R.string.protection_dashboard_app_bar)) },
         bottomBar = { AegisBottomBar(currentTab = AegisTab.Protection, onTabSelected = onTabSelected) }
     ) { paddingValues ->
         LazyColumn(
@@ -81,7 +83,7 @@ public fun ProtectionDashboardScreen(
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Text(
-                                    text = DashboardCopy.TITLE,
+                                    text = stringResource(DashboardCopy.TITLE),
                                     style = CallScreenTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = CallScreenTheme.colors.content.inverse
@@ -90,7 +92,7 @@ public fun ProtectionDashboardScreen(
                         }
 
                         Text(
-                            text = DashboardCopy.NO_DATA,
+                            text = stringResource(DashboardCopy.NO_DATA),
                             style = CallScreenTheme.typography.bodyMedium,
                             color = CallScreenTheme.colors.content.inverse.copy(alpha = 0.8f)
                         )
@@ -104,13 +106,13 @@ public fun ProtectionDashboardScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     StatMetricCard(
-                        title = "Spam blocked",
+                        title = stringResource(R.string.protection_dashboard_spam_blocked),
                         value = null,
                         icon = Icons.Default.Block,
                         modifier = Modifier.weight(1f)
                     )
                     StatMetricCard(
-                        title = "AI screenings",
+                        title = stringResource(R.string.protection_dashboard_screenings),
                         value = null,
                         icon = Icons.Default.Psychology,
                         modifier = Modifier.weight(1f)
@@ -121,14 +123,14 @@ public fun ProtectionDashboardScreen(
             // A32 and A33: the two lists the subscriber controls directly.
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CallerListLink(title = "Blocked numbers", onClick = onBlockedNumbersClick)
-                    CallerListLink(title = "Allowed numbers", onClick = onAllowedNumbersClick)
+                    CallerListLink(title = stringResource(R.string.protection_list_blocked_title), onClick = onBlockedNumbersClick)
+                    CallerListLink(title = stringResource(R.string.protection_list_allowed_title), onClick = onAllowedNumbersClick)
                 }
             }
 
             item {
                 Text(
-                    text = DashboardCopy.THREATS_TITLE,
+                    text = stringResource(DashboardCopy.THREATS_TITLE),
                     style = CallScreenTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = CallScreenTheme.colors.content.primary
@@ -137,7 +139,7 @@ public fun ProtectionDashboardScreen(
 
             item {
                 Text(
-                    text = DashboardCopy.NO_THREATS,
+                    text = stringResource(DashboardCopy.NO_THREATS),
                     style = CallScreenTheme.typography.bodyMedium,
                     color = CallScreenTheme.colors.content.secondary
                 )
@@ -178,7 +180,7 @@ private fun StatMetricCard(
                 )
             }
             Text(
-                text = value ?: DashboardCopy.NOT_AVAILABLE,
+                text = value ?: stringResource(DashboardCopy.NOT_AVAILABLE),
                 style = if (value == null) CallScreenTheme.typography.bodyMedium else CallScreenTheme.typography.headlineMedium,
                 fontWeight = if (value == null) FontWeight.Normal else FontWeight.Black,
                 color = CallScreenTheme.colors.content.primary
@@ -224,10 +226,10 @@ private fun ProtectionDashboardScreenPreview() {
  * §2a), so none is shown; the lists below are real.
  */
 internal object DashboardCopy {
-    const val TITLE = "Protection"
-    const val NO_DATA = "No protection data yet. Counts of blocked and screened calls will appear here once the app records them."
-    const val NOT_AVAILABLE = "Not available yet"
-    const val THREATS_TITLE = "Threat reports"
-    const val NO_THREATS = "No threat reports yet."
+    @StringRes val TITLE: Int = R.string.protection_dashboard_title
+    @StringRes val NO_DATA: Int = R.string.protection_dashboard_no_data
+    @StringRes val NOT_AVAILABLE: Int = R.string.protection_not_available
+    @StringRes val THREATS_TITLE: Int = R.string.protection_dashboard_threats_title
+    @StringRes val NO_THREATS: Int = R.string.protection_dashboard_no_threats
 }
 

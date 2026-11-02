@@ -16,6 +16,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -29,6 +30,9 @@ class CallerListSnackbarUiTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /** The English text of a string resource, as the screen shows it. */
+    private fun s(id: Int, vararg args: Any): String = RuntimeEnvironment.getApplication().getString(id, *args)
 
     private val entry = CallerListEntry(requireNotNull(E164Number.of("+919876500001")), ListType.BLOCK, ListSource.MANUAL, 1)
 
@@ -111,6 +115,6 @@ class CallerListSnackbarUiTest {
                 )
             }
         }
-        compose.onNodeWithText(CallerListCopy.FORWARDING_CAVEAT).assertExists()
+        compose.onNodeWithText(s(CallerListCopy.FORWARDING_CAVEAT)).assertExists()
     }
 }
