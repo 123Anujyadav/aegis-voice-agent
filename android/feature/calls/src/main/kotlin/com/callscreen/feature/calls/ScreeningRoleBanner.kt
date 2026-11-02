@@ -1,5 +1,6 @@
 package com.callscreen.feature.calls
 
+import androidx.annotation.StringRes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.callscreen.core.designsystem.theme.CallScreenTheme
@@ -28,12 +30,12 @@ import com.callscreen.core.ui.components.AegisTab
 
 /**
  * F14's words (docs/ux/android/08-user-flows.md, "Losing and regaining the
- * screening role"); a test holds them to it.
+ * screening role"), as string resources (res/values/strings.xml); a test
+ * holds them to it.
  */
 internal object ScreeningRoleBannerCopy {
-    const val LOST =
-        "Another app is now screening your calls. Numbers you've blocked here won't be blocked until you switch back."
-    const val SWITCH_BACK = "Switch back"
+    @StringRes val LOST: Int = R.string.calls_role_lost
+    @StringRes val SWITCH_BACK: Int = R.string.calls_role_switch_back
 }
 
 /**
@@ -74,12 +76,12 @@ internal fun ScreeningRoleBanner(onSwitchBack: () -> Unit, modifier: Modifier = 
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(16.dp)) {
             Text(
-                text = ScreeningRoleBannerCopy.LOST,
+                text = stringResource(ScreeningRoleBannerCopy.LOST),
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.primary,
             )
             TextButton(onClick = onSwitchBack) {
-                Text(text = ScreeningRoleBannerCopy.SWITCH_BACK, style = CallScreenTheme.typography.titleMedium)
+                Text(text = stringResource(ScreeningRoleBannerCopy.SWITCH_BACK), style = CallScreenTheme.typography.titleMedium)
             }
         }
     }
