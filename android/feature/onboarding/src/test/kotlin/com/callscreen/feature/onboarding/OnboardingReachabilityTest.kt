@@ -16,6 +16,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -79,7 +80,7 @@ class OnboardingReachabilityTest {
     @Test
     fun callForwardingSetup() {
         landscape { CallForwardingSetupScreen() }
-        reachable(ForwardingCopy.CONTINUE)
+        reachable(RuntimeEnvironment.getApplication().getString(ForwardingCopy.CONTINUE))
     }
 
     @Test

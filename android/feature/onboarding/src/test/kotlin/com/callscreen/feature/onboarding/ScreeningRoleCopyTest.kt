@@ -1,30 +1,48 @@
 package com.callscreen.feature.onboarding
 
 import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.w3c.dom.Element
 
+/**
+ * The A09b rationale as it ships: the English strings in
+ * res/values/strings.xml, which every translation starts from, read as
+ * Android reads them (with its escapes undone).
+ */
 @DisplayName("A09b screening role rationale copy")
 class ScreeningRoleCopyTest {
 
     /** Unit tests run in the module directory (android/feature/onboarding). */
     private val spec = File("../../../docs/ux/android/06-screens-onboarding-auth-permissions.md")
+    private val strings: Map<String, String> = run {
+        val file = File("src/main/res/values/strings.xml")
+        val nodes = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file).getElementsByTagName("string")
+        (0 until nodes.length).associate { i ->
+            val e = nodes.item(i) as Element
+            e.getAttribute("name") to e.textContent.replace("\\'", "'").replace("\\\"", "\"")
+        }
+    }
+
+    /** The four blocks, in the order ScreeningRoleCopy.blocks shows them. */
+    private val blocks = listOf("ask", "enables", "never", "declined")
 
     @Test
     @DisplayName("the enables, never and if-declined lines are the UX spec's words exactly")
     fun matchesTheSpec() {
         assertTrue(spec.isFile, "the UX spec is missing: ${spec.absolutePath}")
         val lines = spec.readLines()
-        for ((block, specRow) in listOf(1 to "Enables", 2 to "Never", 3 to "If declined")) {
-            val line = ScreeningRoleCopy.blocks[block].second
+        for ((block, specRow) in listOf("enables" to "Enables", "never" to "Never", "declined" to "If declined")) {
+            val line = strings.getValue("onboarding_role_$block")
             val cells = lines.single { it.startsWith("| $specRow |") }.split("|").map { it.trim() }
             // Columns: (empty) | row name | A09a | A09b | A09c | (empty)
             assertEquals("\"$line\"", cells[3], "A09b '$specRow'")
         }
-        assertTrue(spec.readText().contains("\"${ScreeningRoleCopy.NOT_NOW}\""), "the secondary action is \"Not now\"")
+        assertTrue(spec.readText().contains("\"${strings.getValue("onboarding_role_not_now")}\""), "the secondary action is \"Not now\"")
     }
 
     @Test
@@ -32,11 +50,25 @@ class ScreeningRoleCopyTest {
     fun contractOrder() {
         assertEquals(
             listOf("What Android will ask", "What it enables", "What we'll never do", "If you say no"),
-            ScreeningRoleCopy.blocks.map { it.first },
+            blocks.map { strings.getValue("onboarding_role_${it}_label") },
         )
-        val text = ScreeningRoleCopy.blocks.joinToString(" ") { it.second }.lowercase()
+        val text = blocks.joinToString(" ") { strings.getValue("onboarding_role_$it") }.lowercase()
         for (word in listOf("microphone", "record", "call log", "contacts permission")) {
             assertFalse(word in text, word)
         }
+    }
+
+    @Test
+    @DisplayName("the screen shows those four blocks, in that order")
+    fun theScreenUsesTheseStrings() {
+        assertEquals(
+            listOf(
+                R.string.onboarding_role_ask_label to R.string.onboarding_role_ask,
+                R.string.onboarding_role_enables_label to R.string.onboarding_role_enables,
+                R.string.onboarding_role_never_label to R.string.onboarding_role_never,
+                R.string.onboarding_role_declined_label to R.string.onboarding_role_declined,
+            ),
+            ScreeningRoleCopy.blocks,
+        )
     }
 }

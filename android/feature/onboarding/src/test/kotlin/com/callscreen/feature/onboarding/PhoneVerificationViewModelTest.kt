@@ -223,6 +223,9 @@ class PhoneVerificationViewModelTest {
     fun redaction() {
         val shown = PhoneVerificationState(number = "+919876543210", code = "123456").toString()
         assertFalse(shown.contains("123456") || shown.contains("9876543210"), shown)
-        assertTrue(VerificationMessage.entries.none { describe(it, 30).contains(requestId) })
+        // A message is a resource and at most the Retry-After seconds: it has no text
+        // argument, so server text such as the request id cannot reach the screen.
+        assertTrue(VerificationMessage.entries.all { describe(it, 30).seconds in setOf(null, 30L) })
+        assertEquals(30L, describe(VerificationMessage.TOO_MANY_ATTEMPTS, 30).seconds)
     }
 }

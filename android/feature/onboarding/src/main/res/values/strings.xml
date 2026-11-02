@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Onboarding's words: the English source of every translation (values-hi,
+  values-ta and the others add the same names). Text that is a claim is held
+  to the UX spec or to what the app does by tests: ScreeningRoleCopyTest,
+  ReleaseCopyGuardTest and HonestOnboardingUiTest.
+-->
+<resources>
+
+    <!-- Splash -->
+    <string name="onboarding_brand_name" translatable="false">Aegis AI</string>
+    <string name="onboarding_splash_logo_description">Aegis Shield Logo</string>
+    <string name="onboarding_splash_tagline">Autonomous Call Defense &amp; Screening</string>
+
+    <!-- Welcome (A02) -->
+    <string name="onboarding_welcome_logo_description">Logo</string>
+    <string name="onboarding_welcome_title">Welcome to Aegis AI</string>
+    <string name="onboarding_welcome_tagline">Block the calls you don\'t want, and get help with the ones you don\'t recognise.</string>
+    <string name="onboarding_welcome_blocking_title">On-device blocking</string>
+    <string name="onboarding_welcome_blocking">Numbers you block are rejected on this phone before it rings, even offline.</string>
+    <string name="onboarding_welcome_screening_title">Assistant screening</string>
+    <string name="onboarding_welcome_screening">Once call forwarding is set up, an assistant can answer unknown callers you don\'t pick up. Your phone always rings first.</string>
+    <string name="onboarding_welcome_get_protected">Get Protected</string>
+
+    <!-- SIM detection (A05) -->
+    <string name="onboarding_sim_card_description">SIM Card</string>
+    <string name="onboarding_sim_title">Your SIM</string>
+    <string name="onboarding_sim_subtitle">This is what your phone reports about its SIM.</string>
+    <string name="onboarding_sim_label">SIM</string>
+    <string name="onboarding_sim_status_unknown">Unknown</string>
+    <string name="onboarding_sim_status_ready">Ready</string>
+    <string name="onboarding_sim_status_absent">No SIM</string>
+    <string name="onboarding_sim_status_not_ready">Not ready</string>
+    <string name="onboarding_sim_carrier">Carrier: %1$s</string>
+    <string name="onboarding_sim_carrier_unavailable">Carrier: not available</string>
+    <string name="onboarding_sim_absent">No SIM card found in this phone.</string>
+    <string name="onboarding_sim_forwarding_unknown">Whether your carrier supports call forwarding is checked when you set it up.</string>
+    <string name="onboarding_sim_verify">Verify Phone Number</string>
+
+    <!-- Phone verification (A06, A07) -->
+    <string name="onboarding_phone_icon_description">Phone Verification</string>
+    <string name="onboarding_phone_title_number">Enter Phone Number</string>
+    <string name="onboarding_phone_title_code">Enter Verification Code</string>
+    <string name="onboarding_phone_subtitle_number">Aegis AI binds your mobile identity securely on-device.</string>
+    <string name="onboarding_phone_subtitle_code">We sent a 6-digit code to %1$s</string>
+    <string name="onboarding_phone_label_number">Mobile number, with country code</string>
+    <string name="onboarding_phone_label_code">6-digit code</string>
+    <string name="onboarding_phone_resend">Send a new code</string>
+    <string name="onboarding_phone_change_number">Change number</string>
+    <string name="onboarding_phone_send">Send Verification Code</string>
+    <string name="onboarding_phone_verify">Verify &amp; Continue</string>
+    <string name="onboarding_phone_message_not_configured">Sign-in is not available in this build.</string>
+    <string name="onboarding_phone_message_invalid_number">Enter your number with its country code, for example +91 98765 43210.</string>
+    <string name="onboarding_phone_message_invalid_code">That code is not right. Check it and try again.</string>
+    <string name="onboarding_phone_message_code_expired">That code has expired. Send a new code.</string>
+    <string name="onboarding_phone_message_too_many_attempts">Too many attempts. Try again later.</string>
+    <string name="onboarding_phone_message_delivery_unavailable">We could not send a code right now. Try again later.</string>
+    <string name="onboarding_phone_message_offline">No connection. Check your network and try again.</string>
+    <string name="onboarding_phone_message_service_unavailable">The service is busy. Try again in a moment.</string>
+    <string name="onboarding_phone_message_could_not_save">Your sign-in could not be saved on this device. Request a new code.</string>
+    <string name="onboarding_phone_message_unexpected">Something went wrong. Try again.</string>
+
+    <!-- Screening role rationale (A09b): the spec's words; ScreeningRoleCopyTest holds them to it -->
+    <string name="onboarding_role_title">Screen calls on your phone</string>
+    <string name="onboarding_role_ask_label">What Android will ask</string>
+    <string name="onboarding_role_ask">Android will ask to make this app your caller ID &amp; spam app.</string>
+    <string name="onboarding_role_enables_label">What it enables</string>
+    <string name="onboarding_role_enables">We can block numbers you\'ve blocked, and let people you know ring through, without the call ever leaving your phone.</string>
+    <string name="onboarding_role_never_label">What we\'ll never do</string>
+    <string name="onboarding_role_never">We can\'t hear your calls. Android doesn\'t allow that for any app, including this one.</string>
+    <string name="onboarding_role_declined_label">If you say no</string>
+    <string name="onboarding_role_declined">Every unknown call gets forwarded, which may cost you carrier charges and means people you know get screened too.</string>
+    <string name="onboarding_role_continue">Continue</string>
+    <string name="onboarding_role_not_now">Not now</string>
+
+    <!-- Assistant setup (A10) -->
+    <string name="onboarding_ai_icon_description">AI Persona</string>
+    <string name="onboarding_ai_title">AI Screening Persona</string>
+    <string name="onboarding_ai_intro">Choose how the assistant will talk to unknown callers. Your choice isn\'t saved yet: the assistant needs call forwarding, which isn\'t available yet.</string>
+    <string name="onboarding_ai_strict_title">Strict Protection</string>
+    <string name="onboarding_ai_strict">Screens every unknown caller you don\'t answer, with high fraud sensitivity.</string>
+    <string name="onboarding_ai_balanced_title">Balanced Receptionist</string>
+    <string name="onboarding_ai_balanced">Politely asks purpose of call and takes messages for non-contacts.</string>
+    <string name="onboarding_ai_silent_title">Silent Assistant</string>
+    <string name="onboarding_ai_silent">Says only what every caller must be told, then takes a message.</string>
+    <string name="onboarding_ai_selected">Selected</string>
+    <string name="onboarding_ai_save">Save &amp; Continue</string>
+
+    <!-- Call forwarding (A08) -->
+    <string name="onboarding_forwarding_icon_description">Forwarding Setup</string>
+    <string name="onboarding_forwarding_title">Call forwarding</string>
+    <string name="onboarding_forwarding_how">Your carrier can forward calls you don\'t answer to the assistant. You\'ll see the exact code before anything is dialled, and you can undo it.</string>
+    <string name="onboarding_forwarding_status_title">Status</string>
+    <string name="onboarding_forwarding_not_available">Not available yet</string>
+    <string name="onboarding_forwarding_why_not">Forwarding needs a number from our service, which isn\'t set up yet. Nothing has been changed with your carrier.</string>
+    <string name="onboarding_forwarding_continue">Continue without forwarding</string>
+
+    <!-- Setup complete (A14): what is actually on -->
+    <string name="onboarding_complete_icon_description">Success</string>
+    <string name="onboarding_complete_title">Setup finished</string>
+    <string name="onboarding_complete_blocking_on">On-device blocking is on for the numbers you block.</string>
+    <string name="onboarding_complete_blocking_off">On-device blocking is off. You can turn it on from Protection, Blocked numbers.</string>
+    <string name="onboarding_complete_screening">Screening unknown callers with the assistant needs call forwarding, which isn\'t available yet.</string>
+    <string name="onboarding_complete_go_to_calls">Go to Calls Feed</string>
+
+    <!-- Retry-After from the server: a number of seconds, never server text -->
+    <plurals name="onboarding_phone_message_retry_in">
+        <item quantity="one">Too many attempts. Try again in %d second.</item>
+        <item quantity="other">Too many attempts. Try again in %d seconds.</item>
+    </plurals>
+</resources>
