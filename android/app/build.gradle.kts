@@ -113,3 +113,15 @@ dependencies {
     // The session wiring test runs the real IdentityClient against a local fake of identity.
     testImplementation(libs.okhttp.mockwebserver)
 }
+
+// HardCodedTextGuardTest and TranslationConsistencyTest read every module's main sources and
+// resources, which Gradle does not otherwise count as this module's test
+// inputs: without this, a change elsewhere left a stale pass up to date locally.
+tasks.withType<Test>().configureEach {
+    inputs.files(
+        fileTree(rootDir) {
+            include("**/src/main/**")
+            exclude("**/build/**", ".gradle/**", "build-logic/**")
+        },
+    ).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("everyModulesMainSources")
+}

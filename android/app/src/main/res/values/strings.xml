@@ -6,10 +6,9 @@
   their feature module, so that deleting a feature deletes its copy with it and
   the catalogue cannot accumulate orphans.
 
-  Localisation note: the product ships India-first, so translations land in
-  values-hi, values-bn, values-ta, values-te and values-mr. The resource
-  configuration in the application convention plugin restricts the packaged set
-  to exactly those locales.
+  Localisation note: translations land in values-hi, values-ta, values-te,
+  values-ml and values-kn. app/release-locales.txt restricts the packaged set to
+  English and exactly those five (docs/phase19/LOCALISATION.md).
 -->
 <resources>
 

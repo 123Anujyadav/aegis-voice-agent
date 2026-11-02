@@ -47,7 +47,7 @@ A translation is one file per module: `src/main/res/values-<code>/strings.xml`, 
 
 The `strings.xml` files are **not** the whole job. Before a language ships:
 
-1. **The release must package it.** `localeFilters` in `AndroidApplicationConventionPlugin.kt` is `en, hi, bn, ta, te, mr`, so a Malayalam or Kannada translation would be **stripped from the APK**. Changing the set is owner decision **OD-17**.
+1. **The release must package it.** It does, for all six: `android/app/release-locales.txt` lists `en, hi, ta, te, ml, kn`, the owner's set (OD-17, applied 2026-11-02; Bengali and Marathi, which nothing depended on, were dropped). The build's `localeFilters` and `BuildConfig.PACKAGED_LOCALES` are read from that file. CI checks the built staging APK against it ("The staging APK has exactly the release languages and fits the size budget", `tools/scripts/android-apk-gate.sh`), and `TranslationConsistencyTest` fails a `values-<code>` folder for any other language, which the build would silently strip.
 2. **The translation stays with people the owner approves.** No external translation API or service may receive the app's text without the owner's explicit approval (provider, cost, data sharing and privacy explained first).
 3. **The checks pass** (§3), including the banned-claims scan of every `values*` folder.
 4. **Locale selection exists** (§4), and it lists only translated languages.
@@ -80,7 +80,7 @@ The large-text tests render with Robolectric's **native graphics**. The default 
 For each of Hindi, Tamil, Telugu, Malayalam and Kannada:
 
 1. **Translation** of every module's `strings.xml`, by translators the owner approves, and reviewed against the spec-linked English.
-2. **Packaging**: the language is in `localeFilters` (OD-17).
+2. **Packaging**: done for all six (`android/app/release-locales.txt`).
 3. **Locale selection** (§4), listing only that language once it is complete.
 4. **On-device tests in that language** on the release (minified) build:
    - every flow in `android/test-minified`;
