@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -21,6 +20,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
+import com.callscreen.core.ui.components.AegisScreenColumn
 
 @Composable
 public fun SetupCompleteScreen(
@@ -29,14 +29,7 @@ public fun SetupCompleteScreen(
     /** Whether on-device blocking is on: this app holds the call screening role. */
     blockingOn: Boolean = false,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(CallScreenTheme.colors.surface.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
+    AegisScreenColumn(modifier = modifier) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp),

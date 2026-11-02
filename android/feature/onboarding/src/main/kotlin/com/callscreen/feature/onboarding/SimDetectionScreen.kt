@@ -1,11 +1,9 @@
 package com.callscreen.feature.onboarding
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -30,6 +28,7 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
 import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.StatusChipVariant
+import com.callscreen.core.ui.components.AegisScreenColumn
 
 /** A05 with the SIM as this phone reports it (no permission needed). */
 @Composable
@@ -45,14 +44,7 @@ public fun SimDetectionScreen(
     modifier: Modifier = Modifier,
     sim: SimSummary = SimSummary.Unknown,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(CallScreenTheme.colors.surface.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
+    AegisScreenColumn(modifier = modifier) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),

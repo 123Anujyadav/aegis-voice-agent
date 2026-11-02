@@ -5,6 +5,7 @@ import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
@@ -76,7 +77,10 @@ class MinifiedAppTest {
         // build without endpoints leaves unconfigured: the screen says so and sends nothing.
         awaitText("Enter Phone Number")
         awaitText("Sign-in is not available in this build.")
-        assertFalse("sending a code must be impossible without a sign-in service", awaitText("Send Verification Code").isEnabled)
+        // Without a sign-in service nothing can be sent: a tap leaves the screen as it was.
+        reach("Send Verification Code").click()
+        awaitText("Sign-in is not available in this build.")
+        assertTrue("a code was requested without a sign-in service", device.findObject(By.text("Enter Verification Code")) == null)
 
         device.pressBack()
         awaitText("Your SIM")
@@ -97,10 +101,12 @@ class MinifiedAppTest {
         awaitText("Enter Phone Number")
         awaitText("Sign-in is not available in this build.")
 
-        // A configuration change recreates the activity: the screen and its state are restored.
+        // A configuration change recreates the activity: the screen and its state are restored,
+        // and in landscape (640 x 320 dp here) the rest of the screen can still be scrolled to.
         device.setOrientationLeft()
         awaitText("Enter Phone Number")
-        awaitText("Sign-in is not available in this build.")
+        reach("Sign-in is not available in this build.")
+        reach("Send Verification Code")
         device.setOrientationNatural()
         awaitText("Enter Phone Number")
 
@@ -126,6 +132,19 @@ class MinifiedAppTest {
             fail("\"$text\" did not appear on the minified app's screen.\n" + screen())
             error("unreachable")
         }
+
+    /**
+     * Waits for [text], scrolling the app's scrollable content down to it if
+     * it is below the fold: what a user can reach, not only what is drawn.
+     */
+    private fun reach(text: String): UiObject2 {
+        device.wait(Until.findObject(By.pkg(PKG).depth(0)), TIMEOUT)
+        device.findObject(By.text(text))?.let { if (!it.visibleBounds.isEmpty) return it }
+        val scrollable = device.findObject(By.pkg(PKG).scrollable(true))
+            ?: fail("\"$text\" is not on screen and nothing on the screen scrolls.\n" + screen()).let { error("unreachable") }
+        scrollable.scrollUntil(Direction.DOWN, Until.findObject(By.text(text)))
+        return awaitText(text)
+    }
 
     /**
      * What is on screen, compactly: the package in front, the display size,
