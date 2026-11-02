@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Calls tab's words (A20 feed, F14's A75 banner): the English source of
+  every translation. Claims are held to what the app does by tests:
+  ReleaseCopyGuardTest scans every values* folder, and the banner is checked
+  against docs/ux/android/08-user-flows.md.
+-->
+<resources>
+
+    <!-- Calls feed (A20) -->
+    <string name="calls_feed_title">Calls Feed</string>
+    <string name="calls_filter_all">All Calls</string>
+    <string name="calls_filter_ai_screened">AI Screened</string>
+    <string name="calls_filter_spam_blocked">Spam Blocked</string>
+    <string name="calls_filter_fraud_risk">Fraud Risk</string>
+    <string name="calls_empty_title">No call data yet</string>
+    <string name="calls_empty">Calls the app blocks or screens will appear here.</string>
+
+    <!-- Screening role lost (F14, A75) -->
+    <string name="calls_role_lost">Another app is now screening your calls. Numbers you\'ve blocked here won\'t be blocked until you switch back.</string>
+    <string name="calls_role_switch_back">Switch back</string>
+</resources>

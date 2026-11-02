@@ -1,12 +1,10 @@
 package com.callscreen.feature.calls
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
@@ -55,67 +54,67 @@ public fun CallsFeedScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     Scaffold(
-        topBar = { AegisTopAppBar(title = "Calls Feed") },
+        topBar = { AegisTopAppBar(title = stringResource(R.string.calls_feed_title)) },
         bottomBar = { AegisBottomBar(currentTab = AegisTab.Calls, onTabSelected = onTabSelected) },
         floatingActionButton = { AegisFAB(onClick = {}) }
     ) { paddingValues ->
-        Column(
+        // One list holds everything, banner included: with large text or longer
+        // translations, a fixed header could leave no room for the feed (F17).
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = modifier
                 .fillMaxSize()
                 .background(CallScreenTheme.colors.surface.background)
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 16.dp),
         ) {
             if (roleLost) {
-                ScreeningRoleBanner(onSwitchBack = onSwitchBackClick, modifier = Modifier.padding(top = 12.dp))
+                item { ScreeningRoleBanner(onSwitchBack = onSwitchBackClick, modifier = Modifier.padding(top = 12.dp)) }
             }
-
-            AegisSearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                item { AegisStatusChip(text = "All Calls", variant = StatusChipVariant.Verified) }
-                item { AegisStatusChip(text = "AI Screened", variant = StatusChipVariant.AIHandled) }
-                item { AegisStatusChip(text = "Spam Blocked", variant = StatusChipVariant.Spam) }
-                item { AegisStatusChip(text = "Fraud Risk", variant = StatusChipVariant.Fraud) }
+            item {
+                AegisSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    // The spacing the fixed header had: 12 dp above and below.
+                    modifier = Modifier.padding(top = if (roleLost) 2.dp else 12.dp, bottom = 2.dp),
+                )
             }
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (calls.isEmpty()) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 24.dp)) {
-                            Text(
-                                text = CallsFeedCopy.EMPTY_TITLE,
-                                style = CallScreenTheme.typography.titleMedium,
-                                color = CallScreenTheme.colors.content.primary,
-                            )
-                            Text(
-                                text = CallsFeedCopy.EMPTY,
-                                style = CallScreenTheme.typography.bodyMedium,
-                                color = CallScreenTheme.colors.content.secondary,
-                            )
-                        }
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 2.dp),
+                ) {
+                    item { AegisStatusChip(text = stringResource(R.string.calls_filter_all), variant = StatusChipVariant.Verified) }
+                    item { AegisStatusChip(text = stringResource(R.string.calls_filter_ai_screened), variant = StatusChipVariant.AIHandled) }
+                    item { AegisStatusChip(text = stringResource(R.string.calls_filter_spam_blocked), variant = StatusChipVariant.Spam) }
+                    item { AegisStatusChip(text = stringResource(R.string.calls_filter_fraud_risk), variant = StatusChipVariant.Fraud) }
+                }
+            }
+            if (calls.isEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 24.dp)) {
+                        Text(
+                            text = stringResource(CallsFeedCopy.EMPTY_TITLE),
+                            style = CallScreenTheme.typography.titleMedium,
+                            color = CallScreenTheme.colors.content.primary,
+                        )
+                        Text(
+                            text = stringResource(CallsFeedCopy.EMPTY),
+                            style = CallScreenTheme.typography.bodyMedium,
+                            color = CallScreenTheme.colors.content.secondary,
+                        )
                     }
                 }
-                items(calls.filter { searchQuery.isBlank() || searchQuery in it.callerName || searchQuery in it.phoneNumber }) { call ->
-                    AegisCallCard(
-                        callerName = call.callerName,
-                        phoneNumber = call.phoneNumber,
-                        timestamp = call.timestamp,
-                        callType = call.callType,
-                        statusText = call.statusText,
-                        onClick = { onCallClick(call.id) }
-                    )
-                }
+            }
+            items(calls.filter { searchQuery.isBlank() || searchQuery in it.callerName || searchQuery in it.phoneNumber }) { call ->
+                AegisCallCard(
+                    callerName = call.callerName,
+                    phoneNumber = call.phoneNumber,
+                    timestamp = call.timestamp,
+                    callType = call.callType,
+                    statusText = call.statusText,
+                    onClick = { onCallClick(call.id) }
+                )
             }
         }
     }
@@ -131,7 +130,7 @@ private fun CallsFeedScreenPreview() {
 
 /** A20 with no call records: nothing records calls on the device or the server yet. */
 internal object CallsFeedCopy {
-    const val EMPTY_TITLE = "No call data yet"
-    const val EMPTY = "Calls the app blocks or screens will appear here."
+    @StringRes val EMPTY_TITLE: Int = R.string.calls_empty_title
+    @StringRes val EMPTY: Int = R.string.calls_empty
 }
 

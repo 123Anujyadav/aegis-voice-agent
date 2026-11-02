@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test
 class HardCodedTextGuardTest {
 
     private val migrated = listOf(
+        "feature/calls",
         "feature/onboarding",
         "feature/protection",
         "feature/settings",
@@ -30,6 +31,7 @@ class HardCodedTextGuardTest {
     private val designPreviews = setOf(
         "FraudIntelligenceScreen.kt",
         "ConsentVaultScreen.kt",
+        "IncomingCallScreen.kt",
     )
 
     /**
