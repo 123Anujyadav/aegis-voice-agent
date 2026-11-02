@@ -81,6 +81,14 @@ done
 cd android
 ./gradlew --no-daemon --stacktrace :app:connectedDebugAndroidTest
 
+# Functional tests of the minified build (android/test-minified): a separate
+# test APK drives the installed R8-minified staging app through UI Automator
+# (screens, navigation, Back, Home, rotation) and searches the app's own log
+# for what R8 breaks at run time.
+echo "::group::minified staging build: functional tests"
+./gradlew --no-daemon --stacktrace :test-minified:connectedStagingAndroidTest
+echo "::endgroup::"
+
 # The minified build on the device. The instrumented tests above run the
 # debug build; nothing had ever run the R8-minified one (staging: release's
 # minification and resource shrinking, debug-signed), so a class R8 strips or

@@ -1,9 +1,7 @@
 package com.callscreen.feature.onboarding
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,6 +27,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
+import com.callscreen.core.ui.components.AegisScreenColumn
 
 /** Phone verification wired to the identity flow. [onVerified] runs once, after enrolment. */
 @Composable
@@ -69,14 +68,7 @@ public fun PhoneVerificationScreen(
     modifier: Modifier = Modifier,
 ) {
     val enteringCode = state.step != VerificationStep.ENTER_NUMBER
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(CallScreenTheme.colors.surface.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween,
-    ) {
+    AegisScreenColumn(modifier = modifier) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),

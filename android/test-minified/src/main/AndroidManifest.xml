@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The test APK drives the minified app from outside, so it must be able to see
+  it: since Android 11, another app's launch intent resolves only for a
+  package named here.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <queries>
+        <package android:name="com.callscreen.staging" />
+    </queries>
+
+</manifest>
