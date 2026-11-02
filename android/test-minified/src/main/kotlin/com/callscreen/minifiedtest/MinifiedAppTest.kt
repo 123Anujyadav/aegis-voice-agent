@@ -8,7 +8,6 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
-import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
 import org.junit.After
 import org.junit.Assert.assertFalse
@@ -123,10 +122,27 @@ class MinifiedAppTest {
     /** Waits for [text] on screen; on failure, says what was on screen instead. */
     private fun awaitText(text: String): UiObject2 =
         device.wait(Until.findObject(By.text(text)), TIMEOUT) ?: run {
-            val windows = ByteArrayOutputStream().also { device.dumpWindowHierarchy(it) }.toString("UTF-8")
-            fail("\"$text\" did not appear on the minified app's screen. Windows:\n" + windows.take(6_000))
+            fail("\"$text\" did not appear on the minified app's screen.\n" + screen())
             error("unreachable")
         }
+
+    /**
+     * What is on screen, compactly: the package in front, the display size,
+     * and every node of the app that has text or a description, with its
+     * visible bounds. A node that exists but lies outside the display shows
+     * empty or clipped bounds here.
+     */
+    private fun screen(): String = buildString {
+        append("front: ").append(device.currentPackageName)
+        append("; display ").append(device.displayWidth).append('x').append(device.displayHeight).append('\n')
+        for (node in device.findObjects(By.pkg(PKG))) {
+            val label = node.text ?: node.contentDescription ?: continue
+            append("  \"").append(label.take(80)).append("\" visible=").append(node.visibleBounds)
+            if (node.isClickable) append(" clickable")
+            if (!node.isEnabled) append(" disabled")
+            append('\n')
+        }
+    }
 
     private fun shell(command: String): String {
         val fd: ParcelFileDescriptor = instrumentation.uiAutomation.executeShellCommand(command)
