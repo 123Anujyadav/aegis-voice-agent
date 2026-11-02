@@ -21,9 +21,9 @@ module:
 | `feature/onboarding` | `onboarding_` | A01–A14: welcome, SIM, sign-in, permissions, role, setup (#214) |
 | `feature/protection` | `protection_` | A31 dashboard, A32 caller lists, the blocking notice (#215) |
 | `feature/settings` | `settings_` | The setup checklist, account deletion (#216) |
-| `feature/calls` | `calls_` | A20 feed, F14's A75 banner |
-| `feature/assistant` | `assistant_` | Assistant home, voice setup, voice session |
-| `core/ui` | `core_ui_` | Shared components: tabs, top bar, search, dialog, states |
+| `feature/calls` | `calls_` | A20 feed, F14's A75 banner (#217) |
+| `feature/assistant` | `assistant_` | Assistant home, voice setup, voice session (#218) |
+| `core/ui` | `core_ui_` | Shared components: tabs, top bar, search, dialog, states (#219) |
 | `app` | `app_` | A73 signed-out notice; `app_name` |
 
 The code holds resource ids, never words:
