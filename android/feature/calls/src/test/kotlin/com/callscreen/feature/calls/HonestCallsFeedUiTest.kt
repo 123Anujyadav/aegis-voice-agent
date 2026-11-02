@@ -1,8 +1,13 @@
 package com.callscreen.feature.calls
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.CallType
 import org.junit.Assert.assertEquals
@@ -48,6 +53,9 @@ class HonestCallsFeedUiTest {
         compose.onNodeWithText(s(ScreeningRoleBannerCopy.LOST)).assertExists()
         compose.onNodeWithText(s(ScreeningRoleBannerCopy.SWITCH_BACK)).performClick()
         assertEquals(1, switched)
+        // The feed below the banner: its list composes what is on screen.
+        compose.onNode(hasScrollToNodeAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+            .performScrollToNode(hasText(s(CallsFeedCopy.EMPTY_TITLE)))
         compose.onNodeWithText(s(CallsFeedCopy.EMPTY_TITLE)).assertExists()
     }
 }

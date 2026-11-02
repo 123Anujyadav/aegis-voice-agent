@@ -1,10 +1,13 @@
 package com.callscreen.feature.assistant
 
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToNode
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -65,6 +68,8 @@ class HonestAssistantUiTest {
     @Test
     fun theCardIconsAreNotReadAsASecondTitle() {
         compose.setContent { CallScreenTheme { AssistantHomeScreen() } }
+        // The list composes what is on screen: bring the voice card into view.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(s(R.string.assistant_voice_title)))
         compose.onNodeWithContentDescription(s(R.string.assistant_voice_title)).assertDoesNotExist()
         compose.onNodeWithText(s(R.string.assistant_voice_title)).assertExists()
     }
