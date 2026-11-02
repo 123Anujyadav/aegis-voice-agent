@@ -19,6 +19,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -31,6 +32,9 @@ class CallerListUiTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /** The English text of a string resource, as the screen shows it. */
+    private fun s(id: Int, vararg args: Any): String = RuntimeEnvironment.getApplication().getString(id, *args)
 
     private val number = requireNotNull(E164Number.of("+919876500001"))
     private val spoken = "+ 9 1 9 8 7 6 5 0 0 0 0 1"
@@ -51,16 +55,16 @@ class CallerListUiTest {
         compose.onNodeWithText("Blocked", ignoreCase = true).assertExists()
         compose.onNodeWithContentDescription(spoken).assertExists()
         compose.onNodeWithText("From a call", substring = true).assertExists()
-        compose.onNodeWithText(CallerListCopy.FORWARDING_CAVEAT).assertDoesNotExist()
+        compose.onNodeWithText(s(CallerListCopy.FORWARDING_CAVEAT)).assertDoesNotExist()
 
-        compose.onNodeWithText(CallerListCopy.SAVE_LABEL).assertIsNotEnabled()
+        compose.onNodeWithText(s(CallerListCopy.SAVE_LABEL)).assertIsNotEnabled()
         compose.onNodeWithText("Courier").performScrollTo().performTextReplacement("Courier company")
-        compose.onNodeWithText(CallerListCopy.SAVE_LABEL).performScrollTo().assertIsEnabled().performClick()
+        compose.onNodeWithText(s(CallerListCopy.SAVE_LABEL)).performScrollTo().assertIsEnabled().performClick()
         assertEquals("Courier company", saved)
 
         // The sheet scrolls; its actions are reachable on a small screen.
         compose.onNodeWithText("Move to allowed numbers").performScrollTo().performClick()
-        compose.onNodeWithText(CallerListCopy.REMOVE).performScrollTo().performClick()
+        compose.onNodeWithText(s(CallerListCopy.REMOVE)).performScrollTo().performClick()
         assertEquals(1, moves)
         assertEquals(1, removes)
     }
@@ -71,8 +75,8 @@ class CallerListUiTest {
             CallScreenTheme { EntryDetail(allowed, onSaveLabel = {}, onMove = {}, onRemove = {}) }
         }
         compose.onNodeWithText("Allowed", ignoreCase = true).assertExists()
-        compose.onNodeWithText(CallerListCopy.ALLOWED_NEVER_BLOCKED).assertExists()
-        compose.onNodeWithText(CallerListCopy.FORWARDING_CAVEAT).assertExists()
+        compose.onNodeWithText(s(CallerListCopy.ALLOWED_NEVER_BLOCKED)).assertExists()
+        compose.onNodeWithText(s(CallerListCopy.FORWARDING_CAVEAT)).assertExists()
         compose.onNodeWithText("Move to blocked numbers").assertExists()
         compose.onNodeWithText("rejected", substring = true).assertDoesNotExist()
     }
@@ -86,7 +90,7 @@ class CallerListUiTest {
         }
         compose.onNode(hasContentDescription("Courier, $spoken, From a call", substring = true)).performClick()
         assertEquals(blocked, opened)
-        compose.onNodeWithContentDescription("${CallerListCopy.REMOVE} $spoken").performClick()
+        compose.onNodeWithContentDescription(s(CallerListCopy.REMOVE_NUMBER, spoken)).performClick()
         assertEquals(blocked, removed)
     }
 }

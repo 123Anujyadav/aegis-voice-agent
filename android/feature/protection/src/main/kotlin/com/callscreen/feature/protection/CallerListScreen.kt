@@ -1,8 +1,10 @@
 package com.callscreen.feature.protection
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -38,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -110,13 +113,17 @@ internal fun CallerListScreen(
     // A32d: the open entry, by number, so it follows a relabel and closes when the entry leaves this list.
     var openNumber by remember { mutableStateOf<String?>(null) }
     val open = state.entries.firstOrNull { it.number.value == openNumber }
+    // Resolved while composing, so the snackbar shows the current language's words.
+    val messageText = state.message?.let { copy.message(it).text() }
+    val undoLabel = stringResource(CallerListCopy.UNDO)
+    val addNumber = stringResource(CallerListCopy.ADD_NUMBER)
 
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
         val undo = message == ListMessage.REMOVED && state.undoable != null
         val result = snackbar.showSnackbar(
-            message = copy.message(message),
-            actionLabel = if (undo) CallerListCopy.UNDO else null,
+            message = messageText ?: return@LaunchedEffect,
+            actionLabel = if (undo) undoLabel else null,
             // An undo stays until its window closes (below); anything else is brief.
             duration = if (undo) SnackbarDuration.Indefinite else SnackbarDuration.Short,
         )
@@ -131,23 +138,27 @@ internal fun CallerListScreen(
     }
 
     Scaffold(
-        topBar = { AegisTopAppBar(title = copy.title) },
+        topBar = { AegisTopAppBar(title = stringResource(copy.title)) },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             if (!state.unreadable && !state.loading) {
                 ExtendedFloatingActionButton(
                     onClick = { adding = true },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text(CallerListCopy.ADD_NUMBER) },
+                    text = { Text(addNumber) },
                     // The extended FAB does not expose its text to accessibility (on a device the
                     // button was announced without a name), so it is labelled explicitly.
-                    modifier = Modifier.semantics { contentDescription = CallerListCopy.ADD_NUMBER },
+                    modifier = Modifier.semantics { contentDescription = addNumber },
                 )
             }
         },
         modifier = modifier,
     ) { padding ->
-        Column(
+        // One scrolling list for the whole body: the notice, the caveat and the search field
+        // scroll with the entries. In a plain Column the empty and unreadable states, the
+        // recovery button among them, could not scroll, and at a large font they were cut off
+        // (ProtectionLargeTextTest).
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .background(CallScreenTheme.colors.surface.background)
@@ -155,23 +166,33 @@ internal fun CallerListScreen(
                 .padding(horizontal = 16.dp),
         ) {
             if (notice != null && !state.loading && !state.unreadable) {
-                BlockingNotice(notice, onNoticeAction, modifier = Modifier.padding(top = 12.dp))
+                item(key = "notice") { BlockingNotice(notice, onNoticeAction, modifier = Modifier.padding(top = 12.dp)) }
             }
             // An allowed call still rings unanswered into carrier forwarding (readiness §2a):
             // said whenever the allowlist is shown, not only while it is empty.
             if (state.type == ListType.ALLOW && !state.loading && !state.unreadable) {
-                Text(
-                    text = CallerListCopy.FORWARDING_CAVEAT,
-                    style = CallScreenTheme.typography.bodyMedium,
-                    color = CallScreenTheme.colors.content.secondary,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
+                item(key = "caveat") {
+                    Text(
+                        text = stringResource(CallerListCopy.FORWARDING_CAVEAT),
+                        style = CallScreenTheme.typography.bodyMedium,
+                        color = CallScreenTheme.colors.content.secondary,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
             }
             when {
                 state.loading -> Unit
-                state.unreadable -> Unreadable(onDiscardUnreadable)
-                state.entries.isEmpty() -> Empty(copy)
-                else -> Entries(state, onQueryChange, onOpen = { openNumber = it.number.value }, onRemove = onRemove)
+                state.unreadable -> item(key = "unreadable") { Unreadable(onDiscardUnreadable) }
+                state.entries.isEmpty() -> item(key = "empty") { Empty(copy) }
+                else -> {
+                    item(key = "search") { SearchField(state.query, onQueryChange) }
+                    itemsIndexed(state.visible, key = { _, entry -> entry.number.value }) { index, entry ->
+                        // 4 dp between rows, as before.
+                        Box(Modifier.padding(top = if (index == 0) 0.dp else 4.dp)) {
+                            EntryRow(entry, onOpen = { openNumber = it.number.value }, onRemove = onRemove)
+                        }
+                    }
+                }
             }
         }
     }
@@ -201,25 +222,17 @@ internal fun CallerListScreen(
 }
 
 @Composable
-private fun Entries(
-    state: CallerListState,
-    onQueryChange: (String) -> Unit,
-    onOpen: (CallerListEntry) -> Unit,
-    onRemove: (CallerListEntry) -> Unit,
-) {
+private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
     OutlinedTextField(
-        value = state.query,
+        value = query,
         onValueChange = onQueryChange,
-        label = { Text(CallerListCopy.SEARCH) },
+        label = { Text(stringResource(CallerListCopy.SEARCH)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp),
     )
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        items(state.visible, key = { it.number.value }) { entry -> EntryRow(entry, onOpen, onRemove) }
-    }
 }
 
 @Composable
@@ -229,7 +242,12 @@ internal fun EntryRow(
     onRemove: (CallerListEntry) -> Unit,
 ) {
     val spoken = CallerListCopy.spoken(entry.number.value)
-    val detail = "${CallerListCopy.source(entry.source)} · ${CallerListCopy.date(entry.addedAtEpochSeconds)}"
+    val detail = stringResource(
+        CallerListCopy.ENTRY_DETAIL,
+        stringResource(CallerListCopy.source(entry.source)),
+        CallerListCopy.date(entry.addedAtEpochSeconds),
+    )
+    val openDetails = stringResource(CallerListCopy.OPEN_DETAILS)
     val description = listOfNotNull(entry.label, spoken, detail).joinToString(", ")
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         // One node for the row: label, the number digit by digit, its source and date (A32 accessibility).
@@ -239,7 +257,7 @@ internal fun EntryRow(
                 .clickable { onOpen(entry) }
                 .clearAndSetSemantics {
                     contentDescription = description
-                    onClick(label = CallerListCopy.OPEN_DETAILS) {
+                    onClick(label = openDetails) {
                         onOpen(entry)
                         true
                     }
@@ -265,7 +283,7 @@ internal fun EntryRow(
         }
         // IconButton's touch target is 48 dp.
         IconButton(onClick = { onRemove(entry) }) {
-            Icon(Icons.Default.Close, contentDescription = "${CallerListCopy.REMOVE} $spoken")
+            Icon(Icons.Default.Close, contentDescription = stringResource(CallerListCopy.REMOVE_NUMBER, spoken))
         }
     }
 }
@@ -291,7 +309,7 @@ internal fun EntryDetail(
             .padding(16.dp),
     ) {
         AegisStatusChip(
-            text = copy.status,
+            text = stringResource(copy.status),
             variant = if (entry.type == ListType.BLOCK) StatusChipVariant.Spam else StatusChipVariant.Verified,
         )
         Text(
@@ -305,13 +323,17 @@ internal fun EntryDetail(
             },
         )
         Text(
-            text = "${CallerListCopy.source(entry.source)} · ${CallerListCopy.date(entry.addedAtEpochSeconds)}",
+            text = stringResource(
+                CallerListCopy.ENTRY_DETAIL,
+                stringResource(CallerListCopy.source(entry.source)),
+                CallerListCopy.date(entry.addedAtEpochSeconds),
+            ),
             style = CallScreenTheme.typography.bodyMedium,
             color = CallScreenTheme.colors.content.secondary,
         )
         for (line in copy.meaning) {
             Text(
-                text = line,
+                text = stringResource(line),
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.primary,
             )
@@ -319,21 +341,21 @@ internal fun EntryDetail(
         OutlinedTextField(
             value = label,
             onValueChange = { label = it.take(CallerLabel.MAX_LENGTH) },
-            label = { Text(CallerListCopy.LABEL) },
+            label = { Text(stringResource(CallerListCopy.LABEL)) },
             supportingText = { Text("${label.length}/${CallerLabel.MAX_LENGTH}") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         AegisPrimaryButton(
-            text = CallerListCopy.SAVE_LABEL,
+            text = stringResource(CallerListCopy.SAVE_LABEL),
             onClick = { onSaveLabel(label) },
             enabled = CallerLabel.normalise(label) != entry.label,
         )
         TextButton(onClick = onMove, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-            Text(copy.moveAction, style = CallScreenTheme.typography.titleMedium)
+            Text(stringResource(copy.moveAction), style = CallScreenTheme.typography.titleMedium)
         }
         TextButton(onClick = onRemove, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-            Text(CallerListCopy.REMOVE, style = CallScreenTheme.typography.titleMedium)
+            Text(stringResource(CallerListCopy.REMOVE), style = CallScreenTheme.typography.titleMedium)
         }
     }
 }
@@ -342,14 +364,14 @@ internal fun EntryDetail(
 private fun Empty(copy: CallerListCopy) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 32.dp)) {
         Text(
-            text = copy.emptyTitle,
+            text = stringResource(copy.emptyTitle),
             style = CallScreenTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = CallScreenTheme.colors.content.primary,
         )
         for (line in copy.emptyLines) {
             Text(
-                text = line,
+                text = stringResource(line),
                 style = CallScreenTheme.typography.bodyLarge,
                 color = CallScreenTheme.colors.content.secondary,
             )
@@ -361,11 +383,11 @@ private fun Empty(copy: CallerListCopy) {
 private fun Unreadable(onDiscard: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 32.dp)) {
         Text(
-            text = CallerListCopy.UNREADABLE,
+            text = stringResource(CallerListCopy.UNREADABLE),
             style = CallScreenTheme.typography.bodyLarge,
             color = CallScreenTheme.colors.content.primary,
         )
-        AegisPrimaryButton(text = CallerListCopy.START_EMPTY, onClick = onDiscard)
+        AegisPrimaryButton(text = stringResource(CallerListCopy.START_EMPTY), onClick = onDiscard)
     }
 }
 
@@ -376,85 +398,94 @@ private fun AddNumber(copy: CallerListCopy, onSubmit: (String) -> Unit) {
         OutlinedTextField(
             value = number,
             onValueChange = { number = it },
-            label = { Text(CallerListCopy.PHONE_NUMBER) },
+            label = { Text(stringResource(CallerListCopy.PHONE_NUMBER)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             modifier = Modifier.fillMaxWidth(),
         )
-        AegisPrimaryButton(text = copy.addAction, onClick = { onSubmit(number) }, enabled = number.isNotBlank())
+        AegisPrimaryButton(text = stringResource(copy.addAction), onClick = { onSubmit(number) }, enabled = number.isNotBlank())
     }
 }
 
 /** The screens' words. Kept together so each list's wording is checked in one place. */
+/** A string resource with at most one number argument, resolved when the screen composes. */
+internal data class CopyText(@StringRes val id: Int, val number: Int? = null)
+
+@Composable
+internal fun CopyText.text(): String = if (number != null) stringResource(id, number) else stringResource(id)
+
 internal class CallerListCopy private constructor(private val type: ListType) {
-    val title: String = if (type == ListType.BLOCK) "Blocked numbers" else "Allowed numbers"
-    val addAction: String = if (type == ListType.BLOCK) "Block" else "Allow"
+    @StringRes val title: Int = if (type == ListType.BLOCK) R.string.protection_list_blocked_title else R.string.protection_list_allowed_title
+    @StringRes val addAction: Int = if (type == ListType.BLOCK) R.string.protection_list_add_block else R.string.protection_list_add_allow
 
     /** A32d: which list, in words as well as colour. */
-    val status: String = if (type == ListType.BLOCK) "Blocked" else "Allowed"
-    val moveAction: String = if (type == ListType.BLOCK) "Move to allowed numbers" else "Move to blocked numbers"
+    @StringRes val status: Int = if (type == ListType.BLOCK) R.string.protection_list_status_blocked else R.string.protection_list_status_allowed
+    @StringRes val moveAction: Int =
+        if (type == ListType.BLOCK) R.string.protection_list_move_to_allowed else R.string.protection_list_move_to_blocked
 
     /**
      * What the list does to this number's calls, and no more. An allowed call
      * rings, but the carrier can still forward it to screening if it is not
      * answered: the phone cannot stop that (readiness §2a).
      */
-    val meaning: List<String> = if (type == ListType.BLOCK) {
-        listOf("While this app screens your calls, calls from this number are rejected on this phone.")
+    val meaning: List<Int> = if (type == ListType.BLOCK) {
+        listOf(R.string.protection_list_meaning_blocked)
     } else {
         listOf(ALLOWED_NEVER_BLOCKED, FORWARDING_CAVEAT)
     }
 
     /** A32's first-run empty state, which states the offline guarantee once (A32 security). */
-    val emptyTitle: String = if (type == ListType.BLOCK) "No blocked numbers" else "No allowed numbers"
-    val emptyLines: List<String> = if (type == ListType.BLOCK) {
-        listOf(
-            "Numbers you block won't ring or be screened.",
-            "Blocking works on this phone, even offline or if our service is down.",
-        )
+    @StringRes val emptyTitle: Int =
+        if (type == ListType.BLOCK) R.string.protection_list_empty_blocked_title else R.string.protection_list_empty_allowed_title
+    val emptyLines: List<Int> = if (type == ListType.BLOCK) {
+        listOf(R.string.protection_list_empty_blocked_rings, R.string.protection_list_empty_blocked_offline)
     } else {
-        listOf("Numbers you allow are never blocked here, even if they're flagged as spam.")
+        listOf(R.string.protection_list_empty_allowed)
     }
 
-    fun message(message: ListMessage): String = when (message) {
-        ListMessage.ADDED -> if (type == ListType.BLOCK) "Blocked." else "Allowed."
-        ListMessage.MOVED_TO_BLOCKED -> "Moved from your allowed numbers to your blocked numbers."
-        ListMessage.MOVED_TO_ALLOWED -> "Moved from your blocked numbers to your allowed numbers."
-        ListMessage.ALREADY_LISTED -> "That number is already on this list."
-        ListMessage.REMOVED -> "Removed."
-        ListMessage.NOT_A_PHONE_NUMBER -> "Enter a full phone number, with its area code."
-        ListMessage.OWN_NUMBER -> "You can't block your own number."
-        ListMessage.LIST_FULL -> "This list is full. Remove some numbers first."
-        ListMessage.COULD_NOT_SAVE -> "Couldn't save. Nothing changed."
-        ListMessage.UNREADABLE -> UNREADABLE
-        ListMessage.LABEL_SAVED -> "Label saved."
-        ListMessage.INVALID_LABEL -> "A label can be up to ${CallerLabel.MAX_LENGTH} characters of plain text."
+    fun message(message: ListMessage): CopyText = when (message) {
+        ListMessage.ADDED -> CopyText(if (type == ListType.BLOCK) R.string.protection_list_message_blocked else R.string.protection_list_message_allowed)
+        ListMessage.MOVED_TO_BLOCKED -> CopyText(R.string.protection_list_message_moved_to_blocked)
+        ListMessage.MOVED_TO_ALLOWED -> CopyText(R.string.protection_list_message_moved_to_allowed)
+        ListMessage.ALREADY_LISTED -> CopyText(R.string.protection_list_message_already_listed)
+        ListMessage.REMOVED -> CopyText(R.string.protection_list_message_removed)
+        ListMessage.NOT_A_PHONE_NUMBER -> CopyText(R.string.protection_list_message_not_a_phone_number)
+        ListMessage.OWN_NUMBER -> CopyText(R.string.protection_list_message_own_number)
+        ListMessage.LIST_FULL -> CopyText(R.string.protection_list_message_list_full)
+        ListMessage.COULD_NOT_SAVE -> CopyText(R.string.protection_list_message_could_not_save)
+        ListMessage.UNREADABLE -> CopyText(UNREADABLE)
+        ListMessage.LABEL_SAVED -> CopyText(R.string.protection_list_message_label_saved)
+        ListMessage.INVALID_LABEL -> CopyText(R.string.protection_list_message_invalid_label, CallerLabel.MAX_LENGTH)
     }
 
     companion object {
-        const val UNDO = "Undo"
-        const val ADD_NUMBER = "Add number"
-        const val SEARCH = "Search numbers"
-        const val PHONE_NUMBER = "Phone number"
-        const val REMOVE = "Remove"
-        const val OPEN_DETAILS = "Open details"
-        const val LABEL = "Label (optional)"
-        const val SAVE_LABEL = "Save label"
-        const val ALLOWED_NEVER_BLOCKED =
-            "Calls from this number are never blocked here, even if they're flagged as spam."
-        const val FORWARDING_CAVEAT = "If you don't answer, your carrier may still forward the call to be screened."
-        const val UNREADABLE =
-            "Your blocked and allowed numbers can't be read on this phone, so no number is blocked. " +
-                "Nothing has been deleted."
-        const val START_EMPTY = "Start again with empty lists"
+        @StringRes val UNDO: Int = R.string.protection_list_undo
+        @StringRes val ADD_NUMBER: Int = R.string.protection_list_add_number
+        @StringRes val SEARCH: Int = R.string.protection_list_search
+        @StringRes val PHONE_NUMBER: Int = R.string.protection_list_phone_number
+        @StringRes val REMOVE: Int = R.string.protection_list_remove
+
+        /** "Remove %1$s", with the number read digit by digit. */
+        @StringRes val REMOVE_NUMBER: Int = R.string.protection_list_remove_number
+        @StringRes val OPEN_DETAILS: Int = R.string.protection_list_open_details
+        @StringRes val LABEL: Int = R.string.protection_list_label
+        @StringRes val SAVE_LABEL: Int = R.string.protection_list_save_label
+        @StringRes val ALLOWED_NEVER_BLOCKED: Int = R.string.protection_list_allowed_never_blocked
+        @StringRes val FORWARDING_CAVEAT: Int = R.string.protection_list_forwarding_caveat
+        @StringRes val UNREADABLE: Int = R.string.protection_list_unreadable
+        @StringRes val START_EMPTY: Int = R.string.protection_list_start_empty
+
+        /** "%1$s · %2$s": where the number came from, then when. */
+        @StringRes val ENTRY_DETAIL: Int = R.string.protection_list_entry_detail
 
         fun of(type: ListType): CallerListCopy = CallerListCopy(type)
 
-        fun source(source: ListSource): String = when (source) {
-            ListSource.MANUAL -> "Added by you"
-            ListSource.FROM_CALL -> "From a call"
-            ListSource.IMPORTED -> "Imported"
-            ListSource.SUGGESTED -> "Suggested"
+        @StringRes
+        fun source(source: ListSource): Int = when (source) {
+            ListSource.MANUAL -> R.string.protection_list_source_manual
+            ListSource.FROM_CALL -> R.string.protection_list_source_from_call
+            ListSource.IMPORTED -> R.string.protection_list_source_imported
+            ListSource.SUGGESTED -> R.string.protection_list_source_suggested
         }
 
         fun date(epochSeconds: Long): String = Instant.ofEpochSecond(epochSeconds).atZone(ZoneId.systemDefault())

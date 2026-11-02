@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Protection's words (A31 dashboard, A32 caller lists, the blocking notice):
+  the English source of every translation. Claims are held to what the app
+  does by tests: ReleaseCopyGuardTest scans every values* folder.
+-->
+<resources>
+
+    <!-- Dashboard (A31) -->
+    <string name="protection_dashboard_app_bar">Protection Dashboard</string>
+    <string name="protection_dashboard_title">Protection</string>
+    <string name="protection_dashboard_no_data">No protection data yet. Counts of blocked and screened calls will appear here once the app records them.</string>
+    <string name="protection_dashboard_spam_blocked">Spam blocked</string>
+    <string name="protection_dashboard_screenings">AI screenings</string>
+    <string name="protection_dashboard_threats_title">Threat reports</string>
+    <string name="protection_dashboard_no_threats">No threat reports yet.</string>
+    <string name="protection_not_available">Not available yet</string>
+
+    <!-- Caller lists (A32, A32d, A33, A35) -->
+    <string name="protection_list_blocked_title">Blocked numbers</string>
+    <string name="protection_list_allowed_title">Allowed numbers</string>
+    <string name="protection_list_add_block">Block</string>
+    <string name="protection_list_add_allow">Allow</string>
+    <string name="protection_list_status_blocked">Blocked</string>
+    <string name="protection_list_status_allowed">Allowed</string>
+    <string name="protection_list_move_to_allowed">Move to allowed numbers</string>
+    <string name="protection_list_move_to_blocked">Move to blocked numbers</string>
+    <string name="protection_list_meaning_blocked">While this app screens your calls, calls from this number are rejected on this phone.</string>
+    <string name="protection_list_allowed_never_blocked">Calls from this number are never blocked here, even if they\'re flagged as spam.</string>
+    <string name="protection_list_forwarding_caveat">If you don\'t answer, your carrier may still forward the call to be screened.</string>
+    <string name="protection_list_empty_blocked_title">No blocked numbers</string>
+    <string name="protection_list_empty_allowed_title">No allowed numbers</string>
+    <string name="protection_list_empty_blocked_rings">Numbers you block won\'t ring or be screened.</string>
+    <string name="protection_list_empty_blocked_offline">Blocking works on this phone, even offline or if our service is down.</string>
+    <string name="protection_list_empty_allowed">Numbers you allow are never blocked here, even if they\'re flagged as spam.</string>
+    <string name="protection_list_message_blocked">Blocked.</string>
+    <string name="protection_list_message_allowed">Allowed.</string>
+    <string name="protection_list_message_moved_to_blocked">Moved from your allowed numbers to your blocked numbers.</string>
+    <string name="protection_list_message_moved_to_allowed">Moved from your blocked numbers to your allowed numbers.</string>
+    <string name="protection_list_message_already_listed">That number is already on this list.</string>
+    <string name="protection_list_message_removed">Removed.</string>
+    <string name="protection_list_message_not_a_phone_number">Enter a full phone number, with its area code.</string>
+    <string name="protection_list_message_own_number">You can\'t block your own number.</string>
+    <string name="protection_list_message_list_full">This list is full. Remove some numbers first.</string>
+    <string name="protection_list_message_could_not_save">Couldn\'t save. Nothing changed.</string>
+    <string name="protection_list_message_label_saved">Label saved.</string>
+    <string name="protection_list_message_invalid_label">A label can be up to %1$d characters of plain text.</string>
+    <string name="protection_list_unreadable">Your blocked and allowed numbers can\'t be read on this phone, so no number is blocked. Nothing has been deleted.</string>
+    <string name="protection_list_start_empty">Start again with empty lists</string>
+    <string name="protection_list_undo">Undo</string>
+    <string name="protection_list_add_number">Add number</string>
+    <string name="protection_list_search">Search numbers</string>
+    <string name="protection_list_phone_number">Phone number</string>
+    <string name="protection_list_remove">Remove</string>
+    <string name="protection_list_remove_number">Remove %1$s</string>
+    <string name="protection_list_open_details">Open details</string>
+    <string name="protection_list_label">Label (optional)</string>
+    <string name="protection_list_save_label">Save label</string>
+    <string name="protection_list_source_manual">Added by you</string>
+    <string name="protection_list_source_from_call">From a call</string>
+    <string name="protection_list_source_imported">Imported</string>
+    <string name="protection_list_source_suggested">Suggested</string>
+    <string name="protection_list_entry_detail">%1$s · %2$s</string>
+
+    <!-- Blocking notice: what is missing, honestly, and the action that fixes it -->
+    <string name="protection_notice_unsupported">This version of Android doesn\'t let apps block calls, so numbers on this list aren\'t blocked on this phone.</string>
+    <string name="protection_notice_role_not_held">Blocking is off. Numbers on this list won\'t be blocked until this app is your caller ID &amp; spam app.</string>
+    <string name="protection_notice_turn_on">Turn on blocking</string>
+    <string name="protection_notice_contacts">Numbers saved in your contacts ring without being checked, so blocking one of them here has no effect. To block saved contacts too, allow contacts access. This app doesn\'t read or upload your contacts: Android uses the permission only to let it check calls from them.</string>
+    <string name="protection_notice_allow_contacts">Allow contacts access</string>
+    <string name="protection_notice_contacts_denied">Contacts access is off. You can turn it on in Settings.</string>
+    <string name="protection_notice_open_settings">Open settings</string>
+</resources>

@@ -10,6 +10,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /** The blocklist's notice: a list that cannot block says so, with the one action that fixes it. */
@@ -20,6 +21,9 @@ class BlockingNoticeUiTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /** The English text of a string resource, as the screen shows it. */
+    private fun s(id: Int, vararg args: Any): String = RuntimeEnvironment.getApplication().getString(id, *args)
+
     private var actions = 0
 
     private fun show(state: BlockingNoticeState) {
@@ -29,43 +33,43 @@ class BlockingNoticeUiTest {
     @Test
     fun androidNineAndEarlierSaysBlocksDoNotApplyAndOffersNothing() {
         show(BlockingNoticeState(BlockingStatus.UNSUPPORTED))
-        compose.onNodeWithText(BlockingNoticeCopy.UNSUPPORTED).assertExists()
-        compose.onNodeWithText(BlockingNoticeCopy.TURN_ON).assertDoesNotExist()
-        compose.onNodeWithText(BlockingNoticeCopy.ALLOW_CONTACTS).assertDoesNotExist()
+        compose.onNodeWithText(s(BlockingNoticeCopy.UNSUPPORTED)).assertExists()
+        compose.onNodeWithText(s(BlockingNoticeCopy.TURN_ON)).assertDoesNotExist()
+        compose.onNodeWithText(s(BlockingNoticeCopy.ALLOW_CONTACTS)).assertDoesNotExist()
     }
 
     @Test
     fun roleDeclinedOrRevokedSaysBlockingIsOffAndOffersToTurnItOn() {
         show(BlockingNoticeState(BlockingStatus.ROLE_NOT_HELD))
-        compose.onNodeWithText(BlockingNoticeCopy.ROLE_NOT_HELD).assertExists()
-        compose.onNodeWithText(BlockingNoticeCopy.TURN_ON).performClick()
+        compose.onNodeWithText(s(BlockingNoticeCopy.ROLE_NOT_HELD)).assertExists()
+        compose.onNodeWithText(s(BlockingNoticeCopy.TURN_ON)).performClick()
         assertEquals(1, actions)
     }
 
     @Test
     fun withoutContactsAccessItExplainsAndAsksOnlyOnRequest() {
         show(BlockingNoticeState(BlockingStatus.ACTIVE_EXCEPT_CONTACTS))
-        compose.onNodeWithText(BlockingNoticeCopy.CONTACTS).assertExists()
+        compose.onNodeWithText(s(BlockingNoticeCopy.CONTACTS)).assertExists()
         compose.onNodeWithText("doesn't read or upload your contacts", substring = true).assertExists()
         assertEquals(0, actions)
-        compose.onNodeWithText(BlockingNoticeCopy.ALLOW_CONTACTS).performClick()
+        compose.onNodeWithText(s(BlockingNoticeCopy.ALLOW_CONTACTS)).performClick()
         assertEquals(1, actions)
     }
 
     @Test
     fun contactsAccessRefusedPointsToSettings() {
         show(BlockingNoticeState(BlockingStatus.ACTIVE_EXCEPT_CONTACTS, contactsDenied = true))
-        compose.onNodeWithText(BlockingNoticeCopy.CONTACTS_DENIED, substring = true).assertExists()
-        compose.onNodeWithText(BlockingNoticeCopy.ALLOW_CONTACTS).assertDoesNotExist()
-        compose.onNodeWithText(BlockingNoticeCopy.OPEN_SETTINGS).performClick()
+        compose.onNodeWithText(s(BlockingNoticeCopy.CONTACTS_DENIED), substring = true).assertExists()
+        compose.onNodeWithText(s(BlockingNoticeCopy.ALLOW_CONTACTS)).assertDoesNotExist()
+        compose.onNodeWithText(s(BlockingNoticeCopy.OPEN_SETTINGS)).performClick()
         assertEquals(1, actions)
     }
 
     @Test
     fun everyBlockAppliesSoThereIsNoNotice() {
         show(BlockingNoticeState(BlockingStatus.ACTIVE))
-        compose.onNodeWithText(BlockingNoticeCopy.UNSUPPORTED).assertDoesNotExist()
-        compose.onNodeWithText(BlockingNoticeCopy.ROLE_NOT_HELD).assertDoesNotExist()
-        compose.onNodeWithText(BlockingNoticeCopy.CONTACTS, substring = true).assertDoesNotExist()
+        compose.onNodeWithText(s(BlockingNoticeCopy.UNSUPPORTED)).assertDoesNotExist()
+        compose.onNodeWithText(s(BlockingNoticeCopy.ROLE_NOT_HELD)).assertDoesNotExist()
+        compose.onNodeWithText(s(BlockingNoticeCopy.CONTACTS), substring = true).assertDoesNotExist()
     }
 }
