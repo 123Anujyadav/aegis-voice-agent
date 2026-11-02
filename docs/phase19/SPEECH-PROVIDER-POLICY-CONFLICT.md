@@ -27,6 +27,8 @@ Both cannot hold. Until the owner decides, the voice pipeline cannot be built un
 
 A plausible free stack is **IndicConformer** (Indic speech-to-text), plus **Whisper** for English, plus **Indic Parler-TTS**.
 
+A wider comparison is in [`SPEECH-OPEN-MODELS-EVALUATION.md`](SPEECH-OPEN-MODELS-EVALUATION.md) (2026-11-03). It covers Vosk, sherpa-onnx, IndicF5 and Piper, and the non-commercial MMS and XTTS-v2, which are excluded. It also lists what must be measured before OD-17 can be decided.
+
 ## 3. What "free" does not remove
 
 - **Compute.** Self-hosted models need servers, probably with GPUs for streaming latency. That is an infrastructure cost, and the budget is the owner's (X5). The policy forbids paid *services*; whether paid *hosting* for open models is allowed is part of OD-17.
