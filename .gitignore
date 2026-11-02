@@ -48,6 +48,9 @@ secrets.yaml
 build/
 android/local.properties
 android/**/build/
+# JVM heap dumps written when a Gradle or Kotlin daemon runs out of memory:
+# gigabytes of build-process memory, never source.
+*.hprof
 captures/
 .cxx/
 *.apk

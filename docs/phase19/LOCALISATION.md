@@ -42,7 +42,7 @@ Their copy is "intent and examples, not final strings" (UX_FREEZE §9 item 1). T
 
 ## 2. Adding a language
 
-A translation is one file per module: `src/main/res/values-<code>/strings.xml`, with the codes `hi`, `ta`, `te`, `ml` and `kn`. It needs no code change. A string it leaves out falls back to English.
+A translation is one file per module: `src/main/res/values-<code>/strings.xml`, with the codes `hi`, `ta`, `te`, `ml` and `kn`. **The files exist for every module and language**, empty and marked "AWAITING a human-reviewed translation" (`TranslationConsistencyTest` requires them, so a new module gets them too). Filling one needs no code change; a string it leaves out falls back to English. How to fill them is §6.
 
 The `strings.xml` files are **not** the whole job. Before a language ships:
 
@@ -62,8 +62,10 @@ The `strings.xml` files are **not** the whole job. Before a language ships:
 | `AccountDeletionViewModelTest` | No deletion failure message, in any language, says "nothing was deleted" |
 | Spec-linked tests: `ScreeningRoleCopyTest`, `AccountDeletionCopyTest`, `ScreeningRoleBannerCopyTest`, `SignedOutCopyTest` | The English words the UX spec quotes are the shipped ones. A translation renders the same meaning; the English stays word for word |
 | Large-text tests: `*LargeTextTest`, `OnboardingReachabilityTest`, `SharedComponentsTextTest` | At twice the font scale in 320 x 480 dp (onboarding: 640 x 320 dp), every action and message can be brought fully into view |
+| Translation layout tests: `OnboardingTranslationLayoutTest`, `ProtectionTranslationLayoutTest`, `SettingsTranslationLayoutTest`, `CallsTranslationLayoutTest`, `AssistantTranslationLayoutTest` | Each screen in **each of the six language configurations**, with every string 50% longer in that language's own script, at twice the font scale in 320 x 480 dp: every action and message can be brought fully into view (below) |
+| `translation_kit` tests (`tools/i18n`, run in CI) | The worksheet tool's export, checks and import (§6) |
 
-The large-text tests render with Robolectric's **native graphics**. The default (legacy) graphics give every glyph a fixed size and ignore the font scale, so they cannot show that text fits (#216). Twice the font scale makes English text wider and taller than the 40% growth UX_FREEZE §9 item 2 allows for. It does not test Indic scripts' line heights or shaping, which needs real translations (§5).
+The large-text tests render with Robolectric's **native graphics**. The default (legacy) graphics give every glyph a fixed size and ignore the font scale, so they cannot show that text fits (#216). Twice the font scale makes English text wider and taller than the 40% growth UX_FREEZE §9 item 2 allows for. The **translation layout tests** go further with a stand-in for each translation (`core/testing` `PseudoTranslation`; never shipped, and not a translation): under the language's configuration, each string is its English followed by the language's own name ("മലയാളം") repeated until it is 50% longer, and at least four characters longer. The screens are therefore laid out with Devanagari, Tamil, Telugu, Malayalam and Kannada glyphs, which native graphics measure at their real sizes, and every action is found by its English start. Removing the screens' scrolling (a mutation) fails these tests in every language. They do not show that a real translation reads well, fits its own lengths, or is shaped right in every word: that needs the real translation on a device (§5). None of the six languages is right-to-left, so there is no right-to-left test.
 
 ## 4. Language selection and fallback
 
@@ -72,7 +74,7 @@ The large-text tests render with Robolectric's **native graphics**. The default 
   - **Android 8 to 12:** the app's preferences file `callscreen_app_language`, written with `commit()` before the activity is re-created, and applied by `MainActivity.attachBaseContext` (`wrap`), which also sets the default locale for number and date formats.
   - An unsupported or unreadable value (a language outside the six, damage) means the phone's language.
   - **An Indian language is applied with its Indian region** (`ta-IN`; English stays `en`), as Android's own language setting gives it ("Tamil (India)"), so resources and formats kept for the Indian region match. The app's translations are kept by language (`values-ta`) and match either.
-  - **Android's own strings** (a system "Cancel") follow the chosen language only where the phone's Android has them. On the Android 9 and 15 emulators they did. On the Android 8 emulator image Android's own "Cancel" stayed English with both `ta` and `ta-IN`, so the device test checks them only where the platform reports Tamil, and logs what it reports.
+  - **Android's own strings** (a system "Cancel") follow the chosen language only where the phone's Android has them. On the Android 9 and 15 emulators they did. On the Android 8 emulator image Android's own "Cancel" stayed English with both `ta` and `ta-IN`, so the device test checks them only where the platform reports Tamil, and logs what it reports. That image's own languages include Hindi but no Tamil, Telugu, Malayalam or Kannada (run 41509334002).
   - No new library: AndroidX AppCompat's `setApplicationLocales` would need AppCompat's activity and theme.
 - **Android's App languages page** (`android:localeConfig`) lists a language only once it is translated; while only English is, the app declares none (`AppLanguageListTest`). The in-app picker lists all six and marks those not translated yet.
 - **Not translated yet.** `AppLanguage.translated` is true only for English. A language is marked translated in the same change that adds its reviewed translation, and `TranslationConsistencyTest` then fails if any release string is missing from it, so a translated language never mixes with English.
@@ -103,3 +105,28 @@ For each of Hindi, Tamil, Telugu, Malayalam and Kannada:
    - TalkBack reading;
    - the language's script rendered at twice the font scale.
 5. **The voice languages are separate.** They are ADR-0005's and **OD-17**'s: the app's screen language does not make the voice assistant speak it.
+
+## 6. Translation workflow
+
+`tools/i18n/translation_kit.py` (standard library only; it contacts no service):
+
+1. `python3 tools/i18n/translation_kit.py status`: each language's progress per module. Today **0/243 for each of the five**.
+2. `python3 tools/i18n/translation_kit.py export --lang hi hi.csv`: a worksheet (CSV, UTF-8). It has one row per translatable string and per plural form the language uses (CLDR: `one` and `other` for all six), with:
+   - the module and the English;
+   - the comment above the string in `strings.xml`, which says where it appears and what the spec requires;
+   - its placeholders (`%1$s`), which the translation must keep;
+   - any translation already in the app.
+
+   Strings marked `translatable="false"` (product names, `app_name`) are left out.
+3. **A translator the owner approves fills the `translation` column. A second person reviews it** against the spec-linked English (§3). A row left empty stays English.
+4. `python3 tools/i18n/translation_kit.py import --lang hi --reviewed-by "<translator or agency, date>" hi.csv`:
+   - **It refuses the worksheet** if a row changes a placeholder, names a string English lacks, translates an untranslatable one, or gives a plural without `other`.
+   - Otherwise it writes each module's `values-hi/strings.xml`, recording who reviewed it.
+5. The build's checks (§3) run on the result: banned claims, consistency and the layout tests. Then a device check in the language (§5).
+6. **Only when every string is translated and reviewed**, mark the language translated (`AppLanguage.translated`) and add it to `res/xml/locales_config.xml` (§4, §5).
+
+**Not allowed without the owner's explicit approval:**
+- machine translation of any kind;
+- sending the worksheet or the app's text to an external translation service or API, a hosted spreadsheet, or a translation platform.
+
+The provider, cost, data sharing and privacy implications come first. The worksheet contains only the app's own interface text, never user data.

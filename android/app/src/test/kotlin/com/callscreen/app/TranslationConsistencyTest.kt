@@ -148,6 +148,18 @@ class TranslationConsistencyTest {
     }
 
     @Test
+    @DisplayName("every module with words has a file ready for each language to translate into")
+    fun everyLanguageHasItsFiles() {
+        // A translator fills these (tools/i18n/translation_kit.py); a module added later gets them too.
+        val languages = BuildConfig.PACKAGED_LOCALES.split(",") - "en"
+        val missing = resourceDirs().filter { File(it, "values/strings.xml").isFile }.flatMap { res ->
+            languages.filterNot { File(res, "values-$it/strings.xml").isFile }
+                .map { "${res.parentFile?.parentFile?.parentFile?.name}/values-$it" }
+        }
+        assertEquals(emptyList<String>(), missing)
+    }
+
+    @Test
     @DisplayName("the check catches a translation that changes a placeholder, a name or a plural")
     fun theCheckWorks(@org.junit.jupiter.api.io.TempDir tmp: File) {
         File(tmp, "x/src/main/res/values").apply { mkdirs() }.resolve("strings.xml").writeText(

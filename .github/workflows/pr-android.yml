@@ -26,6 +26,7 @@ on:
     paths:
       - "tools/scripts/android-release-bundle.sh"
       - "tools/scripts/android-apk-gate.sh"
+      - "tools/i18n/**"
       - "android/**"
       - "design/tokens/**"
       - ".github/workflows/pr-android.yml"
@@ -33,6 +34,7 @@ on:
     paths:
       - "tools/scripts/android-release-bundle.sh"
       - "tools/scripts/android-apk-gate.sh"
+      - "tools/i18n/**"
       - "android/**"
       - "design/tokens/**"
       - ".github/workflows/pr-android.yml"
@@ -86,6 +88,11 @@ jobs:
             exit 1
           fi
           printf 'release permissions:\n%s\n' "$actual"
+
+      # The translators' worksheet tool (tools/i18n/translation_kit.py): its
+      # export, checks and import. Standard library only; nothing is sent anywhere.
+      - name: Translation worksheet tool tests
+        run: python3 -m unittest discover -s tools/i18n -v
 
       - name: JVM unit tests (debug)
         working-directory: android

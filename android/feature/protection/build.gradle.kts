@@ -25,5 +25,7 @@ dependencies {
     // A32/A32d rendered on the JVM with Robolectric (provided by callscreen.android.compose).
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.junit4)
+    // Layouts in each release language (TranslationLayout).
+    testImplementation(projects.core.testing)
 }
 
