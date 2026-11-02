@@ -16,7 +16,7 @@ public fun AegisFAB(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Default.Dialpad,
-    contentDescription: String = "Action"
+    contentDescription: String
 ) {
     FloatingActionButton(
         onClick = onClick,
@@ -36,6 +36,6 @@ public fun AegisFAB(
 @Composable
 private fun AegisFABPreview() {
     CallScreenTheme {
-        AegisFAB(onClick = {})
+        AegisFAB(onClick = {}, contentDescription = "Dial pad")
     }
 }

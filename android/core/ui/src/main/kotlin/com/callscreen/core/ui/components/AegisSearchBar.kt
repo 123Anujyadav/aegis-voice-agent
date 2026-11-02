@@ -17,15 +17,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.ui.R
 
 @Composable
 public fun AegisSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    placeholder: String = "Search calls, contacts, threats...",
+    placeholder: String = stringResource(R.string.core_ui_search),
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -39,7 +41,7 @@ public fun AegisSearchBar(
     ) {
         Icon(
             imageVector = Icons.Default.Search,
-            contentDescription = "Search",
+            contentDescription = stringResource(R.string.core_ui_search),
             tint = CallScreenTheme.colors.content.secondary,
             modifier = Modifier.size(20.dp)
         )

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test
 class HardCodedTextGuardTest {
 
     private val migrated = listOf(
+        "core/ui",
         "feature/assistant",
         "feature/calls",
         "feature/onboarding",
@@ -45,6 +46,22 @@ class HardCodedTextGuardTest {
             """|const val [A-Z_]+ = "[A-Z][a-z]""",
     )
 
+    /**
+     * The lines of [file] that can reach a user: not comments, and not in an
+     * @Preview function (sample data for Android Studio's preview, never part
+     * of the app). A top-level preview function ends at a "}" in column 0.
+     */
+    private fun shippedLines(file: File): List<IndexedValue<String>> {
+        var inPreview = false
+        return file.readLines().withIndex().filter { (_, line) ->
+            val code = line.trimStart()
+            if (code.startsWith("@Preview")) inPreview = true
+            val shipped = !inPreview && !code.startsWith("*") && !code.startsWith("//")
+            if (inPreview && line == "}") inPreview = false
+            shipped
+        }
+    }
+
     @Test
     @DisplayName("a migrated module's sources write no user-visible text")
     fun migratedModulesUseResources() {
@@ -57,8 +74,7 @@ class HardCodedTextGuardTest {
             assertTrue(sources.isNotEmpty(), "no sources under $module")
             assertTrue(File(android, "$module/src/main/res/values/strings.xml").isFile, "$module has no strings.xml")
             sources.flatMap { file ->
-                file.readLines().withIndex()
-                    .filter { (_, line) -> !line.trimStart().startsWith("*") && !line.trimStart().startsWith("//") }
+                shippedLines(file)
                     .filter { (_, line) -> userText.containsMatchIn(line) }
                     .map { (i, line) -> "${file.relativeTo(android)}:${i + 1}: ${line.trim()}" }
             }

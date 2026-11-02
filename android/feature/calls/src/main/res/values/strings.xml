@@ -9,6 +9,7 @@
 
     <!-- Calls feed (A20) -->
     <string name="calls_feed_title">Calls Feed</string>
+    <string name="calls_search">Search calls</string>
     <string name="calls_filter_all">All Calls</string>
     <string name="calls_filter_ai_screened">AI Screened</string>
     <string name="calls_filter_spam_blocked">Spam Blocked</string>

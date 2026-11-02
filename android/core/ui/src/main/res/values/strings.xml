@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared components' words (the tab bar, the top bar, search, dialogs and
+  states): the English source of every translation. Screen-specific words
+  live in each feature module; components take them as parameters.
+-->
+<resources>
+
+    <!-- Bottom navigation -->
+    <string name="core_ui_tab_calls">Calls</string>
+    <string name="core_ui_tab_protection">Protection</string>
+    <string name="core_ui_tab_assistant">Assistant</string>
+    <string name="core_ui_tab_settings">Settings</string>
+
+    <!-- Top app bar -->
+    <string name="core_ui_app_title" translatable="false">Aegis AI</string>
+    <string name="core_ui_logo">Aegis Shield Logo</string>
+
+    <!-- Search, dialogs, states -->
+    <string name="core_ui_search">Search</string>
+    <string name="core_ui_confirm">Confirm</string>
+    <string name="core_ui_cancel">Cancel</string>
+    <string name="core_ui_retry">Retry</string>
+
+    <!-- Call card: the direction of a call, read by screen readers -->
+    <string name="core_ui_call_incoming">Incoming call</string>
+    <string name="core_ui_call_outgoing">Outgoing call</string>
+</resources>

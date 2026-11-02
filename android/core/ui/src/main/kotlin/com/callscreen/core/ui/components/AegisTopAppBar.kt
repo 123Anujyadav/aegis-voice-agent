@@ -10,22 +10,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.ui.R
 
 @Composable
 public fun AegisTopAppBar(
-    title: String = "Aegis AI",
+    title: String = stringResource(R.string.core_ui_app_title),
     modifier: Modifier = Modifier,
     onProfileClick: () -> Unit = {}
 ) {
@@ -44,7 +46,7 @@ public fun AegisTopAppBar(
         ) {
             Icon(
                 imageVector = Icons.Default.Shield,
-                contentDescription = "Aegis Shield Logo",
+                contentDescription = stringResource(R.string.core_ui_logo),
                 tint = CallScreenTheme.colors.action.primary.fill,
                 modifier = Modifier.size(28.dp)
             )
@@ -65,7 +67,8 @@ public fun AegisTopAppBar(
         ) {
             Icon(
                 imageVector = Icons.Default.Person,
-                contentDescription = "User Profile",
+                // Decorative: it opens nothing, so it is not announced as a control.
+                contentDescription = null,
                 tint = CallScreenTheme.colors.content.secondary,
                 modifier = Modifier.size(20.dp)
             )

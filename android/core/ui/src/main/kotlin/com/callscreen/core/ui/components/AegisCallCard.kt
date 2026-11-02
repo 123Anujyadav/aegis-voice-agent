@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CallMade
 import androidx.compose.material.icons.automirrored.filled.CallReceived
 import androidx.compose.material.icons.filled.Call
-
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -24,10 +23,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.ui.R
 
 public enum class CallType {
     Incoming,
@@ -87,7 +88,12 @@ public fun AegisCallCard(
                             else -> Icons.Default.Call
                         },
 
-                        contentDescription = "Call Icon",
+                        // The call's direction; other kinds are named by the status text.
+                        contentDescription = when (callType) {
+                            CallType.Incoming -> stringResource(R.string.core_ui_call_incoming)
+                            CallType.Outgoing -> stringResource(R.string.core_ui_call_outgoing)
+                            else -> null
+                        },
                         tint = when (callType) {
                             CallType.BlockedSpam -> CallScreenTheme.colors.status.spam.text
                             CallType.ScreenedAI -> CallScreenTheme.colors.status.ai.text

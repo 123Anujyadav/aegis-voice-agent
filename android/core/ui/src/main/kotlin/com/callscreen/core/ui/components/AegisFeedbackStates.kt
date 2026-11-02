@@ -20,16 +20,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.ui.R
 
 @Composable
 public fun AegisLoading(
     modifier: Modifier = Modifier,
-    message: String = "Protecting your calls..."
+    message: String
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -55,8 +57,8 @@ public fun AegisLoading(
 
 @Composable
 public fun AegisEmptyState(
-    title: String = "No Recent Calls",
-    description: String = "Your calls feed will show screened and incoming calls here.",
+    title: String,
+    description: String,
     icon: ImageVector = Icons.Default.Inbox,
     modifier: Modifier = Modifier
 ) {
@@ -95,8 +97,8 @@ public fun AegisEmptyState(
 
 @Composable
 public fun AegisErrorState(
-    title: String = "Connection Error",
-    errorMessage: String = "Unable to sync threat database. Please retry.",
+    title: String,
+    errorMessage: String,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -130,7 +132,7 @@ public fun AegisErrorState(
                 textAlign = TextAlign.Center
             )
             AegisPrimaryButton(
-                text = "Retry",
+                text = stringResource(R.string.core_ui_retry),
                 onClick = onRetry,
                 modifier = Modifier.fillMaxWidth(0.6f)
             )
@@ -142,8 +144,8 @@ public fun AegisErrorState(
 public fun AegisDialog(
     title: String,
     message: String,
-    confirmText: String = "Confirm",
-    dismissText: String = "Cancel",
+    confirmText: String = stringResource(R.string.core_ui_confirm),
+    dismissText: String = stringResource(R.string.core_ui_cancel),
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -190,6 +192,6 @@ public fun AegisDialog(
 @Composable
 private fun FeedbackStatesPreview() {
     CallScreenTheme {
-        AegisEmptyState()
+        AegisEmptyState(title = "No calls yet", description = "Calls will appear here.")
     }
 }
