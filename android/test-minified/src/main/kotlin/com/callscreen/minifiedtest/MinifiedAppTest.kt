@@ -71,9 +71,10 @@ class MinifiedAppTest {
         awaitText("Your SIM")
         awaitText("Verify Phone Number").click()
 
-        // A Hilt ViewModel (PhoneVerificationViewModel) over the identity graph, which a
+        // The sign-in entry (its visible heading; "Phone Verification" is only the icon's
+        // description). A Hilt ViewModel (PhoneVerificationViewModel) over the identity graph, which a
         // build without endpoints leaves unconfigured: the screen says so and sends nothing.
-        awaitText("Phone Verification")
+        awaitText("Enter Phone Number")
         awaitText("Sign-in is not available in this build.")
         assertFalse("sending a code must be impossible without a sign-in service", awaitText("Send Verification Code").isEnabled)
 
@@ -87,21 +88,21 @@ class MinifiedAppTest {
     fun theScreenSurvivesBackgroundingAndRotation() {
         awaitText("Get Protected").click()
         awaitText("Verify Phone Number").click()
-        awaitText("Phone Verification")
+        awaitText("Enter Phone Number")
 
         // Home, then back through the launcher: the same task and screen, not a restart.
         device.pressHome()
         assertTrue("the app is still on screen after Home", device.wait(Until.gone(By.pkg(PKG).depth(0)), TIMEOUT))
         launch(clearTask = false)
-        awaitText("Phone Verification")
+        awaitText("Enter Phone Number")
         awaitText("Sign-in is not available in this build.")
 
         // A configuration change recreates the activity: the screen and its state are restored.
         device.setOrientationLeft()
-        awaitText("Phone Verification")
+        awaitText("Enter Phone Number")
         awaitText("Sign-in is not available in this build.")
         device.setOrientationNatural()
-        awaitText("Phone Verification")
+        awaitText("Enter Phone Number")
 
         // Back still leads where it did before.
         device.pressBack()
@@ -136,8 +137,9 @@ class MinifiedAppTest {
         append("front: ").append(device.currentPackageName)
         append("; display ").append(device.displayWidth).append('x').append(device.displayHeight).append('\n')
         for (node in device.findObjects(By.pkg(PKG))) {
+            val kind = if (node.text != null) "text" else "desc"
             val label = node.text ?: node.contentDescription ?: continue
-            append("  \"").append(label.take(80)).append("\" visible=").append(node.visibleBounds)
+            append("  ").append(kind).append(" \"").append(label.take(80)).append("\" visible=").append(node.visibleBounds)
             if (node.isClickable) append(" clickable")
             if (!node.isEnabled) append(" disabled")
             append('\n')
