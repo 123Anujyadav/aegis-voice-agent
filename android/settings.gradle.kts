@@ -77,6 +77,8 @@ rootProject.name = "callscreen"
 // Thin by design: DI graph root, navigation host, manifest merge. No business
 // logic. Phase 1 §3 treats any logic appearing here as a boundary violation.
 include(":app")
+// Functional tests of the R8-minified app, driven from outside (test-minified/build.gradle.kts).
+include(":test-minified")
 
 // --- Core modules ------------------------------------------------------------
 // Horizontal capabilities with no knowledge of any feature. A core module may

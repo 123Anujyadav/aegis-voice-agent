@@ -8,9 +8,10 @@
 # request, 35 only. The tests suppress what an API level cannot do
 # (@SdkSuppress), so each level runs the cases that apply to it.
 #
-# After the tests, the script launches the R8-minified staging build on the
-# same emulator (a smoke check: alive after 15 s, no fatal exception, window
-# on screen); nothing else ever runs the minified app on a device.
+# After the tests, the script runs the minified build's functional tests
+# (android/test-minified: the R8-minified staging app driven from outside
+# through UI Automator) and a launch smoke check (alive after 15 s, no fatal
+# exception, window on screen).
 #
 # Not on every pull request: each API level takes a runner for about eight
 # minutes (7m25s for API 35 on 2026-11-01, boot included). It runs on a pull
@@ -38,6 +39,7 @@ on:
       - ".github/workflows/android-device-tests.yml"
       - "tools/scripts/android-device-tests.sh"
       - "android/app/src/androidTest/**"
+      - "android/test-minified/**"
 
 concurrency:
   group: android-device-tests-${{ github.head_ref || github.run_id }}
@@ -92,5 +94,7 @@ jobs:
             android/app/build/reports/androidTests/connected/
             android/app/build/outputs/androidTest-results/connected/
             android/app/build/device-test-logs/
+            android/test-minified/build/reports/androidTests/connected/
+            android/test-minified/build/outputs/androidTest-results/connected/
           if-no-files-found: ignore
           retention-days: 14
