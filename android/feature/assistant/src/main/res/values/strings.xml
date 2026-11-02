@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Assistant tab's words: the English source of every translation. Claims
+  are held to what the app does by tests: ReleaseCopyGuardTest scans every
+  values* folder, and HonestAssistantUiTest checks nothing claims a switch,
+  a saved voice or listening. Voice product names are not translated.
+-->
+<resources>
+
+    <!-- Assistant home -->
+    <string name="assistant_home_title">Assistant</string>
+    <string name="assistant_screening_title">Assistant screening</string>
+    <string name="assistant_screening_unavailable">Not available yet. The assistant answers unknown callers only through call forwarding, which isn\'t set up yet.</string>
+    <string name="assistant_not_available">Not available yet</string>
+    <string name="assistant_controls_heading">Customization &amp; Voice Controls</string>
+    <string name="assistant_voice_title">Assistant voice</string>
+    <string name="assistant_voice_card">See the voices planned for the assistant. Choosing one isn\'t available yet.</string>
+    <string name="assistant_session_title">Voice test session</string>
+    <string name="assistant_session_card">Not available yet.</string>
+
+    <!-- Voice setup: the voices planned in ADR-0005 and ADR-0007; none can be chosen or saved -->
+    <string name="assistant_voice_setup_title">AI Voice Customization</string>
+    <string name="assistant_voice_select">Select Voice Model</string>
+    <string name="assistant_voices_intro">These are the voices planned for the assistant. Choosing one isn\'t available yet, and nothing is saved.</string>
+    <string name="assistant_voice_option">%1$s - %2$s</string>
+    <string name="assistant_voice_elevenlabs" translatable="false">ElevenLabs Flash</string>
+    <string name="assistant_voice_elevenlabs_style">Calm Professional</string>
+    <string name="assistant_voice_elevenlabs_accent">English &amp; Hindi (Neutral Tone)</string>
+    <string name="assistant_voice_sarvam" translatable="false">Sarvam Indic Voice</string>
+    <string name="assistant_voice_sarvam_style">Authoritative</string>
+    <string name="assistant_voice_sarvam_accent">Hindi Devanagari Native Accent</string>
+    <string name="assistant_voice_cartesia" translatable="false">Cartesia Sonic</string>
+    <string name="assistant_voice_cartesia_style">Friendly Receptionist</string>
+    <string name="assistant_voice_cartesia_accent">Clear Indian English Accent</string>
+    <string name="assistant_save_unavailable">Saving a voice isn\'t available yet</string>
+
+    <!-- Voice session: the microphone is never used -->
+    <string name="assistant_session_screen_title">Interactive Voice Assistant</string>
+    <string name="assistant_session_unavailable">Voice sessions aren\'t available yet.</string>
+    <string name="assistant_no_microphone">The app doesn\'t use your microphone. Voice input will ask for microphone access first, and only when you turn it on.</string>
+    <string name="assistant_back">Back</string>
+</resources>

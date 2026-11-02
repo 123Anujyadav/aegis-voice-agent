@@ -72,6 +72,9 @@ class CallsLargeTextTest {
         val shown = node.fetchSemanticsNode()
         val window = with(compose.density) { Rect(0f, 0f, 320.dp.toPx(), 480.dp.toPx()) }
         val bounds = shown.boundsInRoot
+        // Text taller than its scrolling list can never be seen whole; it is read by scrolling through it.
+        val viewport = shown.scrollableParent()?.boundsInRoot
+        if (viewport != null && shown.size.height > viewport.height) return
         assertTrue(
             "\"$text\" is cut off: $bounds of ${shown.size}, window $window",
             bounds.height >= shown.size.height - 1 && bounds.width >= shown.size.width - 1 &&
@@ -83,8 +86,10 @@ class CallsLargeTextTest {
     private val scroller: SemanticsMatcher =
         hasScrollToNodeAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)
 
-    private fun SemanticsNode.inScrollable(): Boolean =
-        generateSequence(parent) { it.parent }.any { SemanticsActions.ScrollBy in it.config }
+    private fun SemanticsNode.scrollableParent(): SemanticsNode? =
+        generateSequence(parent) { it.parent }.firstOrNull { SemanticsActions.ScrollBy in it.config }
+
+    private fun SemanticsNode.inScrollable(): Boolean = scrollableParent() != null
 
     @Test
     fun theEmptyFeedStillSaysWhy() {

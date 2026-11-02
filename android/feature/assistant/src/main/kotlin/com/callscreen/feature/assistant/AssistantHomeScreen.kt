@@ -1,5 +1,6 @@
 package com.callscreen.feature.assistant
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -47,7 +49,7 @@ public fun AssistantHomeScreen(
 ) {
 
     Scaffold(
-        topBar = { AegisTopAppBar(title = "Assistant") },
+        topBar = { AegisTopAppBar(title = stringResource(R.string.assistant_home_title)) },
         bottomBar = { AegisBottomBar(currentTab = AegisTab.Assistant, onTabSelected = onTabSelected) }
     ) { paddingValues ->
         LazyColumn(
@@ -64,34 +66,35 @@ public fun AssistantHomeScreen(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = CallScreenTheme.colors.surface.default)
                 ) {
-                    Row(
+                    // The status sits under the words, not beside them: beside them, with a
+                    // large font, the words took the whole row and pushed it out of view (F22).
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(20.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Column {
                             Text(
-                                text = AssistantCopy.SCREENING_TITLE,
+                                text = stringResource(AssistantCopy.SCREENING_TITLE),
                                 style = CallScreenTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = CallScreenTheme.colors.content.primary
                             )
                             Text(
-                                text = AssistantCopy.SCREENING_UNAVAILABLE,
+                                text = stringResource(AssistantCopy.SCREENING_UNAVAILABLE),
                                 style = CallScreenTheme.typography.bodyMedium,
                                 color = CallScreenTheme.colors.content.secondary
                             )
                         }
-                        AegisStatusChip(text = AssistantCopy.NOT_AVAILABLE, variant = StatusChipVariant.Fraud)
+                        AegisStatusChip(text = stringResource(AssistantCopy.NOT_AVAILABLE), variant = StatusChipVariant.Fraud)
                     }
                 }
             }
 
             item {
                 Text(
-                    text = "Customization & Voice Controls",
+                    text = stringResource(R.string.assistant_controls_heading),
                     style = CallScreenTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = CallScreenTheme.colors.content.primary
@@ -101,8 +104,8 @@ public fun AssistantHomeScreen(
             item {
                 AssistantSettingCard(
                     icon = Icons.Default.RecordVoiceOver,
-                    title = "Assistant voice",
-                    description = AssistantCopy.VOICE_CARD,
+                    title = stringResource(R.string.assistant_voice_title),
+                    description = stringResource(AssistantCopy.VOICE_CARD),
                     onClick = onVoiceSetupClick
                 )
             }
@@ -110,8 +113,8 @@ public fun AssistantHomeScreen(
             item {
                 AssistantSettingCard(
                     icon = Icons.Default.Mic,
-                    title = "Voice test session",
-                    description = AssistantCopy.SESSION_CARD,
+                    title = stringResource(R.string.assistant_session_title),
+                    description = stringResource(AssistantCopy.SESSION_CARD),
                     onClick = onStartVoiceChatClick
                 )
             }
@@ -147,7 +150,8 @@ private fun AssistantSettingCard(
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = title,
+                    // Decorative: the title beside it is read once, not twice.
+                    contentDescription = null,
                     tint = CallScreenTheme.colors.status.ai.text,
                     modifier = Modifier.size(24.dp)
                 )
@@ -181,17 +185,16 @@ private fun AssistantHomeScreenPreview() {
  * What the assistant can honestly say today. Screening by the assistant needs
  * carrier forwarding (ADR-0002 Stage 2), which is not available yet, so there
  * is no switch: a toggle that changes nothing and saves nothing would mislead.
+ * The words are string resources (res/values/strings.xml).
  */
 internal object AssistantCopy {
-    const val SCREENING_TITLE = "Assistant screening"
-    const val SCREENING_UNAVAILABLE =
-        "Not available yet. The assistant answers unknown callers only through call forwarding, which isn't set up yet."
-    const val NOT_AVAILABLE = "Not available yet"
-    const val VOICE_CARD = "See the voices planned for the assistant. Choosing one isn't available yet."
-    const val SESSION_CARD = "Not available yet."
-    const val VOICES_INTRO = "These are the voices planned for the assistant. Choosing one isn't available yet, and nothing is saved."
-    const val SAVE_UNAVAILABLE = "Saving a voice isn't available yet"
-    const val SESSION_UNAVAILABLE = "Voice sessions aren't available yet."
-    const val NO_MICROPHONE =
-        "The app doesn't use your microphone. Voice input will ask for microphone access first, and only when you turn it on."
+    @StringRes val SCREENING_TITLE: Int = R.string.assistant_screening_title
+    @StringRes val SCREENING_UNAVAILABLE: Int = R.string.assistant_screening_unavailable
+    @StringRes val NOT_AVAILABLE: Int = R.string.assistant_not_available
+    @StringRes val VOICE_CARD: Int = R.string.assistant_voice_card
+    @StringRes val SESSION_CARD: Int = R.string.assistant_session_card
+    @StringRes val VOICES_INTRO: Int = R.string.assistant_voices_intro
+    @StringRes val SAVE_UNAVAILABLE: Int = R.string.assistant_save_unavailable
+    @StringRes val SESSION_UNAVAILABLE: Int = R.string.assistant_session_unavailable
+    @StringRes val NO_MICROPHONE: Int = R.string.assistant_no_microphone
 }

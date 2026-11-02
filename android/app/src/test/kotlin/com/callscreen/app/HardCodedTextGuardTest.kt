@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test
 class HardCodedTextGuardTest {
 
     private val migrated = listOf(
+        "feature/assistant",
         "feature/calls",
         "feature/onboarding",
         "feature/protection",
