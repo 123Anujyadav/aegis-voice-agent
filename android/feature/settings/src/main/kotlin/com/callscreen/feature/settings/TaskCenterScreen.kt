@@ -1,5 +1,6 @@
 package com.callscreen.feature.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.callscreen.core.telephony.screening.ContactsAccess
 import com.callscreen.core.telephony.screening.ScreeningRole
@@ -44,8 +46,8 @@ import com.callscreen.core.ui.components.StatusChipVariant
 public enum class TaskStatus { DONE, TO_DO, NOT_AVAILABLE }
 
 public data class TaskItem(
-    val title: String,
-    val description: String,
+    @StringRes val title: Int,
+    @StringRes val description: Int,
     val status: TaskStatus,
 )
 
@@ -72,7 +74,7 @@ public fun TaskCenterScreen(
 ) {
 
     Scaffold(
-        topBar = { AegisTopAppBar(title = "Setup") }
+        topBar = { AegisTopAppBar(title = stringResource(R.string.settings_tasks_title)) }
     ) { paddingValues ->
         Column(
             modifier = modifier
@@ -83,7 +85,7 @@ public fun TaskCenterScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "What is set up on this phone",
+                text = stringResource(R.string.settings_tasks_heading),
                 style = CallScreenTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = CallScreenTheme.colors.content.primary
@@ -114,19 +116,19 @@ public fun TaskCenterScreen(
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = task.title,
+                                    text = stringResource(task.title),
                                     style = CallScreenTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = CallScreenTheme.colors.content.primary
                                 )
                                 Text(
-                                    text = task.description,
+                                    text = stringResource(task.description),
                                     style = CallScreenTheme.typography.bodyMedium,
                                     color = CallScreenTheme.colors.content.secondary
                                 )
                             }
                             AegisStatusChip(
-                                text = SetupTasks.label(task.status),
+                                text = stringResource(SetupTasks.label(task.status)),
                                 variant = when (task.status) {
                                     TaskStatus.DONE -> StatusChipVariant.Verified
                                     TaskStatus.TO_DO -> StatusChipVariant.Spam
@@ -150,19 +152,19 @@ private fun AccountSection(onDeleteAccountClick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "Account",
+            text = stringResource(R.string.settings_account_heading),
             style = CallScreenTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = CallScreenTheme.colors.content.primary,
             modifier = Modifier.semantics { heading() },
         )
         Text(
-            text = AccountDeletionCopy.ENTRY_DESCRIPTION,
+            text = stringResource(AccountDeletionCopy.ENTRY_DESCRIPTION),
             style = CallScreenTheme.typography.bodyMedium,
             color = CallScreenTheme.colors.content.secondary,
         )
         OutlinedButton(onClick = onDeleteAccountClick, modifier = Modifier.fillMaxWidth()) {
-            Text(text = AccountDeletionCopy.TITLE, color = CallScreenTheme.colors.action.danger.fill)
+            Text(text = stringResource(AccountDeletionCopy.TITLE), color = CallScreenTheme.colors.action.danger.fill)
         }
     }
 }

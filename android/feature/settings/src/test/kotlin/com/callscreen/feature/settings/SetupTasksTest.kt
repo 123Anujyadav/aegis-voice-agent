@@ -9,6 +9,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /** The Settings checklist reports the phone's actual state, and nothing invented. */
@@ -18,6 +19,9 @@ class SetupTasksTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    /** The shipped English resource: res/values/strings.xml. */
+    private fun s(id: Int): String = RuntimeEnvironment.getApplication().getString(id)
 
     private fun statuses(role: ScreeningRoleStatus, contacts: Boolean) = SetupTasks.of(role, contacts).map { it.status }
 
@@ -40,8 +44,9 @@ class SetupTasksTest {
     @Test
     fun theScreenShowsTheComputedTasksAndNoSampleOnes() {
         compose.setContent { CallScreenTheme { TaskCenterScreen(tasks = SetupTasks.of(ScreeningRoleStatus.NOT_HELD, false)) } }
-        compose.onNodeWithText(SetupTasks.BLOCKING).assertExists()
-        compose.onNodeWithText(SetupTasks.FORWARDING).assertExists()
+        compose.onNodeWithText(s(SetupTasks.BLOCKING)).assertExists()
+        compose.onNodeWithText(s(SetupTasks.FORWARDING)).assertExists()
+        compose.onNodeWithText(s(R.string.settings_task_forwarding_unavailable)).assertExists()
         compose.onNodeWithText("Not available", ignoreCase = true).assertExists()
         for (sample in listOf("David", "Fraud Database", "telemetry", "Microphone Calibration")) {
             compose.onNodeWithText(sample, substring = true).assertDoesNotExist()

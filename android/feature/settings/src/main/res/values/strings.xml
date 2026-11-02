@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Settings' words (the setup checklist, account deletion): the English source
+  of every translation. Claims are held to what the app does by tests:
+  ReleaseCopyGuardTest scans every values* folder, and the deletion wording
+  is checked against docs/phase19/ACCOUNT-DELETION.md.
+-->
+<resources>
+
+    <!-- Setup checklist (the Settings tab) -->
+    <string name="settings_tasks_title">Setup</string>
+    <string name="settings_tasks_heading">What is set up on this phone</string>
+    <string name="settings_task_blocking">On-device blocking</string>
+    <string name="settings_task_blocking_done">Numbers you block are rejected on this phone.</string>
+    <string name="settings_task_blocking_to_do">Turn it on from Protection, Blocked numbers.</string>
+    <string name="settings_task_blocking_unavailable">This version of Android doesn\'t let apps block calls.</string>
+    <string name="settings_task_contacts">Block saved contacts</string>
+    <string name="settings_task_contacts_unavailable">Needs on-device blocking, which this phone can\'t do.</string>
+    <string name="settings_task_contacts_done">Saved contacts you block are rejected too. Contacts are never read or uploaded.</string>
+    <string name="settings_task_contacts_to_do">Optional. Allow contacts access from Protection, Blocked numbers.</string>
+    <string name="settings_task_forwarding">Call forwarding to the assistant</string>
+    <string name="settings_task_forwarding_unavailable">Needs a number from our service, which isn\'t set up yet. Nothing has been changed with your carrier.</string>
+    <string name="settings_task_status_done">Done</string>
+    <string name="settings_task_status_to_do">To do</string>
+    <string name="settings_task_status_not_available">Not available</string>
+    <string name="settings_account_heading">Account</string>
+
+    <!-- Account deletion: only what the server does (docs/phase19/ACCOUNT-DELETION.md) -->
+    <string name="settings_deletion_title">Delete account</string>
+    <string name="settings_deletion_entry_description">Permanently delete your Aegis account and sign out.</string>
+    <string name="settings_deletion_what_happens">What deleting your account does</string>
+    <string name="settings_deletion_deleted_server">Your account is deleted on our servers, on every phone where you are signed in.</string>
+    <string name="settings_deletion_deleted_sessions">Your sign-in sessions, pending verification codes and device records are deleted.</string>
+    <string name="settings_deletion_deleted_signed_out">This phone is signed out.</string>
+    <string name="settings_deletion_what_stays">What stays</string>
+    <string name="settings_deletion_kept_record">A record that your account was deleted, and when. It holds a coded account id, not your phone number.</string>
+    <string name="settings_deletion_kept_security_log">Our security log, which contains no phone number or account id.</string>
+    <string name="settings_deletion_kept_lists">Your blocked and allowed numbers stay on this phone. They were never sent to us. Remove them in Protection, or uninstall the app.</string>
+    <string name="settings_deletion_kept_short_lived">Short-lived security records, such as abuse limits and a receipt for this request, are removed automatically within about a day.</string>
+    <string name="settings_deletion_permanent">This cannot be undone.</string>
+    <string name="settings_deletion_delete_button">Delete my account</string>
+    <string name="settings_deletion_confirm_title">Delete your account permanently?</string>
+    <string name="settings_deletion_confirm_message">Your account will be deleted on every phone. This cannot be undone.</string>
+    <string name="settings_deletion_confirm">Delete permanently</string>
+    <string name="settings_deletion_cancel">Cancel</string>
+    <string name="settings_deletion_deleting">Deleting your account…</string>
+    <string name="settings_deletion_done_title">Your account has been deleted</string>
+    <string name="settings_deletion_done_body">Our servers confirmed the deletion, and this phone is signed out.</string>
+    <string name="settings_deletion_done_button">Done</string>
+    <string name="settings_deletion_checking">Checking this phone\'s sign-in…</string>
+    <string name="settings_deletion_not_signed_in">This phone is not signed in, so there is no account to delete from here. To delete an account, sign in with its number first.</string>
+    <string name="settings_deletion_not_configured">Accounts are not available in this version of the app, so there is no account to delete.</string>
+    <string name="settings_deletion_back">Back</string>
+    <string name="settings_deletion_bullet">• %1$s</string>
+
+    <!-- Failures: each says only what the phone knows, never that nothing was deleted -->
+    <string name="settings_deletion_message_no_confirmation">We could not confirm the deletion. Check your connection and try again. If it already went through, trying again confirms it.</string>
+    <string name="settings_deletion_message_service_unavailable">The service is unavailable right now, so the deletion is not confirmed. Try again later.</string>
+    <string name="settings_deletion_message_too_many_attempts">Too many attempts, so the deletion is not confirmed. Wait a while and try again.</string>
+    <string name="settings_deletion_message_device_check_failed">This phone could not prove it is the one you signed in on, so the deletion is not confirmed. Check the phone\'s date and time, then try again.</string>
+    <string name="settings_deletion_message_session_ended">This phone\'s sign-in has ended, so it cannot delete or confirm deleting the account, and it has been signed out. If the account still exists, sign in again to delete it.</string>
+    <string name="settings_deletion_message_unexpected">Something went wrong. Nothing was confirmed as deleted. Try again.</string>
+</resources>
