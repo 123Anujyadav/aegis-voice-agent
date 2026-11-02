@@ -1,0 +1,9 @@
+# The reviewed size of the staging APK (app-staging.apk: release's R8 and
+# resource shrinking, debug-signed), in bytes. CI ("The staging APK has exactly
+# the release languages and fits the size budget") fails when a change grows
+# the APK more than 2% over this (Phase 1 §17). A change that grows it on
+# purpose updates this number in the same pull request, saying why.
+#
+# 2026-11-02: the six release languages (en, hi, ta, te, ml, kn), measured
+# after dropping bn and mr and adding ml and kn (1,382,238 -> 1,382,326 bytes).
+1382326

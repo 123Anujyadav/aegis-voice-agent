@@ -1,0 +1,16 @@
+# The languages the release app is packaged in, one BCP 47 language code per
+# line. The owner's six (OD-17): English, Hindi, Tamil, Telugu, Malayalam and
+# Kannada. English comes first: it is the source of every translation and what
+# any string a translation leaves out falls back to.
+#
+# Read by the build (AndroidApplicationConventionPlugin: localeFilters, and
+# BuildConfig.PACKAGED_LOCALES for the app's language list) and by CI
+# ("The staging APK has exactly the release languages"). Packaging a language
+# is not the same as translating it: docs/phase19/LOCALISATION.md says which
+# languages have translations.
+en
+hi
+ta
+te
+ml
+kn

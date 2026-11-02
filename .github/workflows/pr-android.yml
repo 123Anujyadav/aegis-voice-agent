@@ -25,12 +25,14 @@ on:
     branches: [main]
     paths:
       - "tools/scripts/android-release-bundle.sh"
+      - "tools/scripts/android-apk-gate.sh"
       - "android/**"
       - "design/tokens/**"
       - ".github/workflows/pr-android.yml"
   pull_request:
     paths:
       - "tools/scripts/android-release-bundle.sh"
+      - "tools/scripts/android-apk-gate.sh"
       - "android/**"
       - "design/tokens/**"
       - ".github/workflows/pr-android.yml"
@@ -152,6 +154,12 @@ jobs:
         run: |
           mapping=app/build/outputs/mapping/staging/mapping.txt
           test -s "$mapping" || { echo "::error::$mapping is missing or empty: the staging build was not minified by R8"; exit 1; }
+
+      # The staging APK (release's R8 and resource shrinking) holds exactly the
+      # languages in android/app/release-locales.txt, and is within 2% of the
+      # reviewed size in android/app/release-apk-size.txt (Phase 1 §17).
+      - name: The staging APK has exactly the release languages and fits the size budget
+        run: bash tools/scripts/android-apk-gate.sh android/app/build/outputs/apk/staging/app-staging.apk
 
       # The release signing path, through the SAME script the release workflow
       # runs (tools/scripts/android-release-bundle.sh), with a THROWAWAY key

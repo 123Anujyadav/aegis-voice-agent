@@ -47,6 +47,12 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
                 }
 
+                // The owner's six languages (OD-17), from app/release-locales.txt
+                // (ReleaseLocales), which CI also checks the built APK against.
+                val releaseLocales = ReleaseLocales.parse(
+                    providers.fileContents(layout.projectDirectory.file("release-locales.txt")).asText.get(),
+                )
+
                 androidResources {
                     // Restrict packaged resources to the languages the product
                     // actually ships. Every unshipped locale in a dependency
@@ -54,7 +60,13 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                     // APK growth at 2% — a threshold that stray locales alone
                     // can breach. localeFilters replaces the deprecated
                     // defaultConfig.resourceConfigurations, deprecated in AGP 8.9.
-                    localeFilters += setOf("en", "hi", "bn", "ta", "te", "mr")
+                    localeFilters += releaseLocales
+                }
+
+                // The app's language list must offer exactly what is packaged
+                // (the app's AppLanguage, checked against this by a unit test).
+                defaultConfig {
+                    buildConfigField("String", "PACKAGED_LOCALES", "\"${releaseLocales.joinToString(",")}\"")
                 }
 
                 buildFeatures {

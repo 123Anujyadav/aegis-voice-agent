@@ -1,5 +1,6 @@
 package com.callscreen.app
 
+import com.callscreen.BuildConfig
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -94,6 +95,32 @@ class TranslationConsistencyTest {
         val dirs = resourceDirs()
         assertTrue(dirs.any { File(it, "values/strings.xml").isFile }, "no English strings.xml found from ${File("..").canonicalPath}")
         assertEquals(emptyList<String>(), dirs.flatMap(::problems))
+    }
+
+    /** The language of a values-* folder ("values-hi" is "hi", "values-b+kn+Knda" is "kn"), or null for night, v27 and the like. */
+    private fun language(folder: String): String? {
+        val first = folder.removePrefix("values-").split('-').first()
+        return when {
+            first.startsWith("b+") -> first.removePrefix("b+").substringBefore('+')
+            Regex("^[a-z]{2,3}$").matches(first) -> first
+            else -> null
+        }
+    }
+
+    @Test
+    @DisplayName("every translation is in a language the release packages")
+    fun translationsArePackaged() {
+        // localeFilters strips every other language from the APK, so a translation outside
+        // app/release-locales.txt would be dropped from the release without any error.
+        val packaged = BuildConfig.PACKAGED_LOCALES.split(",").toSet()
+        assertEquals(setOf("en", "hi", "ta", "te", "ml", "kn"), packaged)
+        val unpackaged = resourceDirs().flatMap { res ->
+            res.listFiles { f -> f.isDirectory && f.name.startsWith("values-") && File(f, "strings.xml").isFile }.orEmpty()
+                .filter { language(it.name)?.let { code -> code !in packaged } ?: false }
+                .map { "${res.parentFile?.parentFile?.parentFile?.name}/${it.name}" }
+        }
+        assertEquals(emptyList<String>(), unpackaged)
+        assertEquals(listOf("hi", "kn", null, null), listOf("values-hi", "values-b+kn+Knda", "values-night", "values-v27").map(::language))
     }
 
     @Test

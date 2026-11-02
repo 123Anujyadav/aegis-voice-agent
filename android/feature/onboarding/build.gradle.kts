@@ -25,3 +25,15 @@ dependencies {
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.junit4)
 }
+
+// ReleaseCopyGuardTest reads every module's main sources and
+// resources, which Gradle does not otherwise count as this module's test
+// inputs: without this, a change elsewhere left a stale pass up to date locally.
+tasks.withType<Test>().configureEach {
+    inputs.files(
+        fileTree(rootDir) {
+            include("**/src/main/**")
+            exclude("**/build/**", ".gradle/**", "build-logic/**")
+        },
+    ).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("everyModulesMainSources")
+}
