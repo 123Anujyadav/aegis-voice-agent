@@ -24,7 +24,7 @@ module:
 | `feature/calls` | `calls_` | A20 feed, F14's A75 banner (#217) |
 | `feature/assistant` | `assistant_` | Assistant home, voice setup, voice session (#218) |
 | `core/ui` | `core_ui_` | Shared components: tabs, top bar, search, dialog, states (#219) |
-| `app` | `app_` | A73 signed-out notice; `app_name` |
+| `app` | `app_` | A73 signed-out notice (#220); `app_name` |
 
 The code holds resource ids, never words:
 - copy objects (`AccountDeletionCopy`, `CallerListCopy`, and so on) hold `@StringRes` ids;
