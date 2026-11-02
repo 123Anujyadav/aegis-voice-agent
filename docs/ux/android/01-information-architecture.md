@@ -80,6 +80,7 @@ CallScreen
     ├── Business                          visible only to organisation members
     ├── Accessibility
     ├── Appearance                        theme, text size
+    │   └── App language                  the screens' language, not the assistant's
     └── About                             legal, grievance officer, support
 ```
 

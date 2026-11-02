@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,8 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.AegisTopAppBar
 import com.callscreen.core.ui.components.StatusChipVariant
+import com.callscreen.core.ui.language.AppLanguage
+import com.callscreen.core.ui.language.AppLanguageSetting
 
 public enum class TaskStatus { DONE, TO_DO, NOT_AVAILABLE }
 
@@ -53,23 +56,33 @@ public data class TaskItem(
 
 /**
  * The Settings tab: setup steps computed from this phone's actual state,
- * rechecked on each return, and the account section.
+ * rechecked on each return, the app's language and the account section.
  */
 @Composable
-public fun TaskCenterRoute(onDeleteAccountClick: () -> Unit = {}) {
+public fun TaskCenterRoute(onLanguageClick: () -> Unit = {}, onDeleteAccountClick: () -> Unit = {}) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(SetupTasks.of(ScreeningRoleStatus.UNAVAILABLE, contactsAccess = false)) }
+    var language by remember { mutableStateOf(AppLanguageSetting.selected(context)) }
     LifecycleResumeEffect(Unit) {
         tasks = SetupTasks.of(ScreeningRole.status(context), ContactsAccess.granted(context))
+        language = AppLanguageSetting.selected(context)
         onPauseOrDispose {}
     }
-    TaskCenterScreen(tasks = tasks, onDeleteAccountClick = onDeleteAccountClick)
+    TaskCenterScreen(
+        tasks = tasks,
+        language = language,
+        onLanguageClick = onLanguageClick,
+        onDeleteAccountClick = onDeleteAccountClick,
+    )
 }
 
 @Composable
 public fun TaskCenterScreen(
     modifier: Modifier = Modifier,
     tasks: List<TaskItem> = emptyList(),
+    /** The chosen app language; null is the phone's language. */
+    language: AppLanguage? = null,
+    onLanguageClick: () -> Unit = {},
     onDeleteAccountClick: () -> Unit = {},
 ) {
 
@@ -147,7 +160,40 @@ public fun TaskCenterScreen(
                     }
                 }
             }
+            item { LanguageSection(language, onLanguageClick) }
             item { AccountSection(onDeleteAccountClick) }
+        }
+    }
+}
+
+/** A58l's entry: the language the app's screens are in, and the way to change it. */
+@Composable
+private fun LanguageSection(language: AppLanguage?, onLanguageClick: () -> Unit) {
+    Column(
+        modifier = Modifier.padding(top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_language_title),
+            style = CallScreenTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = CallScreenTheme.colors.content.primary,
+            modifier = Modifier.semantics { heading() },
+        )
+        Text(
+            text = if (language == null) AnnotatedString(stringResource(R.string.settings_language_phone)) else nativeName(language),
+            style = CallScreenTheme.typography.bodyMedium,
+            color = CallScreenTheme.colors.content.secondary,
+        )
+        if (language != null && !language.translated) {
+            Text(
+                text = stringResource(R.string.settings_language_not_translated),
+                style = CallScreenTheme.typography.bodySmall,
+                color = CallScreenTheme.colors.content.secondary,
+            )
+        }
+        OutlinedButton(onClick = onLanguageClick, modifier = Modifier.fillMaxWidth()) {
+            Text(text = stringResource(R.string.settings_language_change), color = CallScreenTheme.colors.content.primary)
         }
     }
 }

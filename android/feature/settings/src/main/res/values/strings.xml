@@ -25,6 +25,14 @@
     <string name="settings_task_status_not_available">Not available</string>
     <string name="settings_account_heading">Account</string>
 
+    <!-- A58l App language. The screens' language only: the assistant's language on calls is separate (A43). -->
+    <string name="settings_language_title">App language</string>
+    <string name="settings_language_intro">Choose the language of this app\'s screens. It doesn\'t change the language the assistant uses on calls.</string>
+    <string name="settings_language_phone">Phone\'s language</string>
+    <string name="settings_language_phone_detail">Your phone\'s language if this app has it, otherwise English.</string>
+    <string name="settings_language_not_translated">Not translated yet. Screens stay in English.</string>
+    <string name="settings_language_change">Change app language</string>
+
     <!-- Account deletion: only what the server does (docs/phase19/ACCOUNT-DELETION.md) -->
     <string name="settings_deletion_title">Delete account</string>
     <string name="settings_deletion_entry_description">Permanently delete your Aegis account and sign out.</string>

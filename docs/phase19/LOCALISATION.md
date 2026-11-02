@@ -1,14 +1,13 @@
 # Localisation: the Android app's words
 
-**Status, 2026-11-02.** The app ships in **English only**. Every release
-screen's words are in string resources, which is the precondition for
-translation. **No translation exists for any of the owner's other five
-languages** (Hindi, Tamil, Telugu, Malayalam and Kannada). No locale
-switching has been built. Fallback is Android's standard per-string fallback
-to English, and it has not been tested with a translation, because none
-exists. Do not describe the app as supporting any language other than English
-until that language's translation, locale selection and on-device tests below
-are done.
+**Status, 2026-11-02.** The app's screens are in **English only**. Every
+release screen's words are in string resources, the release packages the
+owner's six languages, and a subscriber can choose any of them (§4). **No
+translation exists for any of the owner's other five languages** (Hindi, Tamil,
+Telugu, Malayalam and Kannada), so choosing one shows English, and the picker
+says "Not translated yet". Do not describe the app as supporting any language
+other than English until that language's reviewed translation and on-device
+tests below are done.
 
 ## 1. Where the words are
 
@@ -50,7 +49,7 @@ The `strings.xml` files are **not** the whole job. Before a language ships:
 1. **The release must package it.** It does, for all six: `android/app/release-locales.txt` lists `en, hi, ta, te, ml, kn`, the owner's set (OD-17, applied 2026-11-02; Bengali and Marathi, which nothing depended on, were dropped). The build's `localeFilters` and `BuildConfig.PACKAGED_LOCALES` are read from that file. CI checks the built staging APK against it ("The staging APK has exactly the release languages and fits the size budget", `tools/scripts/android-apk-gate.sh`), and `TranslationConsistencyTest` fails a `values-<code>` folder for any other language, which the build would silently strip.
 2. **The translation stays with people the owner approves.** No external translation API or service may receive the app's text without the owner's explicit approval (provider, cost, data sharing and privacy explained first).
 3. **The checks pass** (§3), including the banned-claims scan of every `values*` folder.
-4. **Locale selection exists** (§4), and it lists only translated languages.
+4. **It is marked translated** (§4): the picker stops calling it "not translated yet", and Android's App languages page lists it.
 5. **It is tested on a device in that language** (§5).
 
 ## 3. The checks every language passes
@@ -66,22 +65,36 @@ The `strings.xml` files are **not** the whole job. Before a language ships:
 
 The large-text tests render with Robolectric's **native graphics**. The default (legacy) graphics give every glyph a fixed size and ignore the font scale, so they cannot show that text fits (#216). Twice the font scale makes English text wider and taller than the 40% growth UX_FREEZE §9 item 2 allows for. It does not test Indic scripts' line heights or shaping, which needs real translations (§5).
 
-## 4. Locale selection and fallback: not built
+## 4. Language selection and fallback
 
-- **Selection.** Nothing in the app chooses a language. It follows the phone's language, and with only English it always shows English. Two options exist:
-  - Android 13+ per-app languages: `generateLocaleConfig`, which lists the packaged locales in system settings;
-  - an in-app picker: AndroidX AppCompat `setApplicationLocales`, which also covers Android 8–12.
+- **Selection: built (A58l, `docs/ux/android/07-screens-settings-premium-business.md`).** Settings has an **App language** section that opens the picker: the phone's language (the default) and the six. `core/ui`'s `AppLanguage` is the list (equal to `release-locales.txt`, `AppLanguageListTest`), and `AppLanguageSetting` keeps the choice in one place per Android version:
+  - **Android 13 and later:** Android's per-app language (`LocaleManager`). It persists across restarts and updates, and Android re-creates the screens on a change. A choice stored on Android 12 or earlier moves into it once after an OS upgrade (`migrate`).
+  - **Android 8 to 12:** the app's preferences file `callscreen_app_language`, written with `commit()` before the activity is re-created, and applied by `MainActivity.attachBaseContext` (`wrap`), which also sets the default locale for number and date formats.
+  - An unsupported or unreadable value (a language outside the six, damage) means the phone's language.
+  - No new library: AndroidX AppCompat's `setApplicationLocales` would need AppCompat's activity and theme.
+- **Android's App languages page** (`android:localeConfig`) lists a language only once it is translated; while only English is, the app declares none (`AppLanguageListTest`). The in-app picker lists all six and marks those not translated yet.
+- **Not translated yet.** `AppLanguage.translated` is true only for English. A language is marked translated in the same change that adds its reviewed translation, and `TranslationConsistencyTest` then fails if any release string is missing from it, so a translated language never mixes with English.
+- **Fallback.** Android resolves each string on its own: from `values-<code>` when it is there, otherwise from `values` (English). Tested with the platform's own strings, which have translations while the app's do not: in Hindi, Tamil and Malayalam, the app's words are English and Android's are translated (`AppLanguageSettingTest`, `AppLanguageOnDeviceTest`).
+- **The assistant's language is separate.** Choosing a screen language never changes the language the assistant speaks or understands on calls (A43, ADR-0005).
 
-  Either must list only languages that have been translated and tested, so it waits for the first translation. The in-app picker needs a UX spec.
-- **Fallback.** Android resolves each string on its own: from `values-<code>` when it is there, otherwise from `values` (English). A half-translated screen therefore mixes languages, so a language should ship with every release screen translated. Untested until a translation exists.
+| Test | Where | What |
+|---|---|---|
+| `AppLanguageTest` | core/ui, JVM | The six in order; locale matching; each name in its own script |
+| `AppLanguageSettingTest` | core/ui, Robolectric, API 26, 28, 33, 35 | Persistence on disk (8–12) and in `LocaleManager` (13+); fallback; unsupported values; activity re-creation; the OS-upgrade migration |
+| `AppLanguageScreenTest`, `SettingsLargeTextTest` | feature/settings | One choice of seven; the "not translated" notes; screen-reader language marks; no mixed-language names; reachable at twice the font scale in 320 x 480 dp |
+| `AppLanguageListTest`, `TranslationConsistencyTest` | app | The list equals the packaged set; Android's list holds only translated languages; a translated language is complete |
+| `AppLanguageOnDeviceTest` | app, emulator API 26, 28, 35 | Choose Tamil in the picker: re-created in Tamil on the same screen; Back returns to Settings; on disk or in `LocaleManager`; a new activity starts in it; the session record is untouched; back to the phone's language |
+| `MinifiedAppTest.anAppLanguageWithoutATranslationStartsInEnglish` | test-minified, API 33+ | The R8 build, started with a per-app language, shows English |
+
+**Not tested:** real process death on a device. The next process reads the same file or Android setting that these tests read.
 
 ## 5. Deliverables before claiming a language
 
 For each of Hindi, Tamil, Telugu, Malayalam and Kannada:
 
 1. **Translation** of every module's `strings.xml`, by translators the owner approves, and reviewed against the spec-linked English.
-2. **Packaging**: done for all six (`android/app/release-locales.txt`).
-3. **Locale selection** (§4), listing only that language once it is complete.
+2. **Packaging**: done for all six (`android/app/release-locales.txt`). **Selection**: done for all six (§4).
+3. **Marked translated** (`AppLanguage.translated`), which makes the picker drop its "Not translated yet" note and requires every string (§4); and added to `res/xml/locales_config.xml`, declared in the manifest, for Android's App languages page.
 4. **On-device tests in that language** on the release (minified) build:
    - every flow in `android/test-minified`;
    - recreation after a language change;
