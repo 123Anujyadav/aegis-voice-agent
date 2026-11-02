@@ -16,4 +16,12 @@
     <!-- Launcher label. Not translated: the product name is a proper noun. -->
     <string name="app_name" translatable="false">CallScreen</string>
 
+    <!-- A73 Signed out (docs/ux/android/06-screens-onboarding-auth-permissions.md, "A73 as built").
+         A reason is given only when the app knows it. -->
+    <string name="app_signed_out_title">You\'re signed out on this device.</string>
+    <string name="app_signed_out_you_signed_out">You signed out.</string>
+    <string name="app_signed_out_not_verified">We couldn\'t verify this device.</string>
+    <string name="app_signed_out_blocking_still_on">On-device blocking is still on.</string>
+    <string name="app_signed_out_sign_in">Sign in</string>
+
 </resources>
