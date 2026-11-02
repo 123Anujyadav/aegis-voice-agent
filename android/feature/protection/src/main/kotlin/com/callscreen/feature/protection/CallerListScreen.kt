@@ -155,9 +155,8 @@ internal fun CallerListScreen(
         modifier = modifier,
     ) { padding ->
         // One scrolling list for the whole body: the notice, the caveat and the search field
-        // scroll with the entries. In a plain Column the empty and unreadable states, the
-        // recovery button among them, could not scroll, and at a large font they were cut off
-        // (ProtectionLargeTextTest).
+        // scroll with the entries, and the empty and unreadable states, the recovery button
+        // among them, scroll too when they do not fit (ProtectionLargeTextTest).
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()

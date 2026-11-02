@@ -76,45 +76,53 @@ public fun TaskCenterScreen(
     Scaffold(
         topBar = { AegisTopAppBar(title = stringResource(R.string.settings_tasks_title)) }
     ) { paddingValues ->
-        Column(
+        // One list for the whole screen, heading included: a fixed heading left the list
+        // too short to show one checklist card at a large font (F20).
+        LazyColumn(
             modifier = modifier
                 .fillMaxSize()
                 .background(CallScreenTheme.colors.surface.background)
                 .padding(paddingValues)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = stringResource(R.string.settings_tasks_heading),
-                style = CallScreenTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = CallScreenTheme.colors.content.primary
-            )
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(tasks) { task ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = CallScreenTheme.colors.surface.default)
+            item {
+                Text(
+                    text = stringResource(R.string.settings_tasks_heading),
+                    style = CallScreenTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = CallScreenTheme.colors.content.primary,
+                    // 12 dp below, as before: the list's 10 dp and 2 more.
+                    modifier = Modifier.padding(bottom = 2.dp),
+                )
+            }
+            items(tasks) { task ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CallScreenTheme.colors.surface.default)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        Icon(
+                            imageVector = if (task.status == TaskStatus.DONE) Icons.Default.CheckCircle else Icons.Default.PendingActions,
+                            contentDescription = null,
+                            tint = if (task.status == TaskStatus.DONE) {
+                                CallScreenTheme.colors.status.success.text
+                            } else {
+                                CallScreenTheme.colors.status.warning.text
+                            }
+                        )
+                        // The status sits under the words, not beside them: beside them, with a
+                        // large font, it left the description a sliver one letter wide (F20).
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Icon(
-                                imageVector = if (task.status == TaskStatus.DONE) Icons.Default.CheckCircle else Icons.Default.PendingActions,
-                                contentDescription = null,
-                                tint = if (task.status == TaskStatus.DONE) {
-                                    CallScreenTheme.colors.status.success.text
-                                } else {
-                                    CallScreenTheme.colors.status.warning.text
-                                }
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column {
                                 Text(
                                     text = stringResource(task.title),
                                     style = CallScreenTheme.typography.titleSmall,
@@ -138,8 +146,8 @@ public fun TaskCenterScreen(
                         }
                     }
                 }
-                item { AccountSection(onDeleteAccountClick) }
             }
+            item { AccountSection(onDeleteAccountClick) }
         }
     }
 }
