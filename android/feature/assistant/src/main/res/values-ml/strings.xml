@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Malayalam (ml): AWAITING a human-reviewed translation. Empty on purpose.
+
+  Every string not here is shown in English (res/values), and the app's
+  language picker says "Not translated yet" until AppLanguage.MALAYALAM is
+  marked translated, which requires every string (TranslationConsistencyTest).
+  Fill it with tools/i18n/translation_kit.py (export, then import, naming
+  the reviewer), from a translator the owner approves. Do not machine-translate
+  into it, or send the app's text to an external translation service, without
+  the owner's approval (docs/phase19/LOCALISATION.md §6).
+-->
+<resources>
+</resources>

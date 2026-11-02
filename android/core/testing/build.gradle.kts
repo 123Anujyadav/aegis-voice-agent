@@ -11,6 +11,8 @@
 
 plugins {
     id("callscreen.android.library")
+    // PseudoTranslation provides a Compose context for layout tests.
+    id("callscreen.android.compose")
 }
 
 android {
@@ -18,4 +20,10 @@ android {
 }
 
 dependencies {
+    // The release languages (AppLanguage) and the theme screens are shown in.
+    implementation(projects.core.ui)
+    implementation(projects.core.designsystem)
+    // TranslationLayout drives a Compose test rule. Test-only consumers.
+    implementation(libs.androidx.compose.ui.test.junit4)
+    implementation(libs.junit4)
 }

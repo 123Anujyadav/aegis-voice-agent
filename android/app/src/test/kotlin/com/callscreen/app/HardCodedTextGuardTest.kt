@@ -51,9 +51,13 @@ class HardCodedTextGuardTest {
         "feature/summary",
     )
 
-    /** Modules with composables but no words of their own: the theme. */
+    /**
+     * Modules with composables but no words of their own: the theme, and the
+     * test-only stand-in translation (core/testing, never shipped).
+     */
     private val wordless = listOf(
         "core/designsystem",
+        "core/testing",
     )
 
     /**
