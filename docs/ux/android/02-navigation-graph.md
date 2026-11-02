@@ -179,7 +179,7 @@ is active but setup is incomplete, and drops the user into Calls.
    │                 └──▶ A64 Manage subscription
    ├──▶ A56 Business        (only if organisation member)
    ├──▶ A57 Accessibility
-   ├──▶ A58 Appearance ──▶ A58l App language
+   ├──▶ A58 Appearance ──▶ A58l App language    (also from A01 Welcome)
    └──▶ A65 About ──▶ legal · grievance officer · support · open-source notices
 ```
 

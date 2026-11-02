@@ -110,7 +110,7 @@ For each of Hindi, Tamil, Telugu, Malayalam and Kannada:
 
 `tools/i18n/translation_kit.py` (standard library only; it contacts no service):
 
-1. `python3 tools/i18n/translation_kit.py status`: each language's progress per module. Today **0/243 for each of the five**.
+1. `python3 tools/i18n/translation_kit.py status`: each language's progress per module. On 2026-11-03, **0/244 for each of the five** (243 before Welcome's Language label).
 2. `python3 tools/i18n/translation_kit.py export --lang hi hi.csv`: a worksheet (CSV, UTF-8). It has one row per translatable string and per plural form the language uses (CLDR: `one` and `other` for all six), with:
    - the module and the English;
    - the comment above the string in `strings.xml`, which says where it appears and what the spec requires;
