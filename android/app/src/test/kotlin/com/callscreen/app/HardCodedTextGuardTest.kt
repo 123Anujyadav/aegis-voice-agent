@@ -23,11 +23,13 @@ class HardCodedTextGuardTest {
     private val migrated = listOf(
         "feature/onboarding",
         "feature/protection",
+        "feature/settings",
     )
 
     /** Debug-only design previews inside a migrated module, never in a release build. */
     private val designPreviews = setOf(
         "FraudIntelligenceScreen.kt",
+        "ConsentVaultScreen.kt",
     )
 
     /**

@@ -1,5 +1,6 @@
 package com.callscreen.feature.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -33,56 +35,54 @@ import com.callscreen.core.ui.components.AegisEmergencyButton
 import com.callscreen.core.ui.components.AegisPrimaryButton
 import com.callscreen.core.ui.components.AegisTopAppBar
 
-/** The words on the deletion screen; they state only what the server does (docs/phase19/ACCOUNT-DELETION.md). */
+/**
+ * The words on the deletion screen, as string resources (res/values/strings.xml):
+ * they state only what the server does (docs/phase19/ACCOUNT-DELETION.md).
+ */
 public object AccountDeletionCopy {
-    public const val TITLE: String = "Delete account"
-    public const val ENTRY_DESCRIPTION: String = "Permanently delete your Aegis account and sign out."
-    public const val WHAT_HAPPENS: String = "What deleting your account does"
-    public val DELETED: List<String> = listOf(
-        "Your account is deleted on our servers, on every phone where you are signed in.",
-        "Your sign-in sessions, pending verification codes and device records are deleted.",
-        "This phone is signed out.",
+    @StringRes public val TITLE: Int = R.string.settings_deletion_title
+    @StringRes public val ENTRY_DESCRIPTION: Int = R.string.settings_deletion_entry_description
+    @StringRes public val WHAT_HAPPENS: Int = R.string.settings_deletion_what_happens
+    public val DELETED: List<Int> = listOf(
+        R.string.settings_deletion_deleted_server,
+        R.string.settings_deletion_deleted_sessions,
+        R.string.settings_deletion_deleted_signed_out,
     )
-    public const val WHAT_STAYS: String = "What stays"
-    public val KEPT: List<String> = listOf(
-        "A record that your account was deleted, and when. It holds a coded account id, not your phone number.",
-        "Our security log, which contains no phone number or account id.",
-        "Your blocked and allowed numbers stay on this phone. They were never sent to us. Remove them in Protection, or uninstall the app.",
-        "Short-lived security records, such as abuse limits and a receipt for this request, are removed automatically within about a day.",
+    @StringRes public val WHAT_STAYS: Int = R.string.settings_deletion_what_stays
+    public val KEPT: List<Int> = listOf(
+        R.string.settings_deletion_kept_record,
+        R.string.settings_deletion_kept_security_log,
+        R.string.settings_deletion_kept_lists,
+        R.string.settings_deletion_kept_short_lived,
     )
-    public const val PERMANENT: String = "This cannot be undone."
-    public const val DELETE_BUTTON: String = "Delete my account"
-    public const val CONFIRM_TITLE: String = "Delete your account permanently?"
-    public const val CONFIRM_MESSAGE: String = "Your account will be deleted on every phone. This cannot be undone."
-    public const val CONFIRM: String = "Delete permanently"
-    public const val CANCEL: String = "Cancel"
-    public const val DELETING: String = "Deleting your account…"
-    public const val DONE_TITLE: String = "Your account has been deleted"
-    public const val DONE_BODY: String = "Our servers confirmed the deletion, and this phone is signed out."
-    public const val DONE_BUTTON: String = "Done"
-    public const val CHECKING: String = "Checking this phone's sign-in…"
-    public const val NOT_SIGNED_IN: String = "This phone is not signed in, so there is no account to delete from here. " +
-        "To delete an account, sign in with its number first."
-    public const val NOT_CONFIGURED: String = "Accounts are not available in this version of the app, so there is no account to delete."
-    public const val BACK: String = "Back"
+    @StringRes public val PERMANENT: Int = R.string.settings_deletion_permanent
+    @StringRes public val DELETE_BUTTON: Int = R.string.settings_deletion_delete_button
+    @StringRes public val CONFIRM_TITLE: Int = R.string.settings_deletion_confirm_title
+    @StringRes public val CONFIRM_MESSAGE: Int = R.string.settings_deletion_confirm_message
+    @StringRes public val CONFIRM: Int = R.string.settings_deletion_confirm
+    @StringRes public val CANCEL: Int = R.string.settings_deletion_cancel
+    @StringRes public val DELETING: Int = R.string.settings_deletion_deleting
+    @StringRes public val DONE_TITLE: Int = R.string.settings_deletion_done_title
+    @StringRes public val DONE_BODY: Int = R.string.settings_deletion_done_body
+    @StringRes public val DONE_BUTTON: Int = R.string.settings_deletion_done_button
+    @StringRes public val CHECKING: Int = R.string.settings_deletion_checking
+    @StringRes public val NOT_SIGNED_IN: Int = R.string.settings_deletion_not_signed_in
+    @StringRes public val NOT_CONFIGURED: Int = R.string.settings_deletion_not_configured
+    @StringRes public val BACK: Int = R.string.settings_deletion_back
 
     /**
      * Each message says only what the phone knows. A refusal proves that this
      * request deleted nothing, not that an earlier request whose answer was
      * lost did not: so no message says "nothing was deleted".
      */
-    public fun message(message: DeletionMessage): String = when (message) {
-        DeletionMessage.NO_CONFIRMATION ->
-            "We could not confirm the deletion. Check your connection and try again. If it already went through, trying again confirms it."
-        DeletionMessage.SERVICE_UNAVAILABLE -> "The service is unavailable right now, so the deletion is not confirmed. Try again later."
-        DeletionMessage.TOO_MANY_ATTEMPTS -> "Too many attempts, so the deletion is not confirmed. Wait a while and try again."
-        DeletionMessage.DEVICE_CHECK_FAILED ->
-            "This phone could not prove it is the one you signed in on, so the deletion is not confirmed. " +
-                "Check the phone's date and time, then try again."
-        DeletionMessage.SESSION_ENDED ->
-            "This phone's sign-in has ended, so it cannot delete or confirm deleting the account, and it has been signed out. " +
-                "If the account still exists, sign in again to delete it."
-        DeletionMessage.UNEXPECTED -> "Something went wrong. Nothing was confirmed as deleted. Try again."
+    @StringRes
+    public fun message(message: DeletionMessage): Int = when (message) {
+        DeletionMessage.NO_CONFIRMATION -> R.string.settings_deletion_message_no_confirmation
+        DeletionMessage.SERVICE_UNAVAILABLE -> R.string.settings_deletion_message_service_unavailable
+        DeletionMessage.TOO_MANY_ATTEMPTS -> R.string.settings_deletion_message_too_many_attempts
+        DeletionMessage.DEVICE_CHECK_FAILED -> R.string.settings_deletion_message_device_check_failed
+        DeletionMessage.SESSION_ENDED -> R.string.settings_deletion_message_session_ended
+        DeletionMessage.UNEXPECTED -> R.string.settings_deletion_message_unexpected
     }
 }
 
@@ -122,7 +122,7 @@ public fun AccountDeletionScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(topBar = { AegisTopAppBar(title = AccountDeletionCopy.TITLE) }) { padding ->
+    Scaffold(topBar = { AegisTopAppBar(title = stringResource(AccountDeletionCopy.TITLE)) }) { padding ->
         Column(
             modifier = modifier
                 .fillMaxSize()
@@ -133,21 +133,21 @@ public fun AccountDeletionScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (state.step) {
-                DeletionStep.CHECKING -> Progress(AccountDeletionCopy.CHECKING)
-                DeletionStep.NOT_CONFIGURED -> Unavailable(AccountDeletionCopy.NOT_CONFIGURED, null, onBack)
-                DeletionStep.NOT_SIGNED_IN -> Unavailable(AccountDeletionCopy.NOT_SIGNED_IN, state.message, onBack)
+                DeletionStep.CHECKING -> Progress(stringResource(AccountDeletionCopy.CHECKING))
+                DeletionStep.NOT_CONFIGURED -> Unavailable(stringResource(AccountDeletionCopy.NOT_CONFIGURED), null, onBack)
+                DeletionStep.NOT_SIGNED_IN -> Unavailable(stringResource(AccountDeletionCopy.NOT_SIGNED_IN), state.message, onBack)
                 DeletionStep.READY, DeletionStep.CONFIRMING -> Explanation(state.message, onDeleteClick, onBack)
-                DeletionStep.DELETING -> Progress(AccountDeletionCopy.DELETING)
+                DeletionStep.DELETING -> Progress(stringResource(AccountDeletionCopy.DELETING))
                 DeletionStep.DELETED -> Deleted(onDone)
             }
         }
     }
     if (state.step == DeletionStep.CONFIRMING) {
         AegisDialog(
-            title = AccountDeletionCopy.CONFIRM_TITLE,
-            message = AccountDeletionCopy.CONFIRM_MESSAGE,
-            confirmText = AccountDeletionCopy.CONFIRM,
-            dismissText = AccountDeletionCopy.CANCEL,
+            title = stringResource(AccountDeletionCopy.CONFIRM_TITLE),
+            message = stringResource(AccountDeletionCopy.CONFIRM_MESSAGE),
+            confirmText = stringResource(AccountDeletionCopy.CONFIRM),
+            dismissText = stringResource(AccountDeletionCopy.CANCEL),
             onConfirm = onConfirm,
             onDismiss = onCancel,
         )
@@ -156,24 +156,24 @@ public fun AccountDeletionScreen(
 
 @Composable
 private fun Explanation(message: DeletionMessage?, onDeleteClick: () -> Unit, onBack: () -> Unit) {
-    if (message != null) Alert(AccountDeletionCopy.message(message))
-    Heading(AccountDeletionCopy.WHAT_HAPPENS)
-    AccountDeletionCopy.DELETED.forEach { Bullet(it) }
-    Heading(AccountDeletionCopy.WHAT_STAYS)
-    AccountDeletionCopy.KEPT.forEach { Bullet(it) }
+    if (message != null) Alert(stringResource(AccountDeletionCopy.message(message)))
+    Heading(stringResource(AccountDeletionCopy.WHAT_HAPPENS))
+    AccountDeletionCopy.DELETED.forEach { Bullet(stringResource(it)) }
+    Heading(stringResource(AccountDeletionCopy.WHAT_STAYS))
+    AccountDeletionCopy.KEPT.forEach { Bullet(stringResource(it)) }
     Text(
-        text = AccountDeletionCopy.PERMANENT,
+        text = stringResource(AccountDeletionCopy.PERMANENT),
         style = CallScreenTheme.typography.bodyMedium,
         fontWeight = FontWeight.Bold,
         color = CallScreenTheme.colors.content.primary,
     )
-    AegisEmergencyButton(text = AccountDeletionCopy.DELETE_BUTTON, onClick = onDeleteClick)
+    AegisEmergencyButton(text = stringResource(AccountDeletionCopy.DELETE_BUTTON), onClick = onDeleteClick)
     BackButton(onBack)
 }
 
 @Composable
 private fun Unavailable(text: String, message: DeletionMessage?, onBack: () -> Unit) {
-    if (message != null) Alert(AccountDeletionCopy.message(message))
+    if (message != null) Alert(stringResource(AccountDeletionCopy.message(message)))
     Body(text)
     BackButton(onBack)
 }
@@ -181,7 +181,7 @@ private fun Unavailable(text: String, message: DeletionMessage?, onBack: () -> U
 @Composable
 private fun Deleted(onDone: () -> Unit) {
     Text(
-        text = AccountDeletionCopy.DONE_TITLE,
+        text = stringResource(AccountDeletionCopy.DONE_TITLE),
         style = CallScreenTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
         color = CallScreenTheme.colors.content.primary,
@@ -190,8 +190,8 @@ private fun Deleted(onDone: () -> Unit) {
             liveRegion = LiveRegionMode.Polite
         },
     )
-    Body(AccountDeletionCopy.DONE_BODY)
-    AegisPrimaryButton(text = AccountDeletionCopy.DONE_BUTTON, onClick = onDone)
+    Body(stringResource(AccountDeletionCopy.DONE_BODY))
+    AegisPrimaryButton(text = stringResource(AccountDeletionCopy.DONE_BUTTON), onClick = onDone)
 }
 
 @Composable
@@ -232,7 +232,7 @@ private fun Heading(text: String) {
 
 @Composable
 private fun Bullet(text: String) {
-    Body("• $text")
+    Body(stringResource(R.string.settings_deletion_bullet, text))
 }
 
 @Composable
@@ -243,7 +243,7 @@ private fun Body(text: String) {
 @Composable
 private fun BackButton(onBack: () -> Unit) {
     OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-        Text(AccountDeletionCopy.BACK)
+        Text(stringResource(AccountDeletionCopy.BACK))
     }
 }
 

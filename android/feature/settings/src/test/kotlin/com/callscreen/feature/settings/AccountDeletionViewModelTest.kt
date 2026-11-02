@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -180,9 +181,17 @@ class AccountDeletionViewModelTest {
     @Test
     @DisplayName("no failure message claims nothing was deleted: an earlier request whose answer was lost may have deleted it")
     fun failureMessagesClaimOnlyWhatIsKnown() {
+        // In English and in every translation the app ships.
+        for ((folder, strings) in ShippedStrings.byFolder) {
+            for (message in DeletionMessage.entries) {
+                val name = ShippedStrings.name(AccountDeletionCopy.message(message))
+                val text = strings[name]?.lowercase() ?: continue
+                assertFalse("nothing was deleted" in text || "was not deleted" in text, "$folder $message: $text")
+            }
+        }
+        val english = ShippedStrings.byFolder.getValue("values")
         for (message in DeletionMessage.entries) {
-            val text = AccountDeletionCopy.message(message).lowercase()
-            assertFalse("nothing was deleted" in text || "was not deleted" in text, "$message: $text")
+            assertTrue(ShippedStrings.name(AccountDeletionCopy.message(message)) in english, "$message has no English text")
         }
     }
 

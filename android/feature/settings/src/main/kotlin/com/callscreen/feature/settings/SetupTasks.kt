@@ -1,43 +1,41 @@
 package com.callscreen.feature.settings
 
+import androidx.annotation.StringRes
 import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 
 /**
  * The Settings tab's checklist, from the phone's actual state only: the call
  * screening role, contacts access, and call forwarding (not available yet:
  * ADR-0002's forwarding needs a platform number that does not exist).
+ * Its words are string resources (res/values/strings.xml).
  */
 public object SetupTasks {
     public fun of(role: ScreeningRoleStatus, contactsAccess: Boolean): List<TaskItem> = listOf(
         when (role) {
-            ScreeningRoleStatus.HELD -> TaskItem(BLOCKING, "Numbers you block are rejected on this phone.", TaskStatus.DONE)
-            ScreeningRoleStatus.NOT_HELD ->
-                TaskItem(BLOCKING, "Turn it on from Protection, Blocked numbers.", TaskStatus.TO_DO)
+            ScreeningRoleStatus.HELD -> TaskItem(BLOCKING, R.string.settings_task_blocking_done, TaskStatus.DONE)
+            ScreeningRoleStatus.NOT_HELD -> TaskItem(BLOCKING, R.string.settings_task_blocking_to_do, TaskStatus.TO_DO)
             ScreeningRoleStatus.UNAVAILABLE ->
-                TaskItem(BLOCKING, "This version of Android doesn't let apps block calls.", TaskStatus.NOT_AVAILABLE)
+                TaskItem(BLOCKING, R.string.settings_task_blocking_unavailable, TaskStatus.NOT_AVAILABLE)
         },
         when {
             role == ScreeningRoleStatus.UNAVAILABLE ->
-                TaskItem(CONTACTS, "Needs on-device blocking, which this phone can't do.", TaskStatus.NOT_AVAILABLE)
-            contactsAccess ->
-                TaskItem(CONTACTS, "Saved contacts you block are rejected too. Contacts are never read or uploaded.", TaskStatus.DONE)
-            else ->
-                TaskItem(CONTACTS, "Optional. Allow contacts access from Protection, Blocked numbers.", TaskStatus.TO_DO)
+                TaskItem(CONTACTS, R.string.settings_task_contacts_unavailable, TaskStatus.NOT_AVAILABLE)
+            contactsAccess -> TaskItem(CONTACTS, R.string.settings_task_contacts_done, TaskStatus.DONE)
+            else -> TaskItem(CONTACTS, R.string.settings_task_contacts_to_do, TaskStatus.TO_DO)
         },
-        TaskItem(
-            FORWARDING,
-            "Needs a number from our service, which isn't set up yet. Nothing has been changed with your carrier.",
-            TaskStatus.NOT_AVAILABLE,
-        ),
+        TaskItem(FORWARDING, R.string.settings_task_forwarding_unavailable, TaskStatus.NOT_AVAILABLE),
     )
 
-    public fun label(status: TaskStatus): String = when (status) {
-        TaskStatus.DONE -> "Done"
-        TaskStatus.TO_DO -> "To do"
-        TaskStatus.NOT_AVAILABLE -> "Not available"
+    @StringRes
+    public fun label(status: TaskStatus): Int = when (status) {
+        TaskStatus.DONE -> R.string.settings_task_status_done
+        TaskStatus.TO_DO -> R.string.settings_task_status_to_do
+        TaskStatus.NOT_AVAILABLE -> R.string.settings_task_status_not_available
     }
 
-    public const val BLOCKING: String = "On-device blocking"
-    public const val CONTACTS: String = "Block saved contacts"
-    public const val FORWARDING: String = "Call forwarding to the assistant"
+    @StringRes public val BLOCKING: Int = R.string.settings_task_blocking
+
+    @StringRes public val CONTACTS: Int = R.string.settings_task_contacts
+
+    @StringRes public val FORWARDING: Int = R.string.settings_task_forwarding
 }
