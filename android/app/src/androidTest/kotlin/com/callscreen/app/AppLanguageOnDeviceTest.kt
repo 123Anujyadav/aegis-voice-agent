@@ -3,6 +3,8 @@ package com.callscreen.app
 import android.app.LocaleManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Resources
+import android.util.Log
 import android.os.Build
 import android.os.LocaleList
 import androidx.compose.ui.semantics.Role
@@ -128,12 +130,18 @@ class AppLanguageOnDeviceTest {
         compose.onNode(radio and hasText(AppLanguage.TAMIL.nativeName())).performClick()
         awaitLanguage(scenario, "ta")
 
-        // The same screen, re-created in Tamil: the app's words are English (no translation
-        // yet), and the platform's own Tamil strings show the language really applies.
+        // The same screen, re-created in Tamil (awaitLanguage above): the app's words are
+        // English (no translation yet). Where this Android image has its own Tamil strings,
+        // they are used too. On the Android 8 emulator image Android's own "Cancel" stayed
+        // English (CI run 41493251891), so the image's locales are logged and checked first.
         awaitNode(radio and hasText(AppLanguage.TAMIL.nativeName()))
         compose.onNode(radio and hasText(AppLanguage.TAMIL.nativeName())).assertIsSelected()
         compose.onNode(hasText("App language")).assertExists()
-        assertNotEquals(englishCancel, string(scenario, android.R.string.cancel))
+        val platformLocales = Resources.getSystem().assets.locales.toList()
+        Log.i("AppLanguageOnDeviceTest", "this image's own locales: $platformLocales")
+        if (platformLocales.any { it.startsWith("ta") }) {
+            assertNotEquals(englishCancel, string(scenario, android.R.string.cancel))
+        }
 
         // Where the next process reads it.
         assertEquals(AppLanguage.TAMIL, AppLanguageSetting.selected(context))
