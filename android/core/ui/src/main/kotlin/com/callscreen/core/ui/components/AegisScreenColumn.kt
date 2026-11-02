@@ -14,11 +14,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 
 /**
- * A full screen's root column: the theme's background, 24 dp padding, and
+ * A full screen's root column: the theme's background, [contentPadding], and
  * [verticalArrangement] (by default the content at the top and the action at
  * the bottom) whenever the content fits.
  *
@@ -37,6 +38,7 @@ public fun AegisScreenColumn(
     modifier: Modifier = Modifier,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     verticalArrangement: Arrangement.Vertical = Arrangement.SpaceBetween,
+    contentPadding: Dp = 24.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BoxWithConstraints(
@@ -49,7 +51,7 @@ public fun AegisScreenColumn(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .heightIn(min = maxHeight)
-                .padding(24.dp),
+                .padding(contentPadding),
             horizontalAlignment = horizontalAlignment,
             verticalArrangement = verticalArrangement,
             content = content,
