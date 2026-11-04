@@ -77,6 +77,7 @@ product is India-only at launch, with no dead end.
 links, announced as such. A secondary **Language** control (a globe and the
 word, top end; added 2026-11-03) opens `A58l`, so someone who cannot read the
 phone's language can change the app's before anything else is asked of them.
+Design review pending: [`reviews/LANGUAGE-SELECTION-REVIEW.md`](reviews/LANGUAGE-SELECTION-REVIEW.md).
 
 **Loading / Empty / Error** — None.
 
