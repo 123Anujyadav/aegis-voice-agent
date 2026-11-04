@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -81,7 +82,7 @@ public fun AppLanguageScreen(
         topBar = { AegisTopAppBar(title = stringResource(R.string.settings_language_title)) },
     ) { paddingValues ->
         AegisScreenColumn(
-            modifier = modifier.padding(paddingValues),
+            modifier = modifier.padding(paddingValues).consumeWindowInsets(paddingValues),
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(4.dp),
             contentPadding = 16.dp,

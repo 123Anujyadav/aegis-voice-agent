@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -32,6 +34,12 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
  *
  * The content is at least as tall as the screen, so the arrangement still
  * spreads it when there is room.
+ *
+ * The background reaches behind the system bars (the app draws edge to edge);
+ * the content stays inside [windowInsets]. Inside a Scaffold, which has
+ * already made room for its bars, pass its padding through
+ * `Modifier.padding(padding).consumeWindowInsets(padding)` so that room is not
+ * added twice.
  */
 @Composable
 public fun AegisScreenColumn(
@@ -39,12 +47,14 @@ public fun AegisScreenColumn(
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     verticalArrangement: Arrangement.Vertical = Arrangement.SpaceBetween,
     contentPadding: Dp = 24.dp,
+    windowInsets: WindowInsets = WindowInsets.aegisSafeArea,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(CallScreenTheme.colors.surface.background),
+            .background(CallScreenTheme.colors.surface.background)
+            .windowInsetsPadding(windowInsets),
     ) {
         Column(
             modifier = Modifier
