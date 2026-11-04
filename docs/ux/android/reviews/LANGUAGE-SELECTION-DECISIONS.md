@@ -4,7 +4,7 @@
   - **D5:** App language stays under Settings and is **not** moved under Appearance;
   - **D7:** the name in brackets is the phone's actual language;
   - **D4:** the label is the fixed bilingual `भाषा · Language`.
-- D4, D6 and D7 change the app, and are built in their own PRs.
+- **Built:** D3, D4 and D7 in #237 (`996d555`); D6 in #239 (`4d5f532`). D1, D2, D5, D8 and D9 needed no app change. Tests: `AppLanguageScreenTest`, `HonestOnboardingUiTest`, `TopBarBackTest`, `SharedComponentsTextTest`, `AppLanguageOnDeviceTest`, `TopBarOnDeviceTest`.
 - **Prepared:** 2026-11-04 by Claude Code, on main `7ed8f2f`, from the design review packet [`LANGUAGE-SELECTION-REVIEW.md`](LANGUAGE-SELECTION-REVIEW.md). The packet has the captures, the specification and the evidence. This page is the short form for deciding.
 - **Every decision needs approval:** each one accepts or changes frozen UX (`UX_FREEZE.md` §7), or is a product decision (D8). A recommendation is only a recommendation.
 
