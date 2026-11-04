@@ -10,6 +10,7 @@ import android.os.LocaleList
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToNodeAction
@@ -28,6 +29,7 @@ import com.callscreen.core.ui.language.AppLanguageSetting
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -137,6 +139,10 @@ class AppLanguageOnDeviceTest {
         awaitNode(radio and hasText(AppLanguage.TAMIL.nativeName()))
         compose.onNode(radio and hasText(AppLanguage.TAMIL.nativeName())).assertIsSelected()
         compose.onNode(hasText("App language")).assertExists()
+        // Owner decision D7: the first row names the phone's own language, not the app's choice,
+        // in the screens' language (English: Tamil is not translated yet).
+        val phoneRow = "Phone's language (" + AppLanguage.phoneLanguageName(Locale.forLanguageTag(phone), Locale.ENGLISH) + ")"
+        compose.onNode(radio and hasText(phoneRow)).assertIsNotSelected()
         val platformLocales = Resources.getSystem().assets.locales.toList()
         Log.i("AppLanguageOnDeviceTest", "this image's own locales: $platformLocales")
         if (platformLocales.any { it.startsWith("ta") }) {
@@ -156,7 +162,7 @@ class AppLanguageOnDeviceTest {
         Espresso.pressBack()
         awaitNode(hasText(change))
         compose.onNode(hasText(AppLanguage.TAMIL.nativeName())).assertExists()
-        compose.onNode(hasText("Not translated yet. Screens stay in English.")).assertExists()
+        compose.onNode(hasText("Not translated yet. Screens stay in English until a reviewed translation is available.")).assertExists()
 
         assertArrayEquals("the stored session record changed", sessionRecord, runBlocking { blobs.read() })
         scenario.close()
@@ -167,7 +173,7 @@ class AppLanguageOnDeviceTest {
         awaitNode(radio and hasText(AppLanguage.TAMIL.nativeName()))
 
         // And the phone's language takes it back.
-        compose.onNode(radio and hasText("Phone's language")).performClick()
+        compose.onNode(radio and hasText(phoneRow)).performClick()
         awaitLanguage(again, phone)
         assertEquals(null, AppLanguageSetting.selected(context))
         again.close()

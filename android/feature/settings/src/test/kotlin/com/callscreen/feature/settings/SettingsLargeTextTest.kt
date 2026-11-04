@@ -110,7 +110,8 @@ class SettingsLargeTextTest {
     fun everyLanguageCanBeFoundAndChosen() {
         large { AppLanguageScreen(selected = AppLanguage.TAMIL, onSelect = {}) }
         reachable(s(R.string.settings_language_intro))
-        reachable(s(R.string.settings_language_phone))
+        // "Phone's language (English)": found by its start, as the name in brackets follows the phone (D7).
+        reachable(s(R.string.settings_language_phone).substringBefore(" ("), substring = true)
         for (language in AppLanguage.entries) reachable(language.nativeName())
         // The last row's English name, under its own.
         reachable("Kannada")

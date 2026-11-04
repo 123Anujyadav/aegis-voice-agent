@@ -8,6 +8,7 @@ import android.content.res.Resources
 import android.os.Build
 import android.os.LocaleList
 import androidx.annotation.RequiresApi
+import java.util.Locale
 
 /**
  * The language chosen for the app's screens, or none: the phone's language,
@@ -41,6 +42,21 @@ public object AppLanguageSetting {
         } else {
             AppLanguage.ofTag(prefs(context).getString(KEY, null))
         }
+
+    /**
+     * The phone's own language: the first of the languages set for the whole phone, not
+     * this app's choice. Android 13 and later report it separately (LocaleManager's system
+     * locales, which a per-app language leaves alone); on Android 12 and earlier the system's
+     * resources keep it, untouched by [wrap].
+     */
+    public fun phoneLocale(context: Context): Locale {
+        val locales = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            localeManager(context).systemLocales
+        } else {
+            Resources.getSystem().configuration.locales
+        }
+        return locales.get(0) ?: Resources.getSystem().configuration.locales.get(0) ?: Locale.getDefault()
+    }
 
     /**
      * Chooses [language] (null: the phone's language). Returns true when the

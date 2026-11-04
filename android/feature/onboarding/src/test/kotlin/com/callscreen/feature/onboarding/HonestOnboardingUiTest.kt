@@ -1,6 +1,7 @@
 package com.callscreen.feature.onboarding
 
 import android.telephony.TelephonyManager
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -41,9 +42,32 @@ class HonestOnboardingUiTest {
         var opened = 0
         var started = 0
         compose.setContent { CallScreenTheme { WelcomeScreen(onGetStartedClick = { started++ }, onLanguageClick = { opened++ }) } }
-        compose.onNode(hasText(s(R.string.onboarding_welcome_language)) and hasClickAction()).performClick()
+        compose.onNode(hasText(WELCOME_LANGUAGE) and hasClickAction()).performClick()
         assertEquals(1, opened)
         assertEquals("choosing a language does not start onboarding", 0, started)
+    }
+
+    @Test
+    fun welcomesLanguageControlIsBilingualAndEachPartIsReadInItsLanguage() {
+        // Owner decision D4: the fixed "भाषा · Language", whatever the screens' language.
+        compose.setContent { CallScreenTheme { WelcomeScreen() } }
+        val label = compose.onNodeWithText(WELCOME_LANGUAGE, useUnmergedTree = true).fetchSemanticsNode()
+            .config[SemanticsProperties.Text].single()
+        assertEquals(WELCOME_LANGUAGE, label.text)
+        // A screen reader reads "भाषा" with a Hindi voice and "Language" with an English one.
+        assertEquals(
+            listOf("भाषा" to "hi", "Language" to "en"),
+            label.spanStyles.map { label.text.substring(it.start, it.end) to it.item.localeList!!.first().toLanguageTag() },
+        )
+        // The control is announced once, as a button with that label.
+        compose.onNode(hasText(WELCOME_LANGUAGE) and hasClickAction()).assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "ta")
+    fun welcomesLanguageControlIsTheSameWhateverTheScreensLanguage() {
+        compose.setContent { CallScreenTheme { WelcomeScreen() } }
+        compose.onNode(hasText(WELCOME_LANGUAGE) and hasClickAction()).assertExists()
     }
 
     @Test
@@ -101,3 +125,6 @@ class HonestOnboardingUiTest {
         compose.onNodeWithText("immediately", substring = true).assertDoesNotExist()
     }
 }
+
+/** Welcome's Language control, as approved (owner decision D4). */
+private const val WELCOME_LANGUAGE = "भाषा · Language"

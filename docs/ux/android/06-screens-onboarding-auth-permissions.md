@@ -75,9 +75,12 @@ product is India-only at launch, with no dead end.
 
 **Accessibility** — Single heading, single primary action. Legal links are real
 links, announced as such. A secondary **Language** control (a globe and the
-word, top end; added 2026-11-03) opens `A58l`, so someone who cannot read the
+label, top end; added 2026-11-03) opens `A58l`, so someone who cannot read the
 phone's language can change the app's before anything else is asked of them.
-Design review pending: [`reviews/LANGUAGE-SELECTION-REVIEW.md`](reviews/LANGUAGE-SELECTION-REVIEW.md).
+**Its label is the fixed bilingual "भाषा · Language"**, the same whatever language
+the screens are in, and neither part is translated. A screen reader reads "भाषा"
+as Hindi and "Language" as English (owner decisions D2 and D4, 2026-11-04:
+[`reviews/LANGUAGE-SELECTION-DECISIONS.md`](reviews/LANGUAGE-SELECTION-DECISIONS.md)).
 
 **Loading / Empty / Error** — None.
 

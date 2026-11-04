@@ -58,6 +58,28 @@ class AppLanguageTest {
     }
 
     @Test
+    fun thePhonesLanguageIsNamedAsThePhoneHasItInTheScreensLanguage() {
+        // Owner decision D7: "Phone's language (English)", the name following the phone, never fixed.
+        assertEquals("English", AppLanguage.phoneLanguageName(Locale.forLanguageTag("en-IN"), Locale.ENGLISH))
+        assertEquals("Tamil", AppLanguage.phoneLanguageName(Locale.forLanguageTag("ta-IN"), Locale.ENGLISH))
+        assertEquals("Kannada", AppLanguage.phoneLanguageName(Locale.forLanguageTag("kn"), Locale.ENGLISH))
+        // A phone language that is not one of the six is still named, not replaced by English.
+        assertEquals("Marathi", AppLanguage.phoneLanguageName(Locale.forLanguageTag("mr-IN"), Locale.ENGLISH))
+        assertEquals("French", AppLanguage.phoneLanguageName(Locale.FRANCE, Locale.ENGLISH))
+        // Once the screens are in Hindi, the name is too.
+        assertEquals(AppLanguage.TAMIL.displayName(AppLanguage.HINDI.locale), AppLanguage.phoneLanguageName(Locale.forLanguageTag("ta-IN"), AppLanguage.HINDI.locale))
+    }
+
+    @Test
+    fun theScreensAreInAConfiguredLanguageOnlyOnceItIsTranslated() {
+        assertEquals(Locale.ENGLISH, AppLanguage.screensLocale(Locale.forLanguageTag("en-IN")))
+        // Tamil chosen but not translated: the screens' words, and so the names among them, are English.
+        assertEquals(Locale.ENGLISH, AppLanguage.screensLocale(AppLanguage.TAMIL.locale))
+        assertEquals(Locale.ENGLISH, AppLanguage.screensLocale(Locale.FRANCE))
+        assertEquals(Locale.ENGLISH, AppLanguage.screensLocale(null))
+    }
+
+    @Test
     fun anEnglishReaderSeesEnglishNames() {
         assertEquals(
             listOf("English", "Hindi", "Tamil", "Telugu", "Malayalam", "Kannada"),

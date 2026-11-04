@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -44,6 +45,7 @@ import com.callscreen.core.ui.components.AegisTopAppBar
 import com.callscreen.core.ui.components.StatusChipVariant
 import com.callscreen.core.ui.language.AppLanguage
 import com.callscreen.core.ui.language.AppLanguageSetting
+import java.util.Locale
 
 public enum class TaskStatus { DONE, TO_DO, NOT_AVAILABLE }
 
@@ -81,6 +83,8 @@ public fun TaskCenterScreen(
     tasks: List<TaskItem> = emptyList(),
     /** The chosen app language; null is the phone's language. */
     language: AppLanguage? = null,
+    /** The phone's own language, named when no language is chosen (owner decision D7). */
+    phoneLocale: Locale = AppLanguageSetting.phoneLocale(LocalContext.current),
     onLanguageClick: () -> Unit = {},
     onDeleteAccountClick: () -> Unit = {},
 ) {
@@ -159,7 +163,7 @@ public fun TaskCenterScreen(
                     }
                 }
             }
-            item { LanguageSection(language, onLanguageClick) }
+            item { LanguageSection(language, phoneLocale, onLanguageClick) }
             item { AccountSection(onDeleteAccountClick) }
         }
     }
@@ -167,7 +171,7 @@ public fun TaskCenterScreen(
 
 /** A58l's entry: the language the app's screens are in, and the way to change it. */
 @Composable
-private fun LanguageSection(language: AppLanguage?, onLanguageClick: () -> Unit) {
+private fun LanguageSection(language: AppLanguage?, phoneLocale: Locale, onLanguageClick: () -> Unit) {
     Column(
         modifier = Modifier.padding(top = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -179,7 +183,9 @@ private fun LanguageSection(language: AppLanguage?, onLanguageClick: () -> Unit)
             color = CallScreenTheme.colors.content.primary,
             modifier = Modifier.semantics { heading() },
         )
-        val name = language?.nativeName() ?: stringResource(R.string.settings_language_phone)
+        val reader = AppLanguage.screensLocale(LocalConfiguration.current.locales[0])
+        val name = language?.nativeName()
+            ?: stringResource(R.string.settings_language_phone, AppLanguage.phoneLanguageName(phoneLocale, reader))
         Text(
             text = name,
             style = CallScreenTheme.typography.bodyMedium,

@@ -125,8 +125,9 @@ class MinifiedAppTest {
      */
     @Test
     fun welcomeOpensTheAppLanguageScreenAndBackReturns() {
-        awaitText("Language").click()
-        awaitText("Phone's language")
+        // Owner decisions D4 (the bilingual control) and D7 (the phone's language named: English here).
+        awaitText("भाषा · Language").click()
+        awaitText("Phone's language (English)")
         reach("தமிழ்")
         reach("ಕನ್ನಡ")
         device.pressBack()
