@@ -123,7 +123,7 @@ A58l: tap a language ─▶ applied at once; the screen is re-created in place; 
 
 ## 7. Decisions for the owner and design reviewer
 
-**None of these has been decided by Claude Code.** Each recommendation is only a recommendation.
+**None of these has been decided by Claude Code.** Each recommendation is only a recommendation. Each decision's current behaviour, usability, accessibility and localization effects are in [`LANGUAGE-SELECTION-DECISIONS.md`](LANGUAGE-SELECTION-DECISIONS.md).
 
 | # | Decision | Options | Recommendation |
 |---|---|---|---|

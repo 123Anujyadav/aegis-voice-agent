@@ -6,6 +6,7 @@
   - hosted;
   - recorded.
 - **ADRs:** ADR-0005 (speech-to-text) and ADR-0007 (text-to-speech) are **Accepted and unchanged**. Choosing between them and open models is the owner's decision (**OD-17**). Any model that processes call audio also needs an independent human review (OD-12).
+- **For deciding:** [`OD-17-DECISION-BRIEF.md`](OD-17-DECISION-BRIEF.md) is the owner's short form: the evidence gaps and the choices.
 - **Builds on:** [`SPEECH-OPEN-MODELS-EVALUATION.md`](SPEECH-OPEN-MODELS-EVALUATION.md), which found these two models as the only open candidates near all six languages.
 - **As of:** 2026-11-04. AI-performed research from the publishers' public pages (`ARCHITECTURE_FREEZE.md` §6.1 rule 9). **"Computed"** marks arithmetic from a stated figure; **"inferred"** marks an expectation that a measurement must confirm.
 
