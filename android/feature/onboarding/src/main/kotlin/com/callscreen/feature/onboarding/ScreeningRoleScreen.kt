@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -79,8 +80,8 @@ internal fun ScreeningRoleScreen(
         modifier = modifier
             .fillMaxSize()
             .background(CallScreenTheme.colors.surface.background)
-            .windowInsetsPadding(WindowInsets.aegisSafeArea)
-            .padding(24.dp),
+            // 24 dp, or the system bar where that is wider (as AegisScreenColumn).
+            .windowInsetsPadding(WindowInsets.aegisSafeArea.union(WindowInsets(24.dp, 24.dp, 24.dp, 24.dp))),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(

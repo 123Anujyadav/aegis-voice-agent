@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -35,11 +35,17 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
  * The content is at least as tall as the screen, so the arrangement still
  * spreads it when there is room.
  *
- * The background reaches behind the system bars (the app draws edge to edge);
- * the content stays inside [windowInsets]. Inside a Scaffold, which has
- * already made room for its bars, pass its padding through
- * `Modifier.padding(padding).consumeWindowInsets(padding)` so that room is not
- * added twice.
+ * The background reaches behind the system bars (the app draws edge to edge).
+ * On each side the content is padded by [contentPadding] or by the system bar
+ * there ([windowInsets]), whichever is wider: it rests clear of the bars,
+ * scrolls behind them as an edge-to-edge screen's content does, and loses no
+ * room where its own padding already covered the bar (a 24 dp status bar or
+ * gesture bar). Adding the two made Welcome's Get Protected scroll out of
+ * view on a 320 x 640 dp screen.
+ *
+ * Inside a Scaffold, which has already made room for its bars, pass its
+ * padding through `Modifier.padding(padding).consumeWindowInsets(padding)` so
+ * that room is not made twice.
  */
 @Composable
 public fun AegisScreenColumn(
@@ -53,15 +59,14 @@ public fun AegisScreenColumn(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(CallScreenTheme.colors.surface.background)
-            .windowInsetsPadding(windowInsets),
+            .background(CallScreenTheme.colors.surface.background),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .heightIn(min = maxHeight)
-                .padding(contentPadding),
+                .windowInsetsPadding(windowInsets.union(WindowInsets(contentPadding, contentPadding, contentPadding, contentPadding))),
             horizontalAlignment = horizontalAlignment,
             verticalArrangement = verticalArrangement,
             content = content,

@@ -186,12 +186,12 @@ class SharedComponentsTextTest {
     fun theTabsStayClearOfASideNavigationBarInLandscape() = assertTabsInside(width = 640, bottom = 0, right = 48)
 
     @Test
-    fun aFullScreenColumnKeepsItsContentInsideTheSystemBars() {
+    fun aFullScreenColumnRestsClearOfTheSystemBarsWithoutDoublingItsPadding() {
         compose.setContent {
             CallScreenTheme {
                 // Smaller than Robolectric's window, so this box stands for the screen.
                 Box(Modifier.size(width = 320.dp, height = 360.dp).testTag(CONTENT)) {
-                    AegisScreenColumn(windowInsets = WindowInsets(top = 24.dp, bottom = 48.dp)) {
+                    AegisScreenColumn(windowInsets = WindowInsets(top = 16.dp, bottom = 48.dp)) {
                         Text("First")
                         Text("Last")
                     }
@@ -201,9 +201,11 @@ class SharedComponentsTextTest {
         with(compose.density) {
             val first = compose.onNodeWithText("First").fetchSemanticsNode().boundsInRoot
             val last = compose.onNodeWithText("Last").fetchSemanticsNode().boundsInRoot
-            // The status bar, then the column's own 24 dp; the same above the navigation bar.
-            assertTrue("the first line starts at $first", first.top >= (24 + 24).dp.toPx() - 1)
-            assertTrue("the last line ends at $last", last.bottom <= (360 - 48 - 24).dp.toPx() + 1)
+            // Each side takes the wider of the column's 24 dp and the bar: 24 dp below a 16 dp status
+            // bar, not 40 (adding them pushed Welcome's action out of view on a small screen), and
+            // 48 dp above a 48 dp navigation bar.
+            assertEquals("the first line starts at $first", 24.dp.toPx(), first.top, 1f)
+            assertEquals("the last line ends at $last", (360 - 48).dp.toPx(), last.bottom, 1f)
         }
     }
 

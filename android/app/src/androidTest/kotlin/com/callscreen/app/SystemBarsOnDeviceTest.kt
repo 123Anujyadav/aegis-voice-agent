@@ -5,10 +5,11 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
-import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ActivityScenario
@@ -83,12 +84,14 @@ class SystemBarsOnDeviceTest {
     private fun await(text: String) =
         compose.waitUntil(10_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
 
-    /** The node showing [text], brought into view when the screen scrolls. */
-    private fun shown(text: String): Rect {
+    /**
+     * The node showing [text] after scrolling the screen all the way by [by] (up when negative).
+     * The content scrolls behind the bars, so a node is clear of them where the content rests: at
+     * the top for the first control, at the end for the last.
+     */
+    private fun shownAfterScrolling(text: String, by: Float): Rect {
         await(text)
-        compose.onAllNodes(hasScrollAction()).fetchSemanticsNodes().takeIf { it.isNotEmpty() }?.let {
-            compose.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText(text))
-        }
+        compose.onAllNodes(hasScrollAction())[0].performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, by) }
         compose.waitForIdle()
         return compose.onAllNodes(hasText(text), useUnmergedTree = true)[0].fetchSemanticsNode().boundsInWindow
     }
@@ -104,8 +107,8 @@ class SystemBarsOnDeviceTest {
                 scenario.rotate(orientation, expected)
                 await("Language")
                 val bars = scenario.bars()
-                bars.assertInside("$name: Language", shown("Language"))
-                bars.assertInside("$name: Get Protected", shown("Get Protected"))
+                bars.assertInside("$name: Language", shownAfterScrolling("Language", by = -100_000f))
+                bars.assertInside("$name: Get Protected", shownAfterScrolling("Get Protected", by = 100_000f))
             }
         } finally {
             scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
