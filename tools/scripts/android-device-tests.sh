@@ -33,7 +33,21 @@ test -e /dev/kvm || { echo "::error::/dev/kvm is missing: the emulator would be 
 
 echo "::group::system image ${image}"
 yes | "${bin}/sdkmanager" --licenses >/dev/null || true
-"${bin}/sdkmanager" --install "${image}" "emulator" "platform-tools" >/dev/null
+# Google's download of the system image is sometimes cut short ("Error on ZipFile
+# unknown archive": runs 41882254439 and 41886473140, 2026-11-04, before any test
+# ran). Up to three attempts, each after clearing sdkmanager's partial download.
+for attempt in 1 2 3; do
+    if "${bin}/sdkmanager" --install "${image}" "emulator" "platform-tools" >/dev/null; then
+        break
+    fi
+    if [[ "${attempt}" -eq 3 ]]; then
+        echo "::error::could not install ${image} after 3 attempts"
+        exit 1
+    fi
+    echo "::warning::installing ${image} failed (attempt ${attempt} of 3); retrying"
+    rm -rf "${sdk}/.temp" "${sdk}/.downloadIntermediates"
+    sleep 20
+done
 echo no | "${bin}/avdmanager" create avd --force --name "${avd}" --package "${image}"
 test -f "${ANDROID_AVD_HOME}/${avd}.ini" || { echo "::error::avdmanager did not create ${avd} in ${ANDROID_AVD_HOME}"; exit 1; }
 echo "::endgroup::"
