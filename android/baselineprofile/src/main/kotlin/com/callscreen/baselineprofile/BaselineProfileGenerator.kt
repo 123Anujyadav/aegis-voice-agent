@@ -30,8 +30,8 @@ class BaselineProfileGenerator {
         startActivityAndWait()
         device.text("Welcome to Aegis AI")
 
-        device.text("Language").click()
-        device.text("Phone's language")
+        device.text("भाषा · Language").click()
+        device.text("Phone's language (English)")
         device.pressBack()
 
         device.text("Get Protected").click()

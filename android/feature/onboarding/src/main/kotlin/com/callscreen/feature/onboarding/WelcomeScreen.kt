@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
 import com.callscreen.core.ui.components.AegisScreenColumn
+import com.callscreen.core.ui.language.readInLanguages
 
 @Composable
 public fun WelcomeScreen(
@@ -43,8 +44,12 @@ public fun WelcomeScreen(
     onLanguageClick: () -> Unit = {},
 ) {
     AegisScreenColumn(modifier = modifier) {
-        // A globe and the word "Language", top end: found by someone who cannot yet read
-        // the screen's language, before anything else is asked of them.
+        // A globe and "भाषा · Language", top end: found by someone who cannot yet read the
+        // screen's language, before anything else is asked of them (owner decision D4).
+        val language = WelcomeLanguageLabel.of(
+            hindi = stringResource(R.string.onboarding_welcome_language_hi),
+            english = stringResource(R.string.onboarding_welcome_language),
+        )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = onLanguageClick) {
                 Icon(
@@ -53,9 +58,10 @@ public fun WelcomeScreen(
                     tint = CallScreenTheme.colors.content.secondary,
                 )
                 Text(
-                    text = stringResource(R.string.onboarding_welcome_language),
+                    text = language.text,
                     color = CallScreenTheme.colors.content.secondary,
-                    modifier = Modifier.padding(start = 8.dp),
+                    // Each part is read in its own language: Hindi, then English.
+                    modifier = Modifier.padding(start = 8.dp).readInLanguages(language.text, language.parts),
                 )
             }
         }

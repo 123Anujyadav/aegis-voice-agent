@@ -28,9 +28,11 @@
     <!-- A58l App language. The screens' language only: the assistant's language on calls is separate (A43). -->
     <string name="settings_language_title">App language</string>
     <string name="settings_language_intro">Choose the language of this app\'s screens. It doesn\'t change the language the assistant uses on calls.</string>
-    <string name="settings_language_phone">Phone\'s language</string>
+    <!-- Owner decision D7 (2026-11-04): %1$s is the phone's actual language, named in the screens' language ("Tamil"). -->
+    <string name="settings_language_phone">Phone\'s language (%1$s)</string>
     <string name="settings_language_phone_detail">Your phone\'s language if this app has it, otherwise English.</string>
-    <string name="settings_language_not_translated">Not translated yet. Screens stay in English.</string>
+    <!-- Owner decision D3 (2026-11-04): the screens stay in English until a reviewed translation is available. -->
+    <string name="settings_language_not_translated">Not translated yet. Screens stay in English until a reviewed translation is available.</string>
     <string name="settings_language_change">Change app language</string>
 
     <!-- Account deletion: only what the server does (docs/phase19/ACCOUNT-DELETION.md) -->

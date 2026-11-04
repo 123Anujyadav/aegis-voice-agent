@@ -59,7 +59,6 @@ onboarding_welcome_blocking,text
 onboarding_welcome_screening_title,heading
 onboarding_welcome_screening,text
 onboarding_welcome_get_protected,button
-onboarding_welcome_language,button
 onboarding_sim_card_description,spoken
 onboarding_sim_title,heading
 onboarding_sim_subtitle,text
