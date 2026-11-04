@@ -169,7 +169,17 @@ class TranslationKitTest(unittest.TestCase):
             contextlib.redirect_stderr(io.StringIO()) as err,
         ):
             code = kit.main(
-                ["import", "--lang", "hi", "--translated-by", "A", "--reviewed-by", "B", str(sheet)]
+                [
+                    "import",
+                    "--lang",
+                    "hi",
+                    "--translated-by",
+                    "A",
+                    "--reviewed-by",
+                    "B",
+                    "--names-consented",
+                    str(sheet),
+                ]
             )
         self.assertEqual(1, code)
         self.assertIn("nothing was written", err.getvalue())
@@ -192,6 +202,37 @@ class TranslationKitTest(unittest.TestCase):
             )
         self.assertEqual(2, code)
         self.assertIn("second person", err.getvalue())
+
+    def test_names_are_recorded_only_with_their_consent(self) -> None:
+        # Owner decision Q0: consent before anyone's name is written into the repository.
+        sheet = Path(self.tmp.name) / "hi.csv"
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            code = kit.main(
+                ["import", "--lang", "hi", "--translated-by", "A", "--reviewed-by", "B", str(sheet)]
+            )
+        self.assertEqual(2, code)
+        self.assertIn("--names-consented", err.getvalue())
+
+    def test_the_owners_terms_are_kept(self) -> None:
+        # Owner decisions Q1, Q3 and Q4, checked on rows like the app's own.
+        def problems(name: str, source: str, text: str) -> list[str]:
+            return kit.owner_term_problems(name, text, source)
+
+        self.assertEqual([], problems("t", "Welcome to Aegis AI", "Aegis AI में आपका स्वागत है"))
+        self.assertTrue(problems("t", "Welcome to Aegis AI", "एजिस एआई में आपका स्वागत है"))
+        self.assertEqual([], problems("t", "AI screenings", "AI स्क्रीनिंग"))
+        self.assertTrue(problems("t", "AI screenings", "एआई स्क्रीनिंग"))
+        self.assertEqual([], problems("onboarding_phone_resend", "Send a new code", "नया OTP भेजें"))
+        self.assertTrue(problems("onboarding_phone_resend", "Send a new code", "नया कोड भेजें"))
+        # Other codes are not the sign-in code.
+        self.assertEqual(
+            [],
+            problems(
+                "onboarding_phone_label_number",
+                "Mobile number, with country code",
+                "देश कोड सहित मोबाइल नंबर",
+            ),
+        )
 
     def test_a_worksheet_that_changes_what_the_app_does_is_refused(self) -> None:
         rows = self.fill(
@@ -395,6 +436,18 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual(set(), names - set(context), "add these to tools/i18n/ui-context.csv")
         self.assertEqual(set(), set(context) - names, "remove these from tools/i18n/ui-context.csv")
         self.assertEqual(set(), set(context.values()) - set(kit.WHERE))
+
+    def test_the_sign_in_code_rows_are_the_apps_rows_about_that_code(self) -> None:
+        # Q4's list must name real rows, each about the sign-in code, and miss none.
+        rows = {row.name: row.english for row in kit.source_rows("hi")}
+        self.assertTrue(rows.keys() >= kit.SIGN_IN_CODE_ROWS, kit.SIGN_IN_CODE_ROWS - rows.keys())
+        other_codes = ("country code", "area code", "exact code", "coded")
+        about_code = {
+            name
+            for name, english in rows.items()
+            if "code" in english.lower() and not any(o in english.lower() for o in other_codes)
+        }
+        self.assertEqual(about_code, set(kit.SIGN_IN_CODE_ROWS))
 
     def test_the_committed_worksheets_match_the_english(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

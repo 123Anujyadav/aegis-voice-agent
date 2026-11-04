@@ -160,6 +160,8 @@ Return the filled worksheet with:
 
 An engineer imports it with:
 
-    python3 tools/i18n/translation_kit.py import --lang hi --translated-by "<translator, date>" --reviewed-by "<reviewer, date>" hi.csv
+    python3 tools/i18n/translation_kit.py import --lang hi --translated-by "<translator, date>" --reviewed-by "<reviewer, date>" --names-consented hi.csv
+
+**`--names-consented`** confirms that both people agreed to their names being recorded in the repository (owner decision Q0). The import refuses without it. It also refuses a row that drops "Aegis AI" or "AI" (Q1, Q3), or a sign-in-code row without "OTP" (Q4).
 
 That records both names in each translated file. The build then runs its own checks, and the on-phone check follows (above).
