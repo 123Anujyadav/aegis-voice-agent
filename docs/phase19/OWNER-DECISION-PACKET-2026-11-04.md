@@ -1,6 +1,7 @@
 # Owner decision packet: language UX, translation, speech evaluation
 
-- **Status: for the owner's review. No decision in this packet has been made.** Every "Recommendation" is Claude Code's proposal. The "Your decision" column is empty until you fill it.
+- **Status: DECIDED. The owner explicitly approved all 14 decisions (D1–D9, Q0–Q4) and the speech deferral (A1) on 2026-11-04.** The "Your decision" column records the owner's words. The "Recommendation" column is kept as it was proposed, for traceability; where the decision differs, the decision governs.
+- **What the decisions authorize:** product direction, its recording, and the app changes for D4, D6 and D7. **They do not authorize** contacting, hiring or paying translators, spending money, creating external accounts, accepting third-party terms or activating external services. Each still needs the owner's separate approval.
 - **Prepared:** 2026-11-04 by Claude Code, on main `91e6f1f`. It consolidates three briefs, which hold the detail:
   - [`LANGUAGE-SELECTION-DECISIONS.md`](../ux/android/reviews/LANGUAGE-SELECTION-DECISIONS.md);
   - [`APPROVAL-SUMMARY.md`](../translation/APPROVAL-SUMMARY.md);
@@ -13,7 +14,7 @@
   - ADR-0005 and ADR-0007 unchanged.
 - **Today the app is English only:** 0 of 244 strings are translated in each of the five other languages.
 
-**How to answer:** for each row, write approve (the recommendation), choose another option, or defer. Once a decision is recorded, the routine engineering it unblocks resumes.
+**How the decisions are carried out:** recorded in this packet and the documents each one touches. D4, D6 and D7 are built in their own PRs, with the UX specification amended in the same PR (`UX_FREEZE.md` §7). **Note on IDs:** these D1–D9 are the language-UX decisions. They are not account-deletion D1–D9 (tracker O9–O17).
 
 ---
 
@@ -27,15 +28,15 @@
 
 | # | Decision required | Recommendation | Reason | UX, accessibility and translation consequences | Blocks | Your decision |
 |---|---|---|---|---|---|---|
-| **D1** | Accept A58l, the App language screen, as specified and built | **Accept**, subject to D3–D9 | Simple and reversible. Its first line separates the screen language from the assistant's voice | **UX:** one choice of seven, applied on tap. **A11y:** one radio group; native names carry a locale span, but TalkBack's speech is **not verified on a device**. **Translation:** none new | Neither: it's built. Formally records the frozen-UX change | |
-| **D2** | Accept Welcome's Language control (a globe and the word, top end) | **Accept**; its label is D4 | Lets someone who can't read the screen language change it before sign-in, without competing with "Get Protected" | **UX:** off the main path. **A11y:** announced once; 48 dp target; fits at 2× text on 320 × 480 dp. **Translation:** see D4 | Neither | |
-| **D3** | Untranslated languages: listed with a note (as built), hidden, or listed but disabled | **Keep as built** | Hiding them goes against your instruction that any of the six can be chosen; a disabled row is harder to read | **UX:** a choice may look broken while nothing changes (U3). **A11y:** the note is read with each row. **Translation:** the note disappears per language once translated | Neither | |
-| **D4** | Welcome control's label: the screen language only (as built), bilingual "भाषा · Language", or a globe with six names | **Bilingual** | It is the way out for someone who can't read the screen language. English is the app's fallback; six names wouldn't fit at large text | **UX:** two words, one line. **A11y:** the English part needs its own locale span; must still pass the 2× text tests. **Translation:** the row is translated as the screen word only, and translators must be told (Q10) | **Translation** (1 row) and implementation | |
-| **D5** | Where A58l lives: the Settings tab section (as built), or under A58 Appearance (`02`), which is not built | **Keep as built until A58 exists**, then move it and keep a shortcut | Findable now. The spec's place doesn't exist yet | **UX:** one step fewer today. **A11y:** unchanged. **Translation:** Appearance's strings later | Neither now | |
-| **D6** | An Up arrow in the top bar of screens opened from another, or rely on system Back (as built) | **Add app-wide** | People who don't use the Back gesture may not find the way out (U2) | **UX:** shared component, many screens. **A11y:** a 48 dp target; an on-screen way back for Switch Access and keyboard users. **Translation:** 1 new string ("Navigate up") | **Implementation**, and 1 string to translate | |
-| **D7** | Name the phone's language in its row and in Settings, e.g. "Phone's language (English)", or keep it generic (as built) | **Name it** (the language the app resolves to); Settings also shows the name in the screen language | On an English phone "Phone's language" looks like a duplicate of "English" (U4, U6) | **UX:** clearer default. **A11y:** the named language gets a locale span. **Translation:** about 2 new strings with a placeholder | **Translation** (about 2 rows) and implementation | |
-| **D8** | Is the app's screen language free, or premium? (`07` lists "multiple languages" as premium) | **Free**; "multiple languages" in premium means the assistant's voice languages | A person who can't read English must be able to use the free app | **UX:** none (built free). **A11y:** a free screen language is itself an accessibility measure. **Translation:** none | Neither today; it fixes `07`'s wording | |
-| **D9** | After a choice: stay on A58l (as built), or return | **Stay**; consider a short confirmation once translations exist | A wrong tap can be fixed at once by someone who may not read the new language | **UX:** no confirmation today (U7). **A11y:** a polite live-region confirmation would tell screen-reader users. **Translation:** a confirmation adds 1 string | Neither now | |
+| **D1** | Accept A58l, the App language screen, as specified and built | **Accept**, subject to D3–D9 | Simple and reversible. Its first line separates the screen language from the assistant's voice | **UX:** one choice of seven, applied on tap. **A11y:** one radio group; native names carry a locale span, but TalkBack's speech is **not verified on a device**. **Translation:** none new | Neither: it's built. Formally records the frozen-UX change |**Approved (2026-11-04):** accept the App Language screen design. |
+| **D2** | Accept Welcome's Language control (a globe and the word, top end) | **Accept**; its label is D4 | Lets someone who can't read the screen language change it before sign-in, without competing with "Get Protected" | **UX:** off the main path. **A11y:** announced once; 48 dp target; fits at 2× text on 320 × 480 dp. **Translation:** see D4 | Neither |**Approved (2026-11-04):** accept the Welcome screen language control design. |
+| **D3** | Untranslated languages: listed with a note (as built), hidden, or listed but disabled | **Keep as built** | Hiding them goes against your instruction that any of the six can be chosen; a disabled row is harder to read | **UX:** a choice may look broken while nothing changes (U3). **A11y:** the note is read with each row. **Translation:** the note disappears per language once translated | Neither |**Approved (2026-11-04):** keep untranslated languages visible with an explanatory note, clearly stating that screens remain in English until reviewed translations are available. |
+| **D4** | Welcome control's label: the screen language only (as built), bilingual "भाषा · Language", or a globe with six names | **Bilingual** | It is the way out for someone who can't read the screen language. English is the app's fallback; six names wouldn't fit at large text | **UX:** two words, one line. **A11y:** the English part needs its own locale span; must still pass the 2× text tests. **Translation:** the row is translated as the screen word only, and translators must be told (Q10) | **Translation** (1 row) and implementation |**Approved (2026-11-04):** use the bilingual wording `भाषा · Language`, with TalkBack language metadata for both parts. |
+| **D5** | Where A58l lives: the Settings tab section (as built), or under A58 Appearance (`02`), which is not built | **Keep as built until A58 exists**, then move it and keep a shortcut | Findable now. The spec's place doesn't exist yet | **UX:** one step fewer today. **A11y:** unchanged. **Translation:** Appearance's strings later | Neither now |**Approved (2026-11-04):** keep App language under Settings; **do not move it under Appearance.** |
+| **D6** | An Up arrow in the top bar of screens opened from another, or rely on system Back (as built) | **Add app-wide** | People who don't use the Back gesture may not find the way out (U2) | **UX:** shared component, many screens. **A11y:** a 48 dp target; an on-screen way back for Switch Access and keyboard users. **Translation:** 1 new string ("Navigate up") | **Implementation**, and 1 string to translate |**Approved (2026-11-04):** add a top-bar Back arrow across the application, preserving existing navigation and screen-state behaviour. |
+| **D7** | Name the phone's language in its row and in Settings, e.g. "Phone's language (English)", or keep it generic (as built) | **Name it** (the language the app resolves to); Settings also shows the name in the screen language | On an English phone "Phone's language" looks like a duplicate of "English" (U4, U6) | **UX:** clearer default. **A11y:** the named language gets a locale span. **Translation:** about 2 new strings with a placeholder | **Translation** (about 2 rows) and implementation |**Approved (2026-11-04):** use `Phone's language (English)`, the name dynamically reflecting the phone's actual language; English is not hard-coded. |
+| **D8** | Is the app's screen language free, or premium? (`07` lists "multiple languages" as premium) | **Free**; "multiple languages" in premium means the assistant's voice languages | A person who can't read English must be able to use the free app | **UX:** none (built free). **A11y:** a free screen language is itself an accessibility measure. **Translation:** none | Neither today; it fixes `07`'s wording |**Approved (2026-11-04):** the screen language is free for all users. Premium restrictions may apply to assistant voice features, not to the screen language. |
+| **D9** | After a choice: stay on A58l (as built), or return | **Stay**; consider a short confirmation once translations exist | A wrong tap can be fixed at once by someone who may not read the new language | **UX:** no confirmation today (U7). **A11y:** a polite live-region confirmation would tell screen-reader users. **Translation:** a confirmation adds 1 string | Neither now |**Approved (2026-11-04):** remain on the language-selection screen after a language is selected. |
 
 **Suggested order:** D8, D4 and D7 first. D4 and D7 change strings, and D8 frames the rest.
 
@@ -51,11 +52,11 @@
 
 | # | Exact question | Options | Recommendation and rationale | Rows | Your decision |
 |---|---|---|---|---|---|
-| **Q0** | **Who translates and who reviews each language, how the worksheets reach them, and what you'll pay** | (a) fluent speakers you already work with; (b) volunteer community reviewers; (c) a professional translator or agency. Mixing per language is possible | **(a), with (b) or (c) where you have no one.** Quickest to trust, and no third party. Ask any agency whether it uses machine translation: that needs your separate approval | All | |
-| **Q1** | **Inside a translated sentence, does the product name stay in Latin letters, or is it written in the language's script?** And separately: is the launcher name "CallScreen" or "Aegis AI"? | Latin letters · the language's script | **Latin letters ("Aegis AI")**, as the top bar shows it. Decide the launcher name separately, because it affects English too | 5 | |
-| **Q2** | **Formal or everyday language?** | Formal or literary (e.g. Sanskritised Hindi) · everyday phone-app language | **Everyday phone-app language**, the polite "you", and loanwords ("SIM", "spam") where Android's own text uses them. The translators' lead proposes per language; you confirm | All. A later change is a full re-translation | |
-| **Q3** | **Keep "AI" in Latin letters, or translate it?** | Keep "AI" · translate it | **Keep "AI":** short, fits chips and titles, widely recognised | 5 alone, plus 2 in "Aegis AI" | |
-| **Q4** | **"Verification code" or "OTP" for the sign-in code?** | "Verification code" (as in English) · "OTP" · a native term chosen by the translators | **No recommendation between the terms; your choice**, applied the same way in all five languages. "OTP" is familiar in India but not everyone can expand it. Whatever you choose, it must not be reused for the country code, the area code or the forwarding code | 8 | |
+| **Q0** | **Who translates and who reviews each language, how the worksheets reach them, and what you'll pay** | (a) fluent speakers you already work with; (b) volunteer community reviewers; (c) a professional translator or agency. Mixing per language is possible | **(a), with (b) or (c) where you have no one.** Quickest to trust, and no third party. Ask any agency whether it uses machine translation: that needs your separate approval | All |**Approved (2026-11-04):** known fluent speakers translate, with a separate reviewer for every language, who is a different person from the translator. Nobody is contacted, hired or paid without further owner authorization; consent is obtained before their names are recorded in the repository. |
+| **Q1** | **Inside a translated sentence, does the product name stay in Latin letters, or is it written in the language's script?** And separately: is the launcher name "CallScreen" or "Aegis AI"? | Latin letters · the language's script | **Latin letters ("Aegis AI")**, as the top bar shows it. Decide the launcher name separately, because it affects English too | 5 |**Approved (2026-11-04):** keep `Aegis AI` in Latin letters in every translation. |
+| **Q2** | **Formal or everyday language?** | Formal or literary (e.g. Sanskritised Hindi) · everyday phone-app language | **Everyday phone-app language**, the polite "you", and loanwords ("SIM", "spam") where Android's own text uses them. The translators' lead proposes per language; you confirm | All. A later change is a full re-translation |**Approved (2026-11-04):** everyday, polite language; familiar phone-app terms; loanwords where Android's own text commonly uses them. |
+| **Q3** | **Keep "AI" in Latin letters, or translate it?** | Keep "AI" · translate it | **Keep "AI":** short, fits chips and titles, widely recognised | 5 alone, plus 2 in "Aegis AI" |**Approved (2026-11-04):** keep `AI` untranslated. |
+| **Q4** | **"Verification code" or "OTP" for the sign-in code?** | "Verification code" (as in English) · "OTP" · a native term chosen by the translators | **No recommendation between the terms; your choice**, applied the same way in all five languages. "OTP" is familiar in India but not everyone can expand it. Whatever you choose, it must not be reused for the country code, the area code or the forwarding code | 8 |**Approved (2026-11-04):** use `OTP` consistently in all five non-English translations. |
 
 ### Translator and reviewer requirements
 
@@ -219,7 +220,16 @@ Each step needs its own approval. Approving one does not approve the next.
 
 **Recommendation: A1**, or **A1-read** if you prefer to see the conditions first. Reading them is free, and it settles G7 (the terms), which can rule option A in or out on its own.
 
-**Your decision:** ______
+**Owner's decision (2026-11-04): DEFER all speech model access and evaluation.**
+- **Not authorized:**
+  - Hugging Face sign-in for these models;
+  - accepting their conditions;
+  - downloading or executing them;
+  - voice recordings;
+  - GPU or cloud provisioning;
+  - hosting or activating a speech model.
+- **Any future step needs separate, explicit owner approval.**
+- **OD-17 stays open.** ADR-0005 and ADR-0007 remain Accepted and unchanged.
 
 ---
 
@@ -259,7 +269,7 @@ From [`PRODUCTION-READINESS.md`](PRODUCTION-READINESS.md) and [`ROADMAP-INVENTOR
 ### Safe work without your approval
 
 **Little remains, and none of it is new engineering:**
-- **Keeping records current.** `PRODUCTION-READINESS.md`'s header still says "as of 2026-11-01, `0d1ed04`"; its findings table is current to `91e6f1f`. Refreshing the header is documentation only.
+- **Keeping records current.** The tracker header was refreshed to `91e6f1f` by #236 (`c07c780`).
 - **Once you decide any item in this packet,** recording the decision and building what it unblocks. For example, D4 and D7 strings, D6's Up arrow, or regenerating the worksheets after Q1–Q4.
 
 **Nothing else in the tracker is both routine and unblocked.** Claude Code is not starting new engineering just to stay busy.

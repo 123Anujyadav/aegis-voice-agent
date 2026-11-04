@@ -136,6 +136,8 @@ Monthly cost             = servers × hourly price × 730 hours
 
 ## 4. Owner actions: none taken, each needs explicit approval
 
+**Owner, 2026-11-04: all of A1–A5 are DEFERRED** ([`OWNER-DECISION-PACKET-2026-11-04.md`](OWNER-DECISION-PACKET-2026-11-04.md) §3). None may start without a separate, explicit approval.
+
 | # | Action | Provider and purpose | Account | Cost | Data shared and privacy | Free or local alternative |
 |---|---|---|---|---|---|---|
 | A1 | Accept the two models' conditions, and download them | **Hugging Face**, for **AI4Bharat**'s gated weights | **The owner's** Hugging Face account, not Claude Code's | No charge for a basic account. **The conditions are unread** and may add terms | The account's information is shared with the publisher, as the gate says | Ungated models: Whisper (rejected on ADR-0005 C1 for latency), Vosk (no Tamil, Telugu, Malayalam or Kannada found) |

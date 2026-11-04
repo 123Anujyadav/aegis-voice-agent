@@ -1,6 +1,10 @@
 # Decisions for the owner: the App language screen (A58l) and Welcome's Language control
 
-- **Status: awaiting the owner and a design reviewer. Nothing here is decided, and nothing in the app has been changed for it.**
+- **Status: DECIDED by the owner on 2026-11-04: all nine approved.** The record is [`OWNER-DECISION-PACKET-2026-11-04.md`](../../../phase19/OWNER-DECISION-PACKET-2026-11-04.md). This page keeps the analysis and recommendations as proposed; where a decision differs from a recommendation, the decision governs:
+  - **D5:** App language stays under Settings and is **not** moved under Appearance;
+  - **D7:** the name in brackets is the phone's actual language;
+  - **D4:** the label is the fixed bilingual `भाषा · Language`.
+- D4, D6 and D7 change the app, and are built in their own PRs.
 - **Prepared:** 2026-11-04 by Claude Code, on main `7ed8f2f`, from the design review packet [`LANGUAGE-SELECTION-REVIEW.md`](LANGUAGE-SELECTION-REVIEW.md). The packet has the captures, the specification and the evidence. This page is the short form for deciding.
 - **Every decision needs approval:** each one accepts or changes frozen UX (`UX_FREEZE.md` §7), or is a product decision (D8). A recommendation is only a recommendation.
 
