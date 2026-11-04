@@ -241,8 +241,9 @@ by retention can't be listed."
 ## A58l · App language
 
 Added 2026-11-02 at the owner's request (UX_FREEZE §7: a new screen, written
-here in the same change; design review pending: the packet is
-[`reviews/LANGUAGE-SELECTION-REVIEW.md`](reviews/LANGUAGE-SELECTION-REVIEW.md)).
+here in the same change). **Reviewed and decided by the owner on 2026-11-04**
+(D1–D9: [`reviews/LANGUAGE-SELECTION-DECISIONS.md`](reviews/LANGUAGE-SELECTION-DECISIONS.md)).
+It stays under Settings, not Appearance (D5), and is **free for everyone** (D8).
 
 **Purpose** — The language of the app's screens. It is **not** the language the
 assistant speaks and understands on calls (`A43`), and choosing one never
@@ -286,7 +287,9 @@ the on-device pre-filter, blocklist and allowlist, fraud and spam **verdicts**,
 forwarding health, and everything in Settings.
 
 **What premium adds:** fraud **evidence detail** (`A31d`), call recording,
-extended retention, multiple languages, premium voices, custom instructions,
+extended retention, multiple **assistant voice** languages (the app's screen
+language, `A58l`, is free for everyone: owner decision D8, 2026-11-04), premium
+voices, custom instructions,
 availability schedules, and unlimited screening volume beyond the free tier's
 monthly cap.
 

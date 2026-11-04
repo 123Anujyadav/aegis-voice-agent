@@ -5,7 +5,13 @@
   - **no translator or reviewer has been contacted, engaged or sent anything;**
   - no machine translation has been used.
 - **What this page is:** the short form of [`QUESTIONS.md`](QUESTIONS.md) Q0–Q4, with the workload and who does what. The details are in [`README.md`](README.md) (the translator's guide), [`GLOSSARY.md`](GLOSSARY.md) and the five worksheets in `worksheets/`.
-- **Prepared by Claude Code.** Every recommendation is only a recommendation.
+- **Decided by the owner on 2026-11-04: Q0–Q4 approved** ([`OWNER-DECISION-PACKET-2026-11-04.md`](../phase19/OWNER-DECISION-PACKET-2026-11-04.md)):
+  - known fluent speakers translate, each language with a separate reviewer;
+  - `Aegis AI` and `AI` stay in Latin letters;
+  - everyday, polite language;
+  - `OTP` in all five.
+- **Not authorized by those decisions:** contacting, hiring or paying anyone, or any hosted translation platform. Each needs the owner's further approval. Consent is needed before anyone's name is recorded.
+- **Prepared by Claude Code.** The recommendations below are kept as proposed.
 
 **The six languages stay English, Hindi, Tamil, Telugu, Malayalam and Kannada.** English is the source and is complete; the other five each need the steps below.
 

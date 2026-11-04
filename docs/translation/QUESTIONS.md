@@ -8,7 +8,7 @@ These came from auditing the English source (244 resources, 246 worksheet rows) 
 - which rows it affects;
 - a recommendation. A recommendation is not a decision.
 
-**None is decided. Nothing in the app has been changed for them.** The owner's short form, with the workload and who does what, is [`APPROVAL-SUMMARY.md`](APPROVAL-SUMMARY.md).
+**Decided by the owner on 2026-11-04: Q0–Q4, and Q10 through design decision D4** ([`OWNER-DECISION-PACKET-2026-11-04.md`](../phase19/OWNER-DECISION-PACKET-2026-11-04.md)). **Q5–Q9 and Q11 remain open.** The owner's short form, with the workload and who does what, is [`APPROVAL-SUMMARY.md`](APPROVAL-SUMMARY.md).
 
 | # | Decides | When | Question |
 |---|---|---|---|
@@ -27,6 +27,12 @@ These came from auditing the English source (244 resources, 246 worksheet rows) 
 
 ## Q0. Translators, reviewers and sharing (before)
 
+**Decided (owner, 2026-11-04):**
+- known fluent speakers translate;
+- every language has a separate reviewer, who is a different person from the translator;
+- **nobody may be contacted, hired or paid without further owner authorization;**
+- each person's consent is needed before their name is recorded in the repository, which the import does.
+
 **Rows:** all.
 
 The owner decides:
@@ -44,6 +50,8 @@ Either way, they are two people per language and their names are recorded on imp
 
 ## Q1. The product's name (before)
 
+**Decided (owner, 2026-11-04):** keep `Aegis AI` in Latin letters in every translation. The launcher name ("CallScreen" or "Aegis AI") was not part of this decision and stays open.
+
 **Rows:** `onboarding_welcome_title` ("Welcome to Aegis AI"), `onboarding_phone_subtitle_number`, `settings_deletion_entry_description` ("your Aegis account"), `core_ui_logo` and `onboarding_splash_logo_description` ("Aegis Shield Logo").
 
 The English uses three names:
@@ -58,6 +66,8 @@ The names themselves are not translated (`translatable="false"`). What the trans
 - settle the launcher name ("CallScreen" or "Aegis AI") separately. It affects English too.
 
 ## Q2. Register and loanwords (before)
+
+**Decided (owner, 2026-11-04):** everyday, polite language; familiar phone-app terms; loanwords where Android's own text commonly uses them.
 
 **Rows:** all.
 
@@ -75,6 +85,8 @@ The translators' lead proposes; the owner confirms per language.
 
 ## Q3. "AI" (before)
 
+**Decided (owner, 2026-11-04):** keep `AI` untranslated, in Latin letters.
+
 **Rows:** `onboarding_ai_title` ("AI Screening Persona"), `assistant_voice_setup_title` ("AI Voice Customization"), `calls_filter_ai_screened` ("AI Screened"), `protection_dashboard_screenings` ("AI screenings").
 
 Should "AI" stay as the Latin abbreviation or be translated?
@@ -82,6 +94,8 @@ Should "AI" stay as the Latin abbreviation or be translated?
 **Recommendation:** keep "AI" in Latin letters. It is short, it fits the chips and titles, and it is widely recognised. The owner may prefer the language's own term.
 
 ## Q4. "Verification code" or "OTP" (before)
+
+**Decided (owner, 2026-11-04):** use `OTP`, written as in the decision, consistently in all five non-English translations. The English source keeps "verification code" and "6-digit code". Never use OTP for the country code, the area code or the operator's forwarding code.
 
 **Rows:** `onboarding_phone_title_code`, `onboarding_phone_label_code`, `onboarding_phone_resend`, `onboarding_phone_send`, the code messages, and `settings_deletion_deleted_sessions` ("pending verification codes").
 
@@ -137,6 +151,8 @@ Hindi text commonly ends sentences with "।" (purna viram); Tamil, Telugu, Mala
 **Recommendation:** follow what Android's own text uses in each language, consistently.
 
 ## Q10. The "Language" button on Welcome (before that row)
+
+**Decided through D4 (owner, 2026-11-04):** the control's label is the fixed bilingual `भाषा · Language`, the same in every language, so this row is not translated.
 
 **Row:** `onboarding_welcome_language`.
 

@@ -8,8 +8,11 @@ Telugu, Malayalam and Kannada), so choosing one shows English, and the picker
 says "Not translated yet". Do not describe the app as supporting any language
 other than English until that language's reviewed translation and on-device
 tests below are done. The translator package is ready
-([`docs/translation/`](../translation/README.md)); no translator has been
-engaged, which needs the owner's approval first.
+([`docs/translation/`](../translation/README.md)). The owner decided the
+translation questions Q0–Q4 and the language UX D1–D9 on 2026-11-04
+([`OWNER-DECISION-PACKET-2026-11-04.md`](OWNER-DECISION-PACKET-2026-11-04.md)).
+No translator has been engaged: contacting, hiring or paying anyone needs the
+owner's further approval.
 
 ## 1. Where the words are
 

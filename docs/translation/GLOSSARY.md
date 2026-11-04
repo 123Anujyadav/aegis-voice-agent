@@ -8,11 +8,11 @@
 
 | English | What it means in this app | How to handle it |
 |---|---|---|
-| **Aegis AI**, Aegis | The product's name | A name, not a word to translate. Whether it stays in Latin letters inside a sentence is [`QUESTIONS.md`](QUESTIONS.md) Q1 |
+| **Aegis AI**, Aegis | The product's name | A name, not a word to translate. **Keep `Aegis AI` in Latin letters in every translation** (Q1, owner, 2026-11-04) |
 | **screen calls**, screening, screened, screenings | **Checking a call before the person has to deal with it.** Android's own screening decides whether a call rings or is rejected (blocking). The planned assistant answers an unknown caller the person doesn't pick up and asks who is calling and why | Not a display screen. Not medical screening. One term for "screening" in every row |
 | **screen** (noun), screens | A page of the app: "this app's screens" | Different from "screening". Use a word that cannot be read as "screening" (`settings_language_intro`) |
 | **assistant** | The planned automated voice that would answer unknown callers for the person. **Not available yet** | Not Google Assistant. A neutral word for a helper, not a human receptionist |
-| **AI** | Artificial intelligence: "AI screening", "AI Voice Customization" | Keep "AI" or translate it: Q3 |
+| **AI** | Artificial intelligence: "AI screening", "AI Voice Customization" | **Keep `AI` untranslated, in Latin letters** (Q3, owner, 2026-11-04) |
 | **block**, blocked numbers, blocking, on-device blocking | Calls from a number the person blocked are **rejected on this phone before it rings**, even offline | Use the verb people know from phone apps for "block a number". "Blocked numbers" is also a screen's title |
 | **allow**, allowed numbers | Numbers this app never blocks, even if flagged as spam | The opposite of "block" |
 | **unknown caller** | A caller whose number is not in the person's contacts | Not "anonymous" or "hidden number" |
@@ -20,7 +20,7 @@
 | **call forwarding** | The mobile operator's service that sends calls the person doesn't answer to another number (here, to the assistant) | Use the term mobile operators use for this service in that language |
 | **carrier** | The mobile operator (network provider) | Translate the meaning "mobile operator", the way people in India say it, not "a carrier of goods" |
 | **SIM**, SIM card | The phone's SIM | Usually kept as the familiar loanword in the language's script |
-| **verification code**, 6-digit code, code | The one-time code sent by SMS to sign in | Whether to say "OTP": Q4. Keep "6" in Western digits |
+| **verification code**, 6-digit code, code | The one-time code sent by SMS to sign in | **Use `OTP`** in all five translations (Q4, owner, 2026-11-04). Never for the country, area or forwarding code. Keep "6" in Western digits |
 | **sign in**, sign out, signed out | Proving the phone number with a code, then staying signed in on this phone | Use the words phone apps use for signing in |
 | **account**, delete account, permanently | The person's account on Aegis's servers. Deleting it cannot be undone | **Privacy text: the meaning must be exact** (`review` column) |
 | **contacts access** | **Android's Contacts permission.** The app uses it only so Android can check calls from saved contacts. **It never reads or uploads contacts** | Use Android's own name for the Contacts permission. **Never translate as "reading" or "importing" contacts** |

@@ -101,7 +101,8 @@ Text in the app wraps onto more lines when it must, and every screen scrolls. Te
 
 - **Plain, calm and exact.** People read this when a call worried them, or when deciding whether to trust the app with their calls. Short sentences. No marketing, no exclamation marks, no fear.
 - **Address the person respectfully,** with the polite form of "you" used in that language's everyday phone apps. **Keep that form the same in every row.**
-- **Everyday words people use on their phones over formal or literary vocabulary.** Words commonly used in English in that language on phones, such as "call", "SIM" or "OTP", may stay as the familiar loanword, written in the language's script. Use one choice consistently. [`QUESTIONS.md`](QUESTIONS.md) Q2 asks the owner to confirm the register.
+- **Everyday words people use on their phones over formal or literary vocabulary.** Words commonly used in English in that language on phones, such as "call" or "SIM", may stay as the familiar loanword, written in the language's script. Use one choice consistently.
+- **Decided (owner, 2026-11-04):** everyday, polite language with familiar phone-app terms (Q2). `Aegis AI` and `AI` stay in Latin letters (Q1, Q3). The sign-in code is `OTP` (Q4).
 - **Never add a promise.** "Blocks spam" must not become "blocks all spam"; "is not available yet" must not become "is coming soon". The English is careful about what the app does, and the translation must be too.
 - **Use Android's own words for Android's own things.** The "Caller ID & spam app" setting, permissions and system screens: use the words Android shows on a phone set to that language, so the person recognises them. The glossary marks these.
 - **Numbers and phone numbers stay in Western digits** (0–9), as Android shows them by default in these languages. For example "+91 98765 43210".

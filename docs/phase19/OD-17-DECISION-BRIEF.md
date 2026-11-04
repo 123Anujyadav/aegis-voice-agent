@@ -1,6 +1,8 @@
 # OD-17: speech providers. What is known, what is missing, and your choices
 
-- **Status: awaiting the owner. Nothing is decided.**
+- **Status: OD-17 is open. The owner DEFERRED all speech-model access and evaluation on 2026-11-04** ([`OWNER-DECISION-PACKET-2026-11-04.md`](OWNER-DECISION-PACKET-2026-11-04.md) §3).
+  - **Not authorized:** Hugging Face sign-in for these models, accepting their conditions, downloading or executing them, voice recordings, GPU or cloud provisioning, hosting or activating a speech model.
+  - **Any future step (A1–A5) needs separate, explicit owner approval.**
   - ADR-0005 (speech-to-text) and ADR-0007 (text-to-speech) are **Accepted and unchanged**.
   - No Hugging Face account has been created, no model terms accepted, no model downloaded, no recording made or uploaded, and nothing hosted or bought.
 - **Prepared:** 2026-11-04 by Claude Code, on main `7ed8f2f`. This is the short form of three documents: [`SPEECH-PROVIDER-POLICY-CONFLICT.md`](SPEECH-PROVIDER-POLICY-CONFLICT.md) (the conflict and the options), [`SPEECH-OPEN-MODELS-EVALUATION.md`](SPEECH-OPEN-MODELS-EVALUATION.md) (the candidates) and [`SPEECH-EVALUATION-PREPARATION.md`](SPEECH-EVALUATION-PREPARATION.md) (the method and the owner actions A1–A5). It is AI-prepared research from publishers' public pages (`ARCHITECTURE_FREEZE.md` §6.1 rule 9), not an independent review.

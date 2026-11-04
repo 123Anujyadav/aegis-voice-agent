@@ -1,6 +1,6 @@
 # Design review packet: choosing the app's language (A58l, and A01's Language control)
 
-- **Status: awaiting design review.** **Nothing here is approved.** This packet does not approve either change; the owner and a design reviewer decide.
+- **Status: decided.** The owner approved D1–D9 on 2026-11-04 ([`LANGUAGE-SELECTION-DECISIONS.md`](LANGUAGE-SELECTION-DECISIONS.md); record: [`OWNER-DECISION-PACKET-2026-11-04.md`](../../../phase19/OWNER-DECISION-PACKET-2026-11-04.md)). A58l and A01's Language control are accepted (D1, D2). This packet is kept as the review's evidence.
 - **Prepared:** 2026-11-04, on main `592e588`, by Claude Code. AI-prepared material for a human review (`ARCHITECTURE_FREEZE.md` §6.1 rule 9).
 
 **Why a review:**
@@ -123,7 +123,7 @@ A58l: tap a language ─▶ applied at once; the screen is re-created in place; 
 
 ## 7. Decisions for the owner and design reviewer
 
-**None of these has been decided by Claude Code.** Each recommendation is only a recommendation. Each decision's current behaviour, usability, accessibility and localization effects are in [`LANGUAGE-SELECTION-DECISIONS.md`](LANGUAGE-SELECTION-DECISIONS.md).
+**Decided by the owner on 2026-11-04: all nine approved** (see the decision record). The recommendations below are as proposed. Each decision's current behaviour, usability, accessibility and localization effects are in [`LANGUAGE-SELECTION-DECISIONS.md`](LANGUAGE-SELECTION-DECISIONS.md).
 
 | # | Decision | Options | Recommendation |
 |---|---|---|---|
