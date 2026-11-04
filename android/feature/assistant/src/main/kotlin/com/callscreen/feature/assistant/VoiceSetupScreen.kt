@@ -5,8 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -56,7 +56,9 @@ public fun VoiceSetupScreen(
     ) { paddingValues ->
         // Scrolls when the voices do not fit: a large font, or a longer translation (F18).
         AegisScreenColumn(
-            modifier = modifier.padding(paddingValues).consumeWindowInsets(paddingValues),
+            modifier = modifier.padding(paddingValues),
+            // The Scaffold has made room for the system bars (AegisScreenColumn).
+            windowInsets = WindowInsets(0, 0, 0, 0),
             horizontalAlignment = Alignment.Start,
             contentPadding = 16.dp,
         ) {

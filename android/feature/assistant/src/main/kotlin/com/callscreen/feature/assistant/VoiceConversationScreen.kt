@@ -2,7 +2,7 @@ package com.callscreen.feature.assistant
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,7 +30,8 @@ public fun VoiceConversationScreen(
         topBar = { AegisTopAppBar(title = stringResource(R.string.assistant_session_screen_title)) }
     ) { paddingValues ->
         // Scrolls when the words do not fit: a large font, or a longer translation.
-        AegisScreenColumn(modifier = modifier.padding(paddingValues).consumeWindowInsets(paddingValues)) {
+        // The Scaffold has made room for the system bars (AegisScreenColumn).
+        AegisScreenColumn(modifier = modifier.padding(paddingValues), windowInsets = WindowInsets(0, 0, 0, 0)) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),

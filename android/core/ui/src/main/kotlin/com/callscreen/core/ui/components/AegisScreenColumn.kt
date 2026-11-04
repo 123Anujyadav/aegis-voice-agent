@@ -44,8 +44,12 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
  * view on a 320 x 640 dp screen.
  *
  * Inside a Scaffold, which has already made room for its bars, pass its
- * padding through `Modifier.padding(padding).consumeWindowInsets(padding)` so
- * that room is not made twice.
+ * padding as `Modifier.padding(padding)` and `windowInsets =
+ * WindowInsets(0, 0, 0, 0)`, so that room is not made twice. Consuming the
+ * Scaffold's padding instead (`consumeWindowInsets`) would also take it out
+ * of [contentPadding], since a consumed inset is subtracted from the whole
+ * padding: App language's intro then sat flush under the top bar
+ * (SystemBarsOnDeviceTest).
  */
 @Composable
 public fun AegisScreenColumn(
