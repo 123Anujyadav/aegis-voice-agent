@@ -235,6 +235,20 @@ lost.
 | Blocking error | Retry or an explicit escape, both labelled. Back exits the app only where there is genuinely nothing behind |
 | Checkout, mid-payment | **Confirmation dialog.** The one place a back press is confirmed, because an abandoned payment can leave a real charge in an ambiguous state |
 
+**The top bar's Back arrow** (owner decision D6, 2026-11-04). Every screen with
+the shared top bar shows a Back arrow at its start when the app has a screen
+behind it. The arrow **is** the system Back for that screen (the activity's
+back dispatcher), so it goes exactly where the table above, and the app as
+built, send Back, through any screen's own Back handling, with the same saved
+state. On a screen with nothing behind it in the app, such as the first screen
+after sign-in, there is no arrow, because Back would leave the app. Its target
+is 48 dp, and screen readers announce it as "Back".
+
+**As built, switching tabs adds to the back stack**, so Back, and the arrow,
+return to the previously shown tab. This differs from the tab-root rule above
+and from "each tab owns an independent back stack" (§2.1). It is recorded as
+production-readiness finding F25, and D6 does not change it.
+
 **Predictive back is supported on API 33+** for every non-blocking route. Routes
 where back is disabled or confirmed opt out explicitly rather than by omission.
 

@@ -9,6 +9,7 @@ core/ui,string,core_ui_tab_protection,,Protection,Bottom tab label under an icon
 core/ui,string,core_ui_tab_assistant,,Assistant,Bottom tab label under an icon. Each tab has a quarter of the screen's width (about 70 dp on a small phone): one short word.,9,Bottom navigation,,,,,,
 core/ui,string,core_ui_tab_settings,,Settings,Bottom tab label under an icon. Each tab has a quarter of the screen's width (about 70 dp on a small phone): one short word.,8,Bottom navigation,,,,,,
 core/ui,string,core_ui_logo,,Aegis Shield Logo,Not shown on screen: read aloud by a screen reader (TalkBack) for an icon or control. Name the thing or action plainly.,17,Top app bar,,,,,,
+core/ui,string,core_ui_back,,Back,Not shown on screen: read aloud by a screen reader (TalkBack) for an icon or control. Name the thing or action plainly.,4,"The top bar's Back arrow, read by screen readers (owner decision D6).",,,,,,
 core/ui,string,core_ui_search,,Search,Label inside a one-line text box. It does not wrap: a long label is cut off. Keep it short.,6,"Search, dialogs, states",,,,,,
 core/ui,string,core_ui_confirm,,Confirm,Button or link. Short: wraps to a second line only if it must.,7,"Search, dialogs, states",,,,,,
 core/ui,string,core_ui_cancel,,Cancel,Button or link. Short: wraps to a second line only if it must.,6,"Search, dialogs, states",,,,,,

@@ -111,6 +111,45 @@ class SharedComponentsTextTest {
         compose.onNodeWithContentDescription(s(R.string.core_ui_logo)).assertExists()
         // The profile picture does nothing, so it is not announced as if it were a control.
         compose.onNodeWithContentDescription("User Profile").assertDoesNotExist()
+        // Outside the app's navigation there is nowhere to go back to, so no arrow (D6).
+        compose.onNodeWithContentDescription(s(R.string.core_ui_back)).assertDoesNotExist()
+    }
+
+    @Test
+    fun theBackArrowIsAButtonNamedBackWithAFullTarget() {
+        var back = 0
+        show { AegisTopAppBar(title = "App language", onBack = { back++ }) }
+        val arrow = compose.onNodeWithContentDescription(s(R.string.core_ui_back))
+        arrow.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        val target = arrow.fetchSemanticsNode().touchBoundsInRoot
+        with(compose.density) {
+            assertTrue("the arrow's target is ${target.width.toDp()} x ${target.height.toDp()}", target.width.toDp() >= 48.dp && target.height.toDp() >= 48.dp)
+        }
+        arrow.performClick()
+        assertEquals(1, back)
+    }
+
+    @Test
+    fun theAppsNavigationDecidesTheArrow() {
+        // The app provides the way back (LocalAegisBack); the bar shows the arrow only when there is one.
+        var back = 0
+        show {
+            CompositionLocalProvider(LocalAegisBack provides { { back++ } }) { AegisTopAppBar(title = "App language") }
+        }
+        compose.onNodeWithContentDescription(s(R.string.core_ui_back)).performClick()
+        assertEquals(1, back)
+    }
+
+    @Test
+    fun withTheArrowTheTitleStillFitsAtTwiceTheFontScaleOnASmallScreen() {
+        val title = "Numbers you blocked from calling"
+        show(fontScale = 2f, width = 320) { AegisTopAppBar(title = title, onBack = {}) }
+        compose.onNodeWithContentDescription(s(R.string.core_ui_back)).assertIsDisplayed()
+        assertFalse("$title is cut off", cutOff(title, width = 320))
+        // The arrow comes first, before the logo and the title.
+        val arrow = compose.onNodeWithContentDescription(s(R.string.core_ui_back)).fetchSemanticsNode().boundsInRoot
+        val logo = compose.onNodeWithContentDescription(s(R.string.core_ui_logo)).fetchSemanticsNode().boundsInRoot
+        assertTrue("arrow $arrow, logo $logo", arrow.right <= logo.left)
     }
 
     /**
