@@ -1,62 +1,70 @@
 package com.callscreen.app.navigation
 
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import com.callscreen.BuildConfig
-import com.callscreen.app.session.SessionRouting
-import com.callscreen.app.session.SessionSignals
-import com.callscreen.app.session.SignedOutScreen
-import com.callscreen.core.auth.SessionEndCause
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraph
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.callscreen.BuildConfig
+import com.callscreen.app.session.SessionRouting
+import com.callscreen.app.session.SessionSignals
+import com.callscreen.app.session.SignedOutScreen
+import com.callscreen.core.auth.SessionEndCause
 import com.callscreen.core.telephony.prefilter.ListType
 import com.callscreen.core.telephony.screening.ScreeningRole
 import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 import com.callscreen.core.ui.components.AegisTab
+import com.callscreen.core.ui.components.LocalAegisBack
 import com.callscreen.feature.assistant.AssistantHomeScreen
 import com.callscreen.feature.assistant.VoiceConversationScreen
 import com.callscreen.feature.assistant.VoiceSetupScreen
+import com.callscreen.feature.business.AegisOpsDashboardScreen
+import com.callscreen.feature.business.AiOpsStudioScreen
+import com.callscreen.feature.business.AiReceptionistConfigScreen
+import com.callscreen.feature.business.BusinessDashboardScreen
+import com.callscreen.feature.business.CallRoutingBuilderScreen
+import com.callscreen.feature.business.CallRoutingRulesScreen
+import com.callscreen.feature.business.ConversationTraceReplayScreen
 import com.callscreen.feature.calls.CallsFeedRoute
 import com.callscreen.feature.calls.IncomingCallScreen
 import com.callscreen.feature.family.FamilyShieldScreen
 import com.callscreen.feature.onboarding.AiScreeningSetupScreen
 import com.callscreen.feature.onboarding.CallForwardingSetupScreen
-import com.callscreen.feature.onboarding.ScreeningRoleRoute
 import com.callscreen.feature.onboarding.PhoneVerificationRoute
+import com.callscreen.feature.onboarding.ScreeningRoleRoute
 import com.callscreen.feature.onboarding.SetupCompleteScreen
 import com.callscreen.feature.onboarding.SimDetectionRoute
 import com.callscreen.feature.onboarding.SplashScreen
 import com.callscreen.feature.onboarding.WelcomeScreen
-import com.callscreen.feature.protection.FraudIntelligenceScreen
 import com.callscreen.feature.protection.CallerListRoute
 import com.callscreen.feature.protection.CallerListViewModel
+import com.callscreen.feature.protection.FraudIntelligenceScreen
 import com.callscreen.feature.protection.ProtectionDashboardScreen
 import com.callscreen.feature.screening.EmergencyDetectionScreen
 import com.callscreen.feature.screening.FraudWarningScreen
 import com.callscreen.feature.screening.LiveAiScreeningScreen
 import com.callscreen.feature.settings.AccountDeletionRoute
 import com.callscreen.feature.settings.AppLanguageRoute
+import com.callscreen.feature.settings.ConsentVaultScreen
 import com.callscreen.feature.settings.TaskCenterRoute
 import com.callscreen.feature.summary.ConversationMemoryScreen
 import com.callscreen.feature.summary.PostCallSummaryScreen
-import com.callscreen.feature.business.AiReceptionistConfigScreen
-import com.callscreen.feature.business.CallRoutingBuilderScreen
-import com.callscreen.feature.business.AiOpsStudioScreen
-import com.callscreen.feature.business.BusinessDashboardScreen
-import com.callscreen.feature.business.ConversationTraceReplayScreen
-import com.callscreen.feature.business.AegisOpsDashboardScreen
-import com.callscreen.feature.business.CallRoutingRulesScreen
-import com.callscreen.feature.settings.ConsentVaultScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -169,131 +177,146 @@ public fun AegisNavGraph(
     LaunchedEffect(session, pastSplash, lifecycle) {
         if (pastSplash) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { session.confirmIfDue() }
     }
-    NavHost(
-        navController = navController,
-        startDestination = startDestination,
-        modifier = modifier
-    ) {
-        composable(AegisDestinations.SPLASH) {
-            val scope = rememberCoroutineScope()
-            SplashScreen(
-                onSplashFinished = {
-                    // Calls for a phone holding a session, onboarding otherwise
-                    // (02-navigation-graph §2.2); an unreadable store counts as none.
-                    scope.launch(Dispatchers.Main.immediate) {
-                        val next = SessionRouting.afterSplash(session)
-                        navController.navigate(next) { popUpTo(AegisDestinations.SPLASH) { inclusive = true } }
-                    }
-                },
-            )
+    // D6: each screen's top bar gets a Back arrow when the app has a screen behind it, and the
+    // arrow is Android's own Back (the dispatcher), so it pops exactly as the system Back does,
+    // through any screen's own Back handling, and keeps the state the back stack keeps.
+    val backStack by navController.currentBackStack.collectAsState()
+    val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    val back: @Composable () -> (() -> Unit)? = remember(dispatcher) {
+        @Composable {
+            val screen = LocalLifecycleOwner.current as? NavBackStackEntry
+            val index = backStack.indexOfFirst { it.id == screen?.id }
+            val behind = index > 0 && backStack.subList(0, index).any { it.destination !is NavGraph }
+            if (behind && dispatcher != null) ({ dispatcher.onBackPressed() }) else null
         }
-        composable(AegisDestinations.WELCOME) {
-            WelcomeScreen(
-                onGetStartedClick = { navController.navigate(AegisDestinations.SIM_DETECTION) },
-                onLanguageClick = { navController.navigate(AegisDestinations.APP_LANGUAGE) },
-            )
-        }
-        composable(AegisDestinations.SIM_DETECTION) {
-            SimDetectionRoute(onContinueClick = { navController.navigate(AegisDestinations.PHONE_VERIFICATION) })
-        }
-        composable(AegisDestinations.PHONE_VERIFICATION) {
-            val context = LocalContext.current
-            PhoneVerificationRoute(
-                onVerified = {
-                    // A09b only when the role can be asked for and is not held (A09 edge cases).
-                    val next = if (ScreeningRole.status(context) == ScreeningRoleStatus.NOT_HELD) {
-                        AegisDestinations.SCREENING_ROLE
-                    } else {
-                        AegisDestinations.AI_SETUP
-                    }
-                    navController.navigate(next)
-                },
-            )
-        }
-        composable(AegisDestinations.SCREENING_ROLE) {
-            ScreeningRoleRoute(onDone = { navController.navigate(AegisDestinations.AI_SETUP) })
-        }
-        composable(AegisDestinations.AI_SETUP) {
-            AiScreeningSetupScreen(onContinueClick = { navController.navigate(AegisDestinations.CALL_FORWARDING) })
-        }
-        composable(AegisDestinations.CALL_FORWARDING) {
-            CallForwardingSetupScreen(onActivateForwardingClick = { navController.navigate(AegisDestinations.SETUP_COMPLETE) })
-        }
-        composable(AegisDestinations.SETUP_COMPLETE) {
-            val context = LocalContext.current
-            SetupCompleteScreen(
-                // Onboarding exits permanently: Back from Calls never returns to it.
-                onGoToHomeClick = {
-                    navController.navigate(AegisDestinations.CALLS_FEED) {
-                        popUpTo(navController.graph.id) { inclusive = true }
-                    }
-                },
-                blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
-            )
-        }
-        composable(AegisDestinations.CALLS_FEED) {
-            CallsFeedRoute(
-                // A call's summary is a design preview until call records exist; nothing to open in a release build.
-                onCallClick = { if (includeDesignPreviews) navController.navigate(AegisDestinations.POST_CALL_SUMMARY) },
-                onTabSelected = { tab -> handleTabClick(navController, tab) },
-            )
-        }
-        composable(AegisDestinations.PROTECTION_DASHBOARD) {
-            ProtectionDashboardScreen(
-                onTabSelected = { tab -> handleTabClick(navController, tab) },
-                onBlockedNumbersClick = { navController.navigate(AegisDestinations.callerList(ListType.BLOCK)) },
-                onAllowedNumbersClick = { navController.navigate(AegisDestinations.callerList(ListType.ALLOW)) },
-            )
-        }
-        composable(AegisDestinations.CALLER_LIST) {
-            CallerListRoute()
-        }
-        if (includeDesignPreviews) designPreviews(navController)
-        composable(AegisDestinations.ASSISTANT_HOME) {
-            AssistantHomeScreen(
-                onVoiceSetupClick = { navController.navigate(AegisDestinations.VOICE_SETUP) },
-                onStartVoiceChatClick = { navController.navigate(AegisDestinations.VOICE_CONVERSATION) },
-                onTabSelected = { tab -> handleTabClick(navController, tab) }
-            )
-        }
-        composable(AegisDestinations.VOICE_SETUP) {
-            VoiceSetupScreen(onSaveVoiceClick = { navController.popBackStack() })
-        }
-        composable(AegisDestinations.TASK_CENTER) {
-            TaskCenterRoute(
-                onLanguageClick = { navController.navigate(AegisDestinations.APP_LANGUAGE) },
-                onDeleteAccountClick = { navController.navigate(AegisDestinations.ACCOUNT_DELETION) },
-            )
-        }
-        composable(AegisDestinations.APP_LANGUAGE) {
-            AppLanguageRoute()
-        }
-        composable(AegisDestinations.ACCOUNT_DELETION) {
-            AccountDeletionRoute(
-                // The account is gone: nothing behind this screen applies any more.
-                onDeleted = {
-                    navController.navigate(AegisDestinations.WELCOME) {
-                        popUpTo(navController.graph.id) { inclusive = true }
-                    }
-                },
-                onBack = { navController.popBackStack() },
-            )
-        }
-        composable(AegisDestinations.VOICE_CONVERSATION) {
-            VoiceConversationScreen(onEndSessionClick = { navController.popBackStack() })
-        }
-        composable(AegisDestinations.SIGNED_OUT) { entry ->
-            val context = LocalContext.current
-            val name = entry.arguments?.getString(AegisDestinations.SIGNED_OUT_CAUSE_ARG)
-            SignedOutScreen(
-                cause = SessionEndCause.entries.firstOrNull { it.name == name },
-                blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
-                onSignInClick = {
-                    navController.navigate(AegisDestinations.WELCOME) {
-                        popUpTo(navController.graph.id) { inclusive = true }
-                    }
-                },
-            )
+    }
+    CompositionLocalProvider(LocalAegisBack provides back) {
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+            modifier = modifier
+        ) {
+            composable(AegisDestinations.SPLASH) {
+                val scope = rememberCoroutineScope()
+                SplashScreen(
+                    onSplashFinished = {
+                        // Calls for a phone holding a session, onboarding otherwise
+                        // (02-navigation-graph §2.2); an unreadable store counts as none.
+                        scope.launch(Dispatchers.Main.immediate) {
+                            val next = SessionRouting.afterSplash(session)
+                            navController.navigate(next) { popUpTo(AegisDestinations.SPLASH) { inclusive = true } }
+                        }
+                    },
+                )
+            }
+            composable(AegisDestinations.WELCOME) {
+                WelcomeScreen(
+                    onGetStartedClick = { navController.navigate(AegisDestinations.SIM_DETECTION) },
+                    onLanguageClick = { navController.navigate(AegisDestinations.APP_LANGUAGE) },
+                )
+            }
+            composable(AegisDestinations.SIM_DETECTION) {
+                SimDetectionRoute(onContinueClick = { navController.navigate(AegisDestinations.PHONE_VERIFICATION) })
+            }
+            composable(AegisDestinations.PHONE_VERIFICATION) {
+                val context = LocalContext.current
+                PhoneVerificationRoute(
+                    onVerified = {
+                        // A09b only when the role can be asked for and is not held (A09 edge cases).
+                        val next = if (ScreeningRole.status(context) == ScreeningRoleStatus.NOT_HELD) {
+                            AegisDestinations.SCREENING_ROLE
+                        } else {
+                            AegisDestinations.AI_SETUP
+                        }
+                        navController.navigate(next)
+                    },
+                )
+            }
+            composable(AegisDestinations.SCREENING_ROLE) {
+                ScreeningRoleRoute(onDone = { navController.navigate(AegisDestinations.AI_SETUP) })
+            }
+            composable(AegisDestinations.AI_SETUP) {
+                AiScreeningSetupScreen(onContinueClick = { navController.navigate(AegisDestinations.CALL_FORWARDING) })
+            }
+            composable(AegisDestinations.CALL_FORWARDING) {
+                CallForwardingSetupScreen(onActivateForwardingClick = { navController.navigate(AegisDestinations.SETUP_COMPLETE) })
+            }
+            composable(AegisDestinations.SETUP_COMPLETE) {
+                val context = LocalContext.current
+                SetupCompleteScreen(
+                    // Onboarding exits permanently: Back from Calls never returns to it.
+                    onGoToHomeClick = {
+                        navController.navigate(AegisDestinations.CALLS_FEED) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                        }
+                    },
+                    blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
+                )
+            }
+            composable(AegisDestinations.CALLS_FEED) {
+                CallsFeedRoute(
+                    // A call's summary is a design preview until call records exist; nothing to open in a release build.
+                    onCallClick = { if (includeDesignPreviews) navController.navigate(AegisDestinations.POST_CALL_SUMMARY) },
+                    onTabSelected = { tab -> handleTabClick(navController, tab) },
+                )
+            }
+            composable(AegisDestinations.PROTECTION_DASHBOARD) {
+                ProtectionDashboardScreen(
+                    onTabSelected = { tab -> handleTabClick(navController, tab) },
+                    onBlockedNumbersClick = { navController.navigate(AegisDestinations.callerList(ListType.BLOCK)) },
+                    onAllowedNumbersClick = { navController.navigate(AegisDestinations.callerList(ListType.ALLOW)) },
+                )
+            }
+            composable(AegisDestinations.CALLER_LIST) {
+                CallerListRoute()
+            }
+            if (includeDesignPreviews) designPreviews(navController)
+            composable(AegisDestinations.ASSISTANT_HOME) {
+                AssistantHomeScreen(
+                    onVoiceSetupClick = { navController.navigate(AegisDestinations.VOICE_SETUP) },
+                    onStartVoiceChatClick = { navController.navigate(AegisDestinations.VOICE_CONVERSATION) },
+                    onTabSelected = { tab -> handleTabClick(navController, tab) }
+                )
+            }
+            composable(AegisDestinations.VOICE_SETUP) {
+                VoiceSetupScreen(onSaveVoiceClick = { navController.popBackStack() })
+            }
+            composable(AegisDestinations.TASK_CENTER) {
+                TaskCenterRoute(
+                    onLanguageClick = { navController.navigate(AegisDestinations.APP_LANGUAGE) },
+                    onDeleteAccountClick = { navController.navigate(AegisDestinations.ACCOUNT_DELETION) },
+                )
+            }
+            composable(AegisDestinations.APP_LANGUAGE) {
+                AppLanguageRoute()
+            }
+            composable(AegisDestinations.ACCOUNT_DELETION) {
+                AccountDeletionRoute(
+                    // The account is gone: nothing behind this screen applies any more.
+                    onDeleted = {
+                        navController.navigate(AegisDestinations.WELCOME) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                        }
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(AegisDestinations.VOICE_CONVERSATION) {
+                VoiceConversationScreen(onEndSessionClick = { navController.popBackStack() })
+            }
+            composable(AegisDestinations.SIGNED_OUT) { entry ->
+                val context = LocalContext.current
+                val name = entry.arguments?.getString(AegisDestinations.SIGNED_OUT_CAUSE_ARG)
+                SignedOutScreen(
+                    cause = SessionEndCause.entries.firstOrNull { it.name == name },
+                    blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
+                    onSignInClick = {
+                        navController.navigate(AegisDestinations.WELCOME) {
+                            popUpTo(navController.graph.id) { inclusive = true }
+                        }
+                    },
+                )
+            }
         }
     }
 }

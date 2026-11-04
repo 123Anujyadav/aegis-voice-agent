@@ -9,6 +9,7 @@ core_ui_tab_protection,tab
 core_ui_tab_assistant,tab
 core_ui_tab_settings,tab
 core_ui_logo,spoken
+core_ui_back,spoken
 core_ui_search,field
 core_ui_confirm,button
 core_ui_cancel,button

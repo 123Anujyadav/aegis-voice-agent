@@ -4,8 +4,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.core.app.ActivityScenario
@@ -59,6 +65,27 @@ class TopBarOnDeviceTest {
             scenario.assertTitleClear("landscape")
         } finally {
             scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+            scenario.close()
+        }
+    }
+
+    @Test
+    fun theBackArrowReturnsWhereBackWouldAndIsAbsentWithNothingBehind() {
+        // Owner decision D6, on a device: Settings first (nothing behind it, so no arrow), then
+        // App language, whose arrow returns to Settings exactly as Android's Back does.
+        val scenario = ActivityScenario.launch<MainActivity>(
+            Intent(context, MainActivity::class.java).putExtra(MainActivity.START_DESTINATION_EXTRA, AegisDestinations.TASK_CENTER),
+        )
+        try {
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Change app language")).fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
+            compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Change app language"))
+            compose.onNode(hasText("Change app language") and hasClickAction()).performClick()
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("App language")).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNode(hasContentDescription("Back") and hasClickAction()).performClick()
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Change app language")).fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
+        } finally {
             scenario.close()
         }
     }

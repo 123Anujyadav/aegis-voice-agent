@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,6 +36,10 @@ import com.callscreen.core.ui.R
  * bar lies over the top of every screen, and in landscape the navigation bar
  * or a camera cutout can lie over a side. The bar's colour reaches behind
  * them; its title and avatar start inside [windowInsets] (design review U1).
+ *
+ * [onBack], when there is somewhere to go back to, shows a Back arrow at the
+ * start (owner decision D6): by default the app navigation's own Back
+ * ([LocalAegisBack]), so the arrow does exactly what Android's Back does.
  */
 @Composable
 public fun AegisTopAppBar(
@@ -41,6 +47,7 @@ public fun AegisTopAppBar(
     modifier: Modifier = Modifier,
     onProfileClick: () -> Unit = {},
     windowInsets: WindowInsets = WindowInsets.aegisSafeArea.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+    onBack: (() -> Unit)? = LocalAegisBack.current(),
 ) {
     Row(
         modifier = modifier
@@ -49,10 +56,21 @@ public fun AegisTopAppBar(
             .windowInsetsPadding(windowInsets)
             // At least 64 dp, taller when a large font or a longer translation wraps the title.
             .heightIn(min = 64.dp)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            // The arrow's own 48 dp target already keeps it 12 dp from the edge.
+            .padding(start = if (onBack != null) 4.dp else 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (onBack != null) {
+            // IconButton's touch target is 48 dp. The arrow mirrors in a right-to-left language.
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.core_ui_back),
+                    tint = CallScreenTheme.colors.content.primary,
+                )
+            }
+        }
         Row(
             // The title takes the room the avatar leaves, and wraps within it.
             modifier = Modifier.weight(1f),
