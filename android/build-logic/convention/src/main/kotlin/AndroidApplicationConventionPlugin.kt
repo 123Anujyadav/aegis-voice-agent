@@ -159,6 +159,23 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
                         // reaches the Play Store.
                         signingConfig = signingConfigs.getByName("debug")
                     }
+
+                    // The build a baseline profile is recorded from (:baselineprofile,
+                    // production-readiness F10): release's configuration WITHOUT R8, so
+                    // the profile names classes and methods as the source does, and
+                    // the release build's R8 step rewrites it to the names it
+                    // assigns. Not debuggable, so it runs as release code does. It
+                    // never ships.
+                    create("profile") {
+                        initWith(getByName("release"))
+                        applicationIdSuffix = ".profile"
+                        versionNameSuffix = "-profile"
+                        isDebuggable = false
+                        isMinifyEnabled = false
+                        isShrinkResources = false
+                        matchingFallbacks += listOf("release")
+                        signingConfig = signingConfigs.getByName("debug")
+                    }
                 }
 
                 // NOTE ON APK FILE NAMING:

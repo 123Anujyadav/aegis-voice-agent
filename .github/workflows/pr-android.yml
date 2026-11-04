@@ -126,6 +126,13 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebugAndroidTest
 
+      # The baseline-profile generator (android/baselineprofile) runs by hand on
+      # an emulator or device (docs/phase19/BASELINE-PROFILE.md). Compiling it
+      # here keeps it from rotting.
+      - name: Compile the baseline-profile generator
+        working-directory: android
+        run: ./gradlew --no-daemon --stacktrace :baselineprofile:compileProfileKotlin
+
       - name: Build-logic unit tests
         working-directory: android
         run: |

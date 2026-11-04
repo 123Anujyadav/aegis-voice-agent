@@ -110,14 +110,13 @@ include(":contracts")
 project(":contracts").projectDir = file("../packages/kotlin/contracts-kt")
 
 // --- Benchmark ---------------------------------------------------------------
-// Macrobenchmark and baseline-profile generation are NOT included at Phase 2.
-//
-// A macrobenchmark module measures a running application by driving its UI.
-// With no screens yet there is nothing to measure, and a benchmark module that
-// exercises an empty app would report meaningless numbers while adding an
-// `com.android.test` variant to every build. It is added alongside the first
-// real screen, which is the point at which cold-start and frame metrics become
-// gateable (Phase 1 §17).
+// Baseline-profile generation (production-readiness F10): a self-instrumenting
+// test APK, like :test-minified, that records what a cold start and the first
+// screens run. Run by hand on an emulator or device; its output is committed as
+// app/src/main/baseline-prof.txt (docs/phase19/BASELINE-PROFILE.md).
+// A startup macrobenchmark is not included: emulator timings would not be
+// representative of a phone, and no physical device is available (X3).
+include(":baselineprofile")
 
 // --- Feature modules ---------------------------------------------------------
 include(":core:shared")
