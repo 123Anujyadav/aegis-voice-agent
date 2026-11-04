@@ -2,7 +2,7 @@
 
 **For:** the owner, and the translators' lead once one is approved.
 
-These came from auditing the English source (244 resources, 246 worksheet rows) on 2026-11-04. Each item says:
+These came from auditing the English source (then 244 resources, 246 worksheet rows) on 2026-11-04. Each item says:
 - who decides it;
 - whether it must be settled **before translation** starts or can be settled **during** it;
 - which rows it affects;

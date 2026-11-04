@@ -105,9 +105,9 @@ class SystemBarsOnDeviceTest {
                 Triple("landscape", ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE, Configuration.ORIENTATION_LANDSCAPE),
             )) {
                 scenario.rotate(orientation, expected)
-                await("Language")
+                await(WELCOME_LANGUAGE)
                 val bars = scenario.bars()
-                bars.assertInside("$name: Language", shownAfterScrolling("Language", by = -100_000f))
+                bars.assertInside("$name: Language", shownAfterScrolling(WELCOME_LANGUAGE, by = -100_000f))
                 bars.assertInside("$name: Get Protected", shownAfterScrolling("Get Protected", by = 100_000f))
             }
         } finally {
@@ -148,3 +148,6 @@ class SystemBarsOnDeviceTest {
         }
     }
 }
+
+/** Welcome's Language control (owner decision D4). */
+private const val WELCOME_LANGUAGE = "भाषा · Language"

@@ -249,14 +249,17 @@ It stays under Settings, not Appearance (D5), and is **free for everyone** (D8).
 assistant speaks and understands on calls (`A43`), and choosing one never
 changes the other. The screen says so in its first line.
 
-**Structure** — One choice among seven rows: **Phone's language** (the default:
-the phone's language when the app has it, otherwise English), then the owner's
+**Structure** — One choice among seven rows: **Phone's language (English)** (the
+default: the phone's language when the app has it, otherwise English). The name
+in brackets is the phone's actual language, whatever it is, named in the
+screens' language (owner decision D7, 2026-11-04). Then come the owner's
 six languages in order: English, Hindi, Tamil, Telugu, Malayalam, Kannada (the
 packaged set, `android/app/release-locales.txt`). Each row names the language in
 its own script, from the platform's locale data, so a reader finds theirs
 whatever the screens are in. Under it is the name in the screens' language.
 **A language without a reviewed translation says "Not translated yet. Screens
-stay in English."** and can still be chosen.
+stay in English until a reviewed translation is available."** and can still be
+chosen (owner decision D3, 2026-11-04).
 
 **Behaviour** — A choice applies at once, and the screens are re-created in it.
 Android 13 and later keep it as Android's per-app language: it survives restarts
@@ -268,7 +271,9 @@ is translated (`AppLanguageListTest`).
 
 **As built** — In the Settings tab (the setup checklist today) an **App
 language** section, above Account, shows the current choice and opens `A58l`.
-Before sign-in, Welcome (`A01`) has a **Language** control that opens it too.
+With nothing chosen it shows "Phone's language (…)", named as in `A58l` (D7).
+Before sign-in, Welcome (`A01`) has a **भाषा · Language** control that opens it
+too (D4). After a choice the person stays on `A58l` (D9).
 
 **Accessibility** — Rows are radio buttons in one group. Each language's own
 name is marked as that language, so a screen reader reads it with the right

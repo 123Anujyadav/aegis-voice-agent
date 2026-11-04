@@ -73,11 +73,13 @@ public fun AppLanguageScreen(
     selected: AppLanguage?,
     onSelect: (AppLanguage?) -> Unit,
     modifier: Modifier = Modifier,
+    /** The phone's own language, which the first row names (owner decision D7). */
+    phoneLocale: Locale = AppLanguageSetting.phoneLocale(LocalContext.current),
 ) {
     // The other languages' names are in the language the screen's words are in: the
     // configured one once it is translated, English until then. Otherwise a choice
     // still awaiting translation would show names in it among English words.
-    val reader = AppLanguage.of(LocalConfiguration.current.locales[0])?.takeIf { it.translated }?.locale ?: Locale.ENGLISH
+    val reader = AppLanguage.screensLocale(LocalConfiguration.current.locales[0])
     Scaffold(
         topBar = { AegisTopAppBar(title = stringResource(R.string.settings_language_title)) },
     ) { paddingValues ->
@@ -97,7 +99,8 @@ public fun AppLanguageScreen(
             )
             Column(modifier = Modifier.selectableGroup()) {
                 LanguageRow(
-                    name = stringResource(R.string.settings_language_phone),
+                    // "Phone's language (Tamil)": the phone's actual language, whatever this app shows.
+                    name = stringResource(R.string.settings_language_phone, AppLanguage.phoneLanguageName(phoneLocale, reader)),
                     nameLanguage = null,
                     detail = stringResource(R.string.settings_language_phone_detail),
                     note = null,

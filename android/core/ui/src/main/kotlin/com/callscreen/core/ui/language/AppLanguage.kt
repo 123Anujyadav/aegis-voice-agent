@@ -57,5 +57,25 @@ public enum class AppLanguage(public val tag: String, public val translated: Boo
 
         /** As [of], from a stored BCP 47 tag; null for null or anything that is not one of the six. */
         public fun ofTag(tag: String?): AppLanguage? = tag?.takeIf { it.isNotBlank() }?.let { of(Locale.forLanguageTag(it)) }
+
+        /**
+         * The language the screens' words are actually in, for a [configured] locale: that
+         * language once it is translated, English until then (any string a language lacks is
+         * shown in English). Names shown among those words are given in it, so a language
+         * awaiting translation never mixes its names into English screens.
+         */
+        public fun screensLocale(configured: Locale?): Locale = of(configured)?.takeIf { it.translated }?.locale ?: Locale.ENGLISH
+
+        /**
+         * The name of the phone's language ([phone], whatever it is, one of the six or not) in
+         * [reader], the screens' language: "Tamil" for a Tamil phone while the screens are in
+         * English (owner decision D7, 2026-11-04: "Phone's language (English)", the name
+         * following the phone). Only a locale with no language at all, which the platform does
+         * not report for a configured phone, falls back to the screens' own language.
+         */
+        public fun phoneLanguageName(phone: Locale, reader: Locale): String {
+            val language = phone.takeIf { it.language.isNotEmpty() } ?: reader
+            return language.getDisplayLanguage(reader).replaceFirstChar { it.titlecase(reader) }
+        }
     }
 }

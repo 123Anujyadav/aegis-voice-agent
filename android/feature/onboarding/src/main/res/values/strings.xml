@@ -21,8 +21,14 @@
     <string name="onboarding_welcome_screening_title">Assistant screening</string>
     <string name="onboarding_welcome_screening">Once call forwarding is set up, an assistant can answer unknown callers you don\'t pick up. Your phone always rings first.</string>
     <string name="onboarding_welcome_get_protected">Get Protected</string>
-    <!-- Opens A58l, the app's language, before sign-in. -->
-    <string name="onboarding_welcome_language">Language</string>
+    <!--
+      Opens A58l, the app's language, before sign-in. Owner decision D4
+      (2026-11-04): the fixed bilingual label "भाषा · Language", the same in
+      every language, so someone who cannot read the screens' language still
+      finds it. Neither part is translated.
+    -->
+    <string name="onboarding_welcome_language_hi" translatable="false">भाषा</string>
+    <string name="onboarding_welcome_language" translatable="false">Language</string>
 
     <!-- SIM detection (A05) -->
     <string name="onboarding_sim_card_description">SIM Card</string>

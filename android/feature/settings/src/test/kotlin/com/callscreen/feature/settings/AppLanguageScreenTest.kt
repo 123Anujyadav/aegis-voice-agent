@@ -14,13 +14,16 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.text.intl.LocaleList
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 import com.callscreen.core.ui.language.AppLanguage
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,15 +49,22 @@ class AppLanguageScreenTest {
     private var chosen: AppLanguage? = AppLanguage.ENGLISH
     private var choices = 0
 
-    private fun show(selected: AppLanguage?) = compose.setContent {
-        CallScreenTheme { AppLanguageScreen(selected = selected, onSelect = { chosen = it; choices++ }) }
+    /** The phone's own language in these tests: English, as on the CI emulators. */
+    private val englishPhone: Locale = Locale.forLanguageTag("en-IN")
+
+    /** "Phone's language (English)" for [phone]. */
+    private fun phoneRow(phone: Locale = englishPhone): String =
+        RuntimeEnvironment.getApplication().getString(R.string.settings_language_phone, AppLanguage.phoneLanguageName(phone, Locale.ENGLISH))
+
+    private fun show(selected: AppLanguage?, phone: Locale = englishPhone) = compose.setContent {
+        CallScreenTheme { AppLanguageScreen(selected = selected, onSelect = { chosen = it; choices++ }, phoneLocale = phone) }
     }
 
     @Test
     fun thePhonesLanguageAndTheSixAreOneChoice() {
         show(selected = null)
         compose.onAllNodes(radio).assertCountEquals(1 + AppLanguage.entries.size)
-        compose.onNode(radio and hasText(s(R.string.settings_language_phone))).assertIsSelected()
+        compose.onNode(radio and hasText(phoneRow())).assertIsSelected()
         for (language in AppLanguage.entries) {
             compose.onNode(radio and hasText(language.nativeName())).assertIsNotSelected()
         }
@@ -72,7 +82,7 @@ class AppLanguageScreenTest {
     fun theChosenLanguageIsMarkedAndThePhonesLanguageCanBeChosenAgain() {
         show(selected = AppLanguage.KANNADA)
         compose.onNode(radio and hasText(AppLanguage.KANNADA.nativeName())).assertIsSelected()
-        compose.onNode(radio and hasText(s(R.string.settings_language_phone))).assertIsNotSelected().performClick()
+        compose.onNode(radio and hasText(phoneRow())).assertIsNotSelected().performClick()
         assertNull(chosen)
     }
 
@@ -105,7 +115,51 @@ class AppLanguageScreenTest {
         // Hindi chosen but not translated: the words are English, so the names under each are too.
         show(selected = AppLanguage.HINDI)
         compose.onNode(radio and hasText(AppLanguage.TAMIL.nativeName()) and hasText("Tamil")).assertExists()
-        compose.onNodeWithText(s(R.string.settings_language_phone)).assertExists()
+        compose.onNodeWithText(phoneRow()).assertExists()
+    }
+
+    @Test
+    fun thePhonesLanguageIsNamedAfterThePhone() {
+        // Owner decision D7: "Phone's language (English)" on an English phone, following the phone.
+        show(selected = null)
+        compose.onNode(radio and hasText("Phone's language (English)")).assertIsSelected()
+    }
+
+    @Test
+    fun aTamilPhoneIsNamedTamilWhileItsScreensAreStillInEnglish() {
+        show(selected = AppLanguage.KANNADA, phone = Locale.forLanguageTag("ta-IN"))
+        // The phone's language, whatever the app has chosen, named in the screens' language.
+        compose.onNode(radio and hasText("Phone's language (Tamil)")).assertIsNotSelected()
+        // And the row still says what a choice of it shows.
+        compose.onNodeWithText(s(R.string.settings_language_phone_detail)).assertExists()
+    }
+
+    @Test
+    fun aPhoneLanguageOutsideTheSixIsStillNamed() {
+        show(selected = null, phone = Locale.forLanguageTag("mr-IN"))
+        compose.onNode(radio and hasText("Phone's language (Marathi)")).assertIsSelected()
+    }
+
+    @Test
+    fun theNoteSaysTheScreensStayInEnglishUntilAReviewedTranslation() {
+        // Owner decision D3.
+        assertEquals("Not translated yet. Screens stay in English until a reviewed translation is available.", s(R.string.settings_language_not_translated))
+    }
+
+    @Test
+    fun everyLanguageCanBeChosenByEveryoneWithNothingToUnlock() {
+        // Owner decision D8: the screen language is free. Every row is enabled, none asks for
+        // anything first, and each choice is reported straight away. (The app has no premium
+        // entitlement at all today; this keeps the language rows from ever depending on one.)
+        show(selected = null)
+        val rows = compose.onAllNodes(radio).fetchSemanticsNodes()
+        assertEquals(1 + AppLanguage.entries.size, rows.size)
+        for (row in rows) assertTrue(row.config.getOrNull(SemanticsProperties.Disabled) == null)
+        for ((index, language) in AppLanguage.entries.withIndex()) {
+            compose.onNode(radio and hasText(language.nativeName())).performScrollTo().performClick()
+            assertEquals(language, chosen)
+            assertEquals(index + 1, choices)
+        }
     }
 
     @Test
@@ -130,9 +184,11 @@ class AppLanguageScreenTest {
 
     @Test
     fun settingsShowsThePhonesLanguageWhenNothingIsChosen() {
-        compose.setContent { CallScreenTheme { TaskCenterScreen(tasks = emptyList(), language = null) } }
+        compose.setContent { CallScreenTheme { TaskCenterScreen(tasks = emptyList(), language = null, phoneLocale = Locale.forLanguageTag("te-IN")) } }
         compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(s(R.string.settings_language_change)))
-        compose.onNodeWithText(s(R.string.settings_language_phone)).assertExists()
+        // D7: the phone's actual language, Telugu here.
+        compose.onNodeWithText(phoneRow(Locale.forLanguageTag("te-IN"))).assertExists()
+        compose.onNodeWithText("Phone's language (Telugu)").assertExists()
         compose.onNodeWithText(s(R.string.settings_language_not_translated)).assertDoesNotExist()
     }
 }

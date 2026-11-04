@@ -49,6 +49,17 @@ class AppLanguageSettingBeforeAndroid13Test {
     fun restoreDefault() = Locale.setDefault(phoneDefault)
 
     @Test
+    @Config(qualifiers = "kn-rIN")
+    fun thePhonesLanguageIsThePhonesEvenWhenTheAppHasAnother() {
+        // D7 names the phone's language: Kannada here, from the system's own configuration.
+        assertEquals("kn", AppLanguageSetting.phoneLocale(context).language)
+        AppLanguageSetting.select(context, AppLanguage.TAMIL)
+        Robolectric.buildActivity(LanguageTestActivity::class.java).setup()
+        // The app's own choice (Tamil, applied to the activity and the default locale) leaves it alone.
+        assertEquals("kn", AppLanguageSetting.phoneLocale(context).language)
+    }
+
+    @Test
     fun nothingChosenIsThePhonesLanguageAndChangesNothing() {
         assertNull(AppLanguageSetting.selected(context))
         assertSame(context, AppLanguageSetting.wrap(context))
@@ -125,6 +136,16 @@ class AppLanguageSettingAndroid13Test {
     @Before
     fun nothingChosen() {
         manager.applicationLocales = LocaleList.getEmptyLocaleList()
+    }
+
+    @Test
+    fun thePhonesLanguageIsAndroidsSystemLanguageNotThePerAppOne() {
+        val phone = AppLanguageSetting.phoneLocale(context)
+        assertTrue("the phone has a language", phone.language.isNotEmpty())
+        // D7 names the phone's language: a per-app language (Android's App languages page) leaves it alone.
+        AppLanguageSetting.select(context, AppLanguage.MALAYALAM)
+        assertEquals(phone, AppLanguageSetting.phoneLocale(context))
+        assertNotEquals("ml", AppLanguageSetting.phoneLocale(context).language)
     }
 
     @Test
