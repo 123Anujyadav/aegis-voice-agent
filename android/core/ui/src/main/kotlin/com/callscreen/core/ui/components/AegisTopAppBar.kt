@@ -4,13 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -37,10 +34,7 @@ public fun AegisTopAppBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // The bar's colour reaches behind the status bar (the app draws edge to edge),
-            // its contents start below it.
             .background(CallScreenTheme.colors.surface.sunken)
-            .windowInsetsPadding(WindowInsets.statusBars)
             // At least 64 dp, taller when a large font or a longer translation wraps the title.
             .heightIn(min = 64.dp)
             .padding(horizontal = 16.dp, vertical = 8.dp),
