@@ -10,6 +10,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
@@ -58,8 +60,9 @@ public class TranslationLayout(
      * The text that starts with [english] can be brought fully into view:
      * composed (a lazy list is scrolled to it), scrolled to when it is inside
      * a scrolling container, then entirely inside the window and clipped by
-     * no parent. Text taller than its scrolling viewport counts as reachable,
-     * because scrolling shows all of it.
+     * no parent, and laid out whole: text cut short inside its own box (a
+     * fixed height, a line limit) is not reachable either. Text taller than its
+     * scrolling viewport counts as reachable, because scrolling shows all of it.
      */
     public fun reachable(english: String) {
         if (compose.onAllNodesWithText(english, substring = true).fetchSemanticsNodes().isEmpty()) {
@@ -79,6 +82,14 @@ public class TranslationLayout(
             bounds.width >= shown.size.width - 1 &&
                 (tallerThanItsViewport || (bounds.height >= shown.size.height - 1 && fitsWindow)),
         )
+        val layouts = mutableListOf<TextLayoutResult>()
+        shown.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(layouts)
+        // Height, and lines cut with an ellipsis. (Its width "overflow" is not a cut: the text
+        // is laid out across the width it was offered, and its box is only as wide as its lines.)
+        layouts.forEach { text ->
+            val cut = text.didOverflowHeight || (0 until text.lineCount).any { text.isLineEllipsized(it) }
+            assertTrue("[$tag] \"$english\" is cut inside its own box: ${text.size}, needs ${text.multiParagraph.height} high", !cut)
+        }
     }
 
     /** The screen's vertical list, for text it has not composed yet. */

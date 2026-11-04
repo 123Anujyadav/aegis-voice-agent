@@ -51,6 +51,7 @@ class SettingsTranslationLayoutTest(tag: String) {
     @Test
     fun theLanguageChoiceStaysReachable() {
         layout.show { AppLanguageScreen(selected = AppLanguage.KANNADA, onSelect = {}) }
+        reachable(s(R.string.settings_language_title)) // the top bar's title, wrapped whole
         reachable(s(R.string.settings_language_intro))
         reachable(s(R.string.settings_language_phone_detail))
         for (language in AppLanguage.entries) reachable(language.nativeName())
@@ -59,6 +60,7 @@ class SettingsTranslationLayoutTest(tag: String) {
     @Test
     fun theDeletionExplanationEndsInItsActions() {
         deletion(AccountDeletionState(step = DeletionStep.READY, message = DeletionMessage.SESSION_ENDED))
+        reachable(s(R.string.settings_deletion_title))
         reachable(s(AccountDeletionCopy.DELETE_BUTTON))
         reachable(s(AccountDeletionCopy.BACK))
     }

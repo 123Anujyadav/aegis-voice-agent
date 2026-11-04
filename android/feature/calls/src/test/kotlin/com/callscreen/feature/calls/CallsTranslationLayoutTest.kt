@@ -35,6 +35,7 @@ class CallsTranslationLayoutTest(tag: String) {
     @Test
     fun theEmptyFeedStillSaysWhy() {
         layout.show { CallsFeedScreen() }
+        reachable(s(R.string.calls_feed_title)) // the top bar's title, wrapped whole
         reachable(s(R.string.calls_empty_title))
         reachable(s(R.string.calls_empty))
     }
