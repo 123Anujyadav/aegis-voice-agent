@@ -8,7 +8,7 @@ These came from auditing the English source (244 resources, 246 worksheet rows) 
 - which rows it affects;
 - a recommendation. A recommendation is not a decision.
 
-**None is decided. Nothing in the app has been changed for them.**
+**None is decided. Nothing in the app has been changed for them.** The owner's short form, with the workload and who does what, is [`APPROVAL-SUMMARY.md`](APPROVAL-SUMMARY.md).
 
 | # | Decides | When | Question |
 |---|---|---|---|
