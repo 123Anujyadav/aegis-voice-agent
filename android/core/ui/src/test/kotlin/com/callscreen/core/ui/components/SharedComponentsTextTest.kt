@@ -1,6 +1,7 @@
 package com.callscreen.core.ui.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -24,6 +26,7 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -106,6 +109,40 @@ class SharedComponentsTextTest {
         // The profile picture does nothing, so it is not announced as if it were a control.
         compose.onNodeWithContentDescription("User Profile").assertDoesNotExist()
     }
+
+    /**
+     * The status bar ([top] dp) and, in landscape, the navigation bar at the side ([right] dp) lie
+     * over the bar (design review U1). Its title and logo start inside them, wrapped rather than cut,
+     * and its colour still reaches the top edge.
+     */
+    private fun assertTopBarInside(width: Int, top: Int, right: Int) {
+        // About 40% longer than "Blocked numbers", as a translation can be, at twice the font scale.
+        val title = "Numbers you blocked from calling"
+        show(fontScale = 2f, width = width) {
+            AegisTopAppBar(title = title, windowInsets = WindowInsets(top = top.dp, right = right.dp))
+        }
+        with(compose.density) {
+            val safeTop = top.dp.toPx()
+            val safeRight = (width - right).dp.toPx()
+            for (bounds in listOf(
+                compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot,
+                compose.onNodeWithContentDescription(s(R.string.core_ui_logo)).fetchSemanticsNode().boundsInRoot,
+            )) {
+                assertTrue("$bounds starts above the $top dp status bar", bounds.top >= safeTop)
+                assertTrue("$bounds reaches under the $right dp side bar of a $width dp screen", bounds.right <= safeRight)
+            }
+            // The bar is the whole content here: it starts at the top edge, behind the status bar.
+            val bar = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            assertTrue("the bar is ${bar.height} px high", bar.top == 0f && bar.height >= (top + 64).dp.toPx())
+        }
+        assertFalse("$title is cut off", cutOff(title, width = width - right))
+    }
+
+    @Test
+    fun theTopBarStartsBelowTheStatusBarOnASmallScreenInPortrait() = assertTopBarInside(width = 320, top = 24, right = 0)
+
+    @Test
+    fun theTopBarStaysClearOfTheStatusAndNavigationBarsInLandscape() = assertTopBarInside(width = 640, top = 24, right = 48)
 
     @Test
     fun theDialogsDefaultChoicesAreTheShippedWords() {

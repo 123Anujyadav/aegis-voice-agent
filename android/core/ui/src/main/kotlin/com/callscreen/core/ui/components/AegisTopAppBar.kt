@@ -4,10 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -25,16 +30,24 @@ import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.R
 
+/**
+ * The app draws edge to edge (MainActivity.enableEdgeToEdge), so the status
+ * bar lies over the top of every screen, and in landscape the navigation bar
+ * or a camera cutout can lie over a side. The bar's colour reaches behind
+ * them; its title and avatar start inside [windowInsets] (design review U1).
+ */
 @Composable
 public fun AegisTopAppBar(
     title: String = stringResource(R.string.core_ui_app_title),
     modifier: Modifier = Modifier,
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit = {},
+    windowInsets: WindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(CallScreenTheme.colors.surface.sunken)
+            .windowInsetsPadding(windowInsets)
             // At least 64 dp, taller when a large font or a longer translation wraps the title.
             .heightIn(min = 64.dp)
             .padding(horizontal = 16.dp, vertical = 8.dp),
