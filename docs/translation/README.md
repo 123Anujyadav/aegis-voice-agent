@@ -12,6 +12,7 @@ This folder is what a translator and a reviewer receive for one language:
 | This guide | What the app is, how to fill the worksheet, the rules, tone and room on screen |
 | [`GLOSSARY.md`](GLOSSARY.md) | The app's terms: what each one means here and how to handle it |
 | [`QUESTIONS.md`](QUESTIONS.md) | Points the owner or product must settle before or during translation |
+| [`APPROVAL-SUMMARY.md`](APPROVAL-SUMMARY.md) | For the owner: the approvals needed before any work starts, the workload, and who does what |
 | `worksheets/<code>.csv` | The worksheet: `hi` Hindi, `ta` Tamil, `te` Telugu, `ml` Malayalam, `kn` Kannada |
 
 Engineers: the workflow and the checks behind it are in [`docs/phase19/LOCALISATION.md`](../phase19/LOCALISATION.md) §6.
