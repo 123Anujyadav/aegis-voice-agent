@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -18,7 +19,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -64,7 +65,7 @@ class SharedComponentsTextTest {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
-                CallScreenTheme { Box(Modifier.width(width.dp)) { content() } }
+                CallScreenTheme { Box(Modifier.width(width.dp).testTag(CONTENT)) { content() } }
             }
         }
     }
@@ -132,7 +133,7 @@ class SharedComponentsTextTest {
                 assertTrue("$bounds reaches under the $right dp side bar of a $width dp screen", bounds.right <= safeRight)
             }
             // The bar is the whole content here: it starts at the top edge, behind the status bar.
-            val bar = compose.onRoot().fetchSemanticsNode().boundsInRoot
+            val bar = compose.onNodeWithTag(CONTENT).fetchSemanticsNode().boundsInRoot
             assertTrue("the bar is ${bar.height} px high", bar.top == 0f && bar.height >= (top + 64).dp.toPx())
         }
         assertFalse("$title is cut off", cutOff(title, width = width - right))
@@ -170,5 +171,10 @@ class SharedComponentsTextTest {
             )
         }
         compose.onNodeWithContentDescription(s(R.string.core_ui_call_incoming), useUnmergedTree = true).assertExists()
+    }
+
+    private companion object {
+        /** The box [show] puts the component in, as wide as the screen and as tall as the component. */
+        const val CONTENT = "content"
     }
 }
