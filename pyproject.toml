@@ -149,6 +149,20 @@ ignore = [
     "PT009",   # unittest's self.assert*: pytest is not installed in the gate job
     "PT027",   # unittest's assertRaises, for the same reason
 ]
+# The translators' worksheet tool's tests (tools/i18n/test_*.py), run in pr-android
+# with `python3 -m unittest discover -s tools/i18n`: standard library unittest on
+# purpose, like tools/ci's, with the same allowances.
+"tools/i18n/test_*.py" = [
+    "S101",    # assert is the point of a test
+    "PLR2004", # magic value comparison is expected in assertions
+    "D101",    # test names are the documentation
+    "D102",
+    "PT009",   # unittest's self.assert*: pytest is not installed in that job
+    "PT027",   # unittest's assertRaises, for the same reason
+]
+# tools/i18n/translation_kit.py is a command-line tool for translators and engineers:
+# printing its report, and its refusals to stderr, IS its output.
+"tools/i18n/translation_kit.py" = ["T201"]
 # Entrypoints re-export for the console script; that is their purpose.
 "**/__main__.py" = ["D100"]
 # tools/audio-fixtures is a command-line analysis script for Phase 11D. Printing

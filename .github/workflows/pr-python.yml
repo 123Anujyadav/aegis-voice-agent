@@ -13,6 +13,10 @@ on:
     paths:
       - "services/python/**"
       - "packages/python/**"
+      # Python tools (tools/i18n, tools/ci, tools/audio-fixtures): this job's ruff
+      # format and lint run over the whole repository, so a tool change must run it
+      # too, or the next services PR inherits its findings.
+      - "tools/**/*.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/pr-python.yml"
