@@ -31,7 +31,7 @@ A runbook is not evidence that an operation works. Every runbook in `docs/runboo
 | 6 | Account deletion and data erasure | In-app yes; web flow built but dormant | CI | — | None | None | None |
 | 7 | Backend security and API correctness | Yes, with gaps (§3.7) | CI | n/a | n/a | None | None |
 | 8 | Infrastructure, deployment and observability | Templates only | Partial | n/a | n/a | **Nothing deployed** | None |
-| 9 | Android compatibility and performance | Yes, no baseline profile | CI: the minified build | API 35, 28 and 26 in CI | None | n/a | None |
+| 9 | Android compatibility and performance | Yes, with a baseline profile (startup gain unmeasured) | CI: the minified build | API 35, 28 and 26 in CI | None | n/a | None |
 | 10 | Automated tests and failure recovery | Yes | CI | #206, `bba198d` | None | None | None |
 | 11 | Play Store, privacy and release validation | Bundle build only | CI with a throwaway key | — | None | Never run for real | None |
 
@@ -200,7 +200,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
 - **Implemented:**
   - minSdk 26, compile and target SDK 36;
   - R8 and resource shrinking on release and staging;
-  - `profileinstaller` present, but no baseline profile.
+  - a baseline profile (F10, [`BASELINE-PROFILE.md`](BASELINE-PROFILE.md)): 16,450 rules recorded on an emulator from cold start to the sign-in entry, merged and R8-rewritten into the release builds, and installed by `profileinstaller` (checked on an Android 9 emulator). Its startup gain is not measured.
 - **Automated tests:** the minified staging build and an "R8 actually minified" check.
 - **Emulator:** in CI (`android-device-tests.yml`), all on the default emulator profile (320×640, 1536 MB):
   - API 35: 19/19 on #207's head `ad2e51a` (run 41291943846; merged as `3ef3b84`) and on `3e16208` (#209, run 41327024741);
@@ -214,8 +214,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - The minified build has run only as a launch smoke check on emulators (#211), never on a phone.
 - **Staging and production:** none.
 - **Blocker:**
-  - X3 (a physical phone);
-  - F10 (no baseline profile; generating one needs a device).
+  - X3 (a physical phone), which also measures the baseline profile's startup gain.
 - **Next action:** after X5, run the minified functional tests signed in, through Protection and the caller lists. Meanwhile: none routine in this area.
 
 ### 3.10 Automated tests and failure recovery
@@ -265,7 +264,7 @@ Defects and gaps found on 2026-11-01 that the inventory did not track. **Class**
 | F7 | **No `dataExtractionRules`:** on API 31+, `allowBackup="false"` does not stop device-to-device transfer | `AndroidManifest.xml` | R | #207, `3ef3b84` |
 | F8 | **No sign-out action in the UI.** `IdentityAuthenticator.signOut()` has no production caller | `ANDROID-DATA-INVENTORY.md` | O (UX) | Open (OD-14) |
 | F9 | **No vulnerability scan of the Android dependencies**, only Dependabot alerts | `.github/workflows/` | R | #206, `bba198d`: OSV-Scanner 2.7.0, 133 release libraries, no advisories |
-| F10 | **No baseline profile**, although `profileinstaller` is a dependency | `android/settings.gradle.kts` | R | Open; needs a device |
+| F10 | **No baseline profile**, although `profileinstaller` is a dependency | `android/settings.gradle.kts` | R | Generated on an emulator and committed (`android/baselineprofile`, [`BASELINE-PROFILE.md`](BASELINE-PROFILE.md)); installation checked on an emulator. Startup gain unmeasured until a physical device (X3) |
 | F11 | **Identity does not audit a refresh with the current token and another key's proof,** the signature of a stolen token used without the key | `acceptRefreshProof` (`identity.go`) | H (part of F1 option E) | Proposed with F1 |
 | F12 | **identity started with no configuration reports ready.** With no `CS_IDENTITY_*` variable it boots "inactive": no application port, and `/readyz` answers **200** ("degraded"). It fails closed, since nothing is served, but a production pod that lost its configuration would pass its readiness probe. edge-api refuses to start instead. Shown by the image smoke check | `services/go/identity/cmd/server/identity.go` (`configureIdentity`, `errIdentityInactive`) | O (it changes identity's documented activation contract) | Open (OD-15). Option: when the platform's `Environment` setting (`packages/go/platform/config.go`; default `development`) is `staging` or `production`, an inactive identity refuses to start |
 | F13 | **`ProtectionListsTest` failed intermittently on the API 28 emulator.** Cause, from device logs and full screen dumps: a **test race**. The field's keyboard can still be arriving after the test types, and `Espresso.closeSoftKeyboard()` does nothing until it is visible. Two symptoms: a Back that closed the late keyboard instead of navigating (3 of 12 runs before #209), and a tap computed before the keyboard panned the window (`ADJUST_PAN`), which landed on the sheet's scrim and dismissed it without moving the entry (run 41330429579, after #209). Not an app defect. Found by the CI emulator (F6) | `ProtectionListsTest`; runs listed in #209 and #211 | R | Fixed in the test: #209 settles the keyboard before Back; #211 settles it after every text entry. In #211's acceptance runs the settle step met the keyboard in flight after each entry and closed it first |
