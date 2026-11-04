@@ -39,12 +39,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+from dataclasses import dataclass, field
+from pathlib import Path
 import re
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
-from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 ANDROID = REPO / "android"
@@ -76,7 +76,7 @@ INDIAN_SCRIPTS = (0x0900, 0x0DFF)  # Devanagari to Sinhala: every Indian script 
 WHERE = {
     "top-bar": "Screen title in the top bar. Short: one line is best.",
     "tab": "Bottom tab label under an icon. Each tab has a quarter of the screen's width "
-           "(about 70 dp on a small phone): one short word.",
+    "(about 70 dp on a small phone): one short word.",
     "chip": "Short label in a small rounded chip (a filter or a status). One line: a few words at most.",
     "field": "Label inside a one-line text box. It does not wrap: a long label is cut off. Keep it short.",
     "button": "Button or link. Short: wraps to a second line only if it must.",
@@ -85,9 +85,9 @@ WHERE = {
     "message": "Message shown after an action or on an error. Wraps freely.",
     "text": "Sentence or paragraph. Wraps freely.",
     "spoken": "Not shown on screen: read aloud by a screen reader (TalkBack) for an icon or control. "
-              "Name the thing or action plainly.",
+    "Name the thing or action plainly.",
     "format": "A pattern that joins other text. Keep the placeholders and the punctuation; "
-              "reorder only if the language needs it.",
+    "reorder only if the language needs it.",
 }
 
 # Strings whose English a spec quotes or a test holds to what the app does: a
@@ -104,13 +104,31 @@ SPEC_LINKED = {
 
 PLACEHOLDER = re.compile(r"%(\d+\$)?[-#+ 0,(]*\d*(\.\d+)?[sdfxXoc]")
 
-COLUMNS = ["module", "kind", "name", "quantity", "english", "where", "english_chars", "note", "placeholders",
-           "plural_rule", "review", "translation", "keep_english", "translator_note"]
+COLUMNS = [
+    "module",
+    "kind",
+    "name",
+    "quantity",
+    "english",
+    "where",
+    "english_chars",
+    "note",
+    "placeholders",
+    "plural_rule",
+    "review",
+    "translation",
+    "keep_english",
+    "translator_note",
+]
 
 # Invisible characters a translation must not carry. Zero-width joiner and
 # non-joiner (U+200C, U+200D) are allowed: Indian scripts use them to choose a form.
-FORBIDDEN = {chr(c) for c in range(0x20) if c != 0x0A} | {"\u200b", "\u2060", "\ufeff"} | \
-    {chr(c) for c in range(0x202A, 0x202F)} | {chr(c) for c in range(0x2066, 0x206A)}
+FORBIDDEN = (
+    {chr(c) for c in range(0x20)} - {"\n"}
+    | {"\u200b", "\u2060", "\ufeff"}
+    | {chr(c) for c in range(0x202A, 0x202F)}
+    | {chr(c) for c in range(0x2066, 0x206A)}
+)
 
 
 def placeholders(text: str) -> list[str]:
@@ -124,11 +142,13 @@ def stray_percent(text: str) -> bool:
 
 
 def release_languages(android: Path = ANDROID) -> list[str]:
+    """The packaged languages, English first (android/app/release-locales.txt)."""
     text = (android / "app" / "release-locales.txt").read_text(encoding="utf-8")
     return [line.split("#")[0].strip() for line in text.splitlines() if line.split("#")[0].strip()]
 
 
 def translation_languages(android: Path = ANDROID) -> list[str]:
+    """The release languages a translator fills: every one but English."""
     return [code for code in release_languages(android) if code != "en"]
 
 
@@ -149,7 +169,13 @@ def unescape(text: str) -> str:
 
 def escape(text: str) -> str:
     """Plain text to an Android string resource's text (XML escaping is ElementTree's)."""
-    text = text.replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
+    text = (
+        text.replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+    )
     if text[:1] in ("@", "?"):
         text = "\\" + text
     return text
@@ -157,6 +183,8 @@ def escape(text: str) -> str:
 
 @dataclass
 class Strings:
+    """One strings.xml's contents."""
+
     strings: dict[str, str] = field(default_factory=dict)
     notes: dict[str, str] = field(default_factory=dict)
     untranslatable: set[str] = field(default_factory=set)
@@ -168,8 +196,9 @@ def read(path: Path) -> Strings:
     result = Strings()
     if not path.is_file():
         return result
-    parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
-    root = ET.parse(path, parser=parser).getroot()
+    # The repository's own resource files, or ones this tool wrote: not untrusted input.
+    parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))  # noqa: S314
+    root = ET.parse(path, parser=parser).getroot()  # noqa: S314
     note = ""
     for element in root:
         if element.tag is ET.Comment:
@@ -182,7 +211,8 @@ def read(path: Path) -> Strings:
                 result.untranslatable.add(name)
         elif element.tag == "plurals":
             result.plurals[name] = {
-                item.get("quantity", ""): unescape("".join(item.itertext())) for item in element.findall("item")
+                item.get("quantity", ""): unescape("".join(item.itertext()))
+                for item in element.findall("item")
             }
         else:
             continue
@@ -202,6 +232,7 @@ def modules(android: Path = ANDROID) -> list[Path]:
 
 
 def module_name(res: Path, android: Path) -> str:
+    """A res folder's module, as a path under android/ ("feature/settings")."""
     return res.parent.parent.parent.relative_to(android).as_posix()
 
 
@@ -214,6 +245,7 @@ def ui_context(path: Path = CONTEXT) -> dict[str, str]:
 
 
 def review(name: str) -> str:
+    """The document a second reviewer checks [name]'s translation against, if any."""
     for prefix, source in SPEC_LINKED.items():
         if name.startswith(prefix):
             return source
@@ -223,6 +255,7 @@ def review(name: str) -> str:
 @dataclass(frozen=True)
 class Row:
     """One string, or one plural form, to translate."""
+
     module: str
     kind: str
     name: str
@@ -232,6 +265,7 @@ class Row:
 
     @property
     def key(self) -> tuple[str, str, str, str]:
+        """What identifies the row in a worksheet."""
         return (self.module, self.kind, self.name, self.quantity)
 
 
@@ -246,28 +280,53 @@ def source_rows(lang: str, android: Path = ANDROID) -> list[Row]:
                 rows.append(Row(module, "string", name, "", text, english.notes.get(name, "")))
         for name, items in english.plurals.items():
             for quantity in PLURAL_CATEGORIES.get(lang, ["other"]):
-                rows.append(Row(module, "plural", name, quantity, items.get(quantity, items.get("other", "")),
-                                english.notes.get(name, "")))
+                rows.append(
+                    Row(
+                        module,
+                        "plural",
+                        name,
+                        quantity,
+                        items.get(quantity, items.get("other", "")),
+                        english.notes.get(name, ""),
+                    )
+                )
     return rows
 
 
 def export(lang: str, out: Path, android: Path = ANDROID, context: Path = CONTEXT) -> int:
+    """Writes [lang]'s worksheet to [out]; returns its number of rows."""
     kinds = ui_context(context)
     current: dict[str, Strings] = {}
     lines = []
     for row in source_rows(lang, android):
         if row.module not in current:
-            current[row.module] = read(android / row.module / "src" / "main" / "res" / f"values-{lang}" / "strings.xml")
+            current[row.module] = read(
+                android / row.module / "src" / "main" / "res" / f"values-{lang}" / "strings.xml"
+            )
         have = current[row.module]
-        translation = have.strings.get(row.name, "") if row.kind == "string" else \
-            have.plurals.get(row.name, {}).get(row.quantity, "")
-        lines.append([
-            row.module, row.kind, row.name, row.quantity, row.english,
-            WHERE.get(kinds.get(row.name, ""), ""), len(row.english), row.note,
-            " ".join(placeholders(row.english)),
-            PLURAL_RULES.get(lang, "") if row.kind == "plural" else "",
-            review(row.name), translation, "", "",
-        ])
+        translation = (
+            have.strings.get(row.name, "")
+            if row.kind == "string"
+            else have.plurals.get(row.name, {}).get(row.quantity, "")
+        )
+        lines.append(
+            [
+                row.module,
+                row.kind,
+                row.name,
+                row.quantity,
+                row.english,
+                WHERE.get(kinds.get(row.name, ""), ""),
+                len(row.english),
+                row.note,
+                " ".join(placeholders(row.english)),
+                PLURAL_RULES.get(lang, "") if row.kind == "plural" else "",
+                review(row.name),
+                translation,
+                "",
+                "",
+            ]
+        )
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.writer(f, lineterminator="\n")
@@ -277,7 +336,11 @@ def export(lang: str, out: Path, android: Path = ANDROID, context: Path = CONTEX
 
 
 def export_all(directory: Path, android: Path = ANDROID, context: Path = CONTEXT) -> dict[str, int]:
-    return {lang: export(lang, directory / f"{lang}.csv", android, context) for lang in translation_languages(android)}
+    """Writes every translation language's worksheet into [directory]."""
+    return {
+        lang: export(lang, directory / f"{lang}.csv", android, context)
+        for lang in translation_languages(android)
+    }
 
 
 def _letters(text: str) -> list[str]:
@@ -290,7 +353,9 @@ def _script_problem(lang: str, text: str) -> str:
     script, ranges = SCRIPTS[lang]
     letters = _letters(text)
     own = {c for c in letters if any(lo <= ord(c) <= hi for lo, hi in ranges)}
-    other = {c for c in letters if INDIAN_SCRIPTS[0] <= ord(c) <= INDIAN_SCRIPTS[1] and c not in own}
+    other = {
+        c for c in letters if INDIAN_SCRIPTS[0] <= ord(c) <= INDIAN_SCRIPTS[1] and c not in own
+    }
     if other:
         return f"has letters of another Indian script ({''.join(sorted(other))[:12]}), not {script}"
     if not own:
@@ -301,7 +366,9 @@ def _script_problem(lang: str, text: str) -> str:
 def _text_problems(lang: str, text: str, source: str, row: dict[str, str]) -> list[str]:
     problems = []
     if placeholders(text) != placeholders(source):
-        problems.append(f"placeholders {placeholders(text)} are not English's {placeholders(source)}")
+        problems.append(
+            f"placeholders {placeholders(text)} are not English's {placeholders(source)}"
+        )
     elif placeholders(source) and stray_percent(text):
         problems.append('a "%" that is not a placeholder: write "%%" for a percent sign')
     if text != text.strip():
@@ -315,7 +382,9 @@ def _text_problems(lang: str, text: str, source: str, row: dict[str, str]) -> li
     english_has_words = bool(_letters(PLACEHOLDER.sub("", source)))
     if english_has_words and not keep:
         if text == source:
-            problems.append('identical to the English: translate it, or write "yes" in keep_english')
+            problems.append(
+                'identical to the English: translate it, or write "yes" in keep_english'
+            )
         else:
             problem = _script_problem(lang, PLACEHOLDER.sub("", text))
             if problem:
@@ -323,14 +392,40 @@ def _text_problems(lang: str, text: str, source: str, row: dict[str, str]) -> li
     return problems
 
 
+def _unknown_row(lang: str, english: Strings | None, key: tuple[str, str, str, str]) -> str:
+    """Why a row names nothing a translation into [lang] may fill, or "" when it does."""
+    module, kind, name, quantity = key
+    if english is None:
+        return f"no module {module!r}"
+    reasons = [
+        (kind not in ("string", "plural"), f"kind {kind!r} is neither string nor plural"),
+        (
+            kind == "string" and name in english.untranslatable,
+            f'{name!r} is not translated (translatable="false")',
+        ),
+        (kind == "string" and name not in english.strings, f"English has no string {name!r}"),
+        (kind == "plural" and name not in english.plurals, f"English has no plurals {name!r}"),
+        (
+            kind == "plural" and quantity not in PLURAL_CATEGORIES.get(lang, ["other"]),
+            f"{lang} has no plural form {quantity!r}",
+        ),
+    ]
+    return next((reason for wrong, reason in reasons if wrong), "")
+
+
 def check(lang: str, worksheet: list[dict[str, str]], android: Path = ANDROID) -> list[str]:
     """What is wrong with a filled worksheet; empty only when every row can be imported."""
     problems = []
     expected = {row.key: row for row in source_rows(lang, android)}
-    english_by_module = {module_name(res, android): read(res / "values" / "strings.xml") for res in modules(android)}
+    english_by_module = {
+        module_name(res, android): read(res / "values" / "strings.xml") for res in modules(android)
+    }
     if worksheet:
-        missing_columns = [c for c in ("module", "kind", "name", "quantity", "english", "translation")
-                           if c not in worksheet[0]]
+        missing_columns = [
+            c
+            for c in ("module", "kind", "name", "quantity", "english", "translation")
+            if c not in worksheet[0]
+        ]
         if missing_columns:
             return [f"the worksheet has no {', '.join(missing_columns)} column: export it again"]
     seen: set[tuple[str, str, str, str]] = set()
@@ -340,27 +435,19 @@ def check(lang: str, worksheet: list[dict[str, str]], android: Path = ANDROID) -
         text = row.get("translation") or ""
         where = f"line {line} ({module} {name}{' ' + quantity if quantity else ''})"
         key = (module, kind, name, quantity)
-        english = english_by_module.get(module)
-        if english is None:
-            problems.append(f"{where}: no module {module!r}")
-        elif kind not in ("string", "plural"):
-            problems.append(f"{where}: kind {kind!r} is neither string nor plural")
-        elif kind == "string" and name in english.untranslatable:
-            problems.append(f"{where}: {name!r} is not translated (translatable=\"false\")")
-        elif kind == "string" and name not in english.strings:
-            problems.append(f"{where}: English has no string {name!r}")
-        elif kind == "plural" and name not in english.plurals:
-            problems.append(f"{where}: English has no plurals {name!r}")
-        elif kind == "plural" and quantity not in PLURAL_CATEGORIES.get(lang, ["other"]):
-            problems.append(f"{where}: {lang} has no plural form {quantity!r}")
+        unknown = _unknown_row(lang, english_by_module.get(module), key)
+        if unknown:
+            problems.append(f"{where}: {unknown}")
         elif key in seen:
             problems.append(f"{where}: this row appears twice")
         else:
             seen.add(key)
             source = expected[key].english
             if (row.get("english") or "") != source:
-                problems.append(f"{where}: the English has changed since this worksheet was exported "
-                                f"(now {source!r}): export again and check the translation")
+                problems.append(
+                    f"{where}: the English has changed since this worksheet was exported "
+                    f"(now {source!r}): export again and check the translation"
+                )
             if not text.strip():
                 problems.append(f"{where}: no translation")
             else:
@@ -368,12 +455,19 @@ def check(lang: str, worksheet: list[dict[str, str]], android: Path = ANDROID) -
     for key in expected:
         if key not in seen:
             module, _, name, quantity = key
-            problems.append(f"{module} {name}{' ' + quantity if quantity else ''}: missing from the worksheet")
+            problems.append(
+                f"{module} {name}{' ' + quantity if quantity else ''}: missing from the worksheet"
+            )
     return problems
 
 
-def write(lang: str, worksheet: list[dict[str, str]], translated_by: str, reviewed_by: str,
-          android: Path = ANDROID) -> list[Path]:
+def write(
+    lang: str,
+    worksheet: list[dict[str, str]],
+    translated_by: str,
+    reviewed_by: str,
+    android: Path = ANDROID,
+) -> list[Path]:
     """Writes each module's values-<lang>/strings.xml from a checked worksheet."""
     by_module: dict[str, list[dict[str, str]]] = {}
     for row in worksheet:
@@ -390,11 +484,17 @@ def write(lang: str, worksheet: list[dict[str, str]], translated_by: str, review
         if not rows:
             continue
         english = read(res / "values" / "strings.xml")
-        strings = {r["name"]: unicodedata.normalize("NFC", r["translation"]) for r in rows if r["kind"] == "string"}
+        strings = {
+            r["name"]: unicodedata.normalize("NFC", r["translation"])
+            for r in rows
+            if r["kind"] == "string"
+        }
         plurals: dict[str, dict[str, str]] = {}
         for r in rows:
             if r["kind"] == "plural":
-                plurals.setdefault(r["name"], {})[r["quantity"]] = unicodedata.normalize("NFC", r["translation"])
+                plurals.setdefault(r["name"], {})[r["quantity"]] = unicodedata.normalize(
+                    "NFC", r["translation"]
+                )
         root = ET.Element("resources")
         for name in english.strings:
             if name in strings:
@@ -409,7 +509,7 @@ def write(lang: str, worksheet: list[dict[str, str]], translated_by: str, review
                         item.text = escape(plurals[name][quantity])
         ET.indent(root, space="    ")
         header = (
-            f"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!--\n"
+            f'<?xml version="1.0" encoding="utf-8"?>\n<!--\n'
             f"  {lang} translation of {module}'s words, imported by tools/i18n/translation_kit.py.\n"
             f"  Translated by: {clean(translated_by)}\n"
             f"  Reviewed by: {clean(reviewed_by)}\n"
@@ -417,12 +517,15 @@ def write(lang: str, worksheet: list[dict[str, str]], translated_by: str, review
         )
         target = res / f"values-{lang}" / "strings.xml"
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(header + ET.tostring(root, encoding="unicode") + "\n", encoding="utf-8", newline="\n")
+        target.write_text(
+            header + ET.tostring(root, encoding="unicode") + "\n", encoding="utf-8", newline="\n"
+        )
         written.append(target)
     return written
 
 
 def status(android: Path = ANDROID) -> list[str]:
+    """Each language's translated count against English, per module."""
     lines = []
     for lang in translation_languages(android):
         done = total = 0
@@ -430,7 +533,9 @@ def status(android: Path = ANDROID) -> list[str]:
         for res in modules(android):
             english = read(res / "values" / "strings.xml")
             translated = read(res / f"values-{lang}" / "strings.xml")
-            wanted = [n for n in english.strings if n not in english.untranslatable] + list(english.plurals)
+            wanted = [n for n in english.strings if n not in english.untranslatable] + list(
+                english.plurals
+            )
             have = [n for n in wanted if n in translated.strings or n in translated.plurals]
             done += len(have)
             total += len(wanted)
@@ -441,7 +546,7 @@ def status(android: Path = ANDROID) -> list[str]:
 
 def words(text: str) -> int:
     """English words, as a translator counts them: placeholders are not words."""
-    return len(re.findall(r"[A-Za-z0-9][A-Za-z0-9'’-]*", PLACEHOLDER.sub("", text)))
+    return len(re.findall(r"[A-Za-z0-9][A-Za-z0-9'\u2019-]*", PLACEHOLDER.sub("", text)))
 
 
 def audit(android: Path = ANDROID, context: Path = CONTEXT) -> list[str]:
@@ -454,10 +559,15 @@ def audit(android: Path = ANDROID, context: Path = CONTEXT) -> list[str]:
         translatable = [t for n, t in english.strings.items() if n not in english.untranslatable]
         plural_texts = [t for items in english.plurals.values() for t in items.values()]
         texts = translatable + plural_texts
-        counts = [len(translatable), len(english.plurals), len(english.untranslatable),
-                  len(translatable) + sum(len(items) for items in english.plurals.values()),
-                  sum(map(words, texts)), sum(map(len, texts))]
-        total = [a + b for a, b in zip(total, counts)]
+        counts = [
+            len(translatable),
+            len(english.plurals),
+            len(english.untranslatable),
+            len(translatable) + sum(len(items) for items in english.plurals.values()),
+            sum(map(words, texts)),
+            sum(map(len, texts)),
+        ]
+        total = [a + b for a, b in zip(total, counts, strict=False)]
         lines.append(f"{module_name(res, android)} | " + " | ".join(map(str, counts)))
     lines.append("total | " + " | ".join(map(str, total)))
     rows = source_rows(translation_languages(android)[0], android)
@@ -465,52 +575,51 @@ def audit(android: Path = ANDROID, context: Path = CONTEXT) -> list[str]:
     for r in rows:
         kind = kinds.get(r.name, "(none)")
         by_kind[kind] = by_kind.get(kind, 0) + 1
-    lines.append(f"rows with placeholders: {sum(1 for r in rows if placeholders(r.english))}; "
-                 f"rows without a note: {sum(1 for r in rows if not r.note)}; "
-                 f"rows a spec or test quotes (second review): {sum(1 for r in rows if review(r.name))}")
+    lines.append(
+        f"rows with placeholders: {sum(1 for r in rows if placeholders(r.english))}; "
+        f"rows without a note: {sum(1 for r in rows if not r.note)}; "
+        f"rows a spec or test quotes (second review): {sum(1 for r in rows if review(r.name))}"
+    )
     lines.append("rows by place: " + ", ".join(f"{k} {v}" for k, v in sorted(by_kind.items())))
     return lines
 
 
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status")
     sub.add_parser("audit")
     p_export = sub.add_parser("export")
     which = p_export.add_mutually_exclusive_group(required=True)
     which.add_argument("--lang")
-    which.add_argument("--all", action="store_true", help="every translation language, into the folder OUT")
+    which.add_argument(
+        "--all", action="store_true", help="every translation language, into the folder OUT"
+    )
     p_export.add_argument("out", type=Path)
     p_import = sub.add_parser("import")
     p_import.add_argument("--lang", required=True)
-    p_import.add_argument("--translated-by", required=True,
-                          help="who translated it (an owner-approved translator or agency), recorded in each file")
-    p_import.add_argument("--reviewed-by", required=True,
-                          help="who reviewed it: a second person, not the translator; recorded in each file")
+    p_import.add_argument(
+        "--translated-by",
+        required=True,
+        help="who translated it (an owner-approved translator or agency), recorded in each file",
+    )
+    p_import.add_argument(
+        "--reviewed-by",
+        required=True,
+        help="who reviewed it: a second person, not the translator; recorded in each file",
+    )
     p_import.add_argument("worksheet", type=Path)
-    args = parser.parse_args(argv)
+    return parser
 
-    if args.command == "status":
-        print("\n".join(status()))
-        return 0
-    if args.command == "audit":
-        print("\n".join(audit()))
-        return 0
-    if args.command == "export" and args.all:
-        for lang, count in export_all(args.out).items():
-            print(f"{lang}: {count} rows written to {args.out / (lang + '.csv')}")
-        return 0
-    languages = translation_languages()
-    if args.lang not in languages:
-        print(f"{args.lang!r} is not a release language to translate into: {languages}", file=sys.stderr)
-        return 2
-    if args.command == "export":
-        print(f"{export(args.lang, args.out)} rows written to {args.out}")
-        return 0
+
+def _import(args: argparse.Namespace) -> int:
     translator, reviewer = " ".join(args.translated_by.split()), " ".join(args.reviewed_by.split())
     if not translator or not reviewer:
-        print("--translated-by and --reviewed-by must each name a person or agency", file=sys.stderr)
+        print(
+            "--translated-by and --reviewed-by must each name a person or agency", file=sys.stderr
+        )
         return 2
     if translator.casefold() == reviewer.casefold():
         print("the reviewer must be a second person, not the translator", file=sys.stderr)
@@ -525,6 +634,29 @@ def main(argv: list[str]) -> int:
     for path in write(args.lang, worksheet, translator, reviewer):
         print(f"wrote {path.relative_to(REPO)}")
     return 0
+
+
+def main(argv: list[str]) -> int:
+    """Runs one command; returns the process's exit status."""
+    args = _parser().parse_args(argv)
+    if args.command in ("status", "audit"):
+        print("\n".join(status() if args.command == "status" else audit()))
+        return 0
+    if args.command == "export" and args.all:
+        for lang, count in export_all(args.out).items():
+            print(f"{lang}: {count} rows written to {args.out / (lang + '.csv')}")
+        return 0
+    languages = translation_languages()
+    if args.lang not in languages:
+        print(
+            f"{args.lang!r} is not a release language to translate into: {languages}",
+            file=sys.stderr,
+        )
+        return 2
+    if args.command == "export":
+        print(f"{export(args.lang, args.out)} rows written to {args.out}")
+        return 0
+    return _import(args)
 
 
 if __name__ == "__main__":
