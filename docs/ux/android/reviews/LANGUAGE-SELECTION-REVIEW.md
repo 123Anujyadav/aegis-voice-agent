@@ -102,7 +102,7 @@ A58l: tap a language ─▶ applied at once; the screen is re-created in place; 
 ## 5. Large text and small screens
 
 - **Captures 6–9:** at twice the text size, both screens reflow and scroll, and nothing is cut off. On a 320 × 480 dp screen, Welcome's Language control still fits on one line.
-- **The exception is the top bar (U1):** at twice the text size its title draws into the status bar (captures 7, 9).
+- **The exception was the top bar (U1):** at twice the text size its title drew into the status bar (captures 7, 9, taken before the fix).
 
 **Device tests:**
 - **`AppLanguageOnDeviceTest`:** API 26, 28 and 35 emulators, CI runs on #222's head `0ff1d11`: 41509328543, 41509334002 and 41509335478. It covers choose, re-create, Back, persistence, and the session being kept.
@@ -112,7 +112,7 @@ A58l: tap a language ─▶ applied at once; the screen is re-created in place; 
 
 | # | Issue | Where | Severity | Owner of the fix |
 |---|---|---|---|---|
-| **U1** | **The top bar draws under the status bar.** At normal text size the title sits close to the clock; at twice the size they overlap (captures 7 and 9). `AegisTopAppBar` adds no status-bar inset, and its fixed 64 dp height cuts off a title that wraps. **Every screen with a top bar is affected, not only A58l** | All top-bar screens | High at large text | Engineering: an implementation defect, not a design choice. **The cut-off title is fixed (#228). The status-bar overlap is still open:** padding the bar for the status bar broke a caller-list test on Android 15 in CI, for a reason not yet found |
+| **U1** | **The top bar draws under the status bar.** At normal text size the title sits close to the clock; at twice the size they overlap (captures 7 and 9). `AegisTopAppBar` adds no status-bar inset, and its fixed 64 dp height cuts off a title that wraps. **Every screen with a top bar is affected, not only A58l** | All top-bar screens | High at large text | Engineering: an implementation defect, not a design choice. **Fixed:** the cut-off title in #228; the status-bar overlap by padding the bar for the status bar and, in landscape, the side bars (`docs/phase19/LOCALISATION.md` §3). Captures 7 and 9 predate the fix |
 | **U2** | **No visible Up or Back control** on A58l (or any top-bar screen). A person who doesn't use the Back gesture may not find the way out | A58l, app-wide | Medium | **Design decision D6** |
 | **U3** | Five rows repeat "Not translated yet. Screens stay in English." Choosing one changes nothing visible, which may read as broken | A58l | Medium while there are no translations | **Design decision D3** |
 | **U4** | "Phone's language" doesn't say which language that is. On an English phone it looks like a duplicate of "English" | A58l, Settings section | Low | **Design decision D7** |

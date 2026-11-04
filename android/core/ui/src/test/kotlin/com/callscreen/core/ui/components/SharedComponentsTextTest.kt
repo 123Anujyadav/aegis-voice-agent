@@ -1,11 +1,13 @@
 package com.callscreen.core.ui.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -17,6 +19,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -24,6 +27,7 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,7 +65,7 @@ class SharedComponentsTextTest {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
-                CallScreenTheme { Box(Modifier.width(width.dp)) { content() } }
+                CallScreenTheme { Box(Modifier.width(width.dp).testTag(CONTENT)) { content() } }
             }
         }
     }
@@ -107,6 +111,44 @@ class SharedComponentsTextTest {
         compose.onNodeWithContentDescription("User Profile").assertDoesNotExist()
     }
 
+    /**
+     * The status bar ([top] dp) and, in landscape, a navigation bar or cutout at either side ([left]
+     * and [right] dp) lie over the bar (design review U1). Its title and logo start inside them, wrapped rather than cut,
+     * and its colour still reaches the top edge.
+     */
+    private fun assertTopBarInside(width: Int, top: Int, left: Int = 0, right: Int = 0) {
+        // About 40% longer than "Blocked numbers", as a translation can be, at twice the font scale.
+        val title = "Numbers you blocked from calling"
+        show(fontScale = 2f, width = width) {
+            AegisTopAppBar(title = title, windowInsets = WindowInsets(left = left.dp, top = top.dp, right = right.dp))
+        }
+        with(compose.density) {
+            // The screen really is that wide: a box wider than Robolectric's window is cut to it.
+            assertEquals(width.dp.toPx(), compose.onNodeWithTag(CONTENT).fetchSemanticsNode().boundsInRoot.width, 1f)
+            val safeTop = top.dp.toPx()
+            val safeRight = (width - right).dp.toPx()
+            for (bounds in listOf(
+                compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot,
+                compose.onNodeWithContentDescription(s(R.string.core_ui_logo)).fetchSemanticsNode().boundsInRoot,
+            )) {
+                assertTrue("$bounds starts above the $top dp status bar", bounds.top >= safeTop)
+                assertTrue("$bounds reaches under the $left dp side bar", bounds.left >= left.dp.toPx())
+                assertTrue("$bounds reaches under the $right dp side bar of a $width dp screen", bounds.right <= safeRight)
+            }
+            // The bar is the whole content here: it starts at the top edge, behind the status bar.
+            val bar = compose.onNodeWithTag(CONTENT).fetchSemanticsNode().boundsInRoot
+            assertTrue("the bar is ${bar.height} px high", bar.top == 0f && bar.height >= (top + 64).dp.toPx())
+        }
+        assertFalse("$title is cut off", cutOff(title, width = width - right))
+    }
+
+    @Test
+    fun theTopBarStartsBelowTheStatusBarOnASmallScreenInPortrait() = assertTopBarInside(width = 320, top = 24)
+
+    @Test
+    @Config(qualifiers = "w640dp-h320dp-land")
+    fun theTopBarStaysClearOfTheStatusAndNavigationBarsInLandscape() = assertTopBarInside(width = 640, top = 24, left = 32, right = 48)
+
     @Test
     fun theDialogsDefaultChoicesAreTheShippedWords() {
         show { AegisDialog(title = "Title", message = "Message", onConfirm = {}, onDismiss = {}) }
@@ -133,5 +175,10 @@ class SharedComponentsTextTest {
             )
         }
         compose.onNodeWithContentDescription(s(R.string.core_ui_call_incoming), useUnmergedTree = true).assertExists()
+    }
+
+    private companion object {
+        /** The box [show] puts the component in, as wide as the screen and as tall as the component. */
+        const val CONTENT = "content"
     }
 }

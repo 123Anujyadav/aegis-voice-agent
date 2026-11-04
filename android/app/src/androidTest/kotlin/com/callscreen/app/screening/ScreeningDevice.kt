@@ -166,6 +166,19 @@ internal fun AndroidComposeTestRule<*, *>.awaitText(text: String, substring: Boo
 }
 
 /**
+ * Waits until no node shows [text]: a snackbar leaves after its duration (4 seconds for a
+ * short one, longer when the accessibility settings ask for more time).
+ */
+internal fun AndroidComposeTestRule<*, *>.awaitGone(text: String, timeoutMillis: Long = 15_000) {
+    try {
+        waitUntil(timeoutMillis) { onAllNodes(hasText(text)).fetchSemanticsNodes().isEmpty() }
+    } catch (e: ComposeTimeoutException) {
+        ScreeningDevice.capture("gone-${text.take(20).replace(Regex("[^A-Za-z0-9]"), "_")}")
+        throw AssertionError("\"$text\" is still on screen after $timeoutMillis ms", e)
+    }
+}
+
+/**
  * Waits for a node whose accessible description contains [description]. List rows are one
  * accessibility node with a spoken description (label, digits, source, date), so their
  * visible text is not separately exposed.

@@ -111,7 +111,12 @@ class ProtectionListsTest {
             assertTrue("remove target ${target.width.toDp()} x ${target.height.toDp()}", target.width.toDp() >= 48.dp && target.height.toDp() >= 48.dp)
         }
 
-        // A32d: label it.
+        // A32d: label it. The "Blocked." confirmation sits above the Add button for a few seconds,
+        // and on a small screen (the 320 x 640 dp Android 15 emulator, its top bar below the status
+        // bar) it covers the new row: a tap there lands on the snackbar, as a finger would, and the
+        // detail never opens. Tap the row once it has gone, as a subscriber would.
+        compose.awaitText("Blocked.")
+        compose.awaitGone("Blocked.")
         compose.onNode(hasContentDescription("$spoken, Added by you", substring = true)).performClick()
         compose.awaitText("Save label")
         compose.onNodeWithText("Label (optional)").performTextInput("Courier")
