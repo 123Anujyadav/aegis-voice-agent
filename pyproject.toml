@@ -170,6 +170,16 @@ ignore = [
 # to the console, and routing either through the logging module would put a
 # timestamp and a level in front of a table somebody pastes into a document.
 "tools/audio-fixtures/*.py" = ["T201"]
+# tools/speech-eval's tests: standard library unittest, run with
+# `python3 -m unittest discover -s tools/speech-eval`, with tools/ci's allowances.
+"tools/speech-eval/test_*.py" = [
+    "S101",    # assert is the point of a test
+    "PLR2004", # magic value comparison is expected in assertions
+    "D101",    # test names are the documentation
+    "D102",
+    "PT009",   # unittest's self.assert*: the scorer needs no pytest
+    "PT027",   # unittest's assertRaises, for the same reason
+]
 # callscreen_platform.logging deliberately mirrors packages/go/platform/logging.go
 # by name, so that the two tiers' infrastructure modules correspond one to one.
 # A005 warns that this shadows the stdlib `logging`, which was a real hazard
