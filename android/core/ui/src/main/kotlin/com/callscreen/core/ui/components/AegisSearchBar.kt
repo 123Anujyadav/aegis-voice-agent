@@ -3,7 +3,7 @@ package com.callscreen.core.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,7 +33,8 @@ public fun AegisSearchBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(50.dp)
+            // At least 50 dp, taller when a large font or a longer translation wraps the hint.
+            .heightIn(min = 50.dp)
             .clip(RoundedCornerShape(25.dp))
             .background(CallScreenTheme.colors.surface.sunken)
             .padding(horizontal = 16.dp),

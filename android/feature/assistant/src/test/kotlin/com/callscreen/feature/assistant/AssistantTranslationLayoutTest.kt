@@ -43,6 +43,7 @@ class AssistantTranslationLayoutTest(tag: String) {
     @Test
     fun everyPlannedVoiceAndTheDisabledSaveStayReachable() {
         layout.show { VoiceSetupScreen() }
+        reachable(s(R.string.assistant_voice_setup_title)) // the top bar's title, wrapped whole
         reachable(s(R.string.assistant_voice_cartesia_accent))
         reachable(s(R.string.assistant_save_unavailable))
     }
@@ -50,6 +51,7 @@ class AssistantTranslationLayoutTest(tag: String) {
     @Test
     fun theVoiceSessionStillSaysTheMicrophoneIsUnusedAndCanGoBack() {
         layout.show { VoiceConversationScreen() }
+        reachable(s(R.string.assistant_session_screen_title))
         reachable(s(R.string.assistant_no_microphone))
         reachable(s(R.string.assistant_back))
     }

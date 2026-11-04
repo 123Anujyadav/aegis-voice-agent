@@ -60,6 +60,7 @@ class ProtectionTranslationLayoutTest(tag: String) {
     @Test
     fun dashboardLinksStayReachable() {
         layout.show { ProtectionDashboardScreen() }
+        reachable(s(R.string.protection_dashboard_app_bar)) // the top bar's title, wrapped whole
         reachable(s(R.string.protection_list_blocked_title))
         reachable(s(R.string.protection_list_allowed_title))
         reachable(s(DashboardCopy.NO_THREATS))
