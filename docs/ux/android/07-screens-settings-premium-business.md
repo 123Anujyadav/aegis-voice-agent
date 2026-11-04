@@ -241,7 +241,8 @@ by retention can't be listed."
 ## A58l · App language
 
 Added 2026-11-02 at the owner's request (UX_FREEZE §7: a new screen, written
-here in the same change; design review pending).
+here in the same change; design review pending: the packet is
+[`reviews/LANGUAGE-SELECTION-REVIEW.md`](reviews/LANGUAGE-SELECTION-REVIEW.md)).
 
 **Purpose** — The language of the app's screens. It is **not** the language the
 assistant speaks and understands on calls (`A43`), and choosing one never
