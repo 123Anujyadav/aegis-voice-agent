@@ -1,13 +1,15 @@
 # Localisation: the Android app's words
 
-**Status, 2026-11-02.** The app's screens are in **English only**. Every
+**Status, 2026-11-04.** The app's screens are in **English only**. Every
 release screen's words are in string resources, the release packages the
 owner's six languages, and a subscriber can choose any of them (§4). **No
 translation exists for any of the owner's other five languages** (Hindi, Tamil,
 Telugu, Malayalam and Kannada), so choosing one shows English, and the picker
 says "Not translated yet". Do not describe the app as supporting any language
 other than English until that language's reviewed translation and on-device
-tests below are done.
+tests below are done. The translator package is ready
+([`docs/translation/`](../translation/README.md)); no translator has been
+engaged, which needs the owner's approval first.
 
 ## 1. Where the words are
 
@@ -108,22 +110,47 @@ For each of Hindi, Tamil, Telugu, Malayalam and Kannada:
 
 ## 6. Translation workflow
 
-`tools/i18n/translation_kit.py` (standard library only; it contacts no service):
+**The translator package is [`docs/translation/`](../translation/README.md):**
+- a guide for translators and reviewers;
+- a glossary;
+- the questions the owner must settle first ([`QUESTIONS.md`](../translation/QUESTIONS.md));
+- one worksheet per language, `docs/translation/worksheets/<code>.csv`.
 
-1. `python3 tools/i18n/translation_kit.py status`: each language's progress per module. On 2026-11-03, **0/244 for each of the five** (243 before Welcome's Language label).
-2. `python3 tools/i18n/translation_kit.py export --lang hi hi.csv`: a worksheet (CSV, UTF-8). It has one row per translatable string and per plural form the language uses (CLDR: `one` and `other` for all six), with:
-   - the module and the English;
-   - the comment above the string in `strings.xml`, which says where it appears and what the spec requires;
+The worksheets are kept equal to the English by a test. After changing any English string, run:
+
+    python3 tools/i18n/translation_kit.py export --all docs/translation/worksheets
+
+`tools/i18n/translation_kit.py` uses the standard library only and contacts no service. A test runs it with networking disabled, and another checks it imports no networking module.
+
+1. `python3 tools/i18n/translation_kit.py status`: each language's progress per module. On 2026-11-04, **0/244 for each of the five**.
+2. `python3 tools/i18n/translation_kit.py audit`: the English source measured.
+   - **242 strings and 2 plurals: 246 worksheet rows, 1,548 words, 9,108 characters per language.**
+   - The workload table is in the translator guide.
+3. `python3 tools/i18n/translation_kit.py export --lang hi hi.csv`: a worksheet (CSV, UTF-8). It has one row per translatable string and per plural form the language uses (CLDR: `one` and `other` for all six), with:
+   - the module and the English, and its length;
+   - **where it appears and how much room it has.** This comes from `tools/i18n/ui-context.csv`, where every translatable string has a kind (tab, chip, one-line field, top bar, button, heading, option, message, text, spoken-only, format), and a test requires every string to have one;
+   - the comment above the string in `strings.xml`;
    - its placeholders (`%1$s`), which the translation must keep;
+   - for plurals, which numbers use `one` in that language. **Hindi and Kannada use `one` for 0 and 1**; Tamil, Telugu and Malayalam only for 1;
+   - **a `review` entry for the 54 rows a spec or a test quotes**, naming the document a reviewer checks the meaning against;
    - any translation already in the app.
 
    Strings marked `translatable="false"` (product names, `app_name`) are left out.
-3. **A translator the owner approves fills the `translation` column. A second person reviews it** against the spec-linked English (§3). A row left empty stays English.
-4. `python3 tools/i18n/translation_kit.py import --lang hi --reviewed-by "<translator or agency, date>" hi.csv`:
-   - **It refuses the worksheet** if a row changes a placeholder, names a string English lacks, translates an untranslatable one, or gives a plural without `other`.
-   - Otherwise it writes each module's `values-hi/strings.xml`, recording who reviewed it.
-5. The build's checks (§3) run on the result: banned claims, consistency and the layout tests. Then a device check in the language (§5).
-6. **Only when every string is translated and reviewed**, mark the language translated (`AppLanguage.translated`) and add it to `res/xml/locales_config.xml` (§4, §5).
+4. **A translator the owner approves fills the `translation` column. A second person reviews it** against the spec-linked English (§3).
+5. `python3 tools/i18n/translation_kit.py import --lang hi --translated-by "<translator, date>" --reviewed-by "<reviewer, date>" hi.csv`. **It refuses the whole worksheet, and writes nothing,** if:
+   - any row is missing, empty, given twice, or not in English;
+   - the English has changed since export;
+   - a row translates an untranslatable string, or changes a placeholder;
+   - a row adds a stray `%` to a formatted string;
+   - a plural lacks a form the language uses;
+   - a row is identical to the English without `keep_english` = `yes`;
+   - a row has no letter of the language's script, or letters of another Indian script;
+   - a row changes the line breaks, has spaces at either end, or contains an invisible control character;
+   - the translator and the reviewer are the same person.
+
+   **A language is therefore imported complete or not at all.** It never mixes English and the language under a "Not translated yet" label. Otherwise the import writes each module's `values-hi/strings.xml`, NFC-normalised, recording the translator and the reviewer.
+6. The build's checks (§3) run on the result: banned claims, consistency and the layout tests. Then a device check in the language (§5).
+7. **Only then**, mark the language translated (`AppLanguage.translated`) and add it to `res/xml/locales_config.xml` (§4, §5).
 
 **Not allowed without the owner's explicit approval:**
 - machine translation of any kind;
