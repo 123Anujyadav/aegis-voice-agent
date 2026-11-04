@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -82,6 +83,8 @@ public fun AppLanguageScreen(
     ) { paddingValues ->
         AegisScreenColumn(
             modifier = modifier.padding(paddingValues),
+            // The Scaffold has made room for the system bars (AegisScreenColumn).
+            windowInsets = WindowInsets(0, 0, 0, 0),
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(4.dp),
             contentPadding = 16.dp,

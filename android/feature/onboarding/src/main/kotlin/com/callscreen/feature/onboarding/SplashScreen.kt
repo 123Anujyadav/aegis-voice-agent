@@ -7,9 +7,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
@@ -30,6 +32,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.ui.components.aegisSafeArea
 import kotlinx.coroutines.delay
 
 @Composable
@@ -58,7 +61,9 @@ public fun SplashScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(CallScreenTheme.colors.action.primary.fill),
+            .background(CallScreenTheme.colors.action.primary.fill)
+            // Centred in the area the system bars leave, as in landscape a side bar can be wide.
+            .windowInsetsPadding(WindowInsets.aegisSafeArea),
         contentAlignment = Alignment.Center
     ) {
         Column(

@@ -6,10 +6,13 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -26,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.screening.ScreeningRole
 import com.callscreen.core.ui.components.AegisPrimaryButton
+import com.callscreen.core.ui.components.aegisSafeArea
 
 /**
  * A09b's words (docs/ux/android/06-screens-onboarding-auth-permissions.md,
@@ -76,7 +80,8 @@ internal fun ScreeningRoleScreen(
         modifier = modifier
             .fillMaxSize()
             .background(CallScreenTheme.colors.surface.background)
-            .padding(24.dp),
+            // 24 dp, or the system bar where that is wider (as AegisScreenColumn).
+            .windowInsetsPadding(WindowInsets.aegisSafeArea.union(WindowInsets(24.dp, 24.dp, 24.dp, 24.dp))),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(

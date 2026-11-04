@@ -2,7 +2,9 @@ package com.callscreen.core.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -148,6 +150,64 @@ class SharedComponentsTextTest {
     @Test
     @Config(qualifiers = "w640dp-h320dp-land")
     fun theTopBarStaysClearOfTheStatusAndNavigationBarsInLandscape() = assertTopBarInside(width = 640, top = 24, left = 32, right = 48)
+
+    /** The tab labels stay above a [bottom] dp navigation bar, and clear of a [right] dp side bar. */
+    private fun assertTabsInside(width: Int, bottom: Int, right: Int) {
+        show(fontScale = 2f, width = width) {
+            AegisBottomBar(currentTab = AegisTab.Calls, onTabSelected = {}, windowInsets = WindowInsets(right = right.dp, bottom = bottom.dp))
+        }
+        with(compose.density) {
+            val bar = compose.onNodeWithTag(CONTENT).fetchSemanticsNode().boundsInRoot
+            // The screen really is that wide: a box wider than Robolectric's window is cut to it.
+            assertEquals(width.dp.toPx(), bar.width, 1f)
+            for ((_, label) in tabs) {
+                val bounds = compose.onNodeWithText(s(label), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                assertTrue("${s(label)} at $bounds reaches under the $bottom dp navigation bar", bounds.bottom <= bar.bottom - bottom.dp.toPx())
+                assertTrue("${s(label)} at $bounds reaches under the $right dp side bar", bounds.right <= (width - right).dp.toPx())
+                assertFalse("${s(label)} is cut off", cutOff(s(label), width = width - right))
+            }
+            // The tabs share the width the side bar leaves: the first and last sit as far from its
+            // edges. A label is narrower than its tab, so this, not the label's edge, shows the bar
+            // reaching under a side bar.
+            val first = compose.onNodeWithText(s(tabs.first().second), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            val last = compose.onNodeWithText(s(tabs.last().second), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            val safeRight = (width - right).dp.toPx()
+            assertEquals("tabs not centred in the $width dp bar less its $right dp side bar", first.center.x, safeRight - last.center.x, 1.dp.toPx())
+            // The bar's own room is still there above the navigation bar.
+            assertTrue("the bar is ${bar.height} px high", bar.height >= (80 + bottom).dp.toPx())
+        }
+    }
+
+    @Test
+    fun theTabsStayAboveTheNavigationBarOnASmallScreen() = assertTabsInside(width = 320, bottom = 48, right = 0)
+
+    @Test
+    @Config(qualifiers = "w640dp-h320dp-land")
+    fun theTabsStayClearOfASideNavigationBarInLandscape() = assertTabsInside(width = 640, bottom = 0, right = 48)
+
+    @Test
+    fun aFullScreenColumnRestsClearOfTheSystemBarsWithoutDoublingItsPadding() {
+        compose.setContent {
+            CallScreenTheme {
+                // Smaller than Robolectric's window, so this box stands for the screen.
+                Box(Modifier.size(width = 320.dp, height = 360.dp).testTag(CONTENT)) {
+                    AegisScreenColumn(windowInsets = WindowInsets(top = 16.dp, bottom = 48.dp)) {
+                        Text("First")
+                        Text("Last")
+                    }
+                }
+            }
+        }
+        with(compose.density) {
+            val first = compose.onNodeWithText("First").fetchSemanticsNode().boundsInRoot
+            val last = compose.onNodeWithText("Last").fetchSemanticsNode().boundsInRoot
+            // Each side takes the wider of the column's 24 dp and the bar: 24 dp below a 16 dp status
+            // bar, not 40 (adding them pushed Welcome's action out of view on a small screen), and
+            // 48 dp above a 48 dp navigation bar.
+            assertEquals("the first line starts at $first", 24.dp.toPx(), first.top, 1f)
+            assertEquals("the last line ends at $last", (360 - 48).dp.toPx(), last.bottom, 1f)
+        }
+    }
 
     @Test
     fun theDialogsDefaultChoicesAreTheShippedWords() {

@@ -6,10 +6,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,18 +46,25 @@ public enum class AegisTab {
     Settings
 }
 
+/**
+ * The tabs. The bar's colour reaches behind the navigation bar (the app draws
+ * edge to edge); its tabs start above it and, in landscape, clear of a side
+ * bar or cutout ([windowInsets]).
+ */
 @Composable
 public fun AegisBottomBar(
     currentTab: AegisTab,
     onTabSelected: (AegisTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    windowInsets: WindowInsets = WindowInsets.aegisSafeArea.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .background(CallScreenTheme.colors.surface.default)
+            .windowInsetsPadding(windowInsets)
             // At least 80 dp, taller when a large font or a longer translation needs it.
             .heightIn(min = 80.dp)
-            .background(CallScreenTheme.colors.surface.default)
             .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically

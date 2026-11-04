@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -32,6 +34,22 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
  *
  * The content is at least as tall as the screen, so the arrangement still
  * spreads it when there is room.
+ *
+ * The background reaches behind the system bars (the app draws edge to edge).
+ * On each side the content is padded by [contentPadding] or by the system bar
+ * there ([windowInsets]), whichever is wider: it rests clear of the bars,
+ * scrolls behind them as an edge-to-edge screen's content does, and loses no
+ * room where its own padding already covered the bar (a 24 dp status bar or
+ * gesture bar). Adding the two made Welcome's Get Protected scroll out of
+ * view on a 320 x 640 dp screen.
+ *
+ * Inside a Scaffold, which has already made room for its bars, pass its
+ * padding as `Modifier.padding(padding)` and `windowInsets =
+ * WindowInsets(0, 0, 0, 0)`, so that room is not made twice. Consuming the
+ * Scaffold's padding instead (`consumeWindowInsets`) would also take it out
+ * of [contentPadding], since a consumed inset is subtracted from the whole
+ * padding: App language's intro then sat flush under the top bar
+ * (SystemBarsOnDeviceTest).
  */
 @Composable
 public fun AegisScreenColumn(
@@ -39,6 +57,7 @@ public fun AegisScreenColumn(
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     verticalArrangement: Arrangement.Vertical = Arrangement.SpaceBetween,
     contentPadding: Dp = 24.dp,
+    windowInsets: WindowInsets = WindowInsets.aegisSafeArea,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BoxWithConstraints(
@@ -51,7 +70,7 @@ public fun AegisScreenColumn(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .heightIn(min = maxHeight)
-                .padding(contentPadding),
+                .windowInsetsPadding(windowInsets.union(WindowInsets(contentPadding, contentPadding, contentPadding, contentPadding))),
             horizontalAlignment = horizontalAlignment,
             verticalArrangement = verticalArrangement,
             content = content,
