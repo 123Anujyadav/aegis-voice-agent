@@ -134,6 +134,43 @@
 
 **The unread conditions may add terms to the licence:** for example, on attribution, permitted use, or commercial use of the named speakers' voices (Parler-TTS has 69). Reading them is the point of A1. If they are unacceptable, the open-model path (option A) is ruled out, at no cost.
 
+### What is visible without an account (checked 2026-11-04)
+
+Sources, all public and read without signing in:
+- the two model pages;
+- their public metadata (`https://huggingface.co/api/models/ai4bharat/<model>`);
+- Hugging Face's documentation on gated models (`https://huggingface.co/docs/hub/models-gated`).
+
+| | Finding | Basis |
+|---|---|---|
+| **Known** | Both pages show the gate heading "You need to agree to share your Hugging Face information to access this model". They say: "This repository is publicly accessible, but you have to accept the conditions to access its files and content." | The model pages |
+| **Known** | **Approval is automatic** for both (`"gated": "auto"`): access is granted as soon as the request is sent, with no review by AI4Bharat | Public metadata; Hugging Face docs |
+| **Known** | Hugging Face's default gate shares the requester's **username and primary email address** with the model's authors, unless they opted out. Authors may add their own form fields and prompt text | Hugging Face docs |
+| **Known** | The authors **can withdraw access at any time**, without notice | Hugging Face docs |
+| **Known** | **Downloading by script needs an access token** from the account. A browser download needs only the signed-in session | Hugging Face docs |
+| **Known** | Licences on the cards: IndicConformer MIT, Indic Parler-TTS Apache-2.0. The Parler-TTS card also lists Creative Commons licences for its training datasets (for example CC BY 4.0) | The model pages |
+| **Known** | IndicConformer's own example loads it with `trust_remote_code=True` and resamples audio to 16 kHz. Its page now recommends a newer model, Indic-Transcribe | The model page |
+| **Inferred, not confirmed** | **No custom terms or extra form fields:** neither model's public metadata has `extra_gated_prompt` or `extra_gated_fields`, which is where custom terms and fields are declared. So the conditions are probably only Hugging Face's default information sharing | Public metadata. **Only signing in shows the actual form** |
+| **Unknown** | The exact text of the form, and whether anything beyond username and email is asked | Needs a signed-in account (A1-read) |
+| **Unknown** | Whether the authors collect the email, or only the username | Not public |
+| **Unknown** | Any commercial-use or voice-use terms outside the licence and the card | Not public |
+
+**What this changes:** probably little to accept. But the gate's actual text, and whether it adds anything, can only be confirmed by signing in. That is still A1-read, your step.
+
+### The approval steps, kept separate
+
+Each step needs its own approval. Approving one does not approve the next.
+
+| Step | What it allows | Covered by |
+|---|---|---|
+| 1. Account and read | You sign in (or create an account) and read the two gates' text. Nothing accepted, nothing downloaded | **A1-read** |
+| 2. Accept and download | You accept and download the files to a machine you control. Your username and email go to the authors | **A1** |
+| 3. Execute | Loading or running either model; for IndicConformer, running its publisher's code | **A4** (review, pinned revision, isolated, no network) |
+| 4. Record | Any voice recording or test call, including your own | **A2** (consent, storage and retention decided first) |
+| 5. Compute | Any GPU or cloud machine | **A3** (recurring cost while running) |
+| 6. Host | Running a model as a service | OD-17 (A5) |
+| 7. Real calls | Any caller's audio reaching a model | OD-17, and the independent human review (OD-12) |
+
 ### What approving A1 would authorize
 
 - Creating or using **your** Hugging Face account, and reading the two models' conditions.
