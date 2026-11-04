@@ -90,6 +90,11 @@ jobs:
           --cov-report=term-missing:skip-covered
           --junitxml=junit.xml
 
+      # The speech evaluation scorer (tools/speech-eval): standard library only,
+      # offline, outside pytest's testpaths like tools/ci's tests.
+      - name: Speech evaluation scorer tests
+        run: uv run python -m unittest discover -s tools/speech-eval -v
+
       # Always uploaded, including on failure — the report is most useful
       # precisely when the job failed.
       - name: Upload test results

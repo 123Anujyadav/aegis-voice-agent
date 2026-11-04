@@ -3,6 +3,7 @@
 - **Status: desk research only. Nothing was downloaded, run or measured,** and nothing is wired into the product.
 - **ADRs:** ADR-0005 (speech-to-text) and ADR-0007 (text-to-speech) are **Accepted and unchanged**. Choosing between them and open models is the owner's decision (**OD-17**), with the independent human review that a vendor or model processing call audio needs (OD-12).
 - **Builds on:** [`SPEECH-PROVIDER-POLICY-CONFLICT.md`](SPEECH-PROVIDER-POLICY-CONFLICT.md), which sets out the conflict and the options.
+- **Followed by:** [`SPEECH-EVALUATION-PREPARATION.md`](SPEECH-EVALUATION-PREPARATION.md): the two AI4Bharat models side by side, the measurement method, the offline scorer (`tools/speech-eval`), the cost model and the owner actions.
 - **As of:** 2026-11-03. AI-performed research (`ARCHITECTURE_FREEZE.md` §6.1 rule 9), not an independent human review.
 
 ## 1. The app's language is not the voice's language
