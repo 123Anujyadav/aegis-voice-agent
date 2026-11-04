@@ -16,7 +16,7 @@ needs the owner's approval first; docs/phase19/LOCALISATION.md §6).
                               the note above it, its placeholders, and any
                               translation already in the app
     export --all DIR          the worksheets of all five languages (DIR/hi.csv, ...)
-    import --lang hi --translated-by "..." --reviewed-by "..." IN.csv
+    import --lang hi --translated-by "..." --reviewed-by "..." --names-consented IN.csv
                               writes the worksheet's translations into each module's
                               values-hi/strings.xml, after checking them
 
@@ -129,6 +129,41 @@ FORBIDDEN = (
     | {chr(c) for c in range(0x202A, 0x202F)}
     | {chr(c) for c in range(0x2066, 0x206A)}
 )
+
+
+#: The owner's translation decisions of 2026-11-04 (docs/phase19/OWNER-DECISION-PACKET-2026-11-04.md)
+#: that a worksheet can be checked against. Q1: the product's name stays in Latin letters.
+PRODUCT_NAME = "Aegis AI"
+#: Q3: "AI" stays untranslated, in Latin letters.
+AI_WORD = re.compile(r"\bAI\b")
+#: Q4: the sign-in code is "OTP" in every translation. These are the rows about that code,
+#: not the country, area or forwarding codes; a repository test keeps the list current.
+SIGN_IN_CODE_ROWS = frozenset(
+    {
+        "onboarding_phone_title_code",
+        "onboarding_phone_subtitle_code",
+        "onboarding_phone_label_code",
+        "onboarding_phone_resend",
+        "onboarding_phone_send",
+        "onboarding_phone_message_invalid_code",
+        "onboarding_phone_message_code_expired",
+        "onboarding_phone_message_delivery_unavailable",
+        "onboarding_phone_message_could_not_save",
+        "settings_deletion_deleted_sessions",
+    }
+)
+
+
+def owner_term_problems(name: str, text: str, source: str) -> list[str]:
+    """Where [text] departs from the owner's decided terms (Q1, Q3, Q4)."""
+    problems = []
+    if PRODUCT_NAME in source and PRODUCT_NAME not in text:
+        problems.append(f'must keep "{PRODUCT_NAME}" in Latin letters (owner decision Q1)')
+    elif AI_WORD.search(source) and "AI" not in text:
+        problems.append('must keep "AI" untranslated, in Latin letters (owner decision Q3)')
+    if name in SIGN_IN_CODE_ROWS and "OTP" not in text:
+        problems.append('must call the sign-in code "OTP" (owner decision Q4)')
+    return problems
 
 
 def placeholders(text: str) -> list[str]:
@@ -378,6 +413,7 @@ def _text_problems(lang: str, text: str, source: str, row: dict[str, str]) -> li
     invisible = sorted({f"U+{ord(c):04X}" for c in text if c in FORBIDDEN})
     if invisible:
         problems.append(f"invisible control characters {invisible}")
+    problems.extend(owner_term_problems(row.get("name") or "", text, source))
     keep = (row.get("keep_english") or "").strip().lower() == "yes"
     english_has_words = bool(_letters(PLACEHOLDER.sub("", source)))
     if english_has_words and not keep:
@@ -610,6 +646,14 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
         help="who reviewed it: a second person, not the translator; recorded in each file",
     )
+    p_import.add_argument(
+        "--names-consented",
+        action="store_true",
+        help=(
+            "the translator and the reviewer agreed to their names being recorded in the"
+            " repository (owner decision Q0); the import refuses without it"
+        ),
+    )
     p_import.add_argument("worksheet", type=Path)
     return parser
 
@@ -623,6 +667,13 @@ def _import(args: argparse.Namespace) -> int:
         return 2
     if translator.casefold() == reviewer.casefold():
         print("the reviewer must be a second person, not the translator", file=sys.stderr)
+        return 2
+    if not args.names_consented:
+        print(
+            "the import records the translator's and the reviewer's names in the repository: "
+            "pass --names-consented once both have agreed to that (owner decision Q0)",
+            file=sys.stderr,
+        )
         return 2
     with args.worksheet.open(encoding="utf-8-sig", newline="") as f:
         worksheet = list(csv.DictReader(f))

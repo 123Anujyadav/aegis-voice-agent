@@ -95,7 +95,7 @@ Should "AI" stay as the Latin abbreviation or be translated?
 
 ## Q4. "Verification code" or "OTP" (before)
 
-**Decided (owner, 2026-11-04):** use `OTP`, written as in the decision, consistently in all five non-English translations. The English source keeps "verification code" and "6-digit code". Never use OTP for the country code, the area code or the operator's forwarding code.
+**Decided (owner, 2026-11-04):** use `OTP`, written as in the decision, consistently in all five non-English translations, in the 10 sign-in-code rows (`SIGN_IN_CODE_ROWS` in `tools/i18n/translation_kit.py`, which the import enforces). The English source keeps "verification code" and "6-digit code". Never use OTP for the country code, the area code or the operator's forwarding code.
 
 **Rows:** `onboarding_phone_title_code`, `onboarding_phone_label_code`, `onboarding_phone_resend`, `onboarding_phone_send`, the code messages, and `settings_deletion_deleted_sessions` ("pending verification codes").
 

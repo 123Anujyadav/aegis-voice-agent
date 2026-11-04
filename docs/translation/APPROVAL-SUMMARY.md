@@ -23,7 +23,7 @@
 | **Q1** | **The product's name** inside translated sentences: Latin letters or the language's script | **Latin letters** ("Aegis AI"), as the top bar shows it. Decide the launcher name, "CallScreen" or "Aegis AI", separately: it affects English too | 5 rows name the product. Changing it later means re-reviewing them in all five languages |
 | **Q2** | **Register:** formal or everyday language | **Everyday phone-app language**, the polite "you", and loanwords ("SIM", "spam") where Android's own text in that language uses them. The translators' lead proposes per language; you confirm | Every row. A change of register later is a full re-translation |
 | **Q3** | **"AI":** keep the Latin letters or translate | **Keep "AI"**: it is short, fits the chips and titles, and is widely recognised | 5 rows use "AI" alone, and 2 more in the name "Aegis AI" (Q1) |
-| **Q4** | **"Verification code" or "OTP"** for the sign-in code | **One term in all five languages, chosen by you.** "OTP" is familiar in India, but some people don't know what it stands for. Keep "6" in Western digits | 8 rows. The translation must also not reuse that word for the other codes: the country code, the area code and the operator's forwarding code |
+| **Q4** | **"Verification code" or "OTP"** for the sign-in code | **One term in all five languages, chosen by you.** "OTP" is familiar in India, but some people don't know what it stands for. Keep "6" in Western digits | 10 rows (first counted as 8: the count missed the two "Verification Code" titles). The translation must also not reuse that word for the other codes: the country code, the area code and the operator's forwarding code |
 
 **Also before the rows they affect** (they need not hold up the rest):
 
