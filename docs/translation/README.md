@@ -3,7 +3,7 @@
 **Status, 2026-11-04:**
 - The app's screens are in **English only**.
 - **No translator has been engaged.** That needs the owner's approval first; see "Before any work starts" below.
-- **Every string is still awaiting translation** in Hindi, Tamil, Telugu, Malayalam and Kannada (0 of 243 in each).
+- **Every string is still awaiting translation** in Hindi, Tamil, Telugu, Malayalam and Kannada (0 of 244 in each).
 
 This folder is what a translator and a reviewer receive for one language:
 
@@ -119,14 +119,14 @@ Text in the app wraps onto more lines when it must, and every screen scrolls. Te
 
 ## Workload per language
 
-Measured from the English source with `python3 tools/i18n/translation_kit.py audit`, after the owner's language decisions D3, D4 and D7 (2026-11-04). **It is the same for each of the five languages.**
+Measured from the English source with `python3 tools/i18n/translation_kit.py audit`, after the owner's language decisions D3, D4, D6 and D7 (2026-11-04). **It is the same for each of the five languages.**
 
 | Measure | Per language |
 |---|---|
-| Resources (241 strings and 2 counted texts) | 243 |
-| Worksheet rows (each counted text has 2 rows) | 245 |
-| English words (placeholders not counted) | 1,553 |
-| English characters | 9,149 |
+| Resources (242 strings and 2 counted texts) | 244 |
+| Worksheet rows (each counted text has 2 rows) | 246 |
+| English words (placeholders not counted) | 1,554 |
+| English characters | 9,153 |
 | Rows with placeholders | 11 |
 | Rows a specification or test quotes (second-review rows) | 54 |
 | Rows with tight room (tabs, chips, one-line fields) | 28 |
@@ -138,7 +138,7 @@ Measured from the English source with `python3 tools/i18n/translation_kit.py aud
 | Protection (dashboard, blocked and allowed numbers) | 60 | 361 |
 | Assistant | 24 | 122 |
 | Calls | 10 | 45 |
-| Shared components | 11 | 15 |
+| Shared components | 12 | 16 |
 | App shell (signed-out notice) | 5 | 21 |
 
 **Effort (a planning assumption, not a quote or a measurement).** Interface text is slower than prose: short strings, context to read, and a glossary to keep. Assuming a professional translator does about 1,000–1,500 words a day of interface text:

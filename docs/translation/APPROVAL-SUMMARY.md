@@ -1,7 +1,7 @@
 # Translation: what the owner needs to approve
 
 - **Status, 2026-11-04:**
-  - the app's screens are in **English only**: 0 of 243 strings are translated in each of Hindi, Tamil, Telugu, Malayalam and Kannada;
+  - the app's screens are in **English only**: 0 of 244 strings are translated in each of Hindi, Tamil, Telugu, Malayalam and Kannada;
   - **no translator or reviewer has been contacted, engaged or sent anything;**
   - no machine translation has been used.
 - **What this page is:** the short form of [`QUESTIONS.md`](QUESTIONS.md) Q0–Q4, with the workload and who does what. The details are in [`README.md`](README.md) (the translator's guide), [`GLOSSARY.md`](GLOSSARY.md) and the five worksheets in `worksheets/`.
@@ -68,8 +68,8 @@ Measured from the English source (`python3 tools/i18n/translation_kit.py audit`)
 
 | Measure | Per language | All five |
 |---|---|---|
-| Worksheet rows | 245 | 1,225 |
-| English words | 1,553 | 7,765 |
+| Worksheet rows | 246 | 1,230 |
+| English words | 1,554 | 7,770 |
 | Rows with a second review against a specification (deletion, privacy, the calling role, the microphone, the signed-out notice) | 54 | 270 |
 | Rows with tight room (tabs, chips, one-line fields) | 28 | 140 |
 | Rows with placeholders | 11 | 55 |
