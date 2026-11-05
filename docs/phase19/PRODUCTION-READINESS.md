@@ -133,7 +133,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
 - **Staging and production:** none.
 - **Blocker:**
   - **T2**, blocked on X3 (a phone) and X4 (SIMs);
-  - C7/OD-2/H3; C8/X4; OD-3; OD-11.
+  - C7/OD-2/H3; C8/X4; OD-3. (OD-11 closed by #245, 2026-11-05: the F14 banner now says "On-device blocking is off. …"; device evidence on `770cde3`: API 35 27/27, API 28 23/23, API 26 23/23, each with the R8 build's functional tests and launch check (runs 41969917154, 41969920931, 41969924508).)
 - **Next action:** the owner provides a phone and SIMs (X3, X4); then run sheet M1–M12.
 
 ### 3.6 Account deletion and data erasure

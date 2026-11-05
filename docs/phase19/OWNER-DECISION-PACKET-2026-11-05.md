@@ -271,7 +271,7 @@ Sources:
 
 ### Q6: the role-lost banner (approved and built)
 
-**Approved on 2026-11-05: reviewed by ChatGPT on the owner's behalf.** The wording below is built in #245, which applies every row of this table. The "Proposed" column is now what ships.
+**Approved on 2026-11-05: reviewed by ChatGPT on the owner's behalf.** The wording below is built in #245, which applies every row of this table and **closes OD-11** (device evidence on `770cde3`: API 35 27/27, API 28 23/23, API 26 23/23, each with the R8 build's functional tests and launch check (runs 41969917154, 41969920931, 41969924508)). The "Proposed" column is now what ships.
 
 | Where | Today | Proposed |
 |---|---|---|
