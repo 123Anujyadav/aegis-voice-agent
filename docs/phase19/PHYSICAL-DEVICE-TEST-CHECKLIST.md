@@ -150,7 +150,7 @@ A mismatch is a finding. Claude Code can then investigate it from the evidence.
 
 | # | Phone (maker, model, Android) | Carrier | Date | Result | Evidence (redacted) | Notes |
 |---|---|---|---|---|---|---|
-| M1 | | | | **Not run** | | |
+| M1 | Xiaomi Redmi 9 Power, Android 12 | Airtel | 2026-11-06 | **Passed** | Call log, blocklist and Telecom excerpt, redacted; kept outside the repository, SHA-256 in the [session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md) §3c | Did not ring; the app's service rejected the call (Telecom `TC@198`); the Phone app shows "Blocked call". Images are camera photos, not screenshots. An earlier call rang: X was then a saved contact without contacts access (M6's setup, not M1's) |
 | M2 (Jio) | | Jio | | **Not run** | | |
 | M2 (Airtel) | | Airtel | | **Not run** | | |
 | M2 (Vi) | | Vi | | **Not run** | | |
