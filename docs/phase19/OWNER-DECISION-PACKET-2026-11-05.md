@@ -229,3 +229,188 @@ Sources:
 - **Q5, Q6, Q8, launcher:** the English copy changes and the worksheets are regenerated, in one PR per decision.
 - **Q7:** recorded in `QUESTIONS.md`.
 - **Translators:** still not contacted. Engaging anyone needs your further approval.
+
+---
+
+## 5. Proposed by the owner on 2026-11-05: awaiting final confirmation
+
+- **Status: PROPOSED. Not approved, not recorded elsewhere, not built.** These are the owner's proposed choices, written as the exact entries that would be recorded on confirmation.
+- **The "Your decision" cells above stay empty until then.**
+- **Nothing in the app, the specifications, the worksheets or the ADRs has changed.**
+
+### F25: navigation, Option A
+
+**Entry to record:**
+> **F25, Option A (owner, ‹date of confirmation›):** build the frozen navigation specification, `docs/ux/android/02-navigation-graph.md` §2.1, §2.4 and §2.6:
+> - Back on a tab root exits the app;
+> - each tab keeps its own back stack, preserved across tab switches and backgrounding;
+> - Back never cycles through previously selected tabs;
+> - selecting the current tab adds no duplicate entry: it pops that tab to its root, and at the root scrolls to the top (§2.1);
+> - the top-bar Back arrow mirrors Android's Back.
+>
+> **This narrowly supersedes D6's "preserving existing navigation and screen-state behaviour"**, for tab selection and Back on tab roots only. All of D6's other requirements stand:
+> - the arrow is Android's Back for the screen it is on;
+> - it shows only where Back stays in the app, and so not on a tab root;
+> - it has a 48 dp target;
+> - screen readers announce it as "Back";
+> - it mirrors in a right-to-left language.
+
+**Specification wording to record** (`02` §2.4). The paragraph "As built, switching tabs adds to the back stack…" becomes:
+> **Tab roots (F25, owner, ‹date›).** Each tab keeps its own back stack, and Back on any tab root leaves the app, so a tab root shows no Back arrow.
+
+**Implementation impact:**
+- **`AegisNavGraph.handleTabClick`:** tab selection saves and restores each tab's stack, single-top.
+  - **Care point:** Navigation's usual tab pattern keeps the first tab, Calls, under the others. Back from Protection would then show Calls first, which §2.4 forbids. Each tab root must therefore be the only entry beneath its own screens.
+- **Settings needs the bottom bar** (`TaskCenterScreen`). Settings shows none today. Under A it becomes a tab root where Back exits, so without the bar someone in Settings could not reach another tab. §2.1 ("Bottom navigation, four destinations, labels always visible") requires it. **This is part of A as proposed; please confirm it explicitly.**
+- **Re-selection at a root scrolls to the top** (§2.1): the Calls, Protection, Assistant and Settings roots each need to respond to it.
+- **Tests:**
+  - `TopBarBackTest.theArrowFollowsTheBackStackAsBuilt` is rewritten to the specified behaviour;
+  - new tests: Back on each tab root finishes the activity; switching tabs preserves and restores each stack, also across re-creation; re-selection pops to the root, with no duplicates;
+  - device tests on API 35, 28 and 26, and the R8 build's tests.
+- **`PRODUCTION-READINESS.md` F25:** becomes "Fixed (#‹PR›)".
+
+**Dependencies:** none external. No ADR or invariant is affected.
+
+### Q5: the planned-voice labels
+
+**Entry to record (`QUESTIONS.md` Q5):**
+> **Decided (owner, ‹date›):**
+> - correct `assistant_voice_sarvam_accent` from "Hindi Devanagari Native Accent" (a script is not an accent) to **"Native Hindi Accent"**;
+> - the six planned-voice rows are translated as they stand, **independently of OD-17**, which stays deferred;
+> - they are revisited only if OD-17 changes the planned voices;
+> - ADR-0005 and ADR-0007 are unchanged.
+
+**Repository change:** `android/feature/assistant/src/main/res/values/strings.xml`:
+
+    <string name="assistant_voice_sarvam_accent">Native Hindi Accent</string>
+
+**Impact:**
+- **Display:** voice setup shows the corrected label. The voice still cannot be chosen ("Not available yet").
+- **Tests:** none quote the old label.
+- **Worksheets:** regenerated, still 246 rows, 1,553 words.
+
+**Dependencies:** none.
+
+### Q6: the F14 / A75 role-lost banner (closes OD-11)
+
+**Proposed wording** (`ROADMAP-INVENTORY.md` Appendix A):
+> **"On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back."**
+
+**Exact repository changes:**
+- **`docs/ux/android/06-screens-onboarding-auth-permissions.md`, A75:**
+  - the trigger becomes "The app no longer holds the call screening role: another app took it, or the subscriber turned it off (Android does not tell an app which).";
+  - **Copy** becomes the wording above.
+- **`docs/ux/android/08-user-flows.md`, F14:**
+  - the first box becomes "This app loses ROLE_CALL_SCREENING (another app takes it, or the subscriber turns it off)";
+  - the banner text matches A75.
+- **`android/feature/calls/src/main/res/values/strings.xml`:** `calls_role_lost` becomes the wording above. `ScreeningRoleBannerCopyTest`, which reads the specification, keeps the two equal.
+- **`ScreeningRoleStatesTest`** (device): its banner string becomes "On-device blocking is off."
+
+**Factual implications:**
+- **It is true in both cases Android allows:** another app took the role, or the subscriber turned screening off. Android does not tell the app which.
+- **It no longer claims another app is screening the calls,** which the app cannot know.
+- **It names exactly what stopped:** this app blocking the numbers on its blocklist, on the phone.
+- **It does not claim all screening stopped.** Forwarding-based screening, once built, is unaffected. Today forwarding is "Not available yet", so nothing else of this app is screening.
+- **It matches the app's other wording** for the same state: "Blocking is off." and "On-device blocking is off.".
+- **The "Switch back" action is unchanged:** it re-requests the role.
+
+**Kept as historical evidence:** the run reports that quote the old sentence (`ANDROID-SCREENING-DEVICE-VALIDATION.md`, `RELEASE-READINESS-ASSESSMENT.md`) stay as they are.
+
+**Copy wording is not frozen** (`UX_FREEZE.md` §1). Two of the 54 second-review rows change, before any legal review (Q7).
+
+### Q7: legal review of the 54 rows
+
+**Entry to record (`QUESTIONS.md` Q7):**
+> **Decided (owner, ‹date›):** before any translated language is released to production, **qualified legal counsel** reviews that language's 54 second-review rows against the English and the documents they cite:
+> - account deletion 32;
+> - the calling role 11;
+> - the signed-out notice 5;
+> - contacts 3;
+> - the F14 banner 2;
+> - the microphone 1.
+>
+> **The second translator's review checks meaning; it is not legal approval.** Engaging counsel, and its scope and cost, need the owner's separate approval.
+
+**Repository change:** `docs/phase19/LOCALISATION.md` §5's release checklist gains: "Legal review of the 54 second-review rows recorded: reviewer, date, outcome (Q7)." Track it with L1 (E9).
+
+**Impact:**
+- **No code change.**
+- **Does not block** translating, importing or internal testing of a language.
+- **Blocks only that language's production release.**
+
+**Dependencies:** counsel (external; engagement and cost need your approval); E9 and L1.
+
+### Q8: "in your phone's settings"
+
+**Entry to record (`QUESTIONS.md` Q8):**
+> **Decided (owner, ‹date›):** the English says where the button goes.
+
+**Repository change:** `android/feature/protection/src/main/res/values/strings.xml`:
+
+    <string name="protection_notice_contacts_denied">Contacts access is off. You can turn it on in your phone\'s settings.</string>
+
+**Impact:**
+- **Behaviour:** the button is unchanged; it opens Android's page for this app.
+- **Tests:** none quote the old wording.
+- **Worksheets:** regenerated (+2 words).
+
+**Dependencies:** none.
+
+### Q9: punctuation
+
+**Entry to record (`QUESTIONS.md` Q9):**
+> **Delegated (owner, ‹date›):**
+> - the translators' lead chooses sentence-ending punctuation for each language, following Android's own text in that language, and applies it consistently;
+> - the reviewer checks the consistency.
+
+**Impact:** none.
+
+### Q11: text outside the app
+
+**Entry to record (`QUESTIONS.md` Q11):**
+> **Deferred (owner, ‹date›)** until the relevant services and surfaces are approved:
+> - the sign-in SMS and its DLT templates per language (E2);
+> - the assistant's voice prompts (OD-17, deferred);
+> - the Play Store listing (X1).
+>
+> Debug-only design previews are not shipped and not translated. **Until then, a language is described as covering the app's screens only.**
+
+**Impact:** none.
+
+### Launcher name: "Aegis AI"
+
+**Entry to record (`QUESTIONS.md` Q1, launcher name):**
+> **Decided (owner, ‹date›):** the app's name on the phone is **"Aegis AI"**, as on its own screens.
+>
+> **A preliminary availability check is not clearance:**
+> - **Preliminary check:** a search of public sources: Google Play, the web, and the Indian trademark registry's public search. It is done without an account, and finds only obvious conflicts.
+> - **Legal or trademark clearance:** qualified trademark counsel's search and opinion, for India and any other market. It needs the owner's separate approval and may cost money.
+>
+> The rename ships after the preliminary check. **Clearance is required before the Play listing (X1) and before production.**
+
+**Repository change:** `android/app/src/main/res/values/strings.xml`:
+
+    <string name="app_name" translatable="false">Aegis AI</string>
+
+**Impact:**
+- **Where users see it:** Android shows "Aegis AI" for the launcher icon, App info, App languages, the permission prompts and the "Caller ID & spam app" choice.
+- **Unchanged:** the application id `com.callscreen`, the `callscreen://` link scheme and internal theme names. Users don't see any of them.
+- **Tests:** none quote the label.
+- **Documentation:** the architecture documents that call the product "CallScreen" are outside this change.
+
+**Dependencies:**
+- the preliminary check: not done; yours, or engineering's with your OK;
+- counsel's clearance: external, needs your approval;
+- X1 for the Play name.
+
+### On confirmation
+
+Each change is built in its own focused PR, with tests and regenerated worksheets where needed, and merged when its checks pass:
+- F25;
+- Q5 and Q8 (copy);
+- Q6 (OD-11);
+- the launcher name.
+
+The records:
+- **Q7, Q9 and Q11:** recorded in `QUESTIONS.md`;
+- **Q7's release gate:** added to `LOCALISATION.md` §5.
