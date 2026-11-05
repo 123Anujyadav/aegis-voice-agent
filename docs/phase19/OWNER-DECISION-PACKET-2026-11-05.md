@@ -1,6 +1,6 @@
 # Owner decision packet: tab navigation (F25), the remaining translation questions, readiness
 
-- **Status: for the owner's review. Nothing in this packet is decided.** Every "Your decision" cell is empty, and every recommendation is Claude Code's proposal.
+- **Status: DECIDED on 2026-11-05 (§5).** The owner chose F25 Option A, Q5, Q7 and Q8, and the product name **Lily AI**. They authorised ChatGPT and Claude Code to make suitable routine product and engineering decisions, and Q9 and Q11 were recorded under that delegation. **Q6's wording is prepared and awaits review; it is not approved or built.** The recommendations above are kept as proposed, for traceability.
 - **Prepared:** 2026-11-05 by Claude Code, on main `33022a5`. AI-prepared material (`ARCHITECTURE_FREEZE.md` §6.1 rule 9).
 - **Builds on:** [`OWNER-DECISION-PACKET-2026-11-04.md`](OWNER-DECISION-PACKET-2026-11-04.md), whose decisions (language UX D1–D9, translation Q0–Q4, the speech deferral) are approved and built.
 - **Nothing here changes behaviour.**
@@ -58,7 +58,7 @@ It would be built with device tests on API 35, 28 and 26, and the R8 build's tes
 
 | Decision | Your decision |
 |---|---|
-| F25: A, B or C | |
+| F25: A, B or C |  **Approved (2026-11-05): Option A**, with the narrow D6 clarification in §5 |
 
 ---
 
@@ -70,13 +70,13 @@ The exact questions are in [`docs/translation/QUESTIONS.md`](../translation/QUES
 
 | # | Who decides (`QUESTIONS.md`) | When | Exact question | Existing options | Current implementation | Recommendation (not a decision) | Your decision |
 |---|---|---|---|---|---|---|---|
-| **Q5** | Owner (OD-17) | Before those rows | "The planned-voice rows describe undecided vendors, and one is inaccurate" | (a) fix or remove the English labels when OD-17 is decided, and translate after; (b) translate them as they are, if you want a language shipped first | 6 rows, 17 words, in `feature/assistant` `strings.xml`. They label three voices on voice setup that cannot be chosen ("Not available yet"). "Hindi Devanagari Native Accent" calls a script an accent. **OD-17 is deferred**, so (a) has no date | **Correct the inaccurate English label now** (it is copy, and copy is not frozen). **Translate the six rows as they are**, so they don't block every language. Revisit them when OD-17 is decided. If you prefer, hold them, but no language can then be completed | |
-| **Q6** | Owner (OD-11) | Before that row | "The F14 banner's first sentence may change" | (a) decide OD-11 before translating this row; (b) translate it now and again after the amendment | `calls_role_lost`: "Another app is now screening your calls. Numbers you've blocked here won't be blocked until you switch back." It is false when the subscriber turned screening off. Appendix A of `ROADMAP-INVENTORY.md` holds the ready amendment: "On-device blocking is off. …" | **Decide OD-11 first:** approving Appendix A's wording settles the row before anyone translates it. It is one row and a copy change | |
-| **Q7** | Owner | Before | "Legal review of the deletion and privacy rows": whether a lawyer, as well as the second translator, reviews them in each language | Lawyer review in each language · the second translator's review only | 54 rows carry a `review` entry: account deletion 32, the calling role (A09b) 11, the signed-out notice (A73) 5, contacts never read or uploaded 3, the F14 banner 2, the microphone 1. Their English is held to the specifications by tests | **Your call, and not legal advice.** The 32 deletion rows say what is erased and kept. They are the strongest case for a lawyer, and the DPDP review (E9, L1) is the natural place to ask | |
-| **Q8** | **Product** | Before that row | "'in Settings': Android's or the app's" | (a) change the English to "in your phone's settings"; (b) until then, translate as Android's settings | `protection_notice_contacts_denied`: "Contacts access is off. You can turn it on in Settings." Its button opens **Android's** page for this app (`ACTION_APPLICATION_DETAILS_SETTINGS`, `BlockingNotice.kt`) | **(a): change the English** to "in your phone's settings". It says where the button goes. It is a copy change, and a test-held wording updates with it | |
+| **Q5** | Owner (OD-17) | Before those rows | "The planned-voice rows describe undecided vendors, and one is inaccurate" | (a) fix or remove the English labels when OD-17 is decided, and translate after; (b) translate them as they are, if you want a language shipped first | 6 rows, 17 words, in `feature/assistant` `strings.xml`. They label three voices on voice setup that cannot be chosen ("Not available yet"). "Hindi Devanagari Native Accent" calls a script an accent. **OD-17 is deferred**, so (a) has no date | **Correct the inaccurate English label now** (it is copy, and copy is not frozen). **Translate the six rows as they are**, so they don't block every language. Revisit them when OD-17 is decided. If you prefer, hold them, but no language can then be completed |  **Approved (2026-11-05):** correct the English label; translate the six rows independently of OD-17 |
+| **Q6** | Owner (OD-11) | Before that row | "The F14 banner's first sentence may change" | (a) decide OD-11 before translating this row; (b) translate it now and again after the amendment | `calls_role_lost`: "Another app is now screening your calls. Numbers you've blocked here won't be blocked until you switch back." It is false when the subscriber turned screening off. Appendix A of `ROADMAP-INVENTORY.md` holds the ready amendment: "On-device blocking is off. …" | **Decide OD-11 first:** approving Appendix A's wording settles the row before anyone translates it. It is one row and a copy change |  **Wording prepared (2026-11-05); awaiting review.** Not approved, not built |
+| **Q7** | Owner | Before | "Legal review of the deletion and privacy rows": whether a lawyer, as well as the second translator, reviews them in each language | Lawyer review in each language · the second translator's review only | 54 rows carry a `review` entry: account deletion 32, the calling role (A09b) 11, the signed-out notice (A73) 5, contacts never read or uploaded 3, the F14 banner 2, the microphone 1. Their English is held to the specifications by tests | **Your call, and not legal advice.** The 32 deletion rows say what is erased and kept. They are the strongest case for a lawyer, and the DPDP review (E9, L1) is the natural place to ask |  **Approved (2026-11-05):** qualified legal review of the 54 rows is a mandatory gate before production release. Translation review is not legal approval |
+| **Q8** | **Product** | Before that row | "'in Settings': Android's or the app's" | (a) change the English to "in your phone's settings"; (b) until then, translate as Android's settings | `protection_notice_contacts_denied`: "Contacts access is off. You can turn it on in Settings." Its button opens **Android's** page for this app (`ACTION_APPLICATION_DETAILS_SETTINGS`, `BlockingNotice.kt`) | **(a): change the English** to "in your phone's settings". It says where the button goes. It is a copy change, and a test-held wording updates with it |  **Approved (2026-11-05):** "in your phone's settings" |
 | **Q9** | **The translators' lead** (during translation) | During | "Sentence-ending punctuation per language": Hindi commonly "।", the others "." | Follow Android's own text in each language, consistently | Nothing to change in the app. The import checks placeholders and line breaks, not punctuation | **Not yours to decide** under `QUESTIONS.md`. Listed for completeness. The reviewer checks consistency (§3) | — |
 | **Q11** | Owner | Separate | "Text outside the app": the sign-in SMS, the assistant's voice prompts, the Play Store listing, debug-only previews | None defined. `QUESTIONS.md` notes each depends elsewhere: the SMS on the provider decision and DLT templates per language (E2), the voice prompts on OD-17, the Play listing on X1 | None of these is in the app's worksheets. The debug previews are not migrated (`LOCALISATION.md` §1) | **No decision needed now.** `QUESTIONS.md`: "None of these blocks the app's translation, but a language is not fully supported until the person's whole experience is in it." Revisit with E2, OD-17 and X1 | — |
-| **Launcher name** | Owner (raised in Q1) | Separate; affects English | "settle the launcher name ('CallScreen' or 'Aegis AI') separately. It affects English too." | "CallScreen" · "Aegis AI" | `app_name` = **CallScreen** (`android/app/src/main/res/values/strings.xml`, `translatable="false"`). The launcher and Android's own screens use it: the app list, App languages, permission prompts, the "Caller ID & spam app" choice. **The app's screens say "Aegis AI"**: the top bar, Welcome, the splash. Q1 keeps "Aegis AI" in Latin letters in translations. The application id `com.callscreen` and the `callscreen://` scheme are not shown to users | **"Aegis AI"**, so the phone and the app name the product the same way. A subscriber asked by Android to choose a "Caller ID & spam app" otherwise looks for "CallScreen" after reading "Aegis AI" throughout. One string changes, plus its tests. **Not changed:** the application id. **Check the name's availability for Play and trademark before choosing** (X1; not legal advice) | |
+| **Launcher name** | Owner (raised in Q1) | Separate; affects English | "settle the launcher name ('CallScreen' or 'Aegis AI') separately. It affects English too." | "CallScreen" · "Aegis AI" | `app_name` = **CallScreen** (`android/app/src/main/res/values/strings.xml`, `translatable="false"`). The launcher and Android's own screens use it: the app list, App languages, permission prompts, the "Caller ID & spam app" choice. **The app's screens say "Aegis AI"**: the top bar, Welcome, the splash. Q1 keeps "Aegis AI" in Latin letters in translations. The application id `com.callscreen` and the `callscreen://` scheme are not shown to users | **"Aegis AI"**, so the phone and the app name the product the same way. A subscriber asked by Android to choose a "Caller ID & spam app" otherwise looks for "CallScreen" after reading "Aegis AI" throughout. One string changes, plus its tests. **Not changed:** the application id. **Check the name's availability for Play and trademark before choosing** (X1; not legal advice) |  **Superseded (2026-11-05): the product is Lily AI**, not Aegis AI. The launcher label is not changed now; see §5, branding |
 
 ---
 
@@ -232,96 +232,68 @@ Sources:
 
 ---
 
-## 5. Proposed by the owner on 2026-11-05: awaiting final confirmation
+## 5. The owner's decisions of 2026-11-05, as recorded
 
-- **Status: PROPOSED. Not approved, not recorded elsewhere, not built.** These are the owner's proposed choices, written as the exact entries that would be recorded on confirmation.
-- **The "Your decision" cells above stay empty until then.**
-- **Nothing in the app, the specifications, the worksheets or the ADRs has changed.**
+- **Status:** recorded on 2026-11-05.
+  - **F25, Q5, Q7 and Q8 are approved by the owner.**
+  - **Q9 and Q11** are recorded under the owner's delegation to ChatGPT and Claude Code for routine decisions.
+  - **Q6's wording awaits review.**
+  - **Branding:** the product's name is **Lily AI**, and a later cleanup is recorded.
+- **Built in separate PRs:** F25, and the Q5 and Q8 copy. They are linked from `PRODUCTION-READINESS.md` once merged.
+- **Not done:** no translator, lawyer or other external party is contacted. Speech-model evaluation stays deferred.
 
-### F25: navigation, Option A
+### F25: navigation, Option A (approved)
 
-**Entry to record:**
-> **F25, Option A (owner, ‹date of confirmation›):** build the frozen navigation specification, `docs/ux/android/02-navigation-graph.md` §2.1, §2.4 and §2.6:
+> **F25, Option A (owner, 2026-11-05):** build the frozen navigation specification, `docs/ux/android/02-navigation-graph.md` §2.1, §2.4 and §2.6:
 > - Back on a tab root exits the app;
 > - each tab keeps its own back stack, preserved across tab switches and backgrounding;
 > - Back never cycles through previously selected tabs;
-> - selecting the current tab adds no duplicate entry: it pops that tab to its root, and at the root scrolls to the top (§2.1);
-> - the top-bar Back arrow mirrors Android's Back.
->
-> **This narrowly supersedes D6's "preserving existing navigation and screen-state behaviour"**, for tab selection and Back on tab roots only. All of D6's other requirements stand:
-> - the arrow is Android's Back for the screen it is on;
-> - it shows only where Back stays in the app, and so not on a tab root;
-> - it has a 48 dp target;
-> - screen readers announce it as "Back";
-> - it mirrors in a right-to-left language.
+> - selecting the current tab adds no history entry: at its root it scrolls to the top, and at the top it does nothing (§2.1);
+> - the Settings tab shows the bottom bar like the other three ("four destinations, labels always visible", §2.1);
+> - the top-bar Back arrow mirrors Android's Back and follows the specification.
 
-**Specification wording to record** (`02` §2.4). The paragraph "As built, switching tabs adds to the back stack…" becomes:
-> **Tab roots (F25, owner, ‹date›).** Each tab keeps its own back stack, and Back on any tab root leaves the app, so a tab root shows no Back arrow.
+**D6 clarification (owner, 2026-11-05).** It narrowly supersedes one clause of D6, "preserving existing navigation and screen-state behaviour", **for tab selection and Back on tab roots only.** Every other part of D6 stands:
+- the arrow is Android's Back for the screen it is on;
+- it shows only where Back stays in the app, and so not on a tab root;
+- its target is 48 dp;
+- screen readers announce it as "Back";
+- it mirrors in a right-to-left language.
 
-**Implementation impact:**
-- **`AegisNavGraph.handleTabClick`:** tab selection saves and restores each tab's stack, single-top.
-  - **Care point:** Navigation's usual tab pattern keeps the first tab, Calls, under the others. Back from Protection would then show Calls first, which §2.4 forbids. Each tab root must therefore be the only entry beneath its own screens.
-- **Settings needs the bottom bar** (`TaskCenterScreen`). Settings shows none today. Under A it becomes a tab root where Back exits, so without the bar someone in Settings could not reach another tab. §2.1 ("Bottom navigation, four destinations, labels always visible") requires it. **This is part of A as proposed; please confirm it explicitly.**
-- **Re-selection at a root scrolls to the top** (§2.1): the Calls, Protection, Assistant and Settings roots each need to respond to it.
-- **Tests:**
-  - `TopBarBackTest.theArrowFollowsTheBackStackAsBuilt` is rewritten to the specified behaviour;
-  - new tests: Back on each tab root finishes the activity; switching tabs preserves and restores each stack, also across re-creation; re-selection pops to the root, with no duplicates;
-  - device tests on API 35, 28 and 26, and the R8 build's tests.
-- **`PRODUCTION-READINESS.md` F25:** becomes "Fixed (#‹PR›)".
+**Specification wording.** The paragraph in `02` §2.4 beginning "As built, switching tabs adds to the back stack" becomes, in the implementation PR:
+> **Tab roots (F25, owner, 2026-11-05).** Each tab keeps its own back stack, and Back on any tab root leaves the app, so a tab root shows no Back arrow.
 
-**Dependencies:** none external. No ADR or invariant is affected.
+### Q5: the planned-voice labels (approved)
 
-### Q5: the planned-voice labels
-
-**Entry to record (`QUESTIONS.md` Q5):**
-> **Decided (owner, ‹date›):**
-> - correct `assistant_voice_sarvam_accent` from "Hindi Devanagari Native Accent" (a script is not an accent) to **"Native Hindi Accent"**;
-> - the six planned-voice rows are translated as they stand, **independently of OD-17**, which stays deferred;
-> - they are revisited only if OD-17 changes the planned voices;
+> **Decided (owner, 2026-11-05):**
+> - `assistant_voice_sarvam_accent` changes from "Hindi Devanagari Native Accent" (a script is not an accent) to **"Native Hindi Accent"**;
+> - the six planned-voice rows are translated as they stand, **independently of OD-17**, which stays deferred, and are revisited only if OD-17 changes the planned voices;
 > - ADR-0005 and ADR-0007 are unchanged.
 
-**Repository change:** `android/feature/assistant/src/main/res/values/strings.xml`:
+### Q6: the role-lost banner (wording prepared; awaiting review)
 
-    <string name="assistant_voice_sarvam_accent">Native Hindi Accent</string>
+**The proposed wording, complete and exact. It is not approved or built.**
 
-**Impact:**
-- **Display:** voice setup shows the corrected label. The voice still cannot be chosen ("Not available yet").
-- **Tests:** none quote the old label.
-- **Worksheets:** regenerated, still 246 rows, 1,553 words.
+| Where | Today | Proposed |
+|---|---|---|
+| `calls_role_lost` (`android/feature/calls/src/main/res/values/strings.xml`) | "Another app is now screening your calls. Numbers you've blocked here won't be blocked until you switch back." | **"On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back."** |
+| `06-screens-onboarding-auth-permissions.md` A75, the trigger | "The screening role was taken by another app, which Android allows and users do routinely without understanding the consequence." | "The app no longer holds the call screening role: another app took it, or the subscriber turned it off (Android does not tell an app which)." |
+| A75, **Copy** | As `calls_role_lost` today | As the proposed `calls_role_lost` |
+| `08-user-flows.md` F14, the first box | "Another app takes ROLE_CALL_SCREENING  (Android permits this freely)" | "This app loses ROLE_CALL_SCREENING (another app takes it, or the subscriber turns it off)" |
+| F14, the banner text | As `calls_role_lost` today | As the proposed `calls_role_lost` |
+| `ScreeningRoleStatesTest` (device) | Asserts "Another app is now screening your calls." | Asserts "On-device blocking is off." |
 
-**Dependencies:** none.
+**What a reviewer should check:**
+- **Both cases Android allows:** the sentence is true whether another app took the role or the subscriber turned screening off. Android does not tell an app which.
+- **No claim about another app:** it no longer says another app is screening.
+- **What stopped:** it says on-device blocking of the blocklist, and does not claim all screening stopped.
+- **Consistency:** it matches "Blocking is off." and "On-device blocking is off." elsewhere in the app.
+- **Action:** "Switch back" still re-requests the role.
 
-### Q6: the F14 / A75 role-lost banner (closes OD-11)
+**On approval:** built in one PR, with the specification, the string and the tests together. It closes OD-11. Two of the 54 legal-review rows change before any legal review (Q7).
 
-**Proposed wording** (`ROADMAP-INVENTORY.md` Appendix A):
-> **"On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back."**
+### Q7: legal review (approved; a production gate)
 
-**Exact repository changes:**
-- **`docs/ux/android/06-screens-onboarding-auth-permissions.md`, A75:**
-  - the trigger becomes "The app no longer holds the call screening role: another app took it, or the subscriber turned it off (Android does not tell an app which).";
-  - **Copy** becomes the wording above.
-- **`docs/ux/android/08-user-flows.md`, F14:**
-  - the first box becomes "This app loses ROLE_CALL_SCREENING (another app takes it, or the subscriber turns it off)";
-  - the banner text matches A75.
-- **`android/feature/calls/src/main/res/values/strings.xml`:** `calls_role_lost` becomes the wording above. `ScreeningRoleBannerCopyTest`, which reads the specification, keeps the two equal.
-- **`ScreeningRoleStatesTest`** (device): its banner string becomes "On-device blocking is off."
-
-**Factual implications:**
-- **It is true in both cases Android allows:** another app took the role, or the subscriber turned screening off. Android does not tell the app which.
-- **It no longer claims another app is screening the calls,** which the app cannot know.
-- **It names exactly what stopped:** this app blocking the numbers on its blocklist, on the phone.
-- **It does not claim all screening stopped.** Forwarding-based screening, once built, is unaffected. Today forwarding is "Not available yet", so nothing else of this app is screening.
-- **It matches the app's other wording** for the same state: "Blocking is off." and "On-device blocking is off.".
-- **The "Switch back" action is unchanged:** it re-requests the role.
-
-**Kept as historical evidence:** the run reports that quote the old sentence (`ANDROID-SCREENING-DEVICE-VALIDATION.md`, `RELEASE-READINESS-ASSESSMENT.md`) stay as they are.
-
-**Copy wording is not frozen** (`UX_FREEZE.md` §1). Two of the 54 second-review rows change, before any legal review (Q7).
-
-### Q7: legal review of the 54 rows
-
-**Entry to record (`QUESTIONS.md` Q7):**
-> **Decided (owner, ‹date›):** before any translated language is released to production, **qualified legal counsel** reviews that language's 54 second-review rows against the English and the documents they cite:
+> **Decided (owner, 2026-11-05):** before any translated language is released to production, **qualified legal counsel** reviews that language's 54 second-review rows against the English and the documents they cite:
 > - account deletion 32;
 > - the calling role 11;
 > - the signed-out notice 5;
@@ -329,88 +301,48 @@ Sources:
 > - the F14 banner 2;
 > - the microphone 1.
 >
-> **The second translator's review checks meaning; it is not legal approval.** Engaging counsel, and its scope and cost, need the owner's separate approval.
+> **The second translator's review checks meaning; it is not legal approval.** Engaging counsel, and its scope and cost, need the owner's separate approval. No counsel has been contacted.
 
-**Repository change:** `docs/phase19/LOCALISATION.md` §5's release checklist gains: "Legal review of the 54 second-review rows recorded: reviewer, date, outcome (Q7)." Track it with L1 (E9).
+### Q8: "in your phone's settings" (approved)
 
-**Impact:**
-- **No code change.**
-- **Does not block** translating, importing or internal testing of a language.
-- **Blocks only that language's production release.**
+> **Decided (owner, 2026-11-05):** `protection_notice_contacts_denied` becomes "Contacts access is off. You can turn it on in your phone's settings." The button opens Android's settings page for this app, not the app's Settings tab.
 
-**Dependencies:** counsel (external; engagement and cost need your approval); E9 and L1.
+### Q9 and Q11 (routine, under the owner's delegation)
 
-### Q8: "in your phone's settings"
-
-**Entry to record (`QUESTIONS.md` Q8):**
-> **Decided (owner, ‹date›):** the English says where the button goes.
-
-**Repository change:** `android/feature/protection/src/main/res/values/strings.xml`:
-
-    <string name="protection_notice_contacts_denied">Contacts access is off. You can turn it on in your phone\'s settings.</string>
-
-**Impact:**
-- **Behaviour:** the button is unchanged; it opens Android's page for this app.
-- **Tests:** none quote the old wording.
-- **Worksheets:** regenerated (+2 words).
-
-**Dependencies:** none.
-
-### Q9: punctuation
-
-**Entry to record (`QUESTIONS.md` Q9):**
-> **Delegated (owner, ‹date›):**
+> **Q9, delegated (2026-11-05):**
 > - the translators' lead chooses sentence-ending punctuation for each language, following Android's own text in that language, and applies it consistently;
 > - the reviewer checks the consistency.
-
-**Impact:** none.
-
-### Q11: text outside the app
-
-**Entry to record (`QUESTIONS.md` Q11):**
-> **Deferred (owner, ‹date›)** until the relevant services and surfaces are approved:
+>
+> **Q11, deferred (2026-11-05)** until the relevant services and surfaces are approved:
 > - the sign-in SMS and its DLT templates per language (E2);
 > - the assistant's voice prompts (OD-17, deferred);
 > - the Play Store listing (X1).
 >
-> Debug-only design previews are not shipped and not translated. **Until then, a language is described as covering the app's screens only.**
+> Debug-only previews are not shipped and not translated. Until then, a language is described as covering the app's screens only.
 
-**Impact:** none.
+### Branding: the product is Lily AI (owner, 2026-11-05)
 
-### Launcher name: "Aegis AI"
+> **The product's name is Lily AI, not Aegis AI.**
+> - **No broad rename now.** A future branding cleanup replaces the user-facing "Aegis AI" references with "Lily AI" at a technically appropriate stage.
+> - **Historical records, internal identifiers and accepted ADR history are not renamed:** for example the application id `com.callscreen`, the `callscreen://` scheme, theme and class names, past decision records, and the "Aegis Voice Agent" repository.
 
-**Entry to record (`QUESTIONS.md` Q1, launcher name):**
-> **Decided (owner, ‹date›):** the app's name on the phone is **"Aegis AI"**, as on its own screens.
->
-> **A preliminary availability check is not clearance:**
-> - **Preliminary check:** a search of public sources: Google Play, the web, and the Indian trademark registry's public search. It is done without an account, and finds only obvious conflicts.
-> - **Legal or trademark clearance:** qualified trademark counsel's search and opinion, for India and any other market. It needs the owner's separate approval and may cost money.
->
-> The rename ships after the preliminary check. **Clearance is required before the Play listing (X1) and before production.**
+**The user-facing references the cleanup covers:**
+- `core_ui_app_title` and `onboarding_brand_name` ("Aegis AI");
+- `onboarding_welcome_title` ("Welcome to Aegis AI");
+- `onboarding_phone_subtitle_number` ("Aegis AI binds …");
+- `settings_deletion_entry_description` ("your Aegis account");
+- the logo descriptions `core_ui_logo` and `onboarding_splash_logo_description` ("Aegis Shield Logo");
+- the translation import's fixed-name check (`PRODUCT_NAME` in `tools/i18n/translation_kit.py`, Q1);
+- the glossary.
 
-**Repository change:** `android/app/src/main/res/values/strings.xml`:
+Q1's rule (the product's name stays in Latin letters in every translation) carries over to "Lily AI".
 
-    <string name="app_name" translatable="false">Aegis AI</string>
+**The launcher label** (`app_name`, today "CallScreen") changes only after the naming checks below.
 
-**Impact:**
-- **Where users see it:** Android shows "Aegis AI" for the launcher icon, App info, App languages, the permission prompts and the "Caller ID & spam app" choice.
-- **Unchanged:** the application id `com.callscreen`, the `callscreen://` link scheme and internal theme names. Users don't see any of them.
-- **Tests:** none quote the label.
-- **Documentation:** the architecture documents that call the product "CallScreen" are outside this change.
+**When.** **Before the worksheets go to any translator:** names inside translated sentences would otherwise be translated twice. Also before the Play listing (X1). It is tracked as `PRODUCTION-READINESS.md` F26.
 
-**Dependencies:**
-- the preliminary check: not done; yours, or engineering's with your OK;
-- counsel's clearance: external, needs your approval;
-- X1 for the Play name.
-
-### On confirmation
-
-Each change is built in its own focused PR, with tests and regenerated worksheets where needed, and merged when its checks pass:
-- F25;
-- Q5 and Q8 (copy);
-- Q6 (OD-11);
-- the launcher name.
-
-The records:
-- **Q7, Q9 and Q11:** recorded in `QUESTIONS.md`;
-- **Q7's release gate:** added to `LOCALISATION.md` §5.
+**Preliminary availability check, 2026-11-05.** A public web search; no account, no contact. **This is not legal or trademark clearance.**
+- **An iOS app named "Lily AI"** is on the App Store ([apps.apple.com/us/app/-/id6447797838](https://apps.apple.com/us/app/-/id6447797838)).
+- **A retail-AI company** trades as "Lily AI" ([lily.ai](https://www.lily.ai/faqs/what-does-lily-do)).
+- **An Android app "Lily - AI Agent"** is reported by a third-party tracker ([appgoblin.info](https://appgoblin.info/apps/com.sensornotes.xiaozhi)).
+- **What it means:** the name is in use, by apps and a company in AI. **Qualified trademark counsel's search and opinion is needed before the launcher label, the Play listing or production use "Lily AI".** Engaging counsel needs the owner's approval. A distinguishing launcher form, for example with a product descriptor, is a question for that review.

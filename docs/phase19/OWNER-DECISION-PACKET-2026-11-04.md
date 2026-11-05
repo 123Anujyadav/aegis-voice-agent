@@ -14,7 +14,7 @@
   - ADR-0005 and ADR-0007 unchanged.
 - **Today the app is English only:** 0 of 244 strings are translated in each of the five other languages.
 
-**How the decisions are carried out:** recorded in this packet and the documents each one touches. D4, D6 and D7 are built in their own PRs, with the UX specification amended in the same PR (`UX_FREEZE.md` §7): D3, D4 and D7 built in #237 (`996d555`); D6 in #239 (`4d5f532`); the translation import enforces Q0, Q1, Q3 and Q4 since #238 (`1906101`). **Note on IDs:** these D1–D9 are the language-UX decisions. They are not account-deletion D1–D9 (tracker O9–O17).
+**How the decisions are carried out:** recorded in this packet and the documents each one touches. D4, D6 and D7 are built in their own PRs, with the UX specification amended in the same PR (`UX_FREEZE.md` §7): D3, D4 and D7 built in #237 (`996d555`); D6 in #239 (`4d5f532`); the translation import enforces Q0, Q1, Q3 and Q4 since #238 (`1906101`). **D6 clarification (owner, 2026-11-05, F25):** D6's "preserving existing navigation and screen-state behaviour" is superseded for tab selection and Back on tab roots only, which now follow the frozen specification (`OWNER-DECISION-PACKET-2026-11-05.md` §5). The rest of D6 stands. **Note on IDs:** these D1–D9 are the language-UX decisions. They are not account-deletion D1–D9 (tracker O9–O17).
 
 ---
 

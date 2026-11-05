@@ -7,7 +7,10 @@ translation exists for any of the owner's other five languages** (Hindi, Tamil,
 Telugu, Malayalam and Kannada), so choosing one shows English, and the picker
 says "Not translated yet". Do not describe the app as supporting any language
 other than English until that language's reviewed translation and on-device
-tests below are done. The translator package is ready
+tests below are done.
+**Before production release, also qualified legal review** of that language's
+54 second-review rows, recorded with the reviewer, date and outcome (owner
+decision Q7, 2026-11-05). The translators' review is not legal approval. The translator package is ready
 ([`docs/translation/`](../translation/README.md)). The owner decided the
 translation questions Q0–Q4 and the language UX D1–D9 on 2026-11-04
 ([`OWNER-DECISION-PACKET-2026-11-04.md`](OWNER-DECISION-PACKET-2026-11-04.md)).

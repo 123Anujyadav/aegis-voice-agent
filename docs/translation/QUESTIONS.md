@@ -8,7 +8,7 @@ These came from auditing the English source (then 244 resources, 246 worksheet r
 - which rows it affects;
 - a recommendation. A recommendation is not a decision.
 
-**Decided by the owner on 2026-11-04: Q0–Q4, and Q10 through design decision D4** ([`OWNER-DECISION-PACKET-2026-11-04.md`](../phase19/OWNER-DECISION-PACKET-2026-11-04.md)). **Q5–Q9 and Q11 remain open.** The owner's short form, with the workload and who does what, is [`APPROVAL-SUMMARY.md`](APPROVAL-SUMMARY.md).
+**Decided by the owner on 2026-11-04: Q0–Q4, and Q10 through design decision D4** ([`OWNER-DECISION-PACKET-2026-11-04.md`](../phase19/OWNER-DECISION-PACKET-2026-11-04.md)). **On 2026-11-05: Q5, Q7 and Q8 decided by the owner; Q9 delegated and Q11 deferred under the owner's delegation; Q6's wording prepared and awaiting review** ([`OWNER-DECISION-PACKET-2026-11-05.md`](../phase19/OWNER-DECISION-PACKET-2026-11-05.md) §5). **Product name: Lily AI** (the cleanup is recorded under Q1). The owner's short form, with the workload and who does what, is [`APPROVAL-SUMMARY.md`](APPROVAL-SUMMARY.md).
 
 | # | Decides | When | Question |
 |---|---|---|---|
@@ -50,7 +50,7 @@ Either way, they are two people per language and their names are recorded on imp
 
 ## Q1. The product's name (before)
 
-**Decided (owner, 2026-11-04):** keep `Aegis AI` in Latin letters in every translation. The launcher name ("CallScreen" or "Aegis AI") was not part of this decision and stays open.
+**Decided (owner, 2026-11-04):** keep `Aegis AI` in Latin letters in every translation. **Product name (owner, 2026-11-05): Lily AI, not Aegis AI.** A later branding cleanup replaces the user-facing "Aegis AI" with "Lily AI", **before the worksheets go to any translator**. This rule then applies to "Lily AI". The launcher label ("CallScreen") changes only after a trademark review ([`OWNER-DECISION-PACKET-2026-11-05.md`](../phase19/OWNER-DECISION-PACKET-2026-11-05.md) §5).
 
 **Rows:** `onboarding_welcome_title` ("Welcome to Aegis AI"), `onboarding_phone_subtitle_number`, `settings_deletion_entry_description` ("your Aegis account"), `core_ui_logo` and `onboarding_splash_logo_description` ("Aegis Shield Logo").
 
@@ -105,6 +105,8 @@ In India the one-time sign-in code is widely called "OTP". The English says "ver
 
 ## Q5. The planned-voice rows (before those rows)
 
+**Decided (owner, 2026-11-05):** the English label is corrected to "Native Hindi Accent". The six rows are translated as they stand, independently of OD-17, which stays deferred.
+
 **Rows (6):** `assistant_voice_*_style` and `assistant_voice_*_accent`.
 
 These describe three vendor voices, which can't be chosen today:
@@ -120,6 +122,8 @@ Two problems:
 
 ## Q6. The F14 banner (before that row)
 
+**Wording prepared (2026-11-05), awaiting review; not approved or built:** "On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back." Translate this row only after it is approved ([`OWNER-DECISION-PACKET-2026-11-05.md`](../phase19/OWNER-DECISION-PACKET-2026-11-05.md) §5).
+
 **Row:** `calls_role_lost` ("Another app is now screening your calls. …").
 
 **OD-11** proposes amending this sentence, which is a UX-spec text: the app can't verify it, and it is false when the person simply turned screening off. The amendment is not applied.
@@ -128,6 +132,8 @@ Two problems:
 
 ## Q7. Legal review of deletion and privacy rows (before)
 
+**Decided (owner, 2026-11-05):** qualified legal review of the 54 rows is **a mandatory gate before any translated language's production release**. The second translator's review checks meaning; **it is not legal approval.** No counsel is engaged; that needs the owner's approval.
+
 **Rows:** the 54 rows with a `review` entry. Most important are `settings_deletion_*` (what account deletion does and keeps), `protection_notice_contacts` and `settings_task_contacts_done` (contacts are never read or uploaded), and `assistant_no_microphone`.
 
 These are statements about personal data. A second translator's review checks the meaning. **Whether a lawyer must also review them in each language is the owner's decision.**
@@ -135,6 +141,8 @@ These are statements about personal data. A second translator's review checks th
 This is not legal advice: India's data-protection rules may bear on which languages privacy information has to be offered in.
 
 ## Q8. "in Settings" (before that row)
+
+**Decided (owner, 2026-11-05):** "Contacts access is off. You can turn it on in your phone's settings."
 
 **Row:** `protection_notice_contacts_denied` ("Contacts access is off. You can turn it on in Settings.").
 
@@ -145,6 +153,8 @@ Its button opens **Android's** settings page for this app, but the app also has 
 - until then, translate as Android's settings.
 
 ## Q9. Sentence-ending punctuation (during)
+
+**Delegated (2026-11-05):** the translators' lead chooses per language, following Android's own text, consistently; the reviewer checks it.
 
 Hindi text commonly ends sentences with "।" (purna viram); Tamil, Telugu, Malayalam and Kannada commonly use ".".
 
@@ -161,6 +171,8 @@ This button exists so a person can change the app's language before signing in. 
 This is a design question, raised in the design review packet (`docs/ux/android/reviews/LANGUAGE-SELECTION-REVIEW.md`). It decides whether this row is translated alone or kept bilingual.
 
 ## Q11. Text outside the app (separate)
+
+**Deferred (2026-11-05)** until the SMS provider (E2), the voice prompts (OD-17) and the Play listing (X1) are approved. Until then a language covers the app's screens only.
 
 The worksheet holds only the app's own screens. Not included:
 - **The sign-in SMS.** It is sent by the server. In India its text must match a DLT-registered template, and each language is a separate template. That depends on the SMS provider decision, which is not made.
