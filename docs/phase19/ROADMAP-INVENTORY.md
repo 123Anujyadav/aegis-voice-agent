@@ -6,13 +6,14 @@
 
 ## 1. Phase vocabulary and conflicts
 
-The repository uses three different meanings of "phase". None defines a phase after 19.
+The repository uses four different meanings of "phase". None defines a phase after 19.
 
 | Vocabulary | Where | Meaning | Status |
 |---|---|---|---|
 | **Project phases** 1–5, 10A–10F, 10.5, 11A–11E, 12–16, 18, 19 | `ARCHITECTURE_FREEZE.md`, `DOMAIN_FREEZE.md`, `UX_FREEZE.md`, `docs/phase13`–`phase19`, `docs/hardening`, `docs/evaluation` | Units of execution, each with its own reports | See §2 |
 | **Rollout stages** "Phase 1 (launch) / Phase 2 / Phase 3 (exit)" | ADR-0002 to ADR-0009 (one list per ADR) | How each component evolves **after** launch (for example, ADR-0003: Exotel and Plivo at launch, then traffic shifting, then a direct SIP trunk) | Not project phases. No code task is scheduled against them. |
 | **Telephony programme** "Phase 19, P1-xx" | `docs/telephony/P1-40`…`P1-50` on `main`; P1-01…P1-39 and P1-49, P1-51…P1-53 **only in the owner's uncommitted worktree** | The telephony-gateway fence and staging programme | Owner-held. Its gate (P1-38) records staging **NO-GO** with items A1–A12 unapproved. |
+| **Product phases 1–6** (Lily AI) | [`../PRODUCT-ROADMAP.md`](../PRODUCT-ROADMAP.md) | The owner's product roadmap, confirmed 2026-11-05: 1 Engineering Foundation, 2 Authentication & Security, 3 Core Product & AI Experience, 4 Backend & Infrastructure, 5 Real-world Validation & Improvement, 6 Production & Play Store Release. Every task in §3 is placed in one of them there | **Cite as "product Phase N"**: the numbers collide with the project phases above |
 
 **Conflicts found:**
 1. **"Phase 19" names two programmes:** the telephony P1 programme and this directory's identity, Android and release programme. **Authoritative:** for telephony, the P1 documents and `docs/phase15/READINESS_AUDIT.md` §10.20.6; for release work, `docs/phase19/` (this file, `RELEASE-READINESS-ASSESSMENT.md`, `EXTERNAL-DEPENDENCIES.md`). This inventory covers the release programme. The telephony programme's own task list is not on `main`, so it is **not counted** here.
