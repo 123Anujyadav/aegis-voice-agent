@@ -9,13 +9,16 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.callscreen.app.navigation.AegisDestinations
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -76,15 +79,41 @@ class TopBarOnDeviceTest {
         val scenario = ActivityScenario.launch<MainActivity>(
             Intent(context, MainActivity::class.java).putExtra(MainActivity.START_DESTINATION_EXTRA, AegisDestinations.TASK_CENTER),
         )
+        // Settings is shown when its tab is the selected one. With its bottom bar (F25) the list
+        // is shorter, and "Change app language" is composed only once scrolled to.
+        val settingsShown = { compose.onAllNodes(hasText("Settings") and hasClickAction() and isSelected()).fetchSemanticsNodes().isNotEmpty() }
         try {
-            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Change app language")).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000, settingsShown)
             compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
             compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Change app language"))
             compose.onNode(hasText("Change app language") and hasClickAction()).performClick()
             compose.waitUntil(10_000) { compose.onAllNodes(hasText("App language")).fetchSemanticsNodes().isNotEmpty() }
             compose.onNode(hasContentDescription("Back") and hasClickAction()).performClick()
-            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Change app language")).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000, settingsShown)
+            compose.onAllNodes(hasText("Change app language")).assertCountEquals(1)
             compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
+        } finally {
+            scenario.close()
+        }
+    }
+
+    @Test
+    fun backOnATabRootLeavesTheAppInsteadOfReturningToTheLastTab() {
+        // F25 (owner, 2026-11-05; 02 §2.4): Assistant, then Protection, then Back leaves the app.
+        val scenario = ActivityScenario.launch<MainActivity>(
+            Intent(context, MainActivity::class.java).putExtra(MainActivity.START_DESTINATION_EXTRA, AegisDestinations.ASSISTANT_HOME),
+        )
+        try {
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Protection") and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNode(hasText("Protection") and hasClickAction()).performClick()
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Protection Dashboard")).fetchSemanticsNodes().isNotEmpty() }
+            // A tab root has nothing behind it in the app, so no arrow (D6 mirrors Back).
+            compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
+            Espresso.pressBackUnconditionally()
+            // The app is left (finished, or sent to the background), not returned to Assistant.
+            val deadline = System.currentTimeMillis() + 10_000
+            while (scenario.state == Lifecycle.State.RESUMED && System.currentTimeMillis() < deadline) Thread.sleep(100)
+            assertTrue("the app is still shown after Back on a tab root: ${scenario.state}", scenario.state != Lifecycle.State.RESUMED)
         } finally {
             scenario.close()
         }

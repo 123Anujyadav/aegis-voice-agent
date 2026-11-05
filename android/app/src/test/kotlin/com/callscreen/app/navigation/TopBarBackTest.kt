@@ -68,17 +68,14 @@ class TopBarBackTest {
     }
 
     @Test
-    fun theArrowFollowsTheBackStackAsBuilt() {
-        // As built, switching tabs adds to the back stack, and Back returns to the previous tab
-        // (production-readiness F25). The arrow does the same, no more and no less.
+    fun aTabRootHasNoArrowEvenAfterSwitchingTabs() {
+        // F25 (owner, 2026-11-05): a tab root's Back leaves the app instead of returning to the
+        // previous tab, and the arrow mirrors Back (D6), so no tab root shows one.
         graph(AegisDestinations.ASSISTANT_HOME)
         arrow().assertDoesNotExist()
         compose.onNode(hasText("Protection") and hasClickAction()).performClick()
         compose.waitForIdle()
-        assertEquals(listOf(AegisDestinations.ASSISTANT_HOME, AegisDestinations.PROTECTION_DASHBOARD), routes())
-        arrow().performClick()
-        compose.waitForIdle()
-        assertEquals(listOf(AegisDestinations.ASSISTANT_HOME), routes())
+        assertEquals(listOf(AegisDestinations.PROTECTION_DASHBOARD), routes())
         arrow().assertDoesNotExist()
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,6 +38,7 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisBottomBar
 import com.callscreen.core.ui.components.AegisTab
 import com.callscreen.core.ui.components.AegisTopAppBar
+import com.callscreen.core.ui.components.rememberScrollToTop
 
 @Composable
 public fun ProtectionDashboardScreen(
@@ -45,11 +47,15 @@ public fun ProtectionDashboardScreen(
     onBlockedNumbersClick: () -> Unit = {},
     onAllowedNumbersClick: () -> Unit = {},
 ) {
+    // Re-selecting this tab scrolls its list to the top (02 §2.1).
+    val list = rememberLazyListState()
+    val scrollToTop = rememberScrollToTop(list)
     Scaffold(
         topBar = { AegisTopAppBar(title = stringResource(R.string.protection_dashboard_app_bar)) },
-        bottomBar = { AegisBottomBar(currentTab = AegisTab.Protection, onTabSelected = onTabSelected) }
+        bottomBar = { AegisBottomBar(currentTab = AegisTab.Protection, onTabSelected = onTabSelected, onReselect = scrollToTop) }
     ) { paddingValues ->
         LazyColumn(
+            state = list,
             modifier = modifier
                 .fillMaxSize()
                 .background(CallScreenTheme.colors.surface.background)

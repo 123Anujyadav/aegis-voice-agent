@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,6 +40,7 @@ import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.AegisTab
 import com.callscreen.core.ui.components.AegisTopAppBar
 import com.callscreen.core.ui.components.StatusChipVariant
+import com.callscreen.core.ui.components.rememberScrollToTop
 
 @Composable
 public fun AssistantHomeScreen(
@@ -48,11 +50,15 @@ public fun AssistantHomeScreen(
     modifier: Modifier = Modifier
 ) {
 
+    // Re-selecting this tab scrolls its list to the top (02 §2.1).
+    val list = rememberLazyListState()
+    val scrollToTop = rememberScrollToTop(list)
     Scaffold(
         topBar = { AegisTopAppBar(title = stringResource(R.string.assistant_home_title)) },
-        bottomBar = { AegisBottomBar(currentTab = AegisTab.Assistant, onTabSelected = onTabSelected) }
+        bottomBar = { AegisBottomBar(currentTab = AegisTab.Assistant, onTabSelected = onTabSelected, onReselect = scrollToTop) }
     ) { paddingValues ->
         LazyColumn(
+            state = list,
             modifier = modifier
                 .fillMaxSize()
                 .background(CallScreenTheme.colors.surface.background)

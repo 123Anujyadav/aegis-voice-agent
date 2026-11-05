@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +30,7 @@ import com.callscreen.core.ui.components.AegisTab
 import com.callscreen.core.ui.components.AegisTopAppBar
 import com.callscreen.core.ui.components.CallType
 import com.callscreen.core.ui.components.StatusChipVariant
+import com.callscreen.core.ui.components.rememberScrollToTop
 
 public data class CallLogItem(
     val id: String,
@@ -52,14 +54,18 @@ public fun CallsFeedScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
+    // Re-selecting this tab scrolls its list to the top (02 §2.1).
+    val list = rememberLazyListState()
+    val scrollToTop = rememberScrollToTop(list)
     Scaffold(
         topBar = { AegisTopAppBar(title = stringResource(R.string.calls_feed_title)) },
         // No floating action button: the A20 spec has none, and the dial pad it showed did nothing (F19).
-        bottomBar = { AegisBottomBar(currentTab = AegisTab.Calls, onTabSelected = onTabSelected) },
+        bottomBar = { AegisBottomBar(currentTab = AegisTab.Calls, onTabSelected = onTabSelected, onReselect = scrollToTop) },
     ) { paddingValues ->
         // One list holds everything, banner included: with large text or longer
         // translations, a fixed header could leave no room for the feed (F17).
         LazyColumn(
+            state = list,
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = modifier
                 .fillMaxSize()

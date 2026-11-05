@@ -240,14 +240,16 @@ the shared top bar shows a Back arrow at its start when the app has a screen
 behind it. The arrow **is** the system Back for that screen (the activity's
 back dispatcher), so it goes exactly where the table above, and the app as
 built, send Back, through any screen's own Back handling, with the same saved
-state. On a screen with nothing behind it in the app, such as the first screen
-after sign-in, there is no arrow, because Back would leave the app. Its target
+state. On a screen with nothing behind it in the app, which includes every tab
+root, there is no arrow, because Back would leave the app. Its target
 is 48 dp, and screen readers announce it as "Back".
 
-**As built, switching tabs adds to the back stack**, so Back, and the arrow,
-return to the previously shown tab. This differs from the tab-root rule above
-and from "each tab owns an independent back stack" (§2.1). It is recorded as
-production-readiness finding F25, and D6 does not change it.
+**Tab roots (F25, owner, 2026-11-05).** Each tab keeps its own back stack, and
+Back on any tab root leaves the app, so a tab root shows no Back arrow. All four
+tabs, Settings included, show the bottom bar. Choosing the tab already shown
+never navigates: at its root it scrolls to the top (§2.1). This narrowly
+supersedes D6's "preserving existing navigation" for tab selection and Back on
+tab roots; the rest of D6 stands.
 
 **Predictive back is supported on API 33+** for every non-blocking route. Routes
 where back is disabled or confirmed opt out explicitly rather than by omission.
