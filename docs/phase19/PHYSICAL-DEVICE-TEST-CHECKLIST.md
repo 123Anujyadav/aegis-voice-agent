@@ -1,7 +1,7 @@
 # Physical-device test checklist: the 9 on-device carrier cases
 
 - **Status, 2026-11-05: NOT RUN.** No physical phone or SIM is available yet (X3). **Nothing here has passed.**
-- **Every result row stays "Not run" until someone runs it on a real phone and records the evidence.** Emulator runs never count here.
+- **Every result row stays "Not run" until someone runs it on a real phone and records the evidence** in a session record ([`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md)). Emulator runs never count here.
 - **What it covers:** T2's cases M1, M2 and M6–M12, from `ANDROID-SCREENING-DEVICE-VALIDATION.md` §5, made executable. Their "Expected" text is that document's, unchanged, with today's screen wording.
 - **What it does not cover:** M3–M5 need call forwarding, a DID pool and the deployed gateway. They are prepared separately in [`FORWARDING-TEST-PREPARATION.md`](FORWARDING-TEST-PREPARATION.md) and **must not be run**.
 - **Why these 9 need no integration:** blocking happens on the phone. The debug build opens Protection directly with its start-destination extra (debug builds only), as the emulator tests do. So these cases need:
@@ -79,6 +79,18 @@ adb shell pm grant  com.callscreen.debug android.permission.READ_CONTACTS   # M7
 ```
 
 **Block X in the app:** Protection → Blocked numbers → "Add number" → enter X with its area code → "Block".
+
+## 2a. A session, step by step
+
+1. **Start a record:** copy [`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md), and fill in §1, the session: the commit, the APK's SHA-256, the time.
+2. **Build and install from that commit** (§2). Record each phone's maker, model and Android version in the record's §2.
+3. **Prepare:** the role held, X blocked, and the case's own setup (§4). Change one thing at a time.
+4. **Run the cases** in the order of §4. **Fill in each case's row as it happens:** observed, result, evidence file names.
+   - Use **Passed** only when observed matches expected and the evidence is captured.
+   - Otherwise record **Failed** or **Blocked**, with why.
+5. **Redact** the evidence (§3), then tick the record's §4.
+6. **Clean up** (§6), every time, even after a single case.
+7. **Sign the record** (its §5). Commit it, or hand it over with the redacted evidence.
 
 ## 3. Evidence: what to capture, and how
 
