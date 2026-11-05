@@ -141,6 +141,8 @@ On this emulator (region not India), a contact saved as `+91…` was not matched
 
 ## 5. Manual test sheet: physical phone, SIM and carrier
 
+**Executable versions (2026-11-05):** [`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md) for M1, M2 and M6–M12, which need only phones and SIMs. [`FORWARDING-TEST-PREPARATION.md`](FORWARDING-TEST-PREPARATION.md) for M3–M5, prepared only and not to be run. None has been run.
+
 Every case below is **BLOCKED**: no physical phone, Indian SIM, carrier account, platform DID or deployed backend is available to Claude. **Do not place paid calls without the owner's authorisation.** Record Android version, OEM and model, carrier and circle, and date, and never record real numbers.
 
 | # | Setup | Steps | Expected | Observed |
