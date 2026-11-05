@@ -8,7 +8,7 @@ These came from auditing the English source (then 244 resources, 246 worksheet r
 - which rows it affects;
 - a recommendation. A recommendation is not a decision.
 
-**Decided by the owner on 2026-11-04: Q0–Q4, and Q10 through design decision D4** ([`OWNER-DECISION-PACKET-2026-11-04.md`](../phase19/OWNER-DECISION-PACKET-2026-11-04.md)). **On 2026-11-05: Q5, Q7 and Q8 decided by the owner; Q9 delegated and Q11 deferred under the owner's delegation; Q6's wording prepared and awaiting review** ([`OWNER-DECISION-PACKET-2026-11-05.md`](../phase19/OWNER-DECISION-PACKET-2026-11-05.md) §5). **Product name: Lily AI** (the cleanup is recorded under Q1). The owner's short form, with the workload and who does what, is [`APPROVAL-SUMMARY.md`](APPROVAL-SUMMARY.md).
+**Decided by the owner on 2026-11-04: Q0–Q4, and Q10 through design decision D4** ([`OWNER-DECISION-PACKET-2026-11-04.md`](../phase19/OWNER-DECISION-PACKET-2026-11-04.md)). **On 2026-11-05: Q5, Q7 and Q8 decided by the owner; Q9 delegated and Q11 deferred under the owner's delegation; Q6 approved (reviewed by ChatGPT on the owner's behalf) and built in #245** ([`OWNER-DECISION-PACKET-2026-11-05.md`](../phase19/OWNER-DECISION-PACKET-2026-11-05.md) §5). **Product name: Lily AI** (the cleanup is recorded under Q1). The owner's short form, with the workload and who does what, is [`APPROVAL-SUMMARY.md`](APPROVAL-SUMMARY.md).
 
 | # | Decides | When | Question |
 |---|---|---|---|
@@ -122,7 +122,7 @@ Two problems:
 
 ## Q6. The F14 banner (before that row)
 
-**Wording prepared (2026-11-05), awaiting review; not approved or built:** "On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back." Translate this row only after it is approved ([`OWNER-DECISION-PACKET-2026-11-05.md`](../phase19/OWNER-DECISION-PACKET-2026-11-05.md) §5).
+**Decided (2026-11-05; reviewed and approved by ChatGPT on the owner's behalf), built in #245:** "On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back." The worksheets carry the new English; it awaits human translation like every row ([`OWNER-DECISION-PACKET-2026-11-05.md`](../phase19/OWNER-DECISION-PACKET-2026-11-05.md) §5).
 
 **Row:** `calls_role_lost` ("Another app is now screening your calls. …").
 

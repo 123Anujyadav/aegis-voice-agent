@@ -39,7 +39,9 @@ class ScreeningRoleStatesTest {
     @get:Rule(order = 1)
     val compose = createAndroidComposeRule<MainActivity>()
 
-    private val bannerText = "Another app is now screening your calls."
+    // The F14 banner's opening (Q6 / OD-11, approved 2026-11-05). Setup complete's "On-device blocking
+    // is off. You can turn it on…" does not match it.
+    private val bannerText = "On-device blocking is off. Numbers you've blocked here"
 
     @Before
     fun start() {

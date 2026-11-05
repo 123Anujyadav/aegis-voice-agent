@@ -36,6 +36,28 @@ class ScreeningRoleBannerCopyTest {
     }
 
     @Test
+    @DisplayName("the banner's English is the approved Q6 wording, exactly")
+    fun isTheApprovedWording() {
+        // Q6 / OD-11, approved 2026-11-05: true whether another app took the role or the
+        // subscriber turned it off, which Android does not tell an app, and says what stopped.
+        assertEquals(
+            "On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back.",
+            strings.getValue("calls_role_lost"),
+        )
+        // It must not name another app: the app cannot know one took the role.
+        assertTrue("Another app" !in strings.getValue("calls_role_lost"))
+    }
+
+    @Test
+    @DisplayName("A75 in the screens spec has the same sentence")
+    fun matchesA75() {
+        val spec = File("../../../docs/ux/android/06-screens-onboarding-auth-permissions.md")
+        assertTrue(spec.isFile, "the UX spec is missing: ${spec.absolutePath}")
+        val text = spec.readText().replace(Regex("\\s+"), " ")
+        assertTrue("\"${strings.getValue("calls_role_lost")}\"" in text, "the A75 copy")
+    }
+
+    @Test
     @DisplayName("the banner shows those resources")
     fun theBannerUsesTheseStrings() {
         assertEquals(R.string.calls_role_lost, ScreeningRoleBannerCopy.LOST)

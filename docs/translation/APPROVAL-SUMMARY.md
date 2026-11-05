@@ -69,7 +69,7 @@ Measured from the English source (`python3 tools/i18n/translation_kit.py audit`)
 | Measure | Per language | All five |
 |---|---|---|
 | Worksheet rows | 246 | 1,230 |
-| English words | 1,555 | 7,775 |
+| English words | 1,552 | 7,760 |
 | Rows with a second review against a specification (deletion, privacy, the calling role, the microphone, the signed-out notice) | 54 | 270 |
 | Rows with tight room (tabs, chips, one-line fields) | 28 | 140 |
 | Rows with placeholders | 11 | 55 |
