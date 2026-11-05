@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -23,26 +24,29 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import com.callscreen.core.telephony.screening.ContactsAccess
-import com.callscreen.core.telephony.screening.ScreeningRole
-import com.callscreen.core.telephony.screening.ScreeningRoleStatus
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.telephony.screening.ContactsAccess
+import com.callscreen.core.telephony.screening.ScreeningRole
+import com.callscreen.core.telephony.screening.ScreeningRoleStatus
+import com.callscreen.core.ui.components.AegisBottomBar
 import com.callscreen.core.ui.components.AegisStatusChip
+import com.callscreen.core.ui.components.AegisTab
 import com.callscreen.core.ui.components.AegisTopAppBar
 import com.callscreen.core.ui.components.StatusChipVariant
+import com.callscreen.core.ui.components.rememberScrollToTop
 import com.callscreen.core.ui.language.AppLanguage
 import com.callscreen.core.ui.language.AppLanguageSetting
 import java.util.Locale
@@ -60,7 +64,11 @@ public data class TaskItem(
  * rechecked on each return, the app's language and the account section.
  */
 @Composable
-public fun TaskCenterRoute(onLanguageClick: () -> Unit = {}, onDeleteAccountClick: () -> Unit = {}) {
+public fun TaskCenterRoute(
+    onLanguageClick: () -> Unit = {},
+    onDeleteAccountClick: () -> Unit = {},
+    onTabSelected: (AegisTab) -> Unit = {},
+) {
     val context = LocalContext.current
     var tasks by remember { mutableStateOf(SetupTasks.of(ScreeningRoleStatus.UNAVAILABLE, contactsAccess = false)) }
     var language by remember { mutableStateOf(AppLanguageSetting.selected(context)) }
@@ -74,6 +82,7 @@ public fun TaskCenterRoute(onLanguageClick: () -> Unit = {}, onDeleteAccountClic
         language = language,
         onLanguageClick = onLanguageClick,
         onDeleteAccountClick = onDeleteAccountClick,
+        onTabSelected = onTabSelected,
     )
 }
 
@@ -87,14 +96,23 @@ public fun TaskCenterScreen(
     phoneLocale: Locale = AppLanguageSetting.phoneLocale(LocalContext.current),
     onLanguageClick: () -> Unit = {},
     onDeleteAccountClick: () -> Unit = {},
+    /** Another tab chosen in the bottom bar. */
+    onTabSelected: (AegisTab) -> Unit = {},
 ) {
 
+    // Re-selecting this tab scrolls its list to the top (02 §2.1).
+    val list = rememberLazyListState()
+    val scrollToTop = rememberScrollToTop(list)
     Scaffold(
-        topBar = { AegisTopAppBar(title = stringResource(R.string.settings_tasks_title)) }
+        topBar = { AegisTopAppBar(title = stringResource(R.string.settings_tasks_title)) },
+        // The fourth tab shows the bar like the other three (02 §2.1, F25): a tab root's Back
+        // leaves the app, so without it Settings would have no way to the other tabs.
+        bottomBar = { AegisBottomBar(currentTab = AegisTab.Settings, onTabSelected = onTabSelected, onReselect = scrollToTop) },
     ) { paddingValues ->
         // One list for the whole screen, heading included: a fixed heading left the list
         // too short to show one checklist card at a large font (F20).
         LazyColumn(
+            state = list,
             modifier = modifier
                 .fillMaxSize()
                 .background(CallScreenTheme.colors.surface.background)

@@ -83,14 +83,21 @@ class SharedComponentsTextTest {
     @Test
     fun eachTabIsATabNamedOnceAndTheCurrentOneIsSelected() {
         var selected: AegisTab? = null
-        show { AegisBottomBar(currentTab = AegisTab.Protection, onTabSelected = { selected = it }) }
+        var reselected = 0
+        show { AegisBottomBar(currentTab = AegisTab.Protection, onTabSelected = { selected = it }, onReselect = { reselected++ }) }
         for ((tab, label) in tabs) {
             val node = compose.onNode(hasText(s(label)) and hasClickAction())
             node.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
             // The icon is decorative: the label is read once, not "Calls, Calls".
             compose.onNodeWithContentDescription(s(label), useUnmergedTree = true).assertDoesNotExist()
             node.performClick()
-            assertEquals(tab, selected)
+            if (tab == AegisTab.Protection) {
+                // The tab already shown is re-selected, never navigated to (02 §2.1, F25).
+                assertEquals(1, reselected)
+                assertFalse(selected == AegisTab.Protection)
+            } else {
+                assertEquals(tab, selected)
+            }
         }
         compose.onNode(hasText(s(R.string.core_ui_tab_protection)) and hasClickAction()).assertIsSelected()
     }

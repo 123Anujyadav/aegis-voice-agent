@@ -14,8 +14,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.callscreen.app.navigation.AegisDestinations
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -85,6 +87,28 @@ class TopBarOnDeviceTest {
             compose.onNode(hasContentDescription("Back") and hasClickAction()).performClick()
             compose.waitUntil(10_000) { compose.onAllNodes(hasText("Change app language")).fetchSemanticsNodes().isNotEmpty() }
             compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
+        } finally {
+            scenario.close()
+        }
+    }
+
+    @Test
+    fun backOnATabRootLeavesTheAppInsteadOfReturningToTheLastTab() {
+        // F25 (owner, 2026-11-05; 02 §2.4): Assistant, then Protection, then Back leaves the app.
+        val scenario = ActivityScenario.launch<MainActivity>(
+            Intent(context, MainActivity::class.java).putExtra(MainActivity.START_DESTINATION_EXTRA, AegisDestinations.ASSISTANT_HOME),
+        )
+        try {
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Protection") and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNode(hasText("Protection") and hasClickAction()).performClick()
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Protection Dashboard")).fetchSemanticsNodes().isNotEmpty() }
+            // A tab root has nothing behind it in the app, so no arrow (D6 mirrors Back).
+            compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
+            Espresso.pressBackUnconditionally()
+            // The app is left (finished, or sent to the background), not returned to Assistant.
+            val deadline = System.currentTimeMillis() + 10_000
+            while (scenario.state == Lifecycle.State.RESUMED && System.currentTimeMillis() < deadline) Thread.sleep(100)
+            assertTrue("the app is still shown after Back on a tab root: ${scenario.state}", scenario.state != Lifecycle.State.RESUMED)
         } finally {
             scenario.close()
         }

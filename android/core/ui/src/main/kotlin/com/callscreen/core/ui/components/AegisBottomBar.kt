@@ -50,6 +50,9 @@ public enum class AegisTab {
  * The tabs. The bar's colour reaches behind the navigation bar (the app draws
  * edge to edge); its tabs start above it and, in landscape, clear of a side
  * bar or cutout ([windowInsets]).
+ *
+ * Selecting another tab calls [onTabSelected]; selecting the current one calls
+ * [onReselect] instead, never [onTabSelected] (02 §2.1).
  */
 @Composable
 public fun AegisBottomBar(
@@ -57,7 +60,11 @@ public fun AegisBottomBar(
     onTabSelected: (AegisTab) -> Unit,
     modifier: Modifier = Modifier,
     windowInsets: WindowInsets = WindowInsets.aegisSafeArea.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+    onReselect: () -> Unit = {},
 ) {
+    // Navigation spec 02 §2.1 (F25): selecting the tab already shown never navigates, so it
+    // adds nothing to the history. The screen scrolls its list to the top instead ([onReselect]).
+    val select: (AegisTab) -> Unit = { tab -> if (tab == currentTab) onReselect() else onTabSelected(tab) }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -76,7 +83,7 @@ public fun AegisBottomBar(
             label = stringResource(R.string.core_ui_tab_calls),
             icon = Icons.Default.Call,
             isSelected = currentTab == AegisTab.Calls,
-            onClick = { onTabSelected(AegisTab.Calls) }
+            onClick = { select(AegisTab.Calls) }
         )
         AegisNavItem(
             // Each tab gets an equal share of the width, so a long label wraps instead of crowding the others.
@@ -85,7 +92,7 @@ public fun AegisBottomBar(
             label = stringResource(R.string.core_ui_tab_protection),
             icon = Icons.Default.Security,
             isSelected = currentTab == AegisTab.Protection,
-            onClick = { onTabSelected(AegisTab.Protection) }
+            onClick = { select(AegisTab.Protection) }
         )
         AegisNavItem(
             // Each tab gets an equal share of the width, so a long label wraps instead of crowding the others.
@@ -94,7 +101,7 @@ public fun AegisBottomBar(
             label = stringResource(R.string.core_ui_tab_assistant),
             icon = Icons.Default.SmartToy,
             isSelected = currentTab == AegisTab.Assistant,
-            onClick = { onTabSelected(AegisTab.Assistant) }
+            onClick = { select(AegisTab.Assistant) }
         )
         AegisNavItem(
             // Each tab gets an equal share of the width, so a long label wraps instead of crowding the others.
@@ -103,7 +110,7 @@ public fun AegisBottomBar(
             label = stringResource(R.string.core_ui_tab_settings),
             icon = Icons.Default.Settings,
             isSelected = currentTab == AegisTab.Settings,
-            onClick = { onTabSelected(AegisTab.Settings) }
+            onClick = { select(AegisTab.Settings) }
         )
     }
 }

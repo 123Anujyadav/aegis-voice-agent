@@ -159,9 +159,7 @@ public fun AegisNavGraph(
                 val cause = SessionRouting.signedOutNotice(previous, current, navController.currentDestination?.route)
                 previous = current
                 if (cause != null) {
-                    navController.navigate(AegisDestinations.signedOut(cause)) {
-                        popUpTo(navController.graph.id) { inclusive = true }
-                    }
+                    navController.startOver(AegisDestinations.signedOut(cause))
                 }
             }
         }
@@ -246,9 +244,7 @@ public fun AegisNavGraph(
                 SetupCompleteScreen(
                     // Onboarding exits permanently: Back from Calls never returns to it.
                     onGoToHomeClick = {
-                        navController.navigate(AegisDestinations.CALLS_FEED) {
-                            popUpTo(navController.graph.id) { inclusive = true }
-                        }
+                        navController.startOver(AegisDestinations.CALLS_FEED)
                     },
                     blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
                 )
@@ -257,12 +253,12 @@ public fun AegisNavGraph(
                 CallsFeedRoute(
                     // A call's summary is a design preview until call records exist; nothing to open in a release build.
                     onCallClick = { if (includeDesignPreviews) navController.navigate(AegisDestinations.POST_CALL_SUMMARY) },
-                    onTabSelected = { tab -> handleTabClick(navController, tab) },
+                    onTabSelected = { tab -> navController.selectTab(tab) },
                 )
             }
             composable(AegisDestinations.PROTECTION_DASHBOARD) {
                 ProtectionDashboardScreen(
-                    onTabSelected = { tab -> handleTabClick(navController, tab) },
+                    onTabSelected = { tab -> navController.selectTab(tab) },
                     onBlockedNumbersClick = { navController.navigate(AegisDestinations.callerList(ListType.BLOCK)) },
                     onAllowedNumbersClick = { navController.navigate(AegisDestinations.callerList(ListType.ALLOW)) },
                 )
@@ -275,7 +271,7 @@ public fun AegisNavGraph(
                 AssistantHomeScreen(
                     onVoiceSetupClick = { navController.navigate(AegisDestinations.VOICE_SETUP) },
                     onStartVoiceChatClick = { navController.navigate(AegisDestinations.VOICE_CONVERSATION) },
-                    onTabSelected = { tab -> handleTabClick(navController, tab) }
+                    onTabSelected = { tab -> navController.selectTab(tab) }
                 )
             }
             composable(AegisDestinations.VOICE_SETUP) {
@@ -285,6 +281,7 @@ public fun AegisNavGraph(
                 TaskCenterRoute(
                     onLanguageClick = { navController.navigate(AegisDestinations.APP_LANGUAGE) },
                     onDeleteAccountClick = { navController.navigate(AegisDestinations.ACCOUNT_DELETION) },
+                    onTabSelected = { tab -> navController.selectTab(tab) },
                 )
             }
             composable(AegisDestinations.APP_LANGUAGE) {
@@ -294,9 +291,7 @@ public fun AegisNavGraph(
                 AccountDeletionRoute(
                     // The account is gone: nothing behind this screen applies any more.
                     onDeleted = {
-                        navController.navigate(AegisDestinations.WELCOME) {
-                            popUpTo(navController.graph.id) { inclusive = true }
-                        }
+                        navController.startOver(AegisDestinations.WELCOME)
                     },
                     onBack = { navController.popBackStack() },
                 )
@@ -311,9 +306,7 @@ public fun AegisNavGraph(
                     cause = SessionEndCause.entries.firstOrNull { it.name == name },
                     blockingOn = ScreeningRole.status(context) == ScreeningRoleStatus.HELD,
                     onSignInClick = {
-                        navController.navigate(AegisDestinations.WELCOME) {
-                            popUpTo(navController.graph.id) { inclusive = true }
-                        }
+                        navController.startOver(AegisDestinations.WELCOME)
                     },
                 )
             }
@@ -424,11 +417,46 @@ private fun NavGraphBuilder.designPreviews(navController: NavHostController) {
     }
 }
 
-private fun handleTabClick(navController: NavHostController, tab: AegisTab) {
-    when (tab) {
-        AegisTab.Calls -> navController.navigate(AegisDestinations.CALLS_FEED)
-        AegisTab.Protection -> navController.navigate(AegisDestinations.PROTECTION_DASHBOARD)
-        AegisTab.Assistant -> navController.navigate(AegisDestinations.ASSISTANT_HOME)
-        AegisTab.Settings -> navController.navigate(AegisDestinations.TASK_CENTER)
+/** Each tab's root route (02 §2.1). */
+private val TAB_ROOTS: Map<AegisTab, String> = mapOf(
+    AegisTab.Calls to AegisDestinations.CALLS_FEED,
+    AegisTab.Protection to AegisDestinations.PROTECTION_DASHBOARD,
+    AegisTab.Assistant to AegisDestinations.ASSISTANT_HOME,
+    AegisTab.Settings to AegisDestinations.TASK_CENTER,
+)
+
+/**
+ * Shows [tab] as the navigation spec has it (02 §2.1, §2.4, §2.6; F25, owner
+ * 2026-11-05). Each tab keeps its own back stack: the tab being left is saved
+ * and popped, the chosen one restored, so only one tab is ever on the back
+ * stack, at its bottom. Back on a tab root therefore leaves the app, never
+ * cycles through tabs, and the top bar shows no Back arrow there (D6, which
+ * mirrors Back). Choosing the tab already shown never navigates (the bar
+ * scrolls instead), so the history holds no duplicates.
+ */
+internal fun NavHostController.selectTab(tab: AegisTab) {
+    val target = TAB_ROOTS.getValue(tab)
+    if (currentDestination?.route == target) return
+    val shown = currentBackStack.value.firstOrNull { it.destination.route in TAB_ROOTS.values }?.destination?.route
+    navigate(target) {
+        // Pops everything from the shown tab's root up, saving it to restore when its tab is chosen again.
+        if (shown != null) {
+            popUpTo(shown) {
+                inclusive = true
+                saveState = true
+            }
+        }
+        launchSingleTop = true
+        restoreState = true
     }
+}
+
+/**
+ * Clears the back stack and every tab's saved stack, then shows [route]: after
+ * sign-in, a sign-out or an account deletion, nothing from before may be
+ * restored by choosing a tab.
+ */
+internal fun NavHostController.startOver(route: String) {
+    TAB_ROOTS.values.forEach { clearBackStack(it) }
+    navigate(route) { popUpTo(graph.id) { inclusive = true } }
 }

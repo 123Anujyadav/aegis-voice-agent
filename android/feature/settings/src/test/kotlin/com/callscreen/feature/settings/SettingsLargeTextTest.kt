@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
@@ -63,6 +64,12 @@ class SettingsLargeTextTest {
     /**
      * [text] can be brought fully into view: scrolled to when it is inside a scrolling
      * container, then entirely inside the 320 x 480 dp window and clipped by no parent.
+     *
+     * Text taller than its list's viewport cannot be in view all at once (at twice the font
+     * scale the Settings tab's bar, 02 §2.1, leaves the list 210 px for a 246 px paragraph).
+     * For such text every line must still be readable: its first line and then its last line
+     * are each scrolled fully into the viewport. (TranslationLayout counts such text as
+     * reachable without this check.)
      */
     private fun reachable(text: String, substring: Boolean = false) {
         if (compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isEmpty()) {
@@ -74,6 +81,19 @@ class SettingsLargeTextTest {
         val shown = node.fetchSemanticsNode()
         val window = with(compose.density) { Rect(0f, 0f, 320.dp.toPx(), 480.dp.toPx()) }
         val bounds = shown.boundsInRoot
+        val list = generateSequence(shown.parent) { it.parent }.firstOrNull { SemanticsActions.ScrollBy in it.config }
+        if (list != null && shown.size.height > list.size.height) {
+            assertTrue("\"$text\" is cut off sideways: $bounds of ${shown.size}", bounds.width >= shown.size.width - 1)
+            val viewport = list.boundsInRoot
+            val scroll = compose.onNode(scroller)
+            // Its first line, then its last line, fully inside the list's viewport.
+            scroll.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, node.fetchSemanticsNode().boundsInRoot.top - viewport.top) }
+            assertTrue("\"$text\": its start cannot be scrolled into view", kotlin.math.abs(node.fetchSemanticsNode().boundsInRoot.top - viewport.top) <= 1)
+            scroll.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, node.fetchSemanticsNode().boundsInRoot.bottom - viewport.bottom) }
+            assertTrue("\"$text\": its end cannot be scrolled into view", kotlin.math.abs(node.fetchSemanticsNode().boundsInRoot.bottom - viewport.bottom) <= 1)
+            assertTrue("\"$text\"'s list is outside the window", viewport.top >= window.top - 1 && viewport.bottom <= window.bottom + 1)
+            return
+        }
         assertTrue(
             "\"$text\" is cut off: $bounds of ${shown.size}, window $window",
             bounds.height >= shown.size.height - 1 && bounds.width >= shown.size.width - 1 &&
