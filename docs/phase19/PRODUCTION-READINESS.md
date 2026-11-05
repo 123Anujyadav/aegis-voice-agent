@@ -1,6 +1,7 @@
 # Production readiness tracker
 
 - **As of:** 2026-11-05, `main` `1906101` (after the owner's language decisions were built). Entries are updated with each merge.
+- **The plan to production, with the external dependencies, owner actions and exit evidence:** [`PRODUCTION-READINESS-PLAN.md`](PRODUCTION-READINESS-PLAN.md) (2026-11-05).
 - **Verdict: not production-ready.** Nothing has been deployed anywhere, no physical device has run the app, and no Play release exists. Builds and CI passing are not readiness (§1).
 - **Method:** every entry cites the code, test, workflow or document it rests on. It comes from an audit of the repository at `7f60bac`, re-checked against each later merge. Nothing is estimated, and there are no percentages.
 - **IDs:** task and blocker IDs are the ones defined in [`ROADMAP-INVENTORY.md`](ROADMAP-INVENTORY.md) (C, T, OD, L, E, X, H) and [`EXTERNAL-DEPENDENCIES.md`](EXTERNAL-DEPENDENCIES.md) (O). This document does not redefine them. F-numbers are this document's own findings (§4).
