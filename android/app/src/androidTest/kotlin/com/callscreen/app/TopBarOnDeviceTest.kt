@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -78,14 +79,18 @@ class TopBarOnDeviceTest {
         val scenario = ActivityScenario.launch<MainActivity>(
             Intent(context, MainActivity::class.java).putExtra(MainActivity.START_DESTINATION_EXTRA, AegisDestinations.TASK_CENTER),
         )
+        // Settings is shown when its tab is the selected one. With its bottom bar (F25) the list
+        // is shorter, and "Change app language" is composed only once scrolled to.
+        val settingsShown = { compose.onAllNodes(hasText("Settings") and hasClickAction() and isSelected()).fetchSemanticsNodes().isNotEmpty() }
         try {
-            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Change app language")).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000, settingsShown)
             compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
             compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Change app language"))
             compose.onNode(hasText("Change app language") and hasClickAction()).performClick()
             compose.waitUntil(10_000) { compose.onAllNodes(hasText("App language")).fetchSemanticsNodes().isNotEmpty() }
             compose.onNode(hasContentDescription("Back") and hasClickAction()).performClick()
-            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Change app language")).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000, settingsShown)
+            compose.onAllNodes(hasText("Change app language")).assertCountEquals(1)
             compose.onAllNodes(hasContentDescription("Back")).assertCountEquals(0)
         } finally {
             scenario.close()
