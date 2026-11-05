@@ -126,7 +126,7 @@ The repository uses three different meanings of "phase". None defines a phase af
 | OD-8 | The frontend stack (also blocks C1) | Readiness §4, §7 |
 | OD-9 | Workload identity federation approval for the verifier (memo §12 B1) | Readiness §7; Play Integrity memo §12 |
 | OD-10 | Phase 19 completion criteria (§2) | This inventory, conflict 3 |
-| OD-11 | The F14 banner's first sentence, "Another app is now screening your calls", is a UX-spec text the app cannot verify, and it is false when the subscriber simply turned screening off. **Proposed amendment in Appendix A (not applied, awaiting your OK).** | Validation doc §4.3 (#195) **2026-11-05: the wording is prepared and awaits review** (`OWNER-DECISION-PACKET-2026-11-05.md` §5, Q6); not applied |
+| OD-11 | The F14 banner's first sentence, "Another app is now screening your calls", is a UX-spec text the app cannot verify, and it is false when the subscriber simply turned screening off. **Proposed amendment in Appendix A (not applied, awaiting your OK).** | Validation doc §4.3 (#195) **2026-11-05: approved (reviewed by ChatGPT on the owner's behalf) and applied in #245** (`OWNER-DECISION-PACKET-2026-11-05.md` §5, Q6). OD-11 closes when #245 merges with its device evidence |
 | OD-12 | **Identify an independent human reviewer** (gate G0a). Without one, every high-risk decision stays Proposed (§3.7) | `ARCHITECTURE_FREEZE.md` §6.1, rules 8 and 10 |
 | OD-13 | A corrupt session **file** is never recovered: DataStore has no corruption handler (production-readiness F3). Recovering means discarding the unreadable file, as the app already does for an unreadable record | `PRODUCTION-READINESS.md` §4 |
 | OD-14 | No sign-out action in the app (F8): whether to add one, and where | `PRODUCTION-READINESS.md` §4 |
@@ -244,7 +244,7 @@ Everything in §4.1, plus:
 
 Nothing else is needed before internal testing. D1–D9 and the other owner decisions can wait for production. **No testing task is unblocked any more** (T1 is done, #195). Every remaining test needs a physical device, live hosts or an external account.
 
-## Appendix A. OD-11: proposed amendment to the F14 banner (NOT applied)
+## Appendix A. OD-11: amendment to the F14 banner (approved 2026-11-05; applied in #245)
 
 **The problem:**
 - The A75 banner's first sentence, "Another app is now screening your calls.", is in `docs/ux/android/06-screens-onboarding-auth-permissions.md` (A75) and `08-user-flows.md` (F14).

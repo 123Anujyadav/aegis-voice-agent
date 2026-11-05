@@ -579,15 +579,15 @@ is a privilege-escalation primitive.
 ## F14 · Losing and regaining the screening role
 
 ```
-  Another app takes ROLE_CALL_SCREENING  (Android permits this freely)
+  This app loses ROLE_CALL_SCREENING (another app takes it, or the subscriber turns it off)
         │
         ▼
   Detected on next foreground
         │
         ▼
   A75 blocking banner on A20:
-  "Another app is now screening your calls. Numbers you've
-   blocked here won't be blocked until you switch back."
+  "On-device blocking is off. Numbers you've blocked here
+   won't be blocked until you switch back."
         │
    ┌────┴────┐
    ▼         ▼

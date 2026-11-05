@@ -680,11 +680,13 @@ asked at the microphone button it reads as obvious.
 shown at the point of loss, at most once per feature per 30 days, deep-linking
 to the exact system settings page ([`01 §1.5`](../01-cross-surface-conventions.md)).
 
-**A75** — The screening role was taken by another app, which Android allows and
-users do routinely without understanding the consequence.
+**A75** — The app no longer holds the call screening role: another app took it,
+or the subscriber turned it off (Android does not tell an app which). Users take
+the role for another app routinely without understanding the consequence.
 
-**Copy** — "Another app is now screening your calls. Numbers you've blocked here
-won't be blocked until you switch back." One action: re-request the role. This
+**Copy** — "On-device blocking is off. Numbers you've blocked here won't be
+blocked until you switch back." (Q6 / OD-11, approved 2026-11-05: it is true in
+both cases, and says what stopped.) One action: re-request the role. This
 is a **blocking banner** on the home surface rather than a full screen, because
 the rest of the product — forwarding, transcripts, history — is unaffected, and
 blocking the whole app over a degraded pre-filter would be disproportionate.

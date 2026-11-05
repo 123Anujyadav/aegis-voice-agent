@@ -17,7 +17,7 @@
     <string name="calls_empty_title">No call data yet</string>
     <string name="calls_empty">Calls the app blocks or screens will appear here.</string>
 
-    <!-- Screening role lost (F14, A75) -->
-    <string name="calls_role_lost">Another app is now screening your calls. Numbers you\'ve blocked here won\'t be blocked until you switch back.</string>
+    <!-- Screening role lost (F14, A75): shown when this app no longer screens calls, because another app took the role or the subscriber turned it off. Android does not say which, so the text names neither. -->
+    <string name="calls_role_lost">On-device blocking is off. Numbers you\'ve blocked here won\'t be blocked until you switch back.</string>
     <string name="calls_role_switch_back">Switch back</string>
 </resources>
