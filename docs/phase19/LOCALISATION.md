@@ -130,7 +130,7 @@ The worksheets are kept equal to the English by a test. After changing any Engli
 
 1. `python3 tools/i18n/translation_kit.py status`: each language's progress per module. On 2026-11-04, **0/244 for each of the five**.
 2. `python3 tools/i18n/translation_kit.py audit`: the English source measured.
-   - **242 strings and 2 plurals: 246 worksheet rows, 1,554 words, 9,153 characters per language** (after the owner's decisions D3, D4, D6 and D7, 2026-11-04: Welcome's bilingual label is not translated; the top bar's Back arrow adds "Back").
+   - **242 strings and 2 plurals: 246 worksheet rows, 1,555 words, 9,155 characters per language** (after the owner's decisions D3, D4, D6 and D7, 2026-11-04, and Q5 and Q8, 2026-11-05: Welcome's bilingual label is not translated; the top bar's Back arrow adds "Back").
    - The workload table is in the translator guide.
 3. `python3 tools/i18n/translation_kit.py export --lang hi hi.csv`: a worksheet (CSV, UTF-8). It has one row per translatable string and per plural form the language uses (CLDR: `one` and `other` for all six), with:
    - the module and the English, and its length;

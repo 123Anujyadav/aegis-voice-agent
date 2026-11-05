@@ -119,14 +119,14 @@ Text in the app wraps onto more lines when it must, and every screen scrolls. Te
 
 ## Workload per language
 
-Measured from the English source with `python3 tools/i18n/translation_kit.py audit`, after the owner's language decisions D3, D4, D6 and D7 (2026-11-04). **It is the same for each of the five languages.**
+Measured from the English source with `python3 tools/i18n/translation_kit.py audit`, after the owner's language decisions D3, D4, D6 and D7 (2026-11-04) and copy decisions Q5 and Q8 (2026-11-05). **It is the same for each of the five languages.**
 
 | Measure | Per language |
 |---|---|
 | Resources (242 strings and 2 counted texts) | 244 |
 | Worksheet rows (each counted text has 2 rows) | 246 |
-| English words (placeholders not counted) | 1,554 |
-| English characters | 9,153 |
+| English words (placeholders not counted) | 1,555 |
+| English characters | 9,155 |
 | Rows with placeholders | 11 |
 | Rows a specification or test quotes (second-review rows) | 54 |
 | Rows with tight room (tabs, chips, one-line fields) | 28 |
@@ -135,8 +135,8 @@ Measured from the English source with `python3 tools/i18n/translation_kit.py aud
 |---|---|---|
 | Onboarding (welcome, SIM, sign-in, permissions, setup) | 81 | 513 |
 | Settings (setup checklist, app language, account deletion) | 54 | 476 |
-| Protection (dashboard, blocked and allowed numbers) | 60 | 361 |
-| Assistant | 24 | 122 |
+| Protection (dashboard, blocked and allowed numbers) | 60 | 363 |
+| Assistant | 24 | 121 |
 | Calls | 10 | 45 |
 | Shared components | 12 | 16 |
 | App shell (signed-out notice) | 5 | 21 |

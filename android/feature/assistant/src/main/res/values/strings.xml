@@ -28,7 +28,8 @@
     <string name="assistant_voice_elevenlabs_accent">English &amp; Hindi (Neutral Tone)</string>
     <string name="assistant_voice_sarvam" translatable="false">Sarvam Indic Voice</string>
     <string name="assistant_voice_sarvam_style">Authoritative</string>
-    <string name="assistant_voice_sarvam_accent">Hindi Devanagari Native Accent</string>
+    <!-- Owner decision Q5 (2026-11-05): an accent, not a script. -->
+    <string name="assistant_voice_sarvam_accent">Native Hindi Accent</string>
     <string name="assistant_voice_cartesia" translatable="false">Cartesia Sonic</string>
     <string name="assistant_voice_cartesia_style">Friendly Receptionist</string>
     <string name="assistant_voice_cartesia_accent">Clear Indian English Accent</string>
