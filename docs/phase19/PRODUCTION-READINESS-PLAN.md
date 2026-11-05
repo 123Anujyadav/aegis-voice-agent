@@ -4,7 +4,7 @@
 - **Verdict: not production-ready.** All evidence is from CI and emulators (API 35, 28 and 26). **None** is from a physical device, staging or production (`PRODUCTION-READINESS.md` §1).
 - **Nothing was contacted, created or bought.** No provider, account, credential, integration or infrastructure. This plan decides nothing: every owner decision stays the owner's.
 
-## 0. The six-phase roadmap is not in the repository
+## 0. The six-phase roadmap is not recorded anywhere available
 
 `PRODUCTION-READINESS.md` §6 records that the product capabilities "belong to the owner's six-phase product roadmap… That roadmap is not recorded in this repository". A search finds no other definition. "Phase" in the repository means something else:
 - engineering units 1–19;
@@ -21,7 +21,16 @@ The "six phases" in `docs/hardening/` were an earlier hardening programme.
 
 The last column of §2 is left for the owner to place each milestone in its phase.
 
-**Owner action 1:** record the six phases, their names and scope, so each milestone and task can be placed.
+**Searched again, 2026-11-05:**
+- the whole repository: README, freezes, ADRs, `docs/`;
+- the project's memory notes;
+- this project's three session transcripts.
+
+The six product phases are named nowhere. Every "Phase 1–6" found is either an engineering project phase (README's Phase 0–3, the freezes' Phase 1–4, which continue to 19) or a step inside a task message. An earlier session had the same instruction and found the same.
+
+**So the phases are not recorded, and M0–M3 are not mapped to them.** Recording them from guesswork would redefine the roadmap.
+
+**Owner action 1:** write down the six phases, their names and scope. The mapping in §2 then takes one edit.
 
 ## 1. Counts, from the repository's records
 
@@ -35,7 +44,7 @@ The inventory's counts are as of 2026-11-01 (`ROADMAP-INVENTORY.md` §3.6), adju
 | Privacy and legal reviews (L1–L6) | **6** | — | Q7 adds counsel review of the 54 translated rows as a production gate |
 | External dependencies (E1–E10, X1–X5) | **15** | — | — |
 | High-risk decisions needing an independent reviewer | **4** (H1, H2, H3, H7), **+3 conditional** (H4–H6) | **0**: no reviewer named (OD-12) | — |
-| New since the inventory | F26 branding (trademark counsel); translators (Q0; not engaged); **the policy-scope question (§4)** | — | — |
+| New since the inventory | F26 branding (trademark counsel); translators (Q0; not engaged); the spending policy's category approvals (§4) | — | — |
 
 **Claude Code has no routine, unblocked coding or testing task.** Every open item waits on an owner decision, an external party, an independent reviewer or counsel.
 
@@ -45,7 +54,7 @@ The inventory's counts are as of 2026-11-01 (`ROADMAP-INVENTORY.md` §3.6), adju
 |---|---|---|---|---|
 | **Complete** | Identity and edge-api; the Android app (onboarding, on-device screening, lists, settings, deletion, six-language packaging and language choice, navigation per spec); the release pipeline (R8, signing check, endpoint preflight); CI (unit, race, fuzz, real PostgreSQL, emulators API 35/28/26, R8 functional tests, dependency audit) | **Code: nothing more is required** (§4.1). The release refuses to build without hosts and pins (#194) | — | Package scaffolding only (`PRODUCTION-READINESS.md` §6) |
 | **Remaining** | — | **External:** E2 (SMS and DLT); X5 with E3, E4 (staging hosts, keys, database, pins); X1, X2 (Play Console, upload key, Environment). **Engineering after E2 is chosen:** C2 (the SMS adapter), deployment manifests (C1 of `INTERNAL-TESTING-SETUP.md`) | Code: C1 (web deletion), C3 (deletion-code adapter), C9 (reviewer path), C4 if Play Integrity is enforced. Tests: T2 (12 cases), T3, T4, T5. Decisions: O9, O13, O1, OD-1, OD-10, and O7, O8, OD-9 if Play Integrity is used. L1–L6, E8, E10. Play Console declarations. Q7 counsel review per translated language. F26 branding | Voice assistant (forwarding, speech, LLM); post-call reports; evaluation; analytics; memory; learning; model improvement |
-| **Blocked by** | — | E2 (critical path), X5, X1/X2, **the policy-scope question (§4)** | M1, OD-12 (for H-items), E8, E9, E10, counsel | OD-17 (deferred), X4, the telephony staging NO-GO (P1-38), OD-4 (consent), ADR-0003/0006 under the policy question (§4) |
+| **Blocked by** | — | E2 (critical path), X5, X1/X2, **each needing its category approval (§4)**, and the naming review (F26) for the DLT templates and package name | M1, OD-12 (for H-items), E8, E9, E10, counsel | OD-17 (deferred), X4, the telephony staging NO-GO (P1-38), OD-4 (consent), the forwarding and LLM category approvals (§4) |
 | **Exact remaining count** | 0 | **3 external items** (E2, X5+E3+E4, X1+X2) **+ 2 engineering items** after them (C2 adapter, manifests) | 3 coding (C1, C3, C9) + C4† + 4 testing (T2–T5) + 5 decisions (O9, O13, O1, OD-1, OD-10) + 3† (O7, O8, OD-9) + 6 legal + 2 external (E8, E10) + Play declarations | Not countable: no task list exists for them (§6 lists capabilities, not tasks) |
 | **Exit evidence** | Met: CI and emulator only | A release run of `release-android.yml` from the protected Environment; the `.aab` on the internal track; **a tester signs in on a physical phone against staging** and turns blocking on (T3 started) | All of M1, plus: T2 (12 cases) and T3–T5 recorded on physical phones and staging; L1–L6 signed off; E8 report; the Play declarations accepted; production deploy verified; the counsel sign-off per translated language (Q7) | Each capability's own acceptance, defined when its tasks are |
 | **Owner's phase** | *(owner to assign)* | *(owner to assign)* | *(owner to assign)* | *(owner to assign)* |
@@ -60,11 +69,11 @@ The inventory's counts are as of 2026-11-01 (`ROADMAP-INVENTORY.md` §3.6), adju
 | **Needed at** | M1 | M1 | M1 | M1 | Most of T2 now (below); all at M2 | M3 |
 | **Account and credentials** | A provider account with India delivery, and a fallback (ADR-0010 §9); a DLT Principal Entity registration, a sender header and two templates (sign-in, deletion); credentials as mounted Secret files | AWS account (ADR-0008: `ap-south-1`, EKS, Aurora); IAM/IRSA; a domain; TLS certificates **and** backup keys (two pins); Ed25519 signing key and HMAC key (self-generated) | A Google Play developer account; identity verification; the app; testers' Google accounts | Upload key made offline with `keytool`; four `play-release` Environment secrets; Environment protection first | Android phones (Android 10+, one Android 8/9, one dual-SIM, OEMs listed in M12); SIMs on Jio, Airtel, Vi, BSNL; for M3–M5 a DID pool and CFNRy forwarding | Vendor accounts per the Accepted ADRs (Google STT, Deepgram, ElevenLabs, Cartesia, Sarvam, Anthropic, Exotel/Plivo), or open models (OD-17 option A) with GPU hosting |
 | **Configuration** | Adapter C2 (written once a provider is chosen); egress from identity (network-policy change); deletion-code budget value | `INTERNAL-TESTING-SETUP.md` B–C: schema to `0009`, `CS_IDENTITY_*` and `CS_EDGE_API_*` values, health checks | Package name, Play App Signing, internal track, tester list | `ANDROID_UPLOAD_KEYSTORE_BASE64`, `…_PASSWORD`, `…_KEY_ALIAS`, `…_KEY_PASSWORD`; then the release variables (origins, pins) | A debug or staging APK installed by the owner; the M1–M12 sheet (`ANDROID-SCREENING-DEVICE-VALIDATION.md` §5) | Adapters behind the existing `STTProvider`/`TTSProvider` ports; latency budgets (ADR-0011) |
-| **Owner actions** | Choose providers (A1); DLT registration and templates (A2, A3); approve egress (A5) | Authorise the account, cluster and IAM (B1); choose the domain (B3); decide the manifests (C1) | Register; **personal or organisation account** (below); confirm the permanent package name | Generate the key; protect the Environment; add the secrets | Provide the phones and SIMs; approve any paid calls; arrange the DID pool for M3–M5 | Decide OD-17 (deferred); answer the policy question (§4); OD-4 consent; OD-12 reviewer |
+| **Owner actions** | Choose providers (A1); DLT registration and templates (A2, A3); approve egress (A5) | Authorise the account, cluster and IAM (B1); choose the domain (B3); decide the manifests (C1) | Register; **personal or organisation account** (below); confirm the permanent package name | Generate the key; protect the Environment; add the secrets | Provide the phones and SIMs; approve any paid calls; arrange the DID pool for M3–M5 | Decide OD-17 (deferred); the forwarding and LLM category approvals (§4); OD-4 consent; OD-12 reviewer |
 | **Free or local alternative** | Tests' fake senders and the harness's stdout sender: **not a delivery path**. Email sign-in (ADR-0032) avoids SMS for sign-in but is **Proposed and high-risk** (H1; needs OD-12) and still needs an email sender | CI's local binaries on a disposable PostgreSQL behind a TLS proxy: **not reachable by testers' phones**. A non-AWS host would deviate from ADR-0008 | **For device evidence only:** install the debug or staging APK directly with `adb`, no Play needed. Not a distribution path; no Play Integrity verdicts | The CI throwaway key (tests only) | **9 of the 12 carrier cases (M1, M2, M6–M12) need only a phone, a SIM and the debug APK.** The debug build opens Protection directly (start-destination extra, debug only), as the emulator tests do, so no sign-in, Play or staging is needed. M3–M5 need the DID pool and the gateway | Local models for development (Whisper, Piper, Ollama), not production. Open models need GPU hosting (`SPEECH-EVALUATION-PREPARATION.md` §3) |
 | **Cost** | **Per-message SMS:** unknown. **DLT entity registration:** about ₹5,900 including GST per operator portal, per providers' guides ([Exotel](https://developer.exotel.com/docs/sms-support/dlt-registration), [SMSGatewayHub](https://crm.smsgatewayhub.com/knowledge-base/article/dlt-registration-charges-cost-breakdown-in-india)); **not verified on the official portals** | **Unknown:** EKS, Aurora, load balancer, data transfer; **recurring while running.** Domain and certificates unknown | **US$25, one-time** ([Google Play help](https://support.google.com/googleplay/android-developer/answer/6112435)) | None (self-generated) | Phones and SIM plans: unknown; prepaid recharges recurring. DID pool: unknown, recurring | Per-minute or per-token vendor pricing, or GPU hosting: unknown, recurring |
 | **Privacy and security** | Phone numbers go to the provider (a processor under DPDP; L1); codes in transit; credentials as Secret files only; DLT template text is registered publicly | Holds personal data (numbers as keyed pseudonyms, sessions); `verify-full` TLS; India residency (ADR-0012); key handling per runbooks; T5 rotation drill | Developer identity verification; testers' Google accounts; the Data safety form and privacy policy (L4, L5) | **The upload key is the release's root of trust:** never in Git, CI logs or chat; Environment protection before any secret | Test calls involve real numbers; don't use personal contacts' numbers; record results without personal data | **Call audio is personal data** (ADR-0012); vendor processing needs DPDP review and the independent review (OD-12); `trust_remote_code` review for open models |
-| **Permitted now?** | Owner's choice (§4) | Owner's choice (§4) | Owner's choice (§4) | Yes, once X1 exists (no cost) | Yes: owner-provided hardware | **No:** OD-17 deferred by the owner on 2026-11-04 |
+| **Permitted now?** | **Needs the SMS-and-DLT approval (§4)** | **Needs the staging approval (§4)** | **Needs the Play registration approval (§4)** | Yes, once X1 exists (no cost) | **Yes, the 9 on-device cases: owner-provided hardware.** Forwarding (M3–M5) needs the forwarding approval | **No:** OD-17 deferred by the owner on 2026-11-04 |
 
 **Play Console, personal or organisation (owner action).** Personal developer accounts created after 2023-11-13 must run a **closed test with opted-in testers for 14 days** before they can apply for production access. Google's help page states 20 testers; several guides still say 12. Organisation accounts are exempt, but need organisation verification ([Google Play help](https://support.google.com/googleplay/android-developer/answer/14151465)). **This adds at least 14 days to M2 on a personal account.** Check the current figure in Play Console.
 
@@ -75,23 +84,70 @@ The inventory's counts are as of 2026-11-01 (`ROADMAP-INVENTORY.md` §3.6), adju
 
 A preliminary public search found other "Lily AI" products, so **trademark counsel** is needed (owner approval).
 
-## 4. A policy question that blocks the critical path
+## 4. Spending policy (owner, 2026-11-05)
 
-The owner's policy of 2026-11-01, as recorded (`SPEECH-PROVIDER-POLICY-CONFLICT.md` §1): "Free and open-source only: no paid API, SDK, subscription or cloud service."
+**The default policy, as set by the owner:**
+- **Free and local first** for development.
+- **No paid API, subscription, cloud infrastructure, SMS service, SDK or external account activation without the owner's explicit approval for that category.**
+- **Speech integrations stay deferred** under OD-17.
 
-It is recorded only against the speech ADRs (OD-17). **Read as written, it also rules out:**
-- per-message SMS (E2), and no free OTP delivery path exists for India;
-- AWS staging and production (ADR-0008, Accepted);
-- the Play Console fee (X1);
-- the CPaaS (ADR-0003) and the LLM (ADR-0006).
+**Each of these needs its own, separate approval before any account, contract or spend:**
 
-Without some paid services, **neither M1 nor M2 is reachable.**
+| Category | Covers | Known cost |
+|---|---|---|
+| **Play Console registration** | X1 | US$25, one-time (§3) |
+| **SMS and DLT** | E2: provider(s), per-message charges, DLT entity registration and templates | DLT about ₹5,900 per operator portal (unverified); SMS per message unknown |
+| **Staging** (cloud infrastructure) | X5, E3, E4: the AWS account, EKS, Aurora, the domain and certificates (ADR-0008) | Unknown; recurring while running |
+| **Forwarding** | X4: the DID pool and CPaaS (ADR-0003), and forwarded-call charges | Unknown; recurring |
+| **LLM** | ADR-0006's provider, for the voice assistant | Unknown; recurring |
+| **Speech** | ADR-0005 and ADR-0007, or open models (OD-17) | **Deferred**: no approval is being sought |
 
-**The owner decides.** For example:
-- a spending envelope, per service or overall, that each item is approved against;
-- or exceptions by category: delivery, hosting, store, voice.
+**What it replaces.** It replaces the reading of the 2026-11-01 "free and open-source only" rule as an outright ban. Paid items are possible, **one approved category at a time.**
+- **The accepted ADRs are unchanged.** They name the services; approval decides whether and when each is paid for.
+- **Approval of one category is not approval of another.**
 
-Claude Code makes no choice here. Until it is answered, every item above stays at "owner's choice".
+**Free and local first, today:**
+- CI runs the real identity and edge-api binaries on a disposable PostgreSQL;
+- the tests use fake SMS senders;
+- the **9 on-device carrier cases** need only owner-provided phones and SIMs ([`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md)).
+
+## 4a. M1: the exact external setup, in order
+
+From [`INTERNAL-TESTING-SETUP.md`](INTERNAL-TESTING-SETUP.md) (the step IDs are its own), with the approval each step needs.
+
+**Gates before anything is registered:**
+- **G1. The naming review (F26).** The DLT templates, the Play listing and the permanent package name will carry the product's name, **Lily AI**.
+  - **G1 needs trademark counsel,** which needs the owner's approval.
+  - **Without counsel,** the owner can still accept the risk and register under a neutral wording. That is the owner's call.
+- **G2. Category approvals (§4):** Play Console registration, SMS and DLT, and staging.
+
+**Three tracks, in parallel once their category is approved:**
+
+| Order | Track A: SMS and DLT (E2), **the slowest** | Track B: staging (X5, E3, E4) | Track D: Play (X1, X2) |
+|---|---|---|---|
+| 1 | **A1** choose a primary SMS provider delivering in India, and a fallback (ADR-0010 §9) | **B1** authorise the AWS account, EKS cluster or namespace and IAM (ADR-0008) | **D1** register the Play developer account, **personal or organisation** (§3: a personal account adds a 14-day closed test before production) |
+| 2 | **A2** register on a DLT platform as a Principal Entity, and the sender header | **B2** PostgreSQL with `verify-full` and an explicit CA bundle, shared by identity and edge-api | **D2** confirm the permanent package name (`com.callscreen` today; never changeable after the first upload) |
+| 3 | **A3** register two templates, sign-in and account deletion, each with the code as its variable | **B3** the domain for two HTTPS hosts | **D3** create the app; keep Play App Signing |
+| 4 | **A4** provider credentials as mounted Secret files (SRE) | **B4** TLS certificates, plus a backup key pair per host (two pins, ADR-0010) | **D4** generate the upload key offline (`keytool`) |
+| 5 | **A5** egress from identity to each provider (network change, approval) | **B5** the Ed25519 signing key, **B6** the HMAC key (self-generated, free) | **D5** protect the `play-release` Environment **before** any secret; **D6** its four secrets; **D7** testers |
+
+**Then, in order:**
+1. **E. The SMS adapter (C2).** Claude Code writes it as soon as A1 names the provider, tested with the fake sender until credentials exist.
+2. **C. Deploy identity and edge-api** (after B; sign-in also needs A and E):
+   - the manifests (the owner decides C1);
+   - `migrate` to `0009`;
+   - the configuration;
+   - readiness 200.
+3. **F. Pins and release variables** (after C): compute each host's SPKI pin and set the `play-release` variables. The edge-api origin must equal `CS_EDGE_API_PUBLIC_ORIGIN` exactly.
+4. **G. The first release run** (after D and F): `release-android.yml`, which checks the signer against the upload key.
+5. **H. Internal testing:**
+   - upload the `.aab` to the internal track;
+   - testers sign in on **physical phones** (T3);
+   - check at submission whether the track needs the Data safety form, a privacy-policy URL or the deletion URL.
+
+**M1 is met** when a tester signs in on a physical phone against staging, and turns blocking on, from a release built in the protected Environment (§2).
+
+**In parallel, from today, needing no approval beyond owner-provided hardware:** the 9 on-device carrier cases ([`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md)). The 3 forwarding cases stay prepared only ([`FORWARDING-TEST-PREPARATION.md`](FORWARDING-TEST-PREPARATION.md)).
 
 ## 5. Who does what
 
@@ -125,12 +181,11 @@ Production-ready means **every** row below is met and recorded with its evidence
 ## 7. Critical path
 
 1. **Today, in parallel, all owner actions:**
-   - record the six phases (§0);
-   - answer the policy question (§4);
-   - **choose the SMS provider and start DLT** (the slowest step), after the naming review for the template text;
-   - authorise staging and choose the domain;
-   - register Play (personal or organisation) and confirm the package name;
-   - **provide one Android phone and SIMs.**
+   - write down the six phases (§0);
+   - **provide one Android phone and SIMs**;
+   - decide the naming review (G1);
+   - give the category approvals for Play, SMS and DLT, and staging (§4);
+   - then **choose the SMS provider and start DLT** (the slowest step), authorise staging, and register Play. The order is in §4a.
 2. **As soon as a phone exists:** T2's 9 on-device cases with the debug APK. This is the first physical-device evidence, and needs none of the integrations.
 3. **When the provider is chosen:** Claude Code writes adapter C2. SRE deploys staging, and pins and release variables follow.
 4. **M1:** the first release run, upload to internal testing, and T3 on physical phones.
@@ -141,12 +196,12 @@ Production-ready means **every** row below is met and recorded with its evidence
    - the decisions in §2;
    - OD-12 for the high-risk items;
    - production deploy and verification.
-6. **M3:** after OD-17, X4, the telephony staging gate and the policy question.
+6. **M3:** after OD-17, X4, the telephony staging gate, and the forwarding and LLM category approvals (§4).
 
 ## 8. Owner actions, in order
 
-1. Record the six-phase roadmap (names and scope).
-2. Answer the policy-scope question (§4): what may be paid for, within what envelope.
+1. Write down the six-phase roadmap (names and scope): it is not recorded anywhere available (§0).
+2. Give, or withhold, each category approval under the spending policy (§4). For M1: Play registration, SMS and DLT, and staging.
 3. Name an independent human reviewer (OD-12).
 4. Provide a physical Android phone and Indian SIMs (X3); T2's 9 on-device cases can then start.
 5. Approve trademark counsel for "Lily AI" (F26), before DLT templates, the Play listing and the package name.
