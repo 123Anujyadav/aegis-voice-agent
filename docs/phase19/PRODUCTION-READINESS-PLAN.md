@@ -4,33 +4,35 @@
 - **Verdict: not production-ready.** All evidence is from CI and emulators (API 35, 28 and 26). **None** is from a physical device, staging or production (`PRODUCTION-READINESS.md` §1).
 - **Nothing was contacted, created or bought.** No provider, account, credential, integration or infrastructure. This plan decides nothing: every owner decision stays the owner's.
 
-## 0. The six-phase roadmap is not recorded anywhere available
+## 0. The six product phases (owner-confirmed 2026-11-05)
 
-`PRODUCTION-READINESS.md` §6 records that the product capabilities "belong to the owner's six-phase product roadmap… That roadmap is not recorded in this repository". A search finds no other definition. "Phase" in the repository means something else:
+**The owner confirmed the Lily AI product roadmap on 2026-11-05.** It is recorded in [`../PRODUCT-ROADMAP.md`](../PRODUCT-ROADMAP.md), with every inventory item placed in one phase and each phase's exit evidence. Until then it was not in the repository.
+
+**These are product phases.** "Phase" otherwise means:
 - engineering units 1–19;
 - the per-component rollout stages in ADR-0002 to ADR-0009;
 - the telephony P1 programme (`ROADMAP-INVENTORY.md` §1).
 
-The "six phases" in `docs/hardening/` were an earlier hardening programme.
+**Cite them as "product Phase N".**
 
-**So this plan does not invent phases.** It uses the milestones the repository **does** define, in order:
+**This plan's release milestones keep their definitions:**
 - **M0**, the current baseline;
 - **M1**, Play internal testing (`ROADMAP-INVENTORY.md` §4.1);
 - **M2**, public production (§4.2);
 - **M3**, the product capabilities (`PRODUCTION-READINESS.md` §6).
 
-The last column of §2 is left for the owner to place each milestone in its phase.
+The phases map onto them as in the last row of §2.
 
-**Searched again, 2026-11-05:**
-- the whole repository: README, freezes, ADRs, `docs/`;
-- the project's memory notes;
-- this project's three session transcripts.
+| Product phase | Milestones |
+|---|---|
+| 1. Engineering Foundation | M0 |
+| 2. Authentication & Security | M0 (built), M1 (OTP delivery), M2 (web deletion, security review, identity decisions) |
+| 3. Core Product & AI Experience | M0 (Android UX, on-device screening), M1, M3 (the assistant, analytics, reports) |
+| 4. Backend & Infrastructure | M1 (staging), M2 (production infrastructure), M3 (memory and learning, the model and telephony integrations) |
+| 5. Real-world Validation & Improvement | M1 (T3), M2 (T2–T5), M3 (AI evaluation, safe model improvement) |
+| 6. Production & Play Store Release | M1 (signing, internal testing), M2 (legal, Play policies, rollout, monitoring) |
 
-The six product phases are named nowhere. Every "Phase 1–6" found is either an engineering project phase (README's Phase 0–3, the freezes' Phase 1–4, which continue to 19) or a step inside a task message. An earlier session had the same instruction and found the same.
-
-**So the phases are not recorded, and M0–M3 are not mapped to them.** Recording them from guesswork would redefine the roadmap.
-
-**Owner action 1:** write down the six phases, their names and scope. The mapping in §2 then takes one edit.
+**No phase is complete:** each has open work and no exit evidence yet (`PRODUCT-ROADMAP.md` §3).
 
 ## 1. Counts, from the repository's records
 
@@ -57,7 +59,7 @@ The inventory's counts are as of 2026-11-01 (`ROADMAP-INVENTORY.md` §3.6), adju
 | **Blocked by** | — | E2 (critical path), X5, X1/X2, **each needing its category approval (§4)**, and the naming review (F26) for the DLT templates and package name | M1, OD-12 (for H-items), E8, E9, E10, counsel | OD-17 (deferred), X4, the telephony staging NO-GO (P1-38), OD-4 (consent), the forwarding and LLM category approvals (§4) |
 | **Exact remaining count** | 0 | **3 external items** (E2, X5+E3+E4, X1+X2) **+ 2 engineering items** after them (C2 adapter, manifests) | 3 coding (C1, C3, C9) + C4† + 4 testing (T2–T5) + 5 decisions (O9, O13, O1, OD-1, OD-10) + 3† (O7, O8, OD-9) + 6 legal + 2 external (E8, E10) + Play declarations | Not countable: no task list exists for them (§6 lists capabilities, not tasks) |
 | **Exit evidence** | Met: CI and emulator only | A release run of `release-android.yml` from the protected Environment; the `.aab` on the internal track; **a tester signs in on a physical phone against staging** and turns blocking on (T3 started) | All of M1, plus: T2 (12 cases) and T3–T5 recorded on physical phones and staging; L1–L6 signed off; E8 report; the Play declarations accepted; production deploy verified; the counsel sign-off per translated language (Q7) | Each capability's own acceptance, defined when its tasks are |
-| **Owner's phase** | *(owner to assign)* | *(owner to assign)* | *(owner to assign)* | *(owner to assign)* |
+| **Product phases** (`../PRODUCT-ROADMAP.md`) | 1; built parts of 2 and 3 | 2 (OTP), 3 (screening for testers), 4 (staging), 5 (T3), 6 (signing, internal testing) | 2, 4, 5, 6 | 3, 4, 5 |
 
 † Only if Play Integrity is to be enforced.
 
@@ -181,7 +183,6 @@ Production-ready means **every** row below is met and recorded with its evidence
 ## 7. Critical path
 
 1. **Today, in parallel, all owner actions:**
-   - write down the six phases (§0);
    - **provide one Android phone and SIMs**;
    - decide the naming review (G1);
    - give the category approvals for Play, SMS and DLT, and staging (§4);
@@ -200,14 +201,13 @@ Production-ready means **every** row below is met and recorded with its evidence
 
 ## 8. Owner actions, in order
 
-1. Write down the six-phase roadmap (names and scope): it is not recorded anywhere available (§0).
-2. Give, or withhold, each category approval under the spending policy (§4). For M1: Play registration, SMS and DLT, and staging.
-3. Name an independent human reviewer (OD-12).
-4. Provide a physical Android phone and Indian SIMs (X3); T2's 9 on-device cases can then start.
-5. Approve trademark counsel for "Lily AI" (F26), before DLT templates, the Play listing and the package name.
-6. Choose the SMS provider(s), and start DLT registration with the reviewed template text (E2).
-7. Authorise staging: AWS account, cluster, IAM and domain (X5, B1, B3); decide the manifests (C1).
-8. Register the Play developer account (personal or organisation), confirm the package name, create the upload key and Environment (X1, X2).
-9. Approve OD-10, Phase 19's completion criteria.
-10. For M2: engage counsel for L1–L6 and Q7; commission E8; decide O9, O13, O1, OD-1 and the Play Integrity items.
-11. When ready: approve translators (Q0) and, separately, any speech-model step (OD-17).
+1. Give, or withhold, each category approval under the spending policy (§4). For M1: Play registration, SMS and DLT, and staging.
+2. Name an independent human reviewer (OD-12).
+3. Provide a physical Android phone and Indian SIMs (X3); T2's 9 on-device cases can then start.
+4. Approve trademark counsel for "Lily AI" (F26), before DLT templates, the Play listing and the package name.
+5. Choose the SMS provider(s), and start DLT registration with the reviewed template text (E2).
+6. Authorise staging: AWS account, cluster, IAM and domain (X5, B1, B3); decide the manifests (C1).
+7. Register the Play developer account (personal or organisation), confirm the package name, create the upload key and Environment (X1, X2).
+8. Approve OD-10, Phase 19's completion criteria.
+9. For M2: engage counsel for L1–L6 and Q7; commission E8; decide O9, O13, O1, OD-1 and the Play Integrity items.
+10. When ready: approve translators (Q0) and, separately, any speech-model step (OD-17).

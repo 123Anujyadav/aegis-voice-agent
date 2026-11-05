@@ -319,7 +319,7 @@ These are recommendations from an AI-performed review, offered so that each deci
 
 ## 6. Product capabilities (owner direction, 2026-11-01)
 
-These seven capabilities belong to the owner's **six-phase product roadmap**, within its existing phases; there is no seventh phase. That roadmap is not recorded in this repository, so this document does not restate, renumber or replace it, and places no capability in a phase. It records only what exists today and what each capability needs before it can be built, so that work starts when its prerequisites are ready. The six languages are a requirement: Hindi, English, Tamil, Telugu, Malayalam and Kannada.
+These seven capabilities belong to the owner's **six-phase product roadmap**, within its existing phases; there is no seventh phase. **The roadmap is recorded in [`../PRODUCT-ROADMAP.md`](../PRODUCT-ROADMAP.md)** (owner-confirmed 2026-11-05): multilingual app and voice, post-call reports and conversation analytics are product Phase 3; memory and continuous learning, Phase 4 (with Phase 2's consent and memory controls); the evaluation pipeline, Phase 1 (infrastructure) and Phase 5 (AI evaluation); safe model improvement, Phase 5. None of them has a task list yet, so none is counted or started here.
 
 Delivery stays Android-first, with platform boundaries kept compatible with a later iOS client: shared logic in plain Kotlin contracts, platform pieces behind interfaces ([`CROSS-PLATFORM-FRONTEND-ASSESSMENT.md`](../architecture/CROSS-PLATFORM-FRONTEND-ASSESSMENT.md)).
 
