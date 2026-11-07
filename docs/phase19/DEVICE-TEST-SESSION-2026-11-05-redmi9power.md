@@ -1,6 +1,6 @@
 # Device test session record: 2026-11-05, Redmi 9 Power (Android 12, Airtel)
 
-**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b) and **M2 on Airtel Passed** (§3f). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run.
+**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b), **M2 on Airtel Passed** (§3f), and **M6: accepted with a recorded finding** (§3g: passed on a later attempt; the initial attempt failed). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run.
 
 This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md). The cases and their expected results are in [`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md).
 
@@ -17,7 +17,7 @@ This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md
 
 | Field | Value |
 |---|---|
-| Date and time (IST) | Started 2026-11-05; the M1 call 2026-11-06 00:45:39; the M2 (Airtel) call 2026-11-07 09:19 |
+| Date and time (IST) | Started 2026-11-05; the M1 call 2026-11-06 00:45:39; the M2 (Airtel) call 2026-11-07 09:19; the M6 calls 2026-11-07 09:59:31, 10:05:11 and 10:15:22, and the M6 retest 11:13:26 |
 | Tester | Anuj Kumar |
 | Location (city only) | |
 | Repository commit the APK was built from (`git rev-parse --short HEAD`) | `627e571` (`627e5712284760148ab8a9d05a2761039fbdcc45`, main, 2026-11-05 13:06 IST) |
@@ -52,7 +52,7 @@ Record one row per phone used. **Write SIM numbers as "+91 •••••••
 | M2 (Airtel) | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-07 09:19 IST | Yes: forwarding checked off before the call (§3f) | **What the caller heard:** "The number is currently busy." (busy), for about 2 s; then the call ended by itself. P1 did not ring | **Passed** (Airtel only) | The tester's note (§3f); no image or log |
 | M2 (Vi) | | Vi | | | | Blocked: no Vi SIM | |
 | M2 (BSNL) | | BSNL | | | | Blocked: no BSNL SIM | |
-| M6 | | | | | | Not run | |
+| M6 | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-07, from 09:59:31 IST (Telecom `TC@218`, then `TC@220`, `TC@221`, and the owner-approved retest `TC@222` at 11:13:26) | Yes: X saved twice before the first call, contacts access denied (§3g) | **Initial attempt (09:59):** P1 did not ring. Android consulted the app and the call was rejected. **Later calls** (10:05, 10:15, and the retest at 11:13): P1 rang, showing "M6 test A"; Android did not consult the app; all missed, ended by the caller. The notice matched (§3g) | **Accepted with finding — Passed on a later attempt; the initial attempt failed (TC@218); root cause inconclusive.** (owner, 2026-11-07) | `M6-p1-airtel-telecom-redacted.txt`, `M6-p1-airtel-telecom-TC220-redacted.txt`, `M6-p1-airtel-telecom-TC221-redacted.txt`, `M6-retest-p1-airtel-telecom-TC222-redacted.txt`, `M6-p1-airtel-blocklist-notice-redacted.png`, `M6-p1-airtel-blocklist-notice-after-call-redacted.png` (§3g) |
 | M7 | | | | | | Not run | |
 | M8 | | | | | | Not run | |
 | M9 | | | | | | Blocked: needs an Android 8/9 phone (P1 is Android 12) | |
@@ -131,7 +131,7 @@ After attempt 2, the app's Calls feed showed "No call data yet". **That is by de
 
 ### 3e. Not covered by M1, and still not run
 
-- **M6:** saved contact, no contacts access. Attempt 1 is consistent with it, but is not M6.
+- **M6:** saved contact, no contacts access. M1's attempt 1 was consistent with it, but was not M6. M6 itself was run on 2026-11-07 (§3g).
 - **M7:** saved contact, contacts access granted, expected Blocked.
 - **The contact behaviour is observed on this one phone only.** It is not established for other phones or OEMs.
 
@@ -167,6 +167,123 @@ After attempt 2, the app's Calls feed showed "No call data yet". **That is by de
 
 **M2 is not complete.** Its other three carriers are blocked: there is no Jio, Vi or BSNL SIM. Airtel's result says nothing about them.
 
+### 3g. M6: the call sequence of 2026-11-07 (accepted with a recorded finding)
+
+**Expected** (checklist §4, as worded at the time of the run): "**P1 rings** (Android does not ask the app about saved contacts). **The blocklist shows** "Numbers saved in your contacts ring without being checked…""
+
+**Setup**, checked read-only just before the calls:
+- the app held the role;
+- X was blocked (one entry, ending `39`);
+- contacts access (READ_CONTACTS) was **denied** (`granted=false`, set by the user);
+- X was saved twice in P1's contacts, as the tester reported, **both saved before the first call** (tester's confirmation):
+  - "M6 test A": stored on the **phone (device)**, in the **10-digit national** form;
+  - "M6 test B": stored in the **Google account**, in the **`+91`** form, and added on the Redmi itself;
+  - the exact save and edit times of both are **unknown**.
+
+The contacts themselves were not read.
+
+**The calls, in order:**
+
+| # | Time (IST) | Telecom | What happened | Status |
+|---|---|---|---|---|
+| **1** | 09:59:31 | `TC@218` | **The tester's intentional M6 call, the initial attempt.** Android's own check did **not** report the caller as a contact (`BLOCK_CHECK_FINISHED (not blocked [Allow, logged, notified])`, with no "contact exists"). It **consulted the app** (`SCREENING_BOUND` names `com.callscreen.debug/…PreFilterScreeningService`); the app answered `[Reject, logged, mCallBlockReason = 1]`; the call was disconnected `INCOMING_REJECTED` 0.33 s after it arrived. It was rejected before any ringer started (no `START_RINGER`); it is not a missed call | **Does not match Expected: the initial-attempt finding** |
+| **2** | 10:05:11 | `TC@220` | A subsequent call. Android **reported the contact** (`BLOCK_CHECK_FINISHED` and `FILTERING_COMPLETED`: `[Allow, logged, notified, contact exists]`) and did **not** bind the app's service. **Tester:** the Redmi rang with "M6 test A" on the incoming screen, unanswered, for an estimated 20–30 s. **Telecom, separately:** `START_RINGER` 10:05:12.17, `STOP_RINGER` 10:05:16.43 (about 4.3 s of ringer activity); disconnected `INCOMING_MISSED`, ended by the caller | A subsequent observation that matches Expected. **It does not replace the initial attempt** |
+| **3** | 10:15:22 | `TC@221` | A further subsequent call. Android **reported the contact** (`BLOCK_CHECK_FINISHED` and `FILTERING_COMPLETED`: `[Allow, logged, notified, contact exists]`) and did **not** bind the app's service. **Tester:** the Redmi rang with "M6 test A" on the incoming screen; the tester watched it ring for about 5 s and did not wait for the end. **Telecom, separately:** `START_RINGER` 10:15:22.75, `STOP_RINGER` 10:15:32.90 (about 10.1 s of ringer activity); disconnected `INCOMING_MISSED`, ended by the caller | A subsequent observation that matches Expected. **It does not replace the initial attempt** |
+| **4** | 11:13:26 | `TC@222` | **The owner-approved retest** (one call; below). Android **reported the contact** (`BLOCK_CHECK_FINISHED` and `FILTERING_COMPLETED`: `[Allow, logged, notified, contact exists]`) and did **not** consult the app (no `SCREENING_BOUND`, `SCREENING_COMPLETED` or `REQUEST_REJECT`). **Owner:** the Redmi rang, showing "M6 test A", for about 30 s. **Telecom, separately:** `START_RINGER` 11:13:27.18, `STOP_RINGER` 11:13:56.45 (about 29.3 s of ringer activity); disconnected `INCOMING_MISSED`, ended by the caller | A fresh observation that matches Expected; the latest. **It does not replace the initial attempt** |
+
+**The Blocked numbers notice** (the second half of Expected) was captured at 10:01 (between calls 1 and 2) and at 10:08 (after call 2). Both read, in the wording of the time: "Numbers saved in your contacts ring without being checked, so blocking one of them here has no effect. To block saved contacts too, allow contacts access. This app doesn't read or upload your contacts: Android uses the permission only to let it check calls from them." This matches the checklist's wording, with "Allow contacts access" below it.
+
+**First assessment (after calls 1–3; superseded by the owner's final decision, below): M6 not Passed, an unresolved finding.**
+- **On the initial attempt, the result did not match Expected.** The phone did not ring: Android consulted the app for a caller saved twice in contacts, without contacts access, and the call was blocked.
+- **The checklist's rule:** "If a case does not match 'Expected': record what happened, exactly, with the evidence; do not retry until it passes." Calls 2 and 3 are recorded as what happened. **They do not turn the initial attempt into a pass.**
+- **What the evidence shows:**
+  - The calls differ in **Android's own contact check**: "contact exists" is absent on call 1 and present on calls 2 and 3.
+  - Telecom masks the caller's number, so it does not by itself show who called. Calls 2 and 3 are tied to X by the tester's observation of "M6 test A". Call 1 is tied to X by the app's rejection: its blocklist holds only X.
+  - **Why** it differed is not established. The contacts were not read, and nothing on the phone was changed between the calls by this testing.
+  - The app's notice says saved contacts "ring without being checked". On call 1 that did not hold.
+
+**The evidence**, kept by the tester in `%USERPROFILE%\Documents\lily-m1-redacted\`, outside the repository:
+
+| File | Shows | SHA-256 |
+|---|---|---|
+| `M6-p1-airtel-telecom-redacted.txt` | Telecom's events for `TC@218` only (call 1) | `8d63c75094f851eb6dbc0709bd3b5b83b25887f0e92569ae592828dffd8d3380` |
+| `M6-p1-airtel-telecom-TC220-redacted.txt` | Telecom's events for `TC@220` only (call 2) | `334d53e0345388262bc124bd20c31d610010e6f1336db4efcdcda0edf16a3b7a` |
+| `M6-p1-airtel-telecom-TC221-redacted.txt` | Telecom's events for `TC@221` only (call 3) | `5c8c8b199afcf328794634fae950b690dbbcaaf2fe43d26029a4a27691162792` |
+| `M6-retest-p1-airtel-telecom-TC222-redacted.txt` | Telecom's events for `TC@222` only (call 4, the retest) | `9e0983d8a2c6b33782b95c31ddee82b30bd2959900ec7e7c7bf482e8c6f99d3d` |
+| `M6-p1-airtel-blocklist-notice-redacted.png` | The Blocked numbers notice at 10:01; the entry shows only `39` | `0c5cb7992c0ab66012976cbe810ebb8484dde4be87dd315e8ebc32284e760efa` |
+| `M6-p1-airtel-blocklist-notice-after-call-redacted.png` | The same screen at 10:08 | `5331b573be7b78f7d42379d7319a22ac521171ad22c41164c06547944d29e86f` |
+
+**How the evidence was made:**
+- **Screenshots:** taken with `adb exec-out screencap` after opening Blocked numbers with the debug start-destination (delivered with `--activity-single-top`), so nothing was written to the phone.
+  - The redacted copies are new, flattened PNGs with no metadata. A solid box covers all but the last two digits; each box was confirmed solid, and the copies were viewed whole.
+  - The unredacted originals are kept under names beginning `UNREDACTED-DO-NOT-SHARE-M6-`, unchanged.
+  - A first capture showed the wrong screen (the Assistant tab: no personal data, not evidence) and was deleted.
+- **Telecom:** each excerpt was filtered from `dumpsys telecom` in memory, for one call ID, never saving the full dump.
+  - `tel:` handles and app-name fields are replaced with `[redacted]`; Android itself also masks the caller handle.
+  - No excerpt holds a run of 7 or more digits.
+  - Call 3's excerpt was taken later, with the owner's approval of one read-only Telecom check: only call headers after `TC@220` were listed (one: `TC@221`), then only that call was extracted.
+- **Not inspected:** `TC@219`, an outgoing call from P1 at 10:03:30. It is not part of the test.
+
+**Investigation of call 1** (2026-11-07; read-only: the app's source, and the Telecom excerpts above. No contacts read, no calls placed, nothing on the phone changed):
+
+**Facts:**
+- **The app's code is the code on the phone:** nothing under `android/` changed between the APK's commit `627e571` and `main` `bb44d9e`.
+- **When Android hands the app a call, the app's decision is fixed:**
+  - `PreFilterScreeningService.onScreenCall` (`android/core/telephony/src/main/kotlin/com/callscreen/core/telephony/screening/PreFilterScreeningService.kt:46-56`) builds `PreFilter(callerLists, NO_CONTACTS)`.
+  - `NO_CONTACTS` is `ContactLookup { false }` (line 66): the app never reads contacts, so it cannot tell a contact from a non-contact, with or without contacts access.
+  - `PreFilter.decide` (`…/prefilter/PreFilter.kt:69-76`) checks the blocklist (line 73) before any contact check.
+  - `PhoneNumbers.normalise` (`…/prefilter/PhoneNumbers.kt:52-58`) maps the `+91`, `91`, `0` and 10-digit forms to the same number.
+  - **Tests:** `PreFilterTest` ("a number matches its list in any form the handset presents it"; "an explicit block wins over a contact") and `ScreeningServiceTest` ("a blocked number, however Android presents it, is rejected").
+  - **So every call from X that Android hands the app is rejected.** Call 1 was.
+- **Whether the app is consulted is Android's decision,** made from its own contact check (the manifest note: `android/core/telephony/src/main/AndroidManifest.xml:11-13`).
+  - "contact exists" was absent on call 1 and present on calls 2 and 3.
+  - The app was bound only on call 1.
+- **Android's check completed on all three calls,** with no sign of a timeout:
+  - the voicemail-routing step took 30, 17 and 24 ms;
+  - the block check took 61, 62 and 80 ms.
+  - So on call 1 the lookup finished and did not report a contact.
+- **Telecom masks the caller's number,** so whether the network presented X in the same form on all three calls cannot be checked.
+
+**Hypotheses** (none established):
+- **H1, timing or indexing:** Android's lookup had not yet seen the contacts at 09:59, for example because one was saved or edited just before, or the Google-account contact was still syncing. **H1 can be neither confirmed nor ruled out, because the save and edit times are unknown.** Against it, A is stored on the device, where a saved contact is normally found at once.
+- **H2, number form:** Android normally matches numbers on their trailing digits, so the national entry (A) and the `+91` entry (B) should each match X in any form. The same two contacts matched on calls 2 and 3, with nothing reported changed. Number form alone therefore does not explain the difference, unless the network presented X differently on call 1, which cannot be checked. Plausibility: low.
+- **H3, the phone's software** (MIUI, Android 12, the Google Phone app): a device-specific lookup or caching behaviour. No evidence either way.
+
+**Conclusion:**
+- **Not a reproducible product defect:** the app acted deterministically, as designed and tested, on the call Android handed it.
+- **The root cause is inconclusive:** Android's own contact check gave different answers for the same caller and the same two contacts within six minutes, for a reason not established.
+- **The notice** ("…ring without being checked, so blocking one of them here has no effect") did not hold on call 1. The owner approved revised wording (below).
+
+**Owner decisions, 2026-11-07:**
+1. **M6 assessment: Unresolved / Not Passed.** *Superseded by the owner's final decision, after the retest (below).*
+   - Call 1 (`TC@218`) remains the initial-attempt finding.
+   - Calls 2 and 3 (`TC@220`, `TC@221`) are subsequent observations; they do not replace the initial attempt.
+   - The root cause remains inconclusive. The test contacts' save and edit times remain unknown.
+2. **No further diagnostic calls are authorised.** (The owner later approved exactly one retest, call 4, below.)
+3. **The contacts notice is revised** (approved wording). In `protection_notice_contacts` (`android/feature/protection/src/main/res/values/strings.xml`), the first two sentences change; the last two, about privacy, are unchanged:
+   - **was:** "Numbers saved in your contacts ring without being checked, so blocking one of them here has no effect. To block saved contacts too, allow contacts access."
+   - **now:** "Contacts may be allowed to ring without being checked by this app. To help block numbers saved in your contacts, allow contacts access."
+   - "To help" does not promise that every saved contact will be recognised once contacts access is allowed.
+   - It says "this app", not a product name: the brand review (F26) is pending and the other screens still say "Aegis AI" (owner, 2026-11-07).
+   - The app's behaviour is unchanged: no permission is added or requested, and the call-screening logic is not touched.
+   - **The calls above were made with the previous wording.**
+4. **Translations:** the revised English is in the five translation worksheets (`docs/translation/worksheets/`). **Hindi, Tamil, Telugu, Malayalam and Kannada are pending human translation**, as is every string; until then the app shows the English.
+
+**The retest, 2026-11-07** (exactly one call, approved by the owner to investigate the finding):
+- **Read-only preflight**, just before the call: the same install (`0.1.0-dev-debug`, the `627e571` APK); the app held the role; READ_CONTACTS `granted=false` and app-ops `ignore`; X blocked (one entry, ending `39`); the Airtel SIM loaded; no call in progress; the "always forward" indicator off; no call since `TC@221`. The app's process had been restarted by the phone since the earlier calls (a new process ID); the install, role and permission were unchanged.
+- **The owner confirmed:** both test contacts unchanged ("M6 test A": phone, 10-digit national; "M6 test B": Google account, `+91`); the caller setup unchanged; all four Airtel forwarding options (always, busy, unanswered, unreachable) off.
+- **The call:** `TC@222`, 11:13:26 IST, Airtel, the Redmi 9 Power (Android 12, MIUI 14): call 4 in the table above. The owner confirmed "M6 test A" on the incoming screen (stored on the phone, 10-digit national form), the Redmi ringing for about 30 s, and no recording on either phone.
+- **The evidence:** `M6-retest-p1-airtel-telecom-TC222-redacted.txt` (SHA-256 `9e0983d8a2c6b33782b95c31ddee82b30bd2959900ec7e7c7bf482e8c6f99d3d`, verified on disk): `TC@222` only, filtered from `dumpsys telecom` in memory, handles redacted, no run of 7 or more digits.
+- **About the cause:** an hour after call 1, Android again recognised the contact. That is consistent with H1 (call 1's lookup not yet seeing the contacts), but does not prove it.
+
+**The owner's final decision, 2026-11-07** (superseding decision 1 above): **Accepted with finding — Passed on a later attempt; the initial attempt failed (TC@218); root cause inconclusive.**
+- The owner accepted M6 after reviewing the four observations.
+- **Call 1 (`TC@218`) remains an initial-attempt failure;** it is kept here unchanged.
+- **Three subsequent observations matched Expected** (`TC@220`, `TC@221`, `TC@222`); `TC@222` is the latest.
+- **Why Android's contact lookup differed on call 1 remains unknown,** and the test contacts' save and edit times remain unknown.
+- **This acceptance does not establish the root cause,** and does not show the same behaviour on other Android devices, OEMs or carriers.
+- **No further diagnostic calls are authorised.**
+
 **For a failed case,** also record:
 - the time;
 - the app's screen at that moment (a screenshot);
@@ -181,8 +298,10 @@ After attempt 2, the app's Calls feed showed "No call data yet". **That is by de
 - [x] No contact names other than the test entries appear. (The caller-ID name the Phone app showed is covered.)
 - [x] No call recording exists anywhere. (Confirmed by the tester, Anuj Kumar, 2026-11-06, for the M1 call.)
   - [x] The M2 (Airtel) call of 2026-11-07, 09:19 IST: confirmed by the tester, Anuj Kumar, 2026-11-07: no recording was made.
+  - [x] The M6 calls of 2026-11-07 (`TC@218` 09:59, `TC@220` 10:05, `TC@221` 10:15): confirmed by the tester, Anuj Kumar, 2026-11-07: no audio recording was made of any of them.
+  - [x] The M6 retest of 2026-11-07 (`TC@222`, 11:13): confirmed by the owner: no recording was made on either phone.
 - [x] Logs read through; any with a phone number deleted or redacted. (The Telecom excerpt holds one call and no run of 7 or more digits; no full dump was kept.)
-- [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Deferred: session continues** (M6, M7 and other cases run on the same phone next). The unredacted originals are deleted then.
+- [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Deferred: session continues** (M7 and other cases run on the same phone next). The unredacted originals are deleted then.
 
 ## 5. Sign-off
 
