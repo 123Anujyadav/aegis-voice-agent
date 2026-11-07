@@ -65,7 +65,7 @@
     <string name="protection_notice_unsupported">This version of Android doesn\'t let apps block calls, so numbers on this list aren\'t blocked on this phone.</string>
     <string name="protection_notice_role_not_held">Blocking is off. Numbers on this list won\'t be blocked until this app is your caller ID &amp; spam app.</string>
     <string name="protection_notice_turn_on">Turn on blocking</string>
-    <string name="protection_notice_contacts">Numbers saved in your contacts ring without being checked, so blocking one of them here has no effect. To block saved contacts too, allow contacts access. This app doesn\'t read or upload your contacts: Android uses the permission only to let it check calls from them.</string>
+    <string name="protection_notice_contacts">Contacts may be allowed to ring without being checked by this app. To help block numbers saved in your contacts, allow contacts access. This app doesn\'t read or upload your contacts: Android uses the permission only to let it check calls from them.</string>
     <string name="protection_notice_allow_contacts">Allow contacts access</string>
     <!-- Owner decision Q8 (2026-11-05): the button opens Android's settings page for this app, not the app's Settings tab. -->
     <string name="protection_notice_contacts_denied">Contacts access is off. You can turn it on in your phone\'s settings.</string>
