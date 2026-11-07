@@ -1,6 +1,6 @@
 # Device test session record: 2026-11-05, Redmi 9 Power (Android 12, Airtel)
 
-**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b), **M2 on Airtel Passed** (§3f), and **M6: accepted with a recorded finding** (§3g: passed on a later attempt; the initial attempt failed). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run.
+**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b), **M2 on Airtel Passed** (§3f), **M6: accepted with a recorded finding** (§3g: passed on a later attempt; the initial attempt failed), and **M7 Passed** (§3h). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run.
 
 This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md). The cases and their expected results are in [`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md).
 
@@ -17,7 +17,7 @@ This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md
 
 | Field | Value |
 |---|---|
-| Date and time (IST) | Started 2026-11-05; the M1 call 2026-11-06 00:45:39; the M2 (Airtel) call 2026-11-07 09:19; the M6 calls 2026-11-07 09:59:31, 10:05:11 and 10:15:22, and the M6 retest 11:13:26 |
+| Date and time (IST) | Started 2026-11-05; the M1 call 2026-11-06 00:45:39; the M2 (Airtel) call 2026-11-07 09:19; the M6 calls 2026-11-07 09:59:31, 10:05:11 and 10:15:22, and the M6 retest 11:13:26; the M7 call 2026-11-07 14:40:59 |
 | Tester | Anuj Kumar |
 | Location (city only) | |
 | Repository commit the APK was built from (`git rev-parse --short HEAD`) | `627e571` (`627e5712284760148ab8a9d05a2761039fbdcc45`, main, 2026-11-05 13:06 IST) |
@@ -53,7 +53,7 @@ Record one row per phone used. **Write SIM numbers as "+91 •••••••
 | M2 (Vi) | | Vi | | | | Blocked: no Vi SIM | |
 | M2 (BSNL) | | BSNL | | | | Blocked: no BSNL SIM | |
 | M6 | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-07, from 09:59:31 IST (Telecom `TC@218`, then `TC@220`, `TC@221`, and the owner-approved retest `TC@222` at 11:13:26) | Yes: X saved twice before the first call, contacts access denied (§3g) | **Initial attempt (09:59):** P1 did not ring. Android consulted the app and the call was rejected. **Later calls** (10:05, 10:15, and the retest at 11:13): P1 rang, showing "M6 test A"; Android did not consult the app; all missed, ended by the caller. The notice matched (§3g) | **Accepted with finding — Passed on a later attempt; the initial attempt failed (TC@218); root cause inconclusive.** (owner, 2026-11-07) | `M6-p1-airtel-telecom-redacted.txt`, `M6-p1-airtel-telecom-TC220-redacted.txt`, `M6-p1-airtel-telecom-TC221-redacted.txt`, `M6-retest-p1-airtel-telecom-TC222-redacted.txt`, `M6-p1-airtel-blocklist-notice-redacted.png`, `M6-p1-airtel-blocklist-notice-after-call-redacted.png` (§3g) |
-| M7 | | | | | | Not run | |
+| M7 | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-07 14:40:59 IST (Telecom `TC@228`) | Yes: as M6 (X saved twice, unchanged), then "Allow contacts access" in the app and Android's dialog (granted 14:39:51) (§3h) | P1 did not ring. Android reported "contact exists", consulted the app, which rejected the call; the Phone app shows "Blocked call, 2:40 pm" for "M6 test A" (§3h) | **Passed** | `M7-p1-airtel-telecom-TC228-redacted.txt`, `M7-p1-airtel-calldetails-redacted.png` (§3h) |
 | M8 | | | | | | Not run | |
 | M9 | | | | | | Blocked: needs an Android 8/9 phone (P1 is Android 12) | |
 | M10 (SIM 1) | | | | | | Not run: needs a second active SIM in P1 | |
@@ -132,7 +132,7 @@ After attempt 2, the app's Calls feed showed "No call data yet". **That is by de
 ### 3e. Not covered by M1, and still not run
 
 - **M6:** saved contact, no contacts access. M1's attempt 1 was consistent with it, but was not M6. M6 itself was run on 2026-11-07 (§3g).
-- **M7:** saved contact, contacts access granted, expected Blocked.
+- **M7:** saved contact, contacts access granted, expected Blocked. Run on 2026-11-07 and Passed (§3h).
 - **The contact behaviour is observed on this one phone only.** It is not established for other phones or OEMs.
 
 ### 3f. M2 on Airtel: what the caller heard
@@ -284,6 +284,47 @@ The contacts themselves were not read.
 - **This acceptance does not establish the root cause,** and does not show the same behaviour on other Android devices, OEMs or carriers.
 - **No further diagnostic calls are authorised.**
 
+### 3h. M7: a saved contact with contacts access, 2026-11-07 (Passed)
+
+**Expected** (checklist §4): "**M7** | P1 | As M6, then "Allow contacts access" in the app (or `pm grant`) | C calls from X | **Blocked** | Call-log screenshot". **The owner's pass criterion** (stricter than the checklist): all three of (1) Android reports "contact exists"; (2) the app's screening service is consulted and rejects the call; (3) the Phone app's call history shows "Blocked".
+
+**Setup** (read-only preflight just before; the contacts were not read):
+- the same install (`0.1.0-dev-debug`, the `627e571` APK); the app held the role; X blocked (one entry, ending `39`); the Airtel SIM loaded; no call in progress;
+- X saved twice, unchanged since M6 ("M6 test A": phone, 10-digit national; "M6 test B": Google account, `+91`), as the owner confirmed;
+- caller ID shown on X, and call recording disabled on both phones, as the owner confirmed;
+- **forwarding:** all four Airtel options confirmed off by the owner at 11:13; on the day, the "always forward" indicator was read off (`mCallForwarding=false`); **the busy, unanswered and unreachable options were not re-queried** (owner's instruction).
+
+**Contacts access granted, the one change** (owner-approved): before it, `READ_CONTACTS` `granted=false` (flags `USER_SET`) and app-ops `ignore`. The owner opened Blocked numbers, tapped **"Allow contacts access"** and approved Android's own permission dialog (no `pm grant`). Afterwards, read-only: `READ_CONTACTS` `granted=true` for user 0, at 14:39:51 (the `granted=false` line belongs to MIUI's second-space user 999, where the app is not installed); app-ops "Default mode: allow"; the role still held; the app still running (the same process) with no crash or freeze.
+
+**The call:** exactly one, `TC@228`, 2026-11-07 14:40:59 IST, the first incoming call after `TC@227`.
+
+| Condition | Evidence | Result |
+|---|---|---|
+| 1. Android reports "contact exists" | Telecom: `BLOCK_CHECK_FINISHED (not blocked [Allow, logged, notified, contact exists])` at 14:41:00.010; also in `SCREENING_COMPLETED` and `FILTERING_COMPLETED` | **Met** |
+| 2. The app is consulted and rejects the call | Telecom: `SCREENING_BOUND` (`com.callscreen.debug/…PreFilterScreeningService`) 14:41:00.028; `SCREENING_COMPLETED ([Reject, logged, contact exists, mCallBlockReason = 1, …])` 14:41:00.031; `REQUEST_REJECT` 14:41:00.035; `SET_DISCONNECTED` `INCOMING_REJECTED` 14:41:00.097, about 0.34 s after the call arrived (14:40:59.758). No `START_RINGER`: the Redmi did not ring | **Met** |
+| 3. The Phone app's call history shows "Blocked" | The "M6 test A" call-details page in Google Phone: **"Blocked call, 2:40 pm"**, number ending `39` | **Met** |
+
+**M7 Passed** (the owner's review, 2026-11-07): all three conditions are supported by the evidence below. It is the result for this phone, carrier and build only; it says nothing about other devices, OEMs or carriers, and no other case is changed by it.
+
+**The evidence**, kept by the tester in `%USERPROFILE%\Documents\lily-m1-redacted\`, outside the repository:
+
+| File | Shows | SHA-256 |
+|---|---|---|
+| `M7-p1-airtel-telecom-TC228-redacted.txt` | Telecom's events for `TC@228` only | `59dabf1cc822af15bc0cc3612d48f30ab96332ab14c397697a36812c0183d3d2` |
+| `M7-p1-airtel-calldetails-redacted.png` | The "M6 test A" call-details page: the name, the number's last two digits (`39`), and "Blocked call, 2:40 pm"; every other row covered | `bdbe0b1afbebfe24b97cd01df4f9d96a8a95ee06eb338e2d4e56a4d6aa36f3d1` |
+
+**How the evidence was made:**
+- **Telecom:** filtered from `dumpsys telecom` in memory, for `TC@228` only; the full dump was never saved; handles redacted (Android also masks them); no run of 7 or more digits.
+- **The screenshot:** taken with `adb exec-out screencap` (nothing written to the phone), after a strict check of the screen in memory: the focused activity was Google Phone's call-details page (`ConversationHistoryCallDetailsWrapperActivity`); "M6 test A" and "Blocked" present; no Recents markers; no other contact name; one phone number, ending `39`. The owner navigated to the page; no tap was sent.
+  - The redacted copy is a new, flattened PNG with no metadata: solid boxes cover `+91` and eight digits (placed by measuring the 13 characters), and every other call-history row (the 11:13, 10:15 and 10:05 missed calls, the 9:59 and 9:18 blocked calls, and Fri 12:45 am). Each box was confirmed solid; the copy was viewed whole and at 3× on the number row.
+  - **Checked against `TC@228`:** "2:40 pm" today matches 14:40:59; "Blocked" matches `Reject` and `INCOMING_REJECTED`; "M6 test A" matches "contact exists"; the last two digits match X, the only blocklist entry.
+- **Kept locally only, never committed or uploaded:** the unredacted original (`UNREDACTED-DO-NOT-SHARE-M7-calldetails-original.png`, SHA-256 `56851bf3659c2c69b107b5198228c2ac599c37a88e5e32b664f8aea64233270b`).
+- **Not evidence, recorded for the audit trail:**
+  - a first capture caught the home screen (no call data) and was deleted (SHA-256 `2b9a99fe…68cb`);
+  - a second caught Google Phone's Recents list, which shows other people's calls. It is kept locally, unused and unshared, at the owner's instruction (`UNREDACTED-DO-NOT-SHARE-M7-calllog-original.png`, SHA-256 `b5ce1eef886bd9b13e6a4df36abdbe4f1125ac40dd306ad9ca87abb39132bf3c`). The check before capturing was tightened after it.
+
+**Contacts access stays granted** until the session's cleanup, which the owner approves separately (§4).
+
 **For a failed case,** also record:
 - the time;
 - the app's screen at that moment (a screenshot);
@@ -300,8 +341,9 @@ The contacts themselves were not read.
   - [x] The M2 (Airtel) call of 2026-11-07, 09:19 IST: confirmed by the tester, Anuj Kumar, 2026-11-07: no recording was made.
   - [x] The M6 calls of 2026-11-07 (`TC@218` 09:59, `TC@220` 10:05, `TC@221` 10:15): confirmed by the tester, Anuj Kumar, 2026-11-07: no audio recording was made of any of them.
   - [x] The M6 retest of 2026-11-07 (`TC@222`, 11:13): confirmed by the owner: no recording was made on either phone.
+  - [x] The M7 call of 2026-11-07 (`TC@228`, 14:40): the owner confirmed before the call that call recording was disabled on both phones.
 - [x] Logs read through; any with a phone number deleted or redacted. (The Telecom excerpt holds one call and no run of 7 or more digits; no full dump was kept.)
-- [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Deferred: session continues** (M7 and other cases run on the same phone next). The unredacted originals are deleted then.
+- [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Deferred: session continues** (M8, M11, M12 and other cases run on the same phone next). Contacts access, granted for M7, is restored then. The unredacted originals are deleted then, with the owner's approval.
 
 ## 5. Sign-off
 
@@ -309,6 +351,6 @@ The contacts themselves were not read.
 |---|---|
 | Tester's statement | "I ran the cases marked Passed or Failed above on the physical phones listed, and the evidence is as captured." |
 | Tester | Anuj Kumar |
-| Date | 2026-11-06 (M1); 2026-11-07 (M2 on Airtel, as reported by the tester) |
+| Date | 2026-11-06 (M1); 2026-11-07 (M2 on Airtel, as reported by the tester); 2026-11-07 (M6 and M7, reviewed by the owner) |
 
 **After the session,** copy each case's result into the checklist's results table (§5) and into `PRODUCTION-READINESS.md` §3.5 with a link to this record. Claude Code can do that from the committed record, and analyse any failure.
