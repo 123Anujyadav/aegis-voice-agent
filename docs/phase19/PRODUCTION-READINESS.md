@@ -1,8 +1,8 @@
 # Production readiness tracker
 
-- **As of:** 2026-11-07 (M6 accepted with a recorded finding), on `main` `bb44d9e` of 2026-11-07 (#251, M2's Airtel record). Entries are updated with each merge.
+- **As of:** 2026-11-07 (M7 passed), on `main` `d8b784e` of 2026-11-07 (#252, M6's record and the revised contacts notice). Entries are updated with each merge.
 - **The plan to production, with the external dependencies, owner actions and exit evidence:** [`PRODUCTION-READINESS-PLAN.md`](PRODUCTION-READINESS-PLAN.md) (2026-11-05).
-- **Verdict: not production-ready.** Nothing has been deployed anywhere, only M1, M2's Airtel run and M6 (accepted with a recorded finding) have passed, on one physical phone (§3.5), and no Play release exists. Builds and CI passing are not readiness (§1).
+- **Verdict: not production-ready.** Nothing has been deployed anywhere, only M1, M2's Airtel run, M6 (accepted with a recorded finding) and M7 have passed, on one physical phone (§3.5), and no Play release exists. Builds and CI passing are not readiness (§1).
 - **Method:** every entry cites the code, test, workflow or document it rests on. It comes from an audit of the repository at `7f60bac`, re-checked against each later merge. Nothing is estimated, and there are no percentages.
 - **IDs:** task and blocker IDs are the ones defined in [`ROADMAP-INVENTORY.md`](ROADMAP-INVENTORY.md) (C, T, OD, L, E, X, H) and [`EXTERNAL-DEPENDENCIES.md`](EXTERNAL-DEPENDENCIES.md) (O). This document does not redefine them. F-numbers are this document's own findings (§4).
 - **Reviews:** the findings in §4 come from an AI-performed review. They are not an independent human review (`ARCHITECTURE_FREEZE.md` §6.1).
@@ -14,7 +14,7 @@
 | **Implemented** | Code on `main` | Most areas (§2) |
 | **Automated tests** | Run in CI on every relevant PR and on `main`: unit, Robolectric, real PostgreSQL, and the live contract against local binaries | Backend; Android JVM and Robolectric tests; `android-identity-contract` |
 | **Emulator** | The instrumented tests (`app/src/androidTest`) on an Android emulator: in CI by `android-device-tests.yml` (#206, `bba198d`), or by hand | Screening, the network-permission check, the Keystore key, and sign-in, refresh and edge-api `GET /v1/me` with real Keystore keys against a local HTTPS fake of identity (`SessionOnDeviceTest`, #207). Not against real hosts |
-| **Physical device** | Any run on a real phone | **M1, M2 on Airtel only, and M6** (accepted with a recorded finding) passed: one phone, one carrier (§3.5) |
+| **Physical device** | Any run on a real phone | **M1, M2 on Airtel only, M6** (accepted with a recorded finding) **and M7** passed: one phone, one carrier (§3.5) |
 | **Staging-verified** | Exercised on deployed staging hosts | **None.** No staging hosts exist (X5) |
 | **Production-verified** | Exercised in production | **None** |
 
@@ -28,7 +28,7 @@ A runbook is not evidence that an operation works. Every runbook in `docs/runboo
 | 2 | Android session and edge-api integration | Yes | CI | `SessionOnDeviceTest` (#207): API 35, 26 and 28 in CI | None | None | None |
 | 3 | DPoP and device-key security | Yes | CI | Keystore key test | None | None | None |
 | 4 | Phone verification and calling permissions | Partly: no code can be delivered (E2) | CI | Role tests | None | None | None |
-| 5 | Call screening and reliability | Yes, on-device prefilter | CI | Instrumented and manual cases | **M1 passed; M2 passed on Airtel only; M6 accepted with a recorded finding:** one phone | n/a, on-device | None |
+| 5 | Call screening and reliability | Yes, on-device prefilter | CI | Instrumented and manual cases | **M1 passed; M2 passed on Airtel only; M6 accepted with a recorded finding; M7 passed:** one phone | n/a, on-device | None |
 | 6 | Account deletion and data erasure | In-app yes; web flow built but dormant | CI | — | None | None | None |
 | 7 | Backend security and API correctness | Yes, with gaps (§3.7) | CI | n/a | n/a | None | None |
 | 8 | Infrastructure, deployment and observability | Templates only | Partial | n/a | n/a | **Nothing deployed** | None |
@@ -134,7 +134,8 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - a blocked number that is not a saved contact did not ring; Telecom shows the app's service bound and the call rejected and logged (`TC@198`); the Phone app shows "Blocked call";
   - the evidence is redacted and kept outside the repository, with its SHA-256 in the record; the images are camera photos, not screenshots;
   - **a saved contact rang while contacts access was denied** (M1's attempt 1): Android's documented behaviour (M6's setup), seen on this phone only;
-  - **M6: Accepted with finding — Passed on a later attempt; the initial attempt failed (TC@218); root cause inconclusive.** (owner, 2026-11-07). On the initial attempt (`TC@218`), Android consulted the app for a caller saved twice in contacts, without contacts access, and the call was blocked: the phone did not ring. Three subsequent calls matched Expected, the latest an owner-approved retest (`TC@222`, 11:13): Android recognised the contact, did not consult the app, and the phone rang. Why Android's contact check differed on the first call is not established (root cause inconclusive), and the acceptance does not show the same behaviour on other devices or carriers. No further diagnostic calls are authorised. **The owner approved revised notice wording**, "Contacts may be allowed to ring without being checked by this app. To help block numbers saved in your contacts, allow contacts access.", now in the English source; the five translations are pending human translation. M7 not run;
+  - **M6: Accepted with finding — Passed on a later attempt; the initial attempt failed (TC@218); root cause inconclusive.** (owner, 2026-11-07). On the initial attempt (`TC@218`), Android consulted the app for a caller saved twice in contacts, without contacts access, and the call was blocked: the phone did not ring. Three subsequent calls matched Expected, the latest an owner-approved retest (`TC@222`, 11:13): Android recognised the contact, did not consult the app, and the phone rang. Why Android's contact check differed on the first call is not established (root cause inconclusive), and the acceptance does not show the same behaviour on other devices or carriers. No further diagnostic calls are authorised. **The owner approved revised notice wording**, "Contacts may be allowed to ring without being checked by this app. To help block numbers saved in your contacts, allow contacts access.", now in the English source; the five translations are pending human translation;
+  - **M7 passed**, 2026-11-07 (`TC@228`): with contacts access granted through the app, a call from X, saved as a contact, did not ring. Android reported "contact exists", the app was consulted and rejected the call, and the Phone app shows "Blocked call". Evidence redacted and kept outside the repository, with its SHA-256 in the session record (§3h). Contacts access stays granted until the session's cleanup;
   - the Calls feed's "No call data yet" is by design in this build (no call records exist) and is not evidence.
   - **M2 passed on Airtel only**, 2026-11-07: the caller heard "The number is currently busy." for about 2 s, then the call ended by itself, with no voicemail and no ringing on. **M2 is not complete:** Jio, Vi and BSNL are not run (no SIMs).
   - No other case and no other carrier has been tested (T2).
@@ -142,7 +143,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
 - **Blocker:**
   - **T2**, blocked on X3 (a phone) and X4 (SIMs);
   - C7/OD-2/H3; C8/X4; OD-3. (OD-11 closed by #245, 2026-11-05: the F14 banner now says "On-device blocking is off. …"; device evidence on `770cde3`: API 35 27/27, API 28 23/23, API 26 23/23, each with the R8 build's functional tests and launch check (runs 41969917154, 41969920931, 41969924508).)
-- **Next action:** M7, M8, M11 and M12 on the same phone. M2 on Jio, Vi and BSNL, M9 and M10 need other SIMs or phones (X3, X4).
+- **Next action:** M8, M11 and M12 on the same phone. M2 on Jio, Vi and BSNL, M9 and M10 need other SIMs or phones (X3, X4).
 
 ### 3.6 Account deletion and data erasure
 
