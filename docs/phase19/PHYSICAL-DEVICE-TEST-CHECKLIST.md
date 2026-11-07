@@ -1,6 +1,6 @@
 # Physical-device test checklist: the 9 on-device carrier cases
 
-- **Status, 2026-11-05: NOT RUN.** No physical phone or SIM is available yet (X3). **Nothing here has passed.**
+- **Status, 2026-11-07:** **M1 Passed, and M2 Passed on Airtel only**, on one phone (a Redmi 9 Power, Android 12): the [session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md) and §5. **M2 is not complete**, and every other case is not run.
 - **Every result row stays "Not run" until someone runs it on a real phone and records the evidence** in a session record ([`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md)). Emulator runs never count here.
 - **What it covers:** T2's cases M1, M2 and M6–M12, from `ANDROID-SCREENING-DEVICE-VALIDATION.md` §5, made executable. Their "Expected" text is that document's, unchanged, with today's screen wording.
 - **What it does not cover:** M3–M5 need call forwarding, a DID pool and the deployed gateway. They are prepared separately in [`FORWARDING-TEST-PREPARATION.md`](FORWARDING-TEST-PREPARATION.md) and **must not be run**.
@@ -152,7 +152,7 @@ A mismatch is a finding. Claude Code can then investigate it from the evidence.
 |---|---|---|---|---|---|---|
 | M1 | Xiaomi Redmi 9 Power, Android 12 | Airtel | 2026-11-06 | **Passed** | Call log, blocklist and Telecom excerpt, redacted; kept outside the repository, SHA-256 in the [session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md) §3c | Did not ring; the app's service rejected the call (Telecom `TC@198`); the Phone app shows "Blocked call". Images are camera photos, not screenshots. An earlier call rang: X was then a saved contact without contacts access (M6's setup, not M1's) |
 | M2 (Jio) | | Jio | | **Not run** | | |
-| M2 (Airtel) | | Airtel | | **Not run** | | |
+| M2 (Airtel) | Xiaomi Redmi 9 Power, Android 12 | Airtel | 2026-11-07 | **Passed** | The tester's note ([session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md) §3f) | The caller heard "The number is currently busy." for about 2 s, then the call ended by itself; P1 did not ring. Airtel only: Jio, Vi and BSNL not run (no SIMs) |
 | M2 (Vi) | | Vi | | **Not run** | | |
 | M2 (BSNL) | | BSNL | | **Not run** | | |
 | M6 | | | | **Not run** | | |
