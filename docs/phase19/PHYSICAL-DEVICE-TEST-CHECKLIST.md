@@ -1,6 +1,10 @@
 # Physical-device test checklist: the 9 on-device carrier cases
 
 - **Status, 2026-11-07:** **M1 Passed, and M2 Passed on Airtel only**, on one phone (a Redmi 9 Power, Android 12): the [session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md) and §5. **M6 is accepted with a recorded finding** (passed on a later attempt; the initial attempt failed). **M7 and M8 Passed.** **M2 is not complete**, and every other case is not run.
+- **The 2026-11-05 session has ended** (2026-11-07): the app was uninstalled from the phone and the cleanup in §6 recorded ([session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md) §4b). **Still to run:**
+  - M2 on Jio, Vi and BSNL, and M10 (two active SIMs), which need more SIMs;
+  - M9, which needs an Android 8 or 9 phone;
+  - M11 and M12, which need a new session on a phone, with the owner's approval.
 - **Every result row stays "Not run" until someone runs it on a real phone and records the evidence** in a session record ([`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md)). Emulator runs never count here.
 - **What it covers:** T2's cases M1, M2 and M6–M12, from `ANDROID-SCREENING-DEVICE-VALIDATION.md` §5, made executable. Their "Expected" text is that document's, unchanged, with today's screen wording.
 - **What it does not cover:** M3–M5 need call forwarding, a DID pool and the deployed gateway. They are prepared separately in [`FORWARDING-TEST-PREPARATION.md`](FORWARDING-TEST-PREPARATION.md) and **must not be run**.

@@ -1,6 +1,6 @@
 # Roadmap inventory: phases, remaining work and release prerequisites
 
-- **As of:** 2026-11-01, `main` `0d1ed04` (#209). Merged since the previous refresh: #201–#209. Post-merge CI is recorded per PR in `PRODUCTION-READINESS.md`.
+- **As of:** 2026-11-07, `main` `5b41b12` (`5b41b128dbdc24171a86713e52b3bdaa25aa0314`, #256), **for T2 (§3.2) and the owner-decision count (§3.3, §3.6) only**, re-checked on that date. The rest was last refreshed on 2026-11-01, at `main` `0d1ed04` (#209); merged since then and not re-counted here: the 46 PRs from #210 to #256 (all but #212, an open Dependabot PR), whose status is in `PRODUCTION-READINESS.md` and [`../PRODUCT-ROADMAP.md`](../PRODUCT-ROADMAP.md). Merged before that refresh: #201–#209. Post-merge CI is recorded per PR in `PRODUCTION-READINESS.md`.
 - **Method:** every count below is of items **defined in a named document or verified in the repository**. Nothing is estimated. Where documents conflict, the conflict is reported (§1), with the source treated as authoritative.
 - **Not claimed:** that Phase 19 is complete, or that the app is ready for Google Play.
 
@@ -98,17 +98,19 @@ The repository uses four different meanings of "phase". None defines a phase aft
 
 **Completed, not counted above:** the release endpoint preflight (#194), the F14 "held before" fix (#195), the deletion-code seam (#197) and the sign-in code withdrawal fix (#198). #197 and #198 prepare C3 and C2 but do not complete them.
 
-### 3.2 Testing: 4 open, 0 unblocked
+### 3.2 Testing: 4 open; T2 partly run on one phone
 
 | # | Task | State | Source |
 |---|---|---|---|
 | T1 | Device (instrumented) coverage of A09b, Protection, the blocklist notice, the F14 banner and the Settings checklist | **Done.** Most of it was already done by #181; this row had been stale (validation doc §4.3, corrected). #195 adds the Settings checklist, the role lost before the feed was opened (a defect, fixed), the role revoked with no holder, and Android 9's checklist and feed. **Emulators: API 35 16/16, API 28 12/12.** | Validation doc §4.3 |
-| T2 | Physical phone, SIM and carrier sheet M1–M12 (**12 cases**, including forwarding and Indian number presentation) | Blocked: X3, X4 | Validation doc §5 |
+| T2 | Physical phone, SIM and carrier sheet M1–M12 (**12 cases**, including forwarding and Indian number presentation) | **Partly run, 2026-11-06 and 2026-11-07,** on one phone (a Redmi 9 Power, Android 12) and one carrier (Airtel): M1, M2 (Airtel only), M7 and M8 Passed; M6 accepted with a recorded finding ([session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md); [checklist](PHYSICAL-DEVICE-TEST-CHECKLIST.md) §5). **Still open:** M2 on Jio, Vi and BSNL, and M10, need more SIMs (X3); M9 needs an Android 8 or 9 phone (X3); M11 and M12 need a new session on a phone, with the owner's approval; M3–M5 need forwarding (X4) | Validation doc §5 |
 | T3 | Sign-in, refresh and deletion on a device against live hosts | Blocked: X5, E2 | Readiness §8.4 |
 | T4 | Play Integrity verdicts from a Play-installed build | Blocked: E1, X1 | Readiness §8.4 |
 | T5 | Run the signing-key rotation runbook once in staging | Blocked: E3 (SRE) | Tracker E3 |
 
-### 3.3 Owner decisions: 33 pending (none approved)
+### 3.3 Owner decisions: 32 pending
+
+**Re-counted 2026-11-07** on `5b41b12`: 15 tracker items (below) plus 17 of OD-1–OD-18. **OD-11 is closed** (#245, 2026-11-05); no other item in this section records a decision. OD-17 stays pending: the app's packaging is decided, but the speech questions are deferred.
 
 - **Tracker O1–O17 (17),** less O10 and O11, which are in §3.4: **15.**
   - O9–O17 are the account-deletion decisions D1–D9.
@@ -174,8 +176,8 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 | Category | Open | Of which unblocked now |
 |---|---|---|
 | Coding | 15 | 0. C16–C24 done (#202–#208); the F13 test race fixed (#209). Routine work outside this list: `PRODUCTION-READINESS.md` §3 |
-| Testing | 4 (T2 has 12 cases) | 0 |
-| Owner decisions | 33 | — |
+| Testing | 4 (T2 has 12 cases; 5 of them have a result on one phone, M2 on Airtel only) | 0 that needs no hardware or approval. T2's M11 and M12 can run on an owner-provided phone, with the owner's approval (§3.2) |
+| Owner decisions | 32 (re-counted 2026-11-07; OD-11 closed) | — |
 | Privacy/legal reviews | 6 | — |
 | External dependencies | 15 | — |
 | High-risk decisions (§3.7) | 4, plus 3 conditional | 0: all need an independent human reviewer (OD-12) |

@@ -9,7 +9,7 @@
   - the accepted ADRs and frozen invariants;
   - the security gates (OD-12's independent review for high-risk decisions);
   - the spending policy (plan §4).
-- **As of:** `main` `221655e`. Task IDs are the inventory's (`phase19/ROADMAP-INVENTORY.md` §3) and the tracker's (`phase19/EXTERNAL-DEPENDENCIES.md`).
+- **As of:** `main` `221655e`; product Phase 5's physical-device lines re-checked on 2026-11-07 at `main` `5b41b12` (#256). Task IDs are the inventory's (`phase19/ROADMAP-INVENTORY.md` §3) and the tracker's (`phase19/EXTERNAL-DEPENDENCIES.md`).
 
 ## 1. The phases, as confirmed
 
@@ -131,19 +131,23 @@ High-risk items (H) overlap these and are listed with their phase.
   - R8 functional tests;
   - a baseline profile (its gain is not measured);
   - the evaluation harness;
-  - **the test checklists, prepared and not run:** `phase19/PHYSICAL-DEVICE-TEST-CHECKLIST.md` (9 cases) and `phase19/FORWARDING-TEST-PREPARATION.md` (3 cases).
+  - **the on-device checklist, partly run:** `phase19/PHYSICAL-DEVICE-TEST-CHECKLIST.md` (9 cases), on one phone (a Redmi 9 Power, Android 12) and one carrier (Airtel), 2026-11-06 and 2026-11-07. M1, M2 (Airtel only), M7 and M8 Passed; M6 is accepted with a recorded finding (`phase19/DEVICE-TEST-SESSION-2026-11-05-redmi9power.md`). The other cases are not run;
+  - **the forwarding checklist, prepared and not run:** `phase19/FORWARDING-TEST-PREPARATION.md` (3 cases).
 - **Testing, 4:**
-  - **T2**, 12 carrier cases: **9 runnable as soon as phones and SIMs exist**, and 3 needing forwarding;
+  - **T2**, 12 carrier cases: 9 on-device cases, of which 5 have a result on one phone (M2 on Airtel only), and 3 needing forwarding. **T2 stays open:**
+    - M2 on Jio, Vi and BSNL, M9 and M10 need more phones and SIMs;
+    - M11 and M12 need a new session, with the owner's approval;
+    - M3–M5 need forwarding (X4);
   - **T3**, sign-in, refresh and deletion on a phone against live hosts;
   - **T4**, Play Integrity verdicts;
   - **T5**, the key-rotation drill in staging.
-- **External, 1:** X3 (phones and SIMs).
+- **External, 1:** X3 (phones and SIMs). **One phone with an Airtel SIM was provided by the owner and used** (2026-11-05 to 2026-11-07). More are still needed: Jio, Vi and BSNL SIMs, an Android 8 or 9 phone, and a second active SIM for the dual-SIM case. X3 stays open.
 - **Also open, with no task list yet:**
   - **AI evaluation on consented recordings** (OD-17 A2, deferred);
   - **safe model improvement** (high-risk, OD-12);
   - the startup-gain measurement (needs X3);
   - **rollback:** exercising the runbooks, which are all unexercised.
-- **Blocked by:** X3 for every physical test; the hosts (X5) and E2 for T3; Play (X1) and E1 for T4; E3 for T5.
+- **Blocked by:** X3 for the remaining physical tests (one phone has been used; more phones and SIMs are needed); the owner's approval of a new session for M11 and M12; the hosts (X5) and E2 for T3; Play (X1) and E1 for T4; E3 for T5.
 
 ### Product Phase 6: Production & Play Store Release (M1 → M2)
 
