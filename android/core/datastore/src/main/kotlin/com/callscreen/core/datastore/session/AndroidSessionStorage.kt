@@ -5,8 +5,10 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import java.security.GeneralSecurityException
@@ -55,7 +57,26 @@ public class KeystoreSessionKey(private val alias: String = DEFAULT_ALIAS) : Ses
     }
 }
 
-private val Context.sessionDataStore: DataStore<Preferences> by preferencesDataStore(name = "callscreen_identity_session")
+/**
+ * What the session DataStore does with a file it cannot parse (OD-13,
+ * production-readiness F3; owner decision 2026-11-07): replace it with an
+ * empty one. Without it, every read and every write of the file fails, so
+ * the phone could never store a session again.
+ *
+ * It runs only for a file that is not valid Preferences data. A file that
+ * parses but holds an unopenable record still goes through
+ * [EncryptedSessionStore]'s Unrecoverable path, and other I/O errors still
+ * throw. The file holds only the sealed session, so the session is all that
+ * is lost: the store then reads Absent, and the user signs in again. No key
+ * is touched and nothing is sent.
+ */
+internal fun sessionStoreCorruptionHandler(): ReplaceFileCorruptionHandler<Preferences> =
+    ReplaceFileCorruptionHandler { emptyPreferences() }
+
+private val Context.sessionDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "callscreen_identity_session",
+    corruptionHandler = sessionStoreCorruptionHandler(),
+)
 
 /**
  * The sealed record in a Preferences DataStore. DataStore writes are atomic (a
