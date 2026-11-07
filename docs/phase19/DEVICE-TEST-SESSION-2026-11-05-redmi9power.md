@@ -1,6 +1,6 @@
 # Device test session record: 2026-11-05, Redmi 9 Power (Android 12, Airtel)
 
-**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b), **M2 on Airtel Passed** (§3f), **M6: accepted with a recorded finding** (§3g: passed on a later attempt; the initial attempt failed), and **M7 Passed** (§3h). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run.
+**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b), **M2 on Airtel Passed** (§3f), **M6: accepted with a recorded finding** (§3g: passed on a later attempt; the initial attempt failed), **M7 Passed** (§3h), and **M8 Passed** (§3i). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run.
 
 This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md). The cases and their expected results are in [`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md).
 
@@ -17,7 +17,7 @@ This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md
 
 | Field | Value |
 |---|---|
-| Date and time (IST) | Started 2026-11-05; the M1 call 2026-11-06 00:45:39; the M2 (Airtel) call 2026-11-07 09:19; the M6 calls 2026-11-07 09:59:31, 10:05:11 and 10:15:22, and the M6 retest 11:13:26; the M7 call 2026-11-07 14:40:59 |
+| Date and time (IST) | Started 2026-11-05; the M1 call 2026-11-06 00:45:39; the M2 (Airtel) call 2026-11-07 09:19; the M6 calls 2026-11-07 09:59:31, 10:05:11 and 10:15:22, and the M6 retest 11:13:26; the M7 call 2026-11-07 14:40:59; the M8 calls 2026-11-07 21:36:39 and 21:41:10 |
 | Tester | Anuj Kumar |
 | Location (city only) | |
 | Repository commit the APK was built from (`git rev-parse --short HEAD`) | `627e571` (`627e5712284760148ab8a9d05a2761039fbdcc45`, main, 2026-11-05 13:06 IST) |
@@ -54,7 +54,7 @@ Record one row per phone used. **Write SIM numbers as "+91 •••••••
 | M2 (BSNL) | | BSNL | | | | Blocked: no BSNL SIM | |
 | M6 | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-07, from 09:59:31 IST (Telecom `TC@218`, then `TC@220`, `TC@221`, and the owner-approved retest `TC@222` at 11:13:26) | Yes: X saved twice before the first call, contacts access denied (§3g) | **Initial attempt (09:59):** P1 did not ring. Android consulted the app and the call was rejected. **Later calls** (10:05, 10:15, and the retest at 11:13): P1 rang, showing "M6 test A"; Android did not consult the app; all missed, ended by the caller. The notice matched (§3g) | **Accepted with finding — Passed on a later attempt; the initial attempt failed (TC@218); root cause inconclusive.** (owner, 2026-11-07) | `M6-p1-airtel-telecom-redacted.txt`, `M6-p1-airtel-telecom-TC220-redacted.txt`, `M6-p1-airtel-telecom-TC221-redacted.txt`, `M6-retest-p1-airtel-telecom-TC222-redacted.txt`, `M6-p1-airtel-blocklist-notice-redacted.png`, `M6-p1-airtel-blocklist-notice-after-call-redacted.png` (§3g) |
 | M7 | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-07 14:40:59 IST (Telecom `TC@228`) | Yes: as M6 (X saved twice, unchanged), then "Allow contacts access" in the app and Android's dialog (granted 14:39:51) (§3h) | P1 did not ring. Android reported "contact exists", consulted the app, which rejected the call; the Phone app shows "Blocked call, 2:40 pm" for "M6 test A" (§3h) | **Passed** | `M7-p1-airtel-telecom-TC228-redacted.txt`, `M7-p1-airtel-calldetails-redacted.png` (§3h) |
-| M8 | | | | | | Not run | |
+| M8 | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-07 21:36:39 and 21:41:10 IST (Telecom `TC@233`, `TC@234`) | Yes; the role moved on Android's standard Default apps screen, as MIUI's own has no Caller ID & spam entry (§3i) | With Google Phone holding the role, call 1 rang (CallScreen not consulted); the F14 banner appeared with the exact text; "Switch back" returned the role; call 2 was rejected by CallScreen; the call log shows "Blocked call, 9:41 pm" (§3i) | **Passed** | `M8-p1-airtel-telecom-call1-TC233-redacted.txt`, `M8-p1-airtel-f14-banner.png`, `M8-p1-airtel-telecom-call2-TC234-redacted.txt`, `M8-p1-airtel-calldetails-redacted.png` (§3i) |
 | M9 | | | | | | Blocked: needs an Android 8/9 phone (P1 is Android 12) | |
 | M10 (SIM 1) | | | | | | Not run: needs a second active SIM in P1 | |
 | M10 (SIM 2) | | | | | | Not run: needs a second active SIM in P1 | |
@@ -325,6 +325,59 @@ The contacts themselves were not read.
 
 **Contacts access stays granted** until the session's cleanup, which the owner approves separately (§4).
 
+### 3i. M8: another app takes the role, then "Switch back", 2026-11-07 (Passed)
+
+**Expected** (checklist §4): "**P1 rings. The F14 banner appears:** "On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back." **"Switch back" restores blocking:** call again and it is blocked". Evidence: "Screenshots of the banner and of the call log after "Switch back"".
+
+**Setup** (all read-only checks, by the tester's hand where marked):
+- **The app was reinstalled for M8.** The owner had uninstalled it after M7. The session's verified APK was installed again, after checking: SHA-256 `868a05884799b97afade0b29d52b1de025b301513d041562e64cb261f617c39f`, `com.callscreen.debug` `0.1.0-dev-debug`, built from `627e571` (§1), and the same hash on the phone after install. Since `627e571` only the contacts-notice string (#252) and an instrumented test (#255) changed under `android/`; nothing M8 exercises.
+- **The role given to CallScreen by the owner,** through Protection → "Turn on blocking" and Android's own dialog (no `adb` role command).
+- **X added to the blocklist by the owner,** typed in by hand: one BLOCK entry, `+91 ••••••••39`.
+- **"Held before" recorded:** `held_before=true` once the app returned to the foreground holding the role.
+- **Unchanged:** contacts access `granted=false`; X no longer a saved contact (§4a); forwarding off (`mCallForwarding=false`); no call in progress.
+
+**The steps and results:**
+
+| Step | What happened | Evidence |
+|---|---|---|
+| Role to Google Phone | The owner chose **Google Phone** as the Caller ID & spam app (owner-approved alternate; not Truecaller or My Airtel). `cmd role` and `dumpsys role` both read `com.google.android.dialer` | Role readings |
+| **Call 1** (`TC@233`, 21:36:39 IST) | **The Redmi rang**, about 28 s by the owner; Telecom: `SCREENING_BOUND` to **Google Phone's** `DialerCallScreeningService`, `[Allow, logged, notified]`, no "contact exists", **`START_RINGER` 21:36:41.56 → `STOP_RINGER` 21:37:09.44** (about 27.9 s), `INCOMING_MISSED`, ended by the caller. **`com.callscreen.debug` does not appear: CallScreen was not consulted** | Telecom excerpt |
+| **F14 banner** | The Calls feed showed, matched exactly in memory: **"On-device blocking is off. Numbers you've blocked here won't be blocked until you switch back."**, with **"Switch back"** | Banner screenshot |
+| **"Switch back"** | The owner tapped it and chose CallScreen in Android's role dialog. `cmd role` and `dumpsys role` both read **`com.callscreen.debug`**; the banner was gone | Role readings; screen check |
+| **Call 2** (`TC@234`, 21:41:10 IST) | **The Redmi stayed silent** (owner). Telecom: `SCREENING_BOUND` to **CallScreen's** `PreFilterScreeningService`, `[Reject, logged, mCallBlockReason = 1]`, `REQUEST_REJECT`, `INCOMING_REJECTED` 0.35 s after arrival; no ringer | Telecom excerpt |
+| Call log | Google Phone's call-details page for X: **"Blocked call, 9:41 pm"**, number ending `39` | Call-details screenshot |
+
+**M8 Passed** (the owner's review, 2026-11-07). All five criteria are met:
+1. with another app holding the role, the call rang and CallScreen was not consulted;
+2. the F14 banner appeared with the exact text;
+3. "Switch back" returned the role to CallScreen;
+4. the next call was consulted and rejected by CallScreen;
+5. the call log shows it as blocked.
+
+**The owner confirmed:** call 1 rang for about 28 seconds; call 2 left the Redmi silent and was rejected; call recording was off on both phones, and neither call was recorded.
+
+**Outside M8's scope:** the owner made two outgoing calls from the Redmi to X, `TC@235` (21:44:09) and `TC@236` (21:46:49), intentionally and outside the test. Outgoing calls are not screened, so they do not bear on M8. Their content was not inspected.
+
+**The evidence**, kept by the tester in `%USERPROFILE%\Documents\lily-m1-redacted\`, outside the repository:
+
+| File | Shows | SHA-256 |
+|---|---|---|
+| `M8-p1-airtel-telecom-call1-TC233-redacted.txt` | Telecom's events for `TC@233` only (call 1) | `20d642a3781e8b97e56c6d1a159f579c9df2cfa95e8333a940b4aa86dafc4f92` |
+| `M8-p1-airtel-f14-banner.png` | The Calls feed with the F14 banner; no number or personal data, so nothing redacted | `d6bf23bfc07be55f812f1d3f312c05d26172f090148a28c2757f27325d9e8eec` |
+| `M8-p1-airtel-telecom-call2-TC234-redacted.txt` | Telecom's events for `TC@234` only (call 2) | `edbf6d821dff91340ae5a38e3ea21ce972637f3a0005ca07e6710b324da83143` |
+| `M8-p1-airtel-calldetails-redacted.png` | X's call-details page: the number's last two digits (`39`), "India" and "Blocked call, 9:41 pm"; every other row covered | `46ccd066f74556b730b71cda1a966f060939ef3ace09fead04b541e4ef4e2e15` |
+
+**How the evidence was made:**
+- **Telecom:** filtered from `dumpsys telecom` in memory, one call ID each; handles redacted; no run of 7 or more digits; the full dump never saved.
+- **Screenshots:** `adb exec-out screencap` (nothing written to the phone), each only after a strict check of the screen in memory.
+  - Banner: the Calls feed of CallScreen, the exact banner text, no number on screen.
+  - Call details: Google Phone's call-details page, no Recents markers, "Blocked call" at 9:41 pm, no caller-ID name, one number ending `39`; captured with the page confirmed before and after.
+  - The call-details copy is a new, flattened PNG with no metadata: solid boxes cover `+91` and eight digits (measured; the last two start at x=563) and every row below 9:41 pm (9:36 pm, 2:40 pm, 11:13, 10:15, 10:05, 9:59 and 9:18 am). The owner's 9:44 and 9:46 pm outgoing calls were scrolled off-screen. Each box confirmed solid; viewed whole and at 3× on the number row.
+  - The owner navigated the Phone app; no tap was sent to it.
+- **The unredacted originals were deleted** after the owner's review, each by exact path once its SHA-256 matched: `UNREDACTED-DO-NOT-SHARE-M8-banner-original.png` (`2006d6ea4ae4c6117e5809bfd6eedf5c297aa00924e408ccc88b07fb655024db`) and `UNREDACTED-DO-NOT-SHARE-M8-calldetails-original.png` (`a84eeced0399d55dcbc97c0a2051c1e7157cd14b1c14824cce7236586a0eb5f4`).
+
+**Procedure note for the checklist's path:** on this phone (MIUI 14, Android 12), **MIUI's own Settings → Apps → Manage apps → Default apps has no "Caller ID & spam app" entry**, and Google Phone's own "Caller ID & spam" setting is a Google Phone feature, not the role. The role was changed on **Android's standard Default apps screen** (Google's Permission controller), opened with `adb shell am start -a android.settings.MANAGE_DEFAULT_APPS_SETTINGS` at the owner's approval; the owner made the selection there. No `adb` role command was used.
+
 **For a failed case,** also record:
 - the time;
 - the app's screen at that moment (a screenshot);
@@ -342,6 +395,7 @@ The contacts themselves were not read.
   - [x] The M6 calls of 2026-11-07 (`TC@218` 09:59, `TC@220` 10:05, `TC@221` 10:15): confirmed by the tester, Anuj Kumar, 2026-11-07: no audio recording was made of any of them.
   - [x] The M6 retest of 2026-11-07 (`TC@222`, 11:13): confirmed by the owner: no recording was made on either phone.
   - [x] The M7 call of 2026-11-07 (`TC@228`, 14:40): the owner confirmed before the call that call recording was disabled on both phones.
+  - [x] The M8 calls of 2026-11-07 (`TC@233` 21:36, `TC@234` 21:41): confirmed by the owner: call recording was off and neither call was recorded.
 - [x] Logs read through; any with a phone number deleted or redacted. (The Telecom excerpt holds one call and no run of 7 or more digits; no full dump was kept.)
 - [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Partly done, 2026-11-07** (§4a): contacts access revoked, the two test contacts deleted, the unredacted originals deleted. **The rest is deferred: the session continues** (M8, M11, M12 and other cases run on the same phone next).
 
@@ -370,7 +424,7 @@ After M7 passed (#253, merged as `556e6d5`), the owner approved a partial cleanu
 - **M6's assessment:** "Accepted with finding — Passed on a later attempt; the initial attempt failed (TC@218); root cause inconclusive."
 - **M7:** Passed (§3h).
 
-**Deferred to the end of the session** (each needs the owner's separate approval): returning the call-screening role (the app still holds it); removing X from the blocklist; uninstalling the app; turning off USB debugging and developer options; deleting the tester's working files.
+**Deferred to the end of the session** (each needs the owner's separate approval): returning the call-screening role (the app still holds it); removing X from the blocklist; uninstalling the app; turning off USB debugging and developer options; deleting the tester's working files. (The owner uninstalled the app after M7; it was reinstalled from the verified APK for M8, with the role and X set up again by the owner, §3i. These items stand again.)
 
 **Left with the owner:** other photos from the session (onboarding screens, the Calls feed, and a photo of the Phone app's Recents list showing unrelated personal calls), and any copies in WhatsApp on the phones or in a WhatsApp backup. None of them is evidence, and none is in the repository.
 
