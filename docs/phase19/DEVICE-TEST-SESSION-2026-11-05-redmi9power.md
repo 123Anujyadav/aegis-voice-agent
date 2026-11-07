@@ -1,6 +1,6 @@
 # Device test session record: 2026-11-05, Redmi 9 Power (Android 12, Airtel)
 
-**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b), **M2 on Airtel Passed** (§3f), **M6: accepted with a recorded finding** (§3g: passed on a later attempt; the initial attempt failed), **M7 Passed** (§3h), and **M8 Passed** (§3i). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run.
+**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b), **M2 on Airtel Passed** (§3f), **M6: accepted with a recorded finding** (§3g: passed on a later attempt; the initial attempt failed), **M7 Passed** (§3h), and **M8 Passed** (§3i). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run. **The session ended on 2026-11-07 with the final device cleanup (§4b);** M11 and M12 were not run in it.
 
 This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md). The cases and their expected results are in [`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md).
 
@@ -398,6 +398,7 @@ The contacts themselves were not read.
   - [x] The M8 calls of 2026-11-07 (`TC@233` 21:36, `TC@234` 21:41): confirmed by the owner: call recording was off and neither call was recorded.
 - [x] Logs read through; any with a phone number deleted or redacted. (The Telecom excerpt holds one call and no run of 7 or more digits; no full dump was kept.)
 - [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Partly done, 2026-11-07** (§4a): contacts access revoked, the two test contacts deleted, the unredacted originals deleted. **The rest is deferred: the session continues** (M8, M11, M12 and other cases run on the same phone next).
+  - [x] **Device cleanup done, 2026-11-07** (§4b), after M8: the app uninstalled, with its blocklist; no app holds the call-screening role; contacts access denied; forwarding off; USB debugging and developer options turned off by the owner. No OEM setting or number hiding was changed in this session (M11 and M12 not run). Still kept, by the owner's decision: the tester's working files on the computer and the redacted evidence (§4b).
 
 ### 4a. Partial session cleanup, 2026-11-07
 
@@ -428,12 +429,42 @@ After M7 passed (#253, merged as `556e6d5`), the owner approved a partial cleanu
 
 **Left with the owner:** other photos from the session (onboarding screens, the Calls feed, and a photo of the Phone app's Recents list showing unrelated personal calls), and any copies in WhatsApp on the phones or in a WhatsApp backup. None of them is evidence, and none is in the repository.
 
+### 4b. Final device cleanup, 2026-11-07 (the session ends)
+
+After M8 passed (#256, merged as `5b41b12`), the owner authorised the final device cleanup of P1. **The session ended with it.** M11 and M12 were not run, and nothing else was tested.
+
+**State before the cleanup**, read over `adb` without changing anything:
+- `com.callscreen.debug` installed, versionName `0.1.0-dev-debug`;
+- the call-screening role held by `com.callscreen.debug`;
+- the app's blocklist: one entry, X (the number is not recorded here);
+- contacts access: `READ_CONTACTS` `granted=false`;
+- call forwarding off (`mCallForwarding=false`), and the phone idle;
+- the default dialer: Google Phone (`com.google.android.dialer`);
+- USB debugging and developer options on.
+
+**Done:**
+- **Only `com.callscreen.debug` was uninstalled** (`adb uninstall com.callscreen.debug`: `Success`), after the phone and the package name were checked.
+- **The app is gone**, checked read-only afterwards: `pm list packages` does not list it, not even with `-u` (uninstalled packages), and `dumpsys package` has no entry for it.
+- **No app holds the call-screening role:** `cmd role get-role-holders android.app.role.CALL_SCREENING` returns nothing, and `dumpsys role` no longer names the app. **No app was given the role**, and Truecaller was not used. Which app, if any, held the role before the session is not recorded, so none was restored.
+- **The blocklist was removed with the app's data.** It was kept only in the app's private storage, which Android deletes on uninstall; with the app gone it cannot be read.
+- **Contacts access** was denied when the app was uninstalled. The test contacts were already deleted (§4a).
+- **Forwarding stayed off, and Google Phone stayed the default dialer,** both read again after the uninstall.
+- **USB debugging and developer options were turned off by the owner,** by hand in the phone's settings, and confirmed by the owner. **`adb` did not check these two settings:** with USB debugging off it can no longer read the phone. Afterwards, `adb devices` on the computer listed no devices. That shows only that the phone is no longer reachable over `adb`.
+- **No call, SMS or other communication** was made during the cleanup. Contacts, WhatsApp messages and backups, and photos were not touched.
+
+**Kept, by the owner's decision** (each needs the owner's separate approval to remove):
+- **The redacted evidence:** all 15 files, outside the repository, still match the SHA-256 recorded in §3c, §3g, §3h and §3i (checked when this record was committed).
+- **The tester's working files on the computer:** helper scripts and drafts. No unredacted original is among them.
+- **What §4a left with the owner:** other photos from the session, any WhatsApp copies or backups, and "M6 test B" in Google's Trash until it expires.
+
+**To run M11, M12 or any other case on P1 later:** a new session, with the owner's approval, reinstalls the verified APK and turns USB debugging back on.
+
 ## 5. Sign-off
 
 | | |
 |---|---|
 | Tester's statement | "I ran the cases marked Passed or Failed above on the physical phones listed, and the evidence is as captured." |
 | Tester | Anuj Kumar |
-| Date | 2026-11-06 (M1); 2026-11-07 (M2 on Airtel, as reported by the tester); 2026-11-07 (M6 and M7, reviewed by the owner) |
+| Date | 2026-11-06 (M1); 2026-11-07 (M2 on Airtel, as reported by the tester); 2026-11-07 (M6 and M7, reviewed by the owner); 2026-11-07 (M8, and the final device cleanup, confirmed by the owner) |
 
 **After the session,** copy each case's result into the checklist's results table (§5) and into `PRODUCTION-READINESS.md` §3.5 with a link to this record. Claude Code can do that from the committed record, and analyse any failure.
