@@ -1,6 +1,6 @@
 # Device test session record: 2026-11-05, Redmi 9 Power (Android 12, Airtel)
 
-**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Only M1 has been run: **M1 Passed** (§3b). Every other case is not run.
+**Prepared by Claude Code; filled in from the tester's reports and the evidence in §3c.** Run so far: **M1 Passed** (§3b) and **M2 on Airtel Passed** (§3f). **M2 is not complete:** Jio, Vi and BSNL are blocked, with no SIMs. Every other case is not run.
 
 This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md`](DEVICE-TEST-EVIDENCE-TEMPLATE.md). The cases and their expected results are in [`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md).
 
@@ -17,7 +17,7 @@ This is the record for one session, made from [`DEVICE-TEST-EVIDENCE-TEMPLATE.md
 
 | Field | Value |
 |---|---|
-| Date and time (IST) | Started 2026-11-05; the M1 call 2026-11-06 00:45:39 |
+| Date and time (IST) | Started 2026-11-05; the M1 call 2026-11-06 00:45:39; the M2 (Airtel) call 2026-11-07 09:19 |
 | Tester | Anuj Kumar |
 | Location (city only) | |
 | Repository commit the APK was built from (`git rev-parse --short HEAD`) | `627e571` (`627e5712284760148ab8a9d05a2761039fbdcc45`, main, 2026-11-05 13:06 IST) |
@@ -49,7 +49,7 @@ Record one row per phone used. **Write SIM numbers as "+91 •••••••
 |---|---|---|---|---|---|---|---|
 | M1 | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-06 00:45:39 IST (Telecom `TC@198`) | **Attempt 2: yes,** except that the images are camera photos of the screen, not screenshots (§3b). Attempt 1 differed: X was saved in P1's contacts and contacts access was denied (§3a) | **Attempt 2:** P1 did not ring. The app's service was bound and answered Reject; Android rejected the call; the Phone app shows "Blocked call" (§3b) | **Passed** | `M1-p1-airtel-calllog-redacted.png`, `M1-p1-airtel-blocklist-redacted.png`, `M1-p1-airtel-telecom-redacted.txt` (§3c) |
 | M2 (Jio) | | Jio | | | | Blocked: no Jio SIM | |
-| M2 (Airtel) | | Airtel | | | **What the caller heard:** | Not run | |
+| M2 (Airtel) | P1 (Redmi 9 Power, Android 12) | Airtel | 2026-11-07 09:19 IST | Yes: forwarding checked off before the call (§3f) | **What the caller heard:** "The number is currently busy." (busy), for about 2 s; then the call ended by itself. P1 did not ring | **Passed** (Airtel only) | The tester's note (§3f); no image or log |
 | M2 (Vi) | | Vi | | | | Blocked: no Vi SIM | |
 | M2 (BSNL) | | BSNL | | | | Blocked: no BSNL SIM | |
 | M6 | | | | | | Not run | |
@@ -135,6 +135,38 @@ After attempt 2, the app's Calls feed showed "No call data yet". **That is by de
 - **M7:** saved contact, contacts access granted, expected Blocked.
 - **The contact behaviour is observed on this one phone only.** It is not established for other phones or OEMs.
 
+### 3f. M2 on Airtel: what the caller heard
+
+**Expected** (checklist §4): "The caller hears busy or call-ended, not voicemail or ringing on. Record exactly what is heard, per carrier."
+
+**Observed** (the tester's report, 2026-11-07):
+
+| | |
+|---|---|
+| Start | 09:19 IST |
+| Test phone | P1, Airtel SIM, the app holding the role and X blocked (as M1) |
+| Forwarding (setup) | Checked by the tester before the call on P1's call-forwarding settings, with nothing dialled: **always, when busy, when unanswered and when unreachable were all off** |
+| What C heard | Busy: **"The number is currently busy."** |
+| For how long | About 2 seconds |
+| How it ended | The call ended by itself |
+| P1 rang? | No |
+
+**Assessment:**
+
+| Criterion | Result |
+|---|---|
+| The caller hears busy or call-ended | **Met:** a busy announcement, then the call ended |
+| Not voicemail | **Met:** no voicemail answered |
+| Not ringing on | **Met:** no ringing continued; the call ended after about 2 s |
+
+**M2 on Airtel: Passed.** The evidence is the tester's note above, as the checklist asks ("one note per carrier: what C heard, for how long"). No image or log was taken.
+
+**Setup check:** the tester confirmed, 2026-11-07, that all four Airtel call-forwarding options were off before the call (above). The evidence for it is that confirmation; no screenshot was taken.
+
+**Not recorded:** a Telecom excerpt for this call. It was optional.
+
+**M2 is not complete.** Its other three carriers are blocked: there is no Jio, Vi or BSNL SIM. Airtel's result says nothing about them.
+
 **For a failed case,** also record:
 - the time;
 - the app's screen at that moment (a screenshot);
@@ -147,7 +179,8 @@ After attempt 2, the app's Calls feed showed "No call data yet". **That is by de
 
 - [x] Every phone number in this file and in every screenshot shows only its last two digits. (Checked 2026-11-06: both images and this file.)
 - [x] No contact names other than the test entries appear. (The caller-ID name the Phone app showed is covered.)
-- [x] No call recording exists anywhere. (Confirmed by the tester, Anuj Kumar, 2026-11-06: no recording of the test call exists.)
+- [x] No call recording exists anywhere. (Confirmed by the tester, Anuj Kumar, 2026-11-06, for the M1 call.)
+  - [x] The M2 (Airtel) call of 2026-11-07, 09:19 IST: confirmed by the tester, Anuj Kumar, 2026-11-07: no recording was made.
 - [x] Logs read through; any with a phone number deleted or redacted. (The Telecom excerpt holds one call and no run of 7 or more digits; no full dump was kept.)
 - [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Deferred: session continues** (M6, M7 and other cases run on the same phone next). The unredacted originals are deleted then.
 
@@ -157,6 +190,6 @@ After attempt 2, the app's Calls feed showed "No call data yet". **That is by de
 |---|---|
 | Tester's statement | "I ran the cases marked Passed or Failed above on the physical phones listed, and the evidence is as captured." |
 | Tester | Anuj Kumar |
-| Date | 2026-11-06 |
+| Date | 2026-11-06 (M1); 2026-11-07 (M2 on Airtel, as reported by the tester) |
 
 **After the session,** copy each case's result into the checklist's results table (§5) and into `PRODUCTION-READINESS.md` §3.5 with a link to this record. Claude Code can do that from the committed record, and analyse any failure.
