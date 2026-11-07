@@ -83,7 +83,7 @@ class ScreeningRoleStatesTest {
         // Held, no contacts access: the contacts notice, and no permission prompt until the button is tapped.
         ScreeningDevice.roleHolder(ScreeningDevice.pkg)
         compose.leaveAndReturn()
-        compose.awaitText("Numbers saved in your contacts", substring = true)
+        compose.awaitText("Contacts may be allowed to ring", substring = true)
         gone("Blocking is off.", substring = true)
         assertFalse("a permission prompt appeared without a tap", ScreeningDevice.systemDialogShown(timeoutMillis = 1_500))
         compose.onNodeWithText("Allow contacts access").performClick()
@@ -96,7 +96,7 @@ class ScreeningRoleStatesTest {
         // Granted (here through the shell, as Settings would): every block applies, so no notice.
         ScreeningDevice.grantContacts()
         compose.leaveAndReturn()
-        gone("Numbers saved in your contacts", substring = true)
+        gone("Contacts may be allowed to ring", substring = true)
         gone("Blocking is off.", substring = true)
     }
 
