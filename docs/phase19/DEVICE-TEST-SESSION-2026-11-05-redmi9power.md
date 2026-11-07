@@ -343,7 +343,36 @@ The contacts themselves were not read.
   - [x] The M6 retest of 2026-11-07 (`TC@222`, 11:13): confirmed by the owner: no recording was made on either phone.
   - [x] The M7 call of 2026-11-07 (`TC@228`, 14:40): the owner confirmed before the call that call recording was disabled on both phones.
 - [x] Logs read through; any with a phone number deleted or redacted. (The Telecom excerpt holds one call and no run of 7 or more digits; no full dump was kept.)
-- [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Deferred: session continues** (M8, M11, M12 and other cases run on the same phone next). Contacts access, granted for M7, is restored then. The unredacted originals are deleted then, with the owner's approval.
+- [ ] Cleanup done (checklist §6): test numbers removed, the role returned, contacts access and OEM settings restored, number hiding undone on C, the app uninstalled, USB debugging off. **Partly done, 2026-11-07** (§4a): contacts access revoked, the two test contacts deleted, the unredacted originals deleted. **The rest is deferred: the session continues** (M8, M11, M12 and other cases run on the same phone next).
+
+### 4a. Partial session cleanup, 2026-11-07
+
+After M7 passed (#253, merged as `556e6d5`), the owner approved a partial cleanup. **The session continues**, so only what M6 and M7 alone needed was undone.
+
+**Done:**
+- **Contacts access revoked** by the owner, in Android's settings, after M7. Verified read-only: `READ_CONTACTS` `granted=false` for user 0; app-ops `READ_CONTACTS: ignore` (the state before M7). Android restarted the app's process, as it does when a permission is revoked; the app stayed installed.
+- **The two test contacts deleted** by the owner: "M6 test A" (phone) and "M6 test B" (Google account). This rests on the owner's confirmation that a search for "M6 test" returns nothing; the contacts were never read programmatically. The Google-account contact sits in Google's Trash for 30 days.
+- **The unredacted originals deleted** (owner-approved), each by its exact path and only after its SHA-256 matched:
+
+| File | SHA-256 |
+|---|---|
+| `UNREDACTED-DO-NOT-SHARE-M1-calllog-original.jpeg` | `b7e10167ef1f1cdbfe416269d9ffee804bfcce1661187e868235f41d03f0f875` |
+| `UNREDACTED-DO-NOT-SHARE-M1-blocklist-original.jpeg` | `fc8a25b26dbc6f41798febd80efa849c3d1a49c17e8f47fcad1aa80ce66e6953` |
+| `UNREDACTED-DO-NOT-SHARE-M6-blocklist-original.png` | `bc316cbb0a8ef0913081b7e0cef049248955bacda0dcb75ede07fa125a3c6ba3` |
+| `UNREDACTED-DO-NOT-SHARE-M6-blocklist-after-call-original.png` | `75f1853427aad3623e651586d34de0cce7b3476eb9ab940dfea06f3a6b19996c` |
+| `UNREDACTED-DO-NOT-SHARE-M7-calldetails-original.png` | `56851bf3659c2c69b107b5198228c2ac599c37a88e5e32b664f8aea64233270b` |
+| `UNREDACTED-DO-NOT-SHARE-M7-calllog-original.png` (the Recents capture, not evidence) | `b5ce1eef886bd9b13e6a4df36abdbe4f1125ac40dd306ad9ca87abb39132bf3c` |
+
+  One further copy was deleted the same way: a photo of the M7 call-details screen in the tester's Downloads folder, a duplicate of M7 evidence showing the full test number (SHA-256 `f370da894696c47fa664457adaf31f73a0d19632b0202e2a48f0af27362f4b2f`). Where §3c, §3g and §3h say the originals are kept, they are now deleted.
+- **The redacted evidence is preserved,** outside the repository: all 11 files (M1, M6, M7) still match the SHA-256 recorded in §3c, §3g and §3h.
+
+**Unchanged:**
+- **M6's assessment:** "Accepted with finding — Passed on a later attempt; the initial attempt failed (TC@218); root cause inconclusive."
+- **M7:** Passed (§3h).
+
+**Deferred to the end of the session** (each needs the owner's separate approval): returning the call-screening role (the app still holds it); removing X from the blocklist; uninstalling the app; turning off USB debugging and developer options; deleting the tester's working files.
+
+**Left with the owner:** other photos from the session (onboarding screens, the Calls feed, and a photo of the Phone app's Recents list showing unrelated personal calls), and any copies in WhatsApp on the phones or in a WhatsApp backup. None of them is evidence, and none is in the repository.
 
 ## 5. Sign-off
 
