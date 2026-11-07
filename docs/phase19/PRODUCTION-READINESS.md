@@ -1,6 +1,6 @@
 # Production readiness tracker
 
-- **As of:** 2026-11-07 (M8 passed; the device session's final cleanup recorded; F27 added), on `main` `5b41b12` (`5b41b128dbdc24171a86713e52b3bdaa25aa0314`) of 2026-11-07 (#256, M8 passed). Entries are updated with each merge.
+- **As of:** 2026-11-07 (M8 passed; the device session's final cleanup recorded; F27 added; F3 fixed under OD-13, #258), on `main` `eb1d49d` (`eb1d49dcb07272feaa67ececd562ae71e96eef05`) of 2026-11-07 (#257). Entries are updated with each merge.
 - **The plan to production, with the external dependencies, owner actions and exit evidence:** [`PRODUCTION-READINESS-PLAN.md`](PRODUCTION-READINESS-PLAN.md) (2026-11-05).
 - **Verdict: not production-ready.** Nothing has been deployed anywhere, only M1, M2's Airtel run, M6 (accepted with a recorded finding), M7 and M8 have passed, on one physical phone (§3.5), and no Play release exists. Builds and CI passing are not readiness (§1).
 - **Method:** every entry cites the code, test, workflow or document it rests on. It comes from an audit of the repository at `7f60bac`, re-checked against each later merge. Nothing is estimated, and there are no percentages.
@@ -69,9 +69,11 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - an encrypted session store and single-flight refresh (`IdentityAuthenticator`);
   - cold-start routing and the A73 notice (C16, #202);
   - session confirmation with `GET /v1/me`, at most hourly and never at launch, where a temporary failure never signs the user out (C17, #203);
-  - a Keystore failure while signing keeps the session instead of crashing (C18, #204, `d6cfa8d`).
+  - a Keystore failure while signing keeps the session instead of crashing (C18, #204, `d6cfa8d`);
+  - a session file that is not valid DataStore data is replaced with an empty one, so the phone can store a session again; the user signs in again (F3, OD-13, #258).
 - **Automated tests:**
   - JVM and Robolectric suites in `pr-android`;
+  - `SessionStoreCorruptionTest` (real DataStore files on the JVM) and `SessionFileCorruptionTest` (the app's real session delegate under the authenticator, on Robolectric), #258;
   - `SessionCheckWiringTest`, which runs the real authenticator and edge client against local servers;
   - the live contract (`EdgeLiveContractTest`).
 - **Emulator:** `SessionOnDeviceTest` (#207): enrolment, refresh, a restart and edge-api `GET /v1/me` with a token-bound proof, on API 35, 28 and 26 in CI; local fakes, not real hosts
@@ -79,9 +81,9 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
 - **Staging and production:** none (T3 is blocked on X5 and E2).
 - **Blocker:**
   - **F1:** a refused refresh proof signs the user out. Proposed in [`F1-REFRESH-PROOF-REJECTION.md`](F1-REFRESH-PROOF-REJECTION.md); high-risk, so it needs the owner and OD-12.
-  - F3: a corrupt session file is never recovered (owner).
   - F8: there is no sign-out action (owner).
-- **Next action:** the owner decides F1 (H7), F3 (OD-13) and F8 (OD-14). T3 waits on X5 and E2.
+  - (F3, a corrupt session file never recovered: **fixed** in #258 under the owner's OD-13 decision of 2026-11-07.)
+- **Next action:** the owner decides F1 (H7) and F8 (OD-14). T3 waits on X5 and E2.
 
 ### 3.3 DPoP and device-key security
 
@@ -272,7 +274,7 @@ Defects and gaps found on 2026-11-01 that the inventory did not track. **Class**
 |---|---|---|---|---|
 | F1 | **A refused refresh proof signs the user out, whatever the reason:** a wrong phone clock, a server `htu` misconfiguration, or another key. Identity itself ends nothing on a refused proof | [`F1-REFRESH-PROOF-REJECTION.md`](F1-REFRESH-PROOF-REJECTION.md) | **H** | **Proposed** (H7): A + B + E. Not implemented |
 | F2 | **A Keystore failure while signing a proof crashed the app** | `IdentityClient.kt` | R | #204, `d6cfa8d` |
-| F3 | **A corrupt session file is never recovered.** There is no `corruptionHandler`; outside the splash, enrolment would always fail to store | `core/datastore/.../AndroidSessionStorage.kt`; `EncryptedSessionStore.read` | O (it would delete the stored session) | Open (OD-13). The crashes it caused are guarded without deleting anything: the splash (#202) and the deletion screen (#207, `3ef3b84`) |
+| F3 | **A corrupt session file is never recovered.** There is no `corruptionHandler`; outside the splash, enrolment would always fail to store | `core/datastore/.../AndroidSessionStorage.kt`; `EncryptedSessionStore.read` | O (it would delete the stored session) | **Fixed (#258).** OD-13 decided by the owner on 2026-11-07 ([record](OD-13-DECISION-2026-11-07.md)). The session DataStore's `sessionStoreCorruptionHandler` replaces a file that is not valid Preferences data with an empty one: the store reads Absent, the app starts at onboarding as before with no new notice, and a new sign-in stores its session. Records that parse but cannot be opened still take the Unrecoverable path; other I/O errors still throw; no key is touched. The crash guards stay: the splash (#202) and the deletion screen (#207, `3ef3b84`) |
 | F4 | **edge-api had no per-request deadline** | `packages/go/platform/server.go` | R | #205, `4a78f97` |
 | F5 | **The repeated race runs excluded identity and edge-api** | `.github/workflows/hardening.yml` | R | #206, `bba198d` |
 | F6 | **Instrumented tests never ran in CI** | `pr-android.yml` (compiles only) | R | #206, `bba198d` |
@@ -300,12 +302,12 @@ Defects and gaps found on 2026-11-01 that the inventory did not track. **Class**
 
 ### 4.1 Recommended answers to the owner decisions in this document
 
-These are recommendations from an AI-performed review, offered so that each decision can be taken quickly. None is applied.
+These are recommendations from an AI-performed review, offered so that each decision can be taken quickly. Only OD-13's is applied (owner decision 2026-11-07, #258); none of the others is.
 
 | Decision | Recommendation | Why | If accepted |
 |---|---|---|---|
 | **H7** (F1) | Options A + B + E of [`F1-REFRESH-PROOF-REJECTION.md`](F1-REFRESH-PROOF-REJECTION.md) | Identity revokes nothing on a refused proof, so a local sign-out protects nothing; clock skew is the likeliest cause | High-risk: also needs the independent human review (OD-12) |
-| **OD-13** (F3) | Give the session DataStore a corruption handler that replaces an unreadable file with an empty one | The record in it cannot be decrypted anyway. The app already clears an unreadable **record** (`STORED_SESSION_UNRECOVERABLE`); this extends that to an unreadable **file**. The user signs in again | Routine once decided: one handler and a test with a corrupt file |
+| **OD-13** (F3) | Give the session DataStore a corruption handler that replaces an unreadable file with an empty one | The record in it cannot be decrypted anyway. The app already clears an unreadable **record** (`STORED_SESSION_UNRECOVERABLE`); this extends that to an unreadable **file**. The user signs in again. *(Correction, 2026-11-07: a record inside a file that does not parse may itself be intact, and its key usable. It is not recovered, by the owner's decision.)* | Routine once decided: one handler and a test with a corrupt file. **Decided and applied:** owner, 2026-11-07 ([record](OD-13-DECISION-2026-11-07.md)); #258 |
 | **OD-14** (F8) | A local "Sign out" in Settings that calls `IdentityAuthenticator.signOut()` | It clears the stored session; access tokens expire within 15 minutes. **Caveat:** identity has no logout route, so the server session stays live until its 24-hour expiry, with its refresh token deleted from the phone | Routine for the local action. A server logout route is an identity API change, high-risk, and a separate decision |
 | **OD-15** (F12) | When `Environment` is `staging` or `production`, an inactive identity refuses to start | Matches edge-api, and a misconfigured pod then fails its rollout instead of passing readiness | Routine once decided: a bootstrap check and a test |
 | **OD-16** | Allow Dependabot `docker` update PRs, then pin digests | Dependabot is already installed and configured for these directories; Renovate would be a new external app | Routine once decided: a config change and a digest pin |
