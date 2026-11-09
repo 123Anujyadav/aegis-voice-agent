@@ -32,14 +32,25 @@ const (
 	testNumber     = "+919876543210"
 )
 
-func freePort(t *testing.T) int {
+// twoFreePorts returns two ports that were free a moment ago and are
+// guaranteed to differ: both listeners are held open while the ports are
+// read. Taking one free port at a time can return the same port twice,
+// because each listener is closed before the next is opened, and a service
+// given one port twice refuses to start ("HTTP_PORT and HEALTH_PORT must
+// differ").
+func twoFreePorts(t *testing.T) (first, second int) {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	a, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port
+	defer a.Close()
+	b, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	return a.Addr().(*net.TCPAddr).Port, b.Addr().(*net.TCPAddr).Port
 }
 
 func waitListening(t *testing.T, port int) {
@@ -57,8 +68,9 @@ func waitListening(t *testing.T, port int) {
 
 func lifecycleConfig(t *testing.T) platform.ServiceConfig {
 	t.Helper()
+	httpPort, healthPort := twoFreePorts(t)
 	return platform.ServiceConfig{
-		Name: serviceName, Version: "test", HTTPPort: freePort(t), HealthPort: freePort(t),
+		Name: serviceName, Version: "test", HTTPPort: httpPort, HealthPort: healthPort,
 		ShutdownTimeout: 3 * time.Second, ReadHeaderTimeout: 5 * time.Second,
 	}
 }

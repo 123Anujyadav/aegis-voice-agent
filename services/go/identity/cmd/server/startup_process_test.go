@@ -99,7 +99,7 @@ func listening(port int) bool {
 func TestStartup_StagingAndProductionWithoutConfigurationExitBeforeBinding(t *testing.T) {
 	for _, tier := range []string{"staging", "production"} {
 		t.Run(tier, func(t *testing.T) {
-			healthPort, httpPort := freePort(t), freePort(t)
+			healthPort, httpPort := twoFreePorts(t)
 			p, stderr := startService(t, &tier, healthPort, httpPort)
 
 			answered := false
@@ -139,7 +139,7 @@ func TestStartup_StagingAndProductionWithoutConfigurationExitBeforeBinding(t *te
 func TestStartup_DevelopmentWithoutConfigurationKeepsTheSkeleton(t *testing.T) {
 	for name, tier := range map[string]*string{"unset": nil, "empty": ptr(""), "development": ptr("development")} {
 		t.Run(name, func(t *testing.T) {
-			healthPort, httpPort := freePort(t), freePort(t)
+			healthPort, httpPort := twoFreePorts(t)
 			p, stderr := startService(t, tier, healthPort, httpPort)
 			client := &http.Client{Timeout: time.Second}
 			get := func(path string) (int, string) {
