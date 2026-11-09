@@ -364,3 +364,23 @@ func generate(ctx context.Context, t *testing.T, k *runtime.Kernel) {
 		t.Fatalf("stream: %v", res.Err)
 	}
 }
+
+// The span's status writer does not hide the underlying writer's
+// capabilities: through Unwrap, http.ResponseController still reaches Flush
+// (and deadlines) from a handler inside the edge span.
+func TestEdgeTrace_ResponseControllerReachesTheUnderlyingWriter(t *testing.T) {
+	t.Parallel()
+	var flushErr error
+	h := EdgeTraceMiddleware(telemetry.NewRecordingTracer(&spanSink{}))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "partial")
+		flushErr = http.NewResponseController(w).Flush()
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/me", http.NoBody))
+	if flushErr != nil {
+		t.Fatalf("Flush through the edge span = %v, want it to reach the recorder", flushErr)
+	}
+	if !rec.Flushed {
+		t.Error("the underlying writer was not flushed")
+	}
+}
