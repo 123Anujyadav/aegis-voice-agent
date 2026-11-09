@@ -1,6 +1,6 @@
 # OTP providers: architecture, the development mock, and production activation
 
-- **As of:** 2026-11-09.
+- **As of:** 2026-11-09 (the owner's Option A preference recorded; ADR-0033 Proposed).
 - **Status:**
   - **The development mock is implemented.** It sends nothing, and is refused outside an explicitly development environment.
   - **No real provider is connected.** Staging and production deliver no code: identity refuses OTP requests (`ERR_OTP_DELIVERY_UNAVAILABLE`), as before.
@@ -133,7 +133,8 @@ Each step needs the owner's approval where marked. **None is done.**
 
 ## 7. Known limitations and open decisions
 
-- **A real provider adapter is not merged.** A Twilio Verify adapter is prepared separately and held for the owner. Twilio Verify would generate and check codes itself, which moves verification out of identity: an authentication change that `ARCHITECTURE_FREEZE.md` §6.1 treats as high-risk.
+- **The owner's preferred architecture is Option A** (2026-11-09; [ADR-0033](../adr/0033-otp-ownership-and-delivery-only-sms-providers.md), **Proposed**): identity generates, hashes and verifies every code, and a provider only delivers it. That is what this document describes. It is a preference, not yet a formal approval: acceptance needs the independent human review (OD-12; [review package](OD-12-OTP-REVIEW-PACKAGE.md)).
+- **A real provider adapter is not merged.** The Twilio Verify adapter (draft PR #271) generates and checks codes at Twilio, which contradicts Option A: **it is not selected and will not be merged.** A delivery-only adapter (Twilio Programmable Messaging and/or MSG91) is assessed in ADR-0033 §8, and would need its own review before merge and the owner's approvals before activation.
 - **Open owner decisions this touches:**
   - the SMS provider and the SMS and DLT approval (E2, R1);
   - a resend cooldown, if any (§1);
