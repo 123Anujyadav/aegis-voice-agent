@@ -98,27 +98,37 @@ The product's core loop. Note that it begins with a call the user did not
 answer — there is no "screen this call?" prompt, because by the time we exist
 the decision was already made by not picking up.
 
+**Order (corrected 2026-11-09):** on Android the on-device pre-filter runs
+when the call arrives, **before** the phone rings; carrier no-reply
+forwarding (CFNRy) happens only after the ring delay, for a call that rang and
+was not answered. The diagram previously drew the pre-filter after "not
+answered" (`docs/phase19/RELEASE-READINESS-ASSESSMENT.md`, "UX flow F2
+diagram").
+
 ```
   Unknown number calls
         │
         ▼
-  Handset rings, 5 s               ◀── ADR-0002: CFNRy ring delay
+  On-device pre-filter             ◀── runs BEFORE the phone rings
+  (CallScreeningService)               (Android's call-screening role)
         │
-   ┌────┴─────────────────┐
-   │                      │
- answered            not answered
-   │                      │
-   ▼                      ▼
- Normal call        On-device pre-filter
-                          │
-        ┌─────────────────┼──────────────────┐
-        ▼                 ▼                  ▼
-   known contact      blocked            unknown
-        │                 │                  │
-        ▼                 ▼                  ▼
-  rings through      rejected /        carrier forwards
-  (no screening,     silenced          to our DID
-   feed row only)    (feed row)              │
+        ├─────────────────┬──────────────────────┐
+        ▼                 ▼                      ▼
+     blocked        known contact             unknown
+        │                 │                      │
+        ▼                 ▼                      ▼
+   rejected /       rings through       Handset rings, 5 s
+   silenced         (no screening,      ◀── ADR-0002: CFNRy delay
+   (feed row)        feed row only)              │
+                                        ┌────────┴────────┐
+                                        │                 │
+                                     answered         not answered
+                                        │                 │
+                                        ▼                 ▼
+                                    Normal call     carrier forwards
+                                                    to our DID (CFNRy)
+                                                          │
+                                             ┌────────────┘
                                              ▼
                                      Gateway answers
                                              │
