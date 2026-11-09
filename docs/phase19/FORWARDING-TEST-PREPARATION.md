@@ -2,6 +2,7 @@
 
 - **Status, 2026-11-05: PREPARED ONLY. Do not run.** Do not set call forwarding, and dial no forwarding code. These cases are written down now so they can run as soon as their prerequisites exist and are approved.
 - **Nothing here has been run, and nothing has been activated.**
+- **Release milestone M3 acceptance** (OD-10, owner, 2026-11-09: [record](OD-10-DECISION-2026-11-09.md)). Device cases M3, M4 and M5 moved here from release milestone M2, unchanged, with every dependency below.
 - **The app never dials a forwarding code:** its forwarding screen says "Not available yet" (`HonestScreensDeviceTest`).
 - **Companion:** [`PHYSICAL-DEVICE-TEST-CHECKLIST.md`](PHYSICAL-DEVICE-TEST-CHECKLIST.md), the 9 cases that need no forwarding.
 

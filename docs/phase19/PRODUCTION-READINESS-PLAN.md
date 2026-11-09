@@ -42,7 +42,7 @@ The inventory's counts are as of 2026-11-01 (`ROADMAP-INVENTORY.md` §3.6), adju
 |---|---|---|---|
 | Coding (C1–C15) | **15** | **0** | — (C16–C24 done) |
 | Testing (T2–T5; T2 is 12 carrier cases) | **4** | **0** | T1 done |
-| Owner decisions (tracker O1–O17 less O10, O11; OD-1–OD-18) | **30** | — | OD-11 closed (#245); OD-13 closed (#258); OD-15 closed (#260) |
+| Owner decisions (tracker O1–O17 less O10, O11; OD-1–OD-18) | **29** | — | OD-11 closed (#245); OD-13 closed (#258); OD-15 closed (#260); OD-10 closed (#261) |
 | Privacy and legal reviews (L1–L6) | **6** | — | Q7 adds counsel review of the 54 translated rows as a production gate |
 | External dependencies (E1–E10, X1–X5) | **15** | — | — |
 | High-risk decisions needing an independent reviewer | **4** (H1, H2, H3, H7), **+3 conditional** (H4–H6) | **0**: no reviewer named (OD-12) | — |
@@ -55,10 +55,10 @@ The inventory's counts are as of 2026-11-01 (`ROADMAP-INVENTORY.md` §3.6), adju
 | | **M0 Baseline (now)** | **M1 Play internal testing** | **M2 Public production** | **M3 Product capabilities** |
 |---|---|---|---|---|
 | **Complete** | Identity and edge-api; the Android app (onboarding, on-device screening, lists, settings, deletion, six-language packaging and language choice, navigation per spec); the release pipeline (R8, signing check, endpoint preflight); CI (unit, race, fuzz, real PostgreSQL, emulators API 35/28/26, R8 functional tests, dependency audit) | **Code: nothing more is required** (§4.1). The release refuses to build without hosts and pins (#194) | — | Package scaffolding only (`PRODUCTION-READINESS.md` §6) |
-| **Remaining** | — | **External:** E2 (SMS and DLT); X5 with E3, E4 (staging hosts, keys, database, pins); X1, X2 (Play Console, upload key, Environment). **Engineering after E2 is chosen:** C2 (the SMS adapter), deployment manifests (C1 of `INTERNAL-TESTING-SETUP.md`) | Code: C1 (web deletion), C3 (deletion-code adapter), C9 (reviewer path), C4 if Play Integrity is enforced. Tests: T2 (12 cases), T3, T4, T5. Decisions: O9, O13, O1, OD-1, OD-10, and O7, O8, OD-9 if Play Integrity is used. L1–L6, E8, E10. Play Console declarations. Q7 counsel review per translated language. F26 branding | Voice assistant (forwarding, speech, LLM); post-call reports; evaluation; analytics; memory; learning; model improvement |
+| **Remaining** | — | **External:** E2 (SMS and DLT); X5 with E3, E4 (staging hosts, keys, database, pins); X1, X2 (Play Console, upload key, Environment). **Engineering after E2 is chosen:** C2 (the SMS adapter), deployment manifests (C1 of `INTERNAL-TESTING-SETUP.md`) | Code: C1 (web deletion), C3 (deletion-code adapter), C9 (reviewer path), C4 if Play Integrity is enforced. Tests: T2 (device cases M1, M2 and M6–M12; device cases M3–M5 moved to M3 by OD-10), T3, T4 (**retained and UNRESOLVED**: Play Integrity deferred, [OD-10 record](OD-10-DECISION-2026-11-09.md) §8), T5. Decisions: O9, O13, O1, OD-1, and O7, O8, OD-9 if Play Integrity is used. **The nine owner-decided acceptance items, OPEN** (OD-10 record §6: staging targets; the M2 device/carrier acceptance matrix). L1–L6, E8, E10. Play Console declarations. Q7 counsel review per translated language. F26 branding | Voice assistant (forwarding, speech, LLM); post-call reports; evaluation; analytics; memory; learning; model improvement. Device cases M3–M5 (forwarding; moved from M2 by OD-10) |
 | **Blocked by** | — | E2 (critical path), X5, X1/X2, **each needing its category approval (§4)**, and the naming review (F26) for the DLT templates and package name | M1, OD-12 (for H-items), E8, E9, E10, counsel | OD-17 (deferred), X4, the telephony staging NO-GO (P1-38), OD-4 (consent), the forwarding and LLM category approvals (§4) |
-| **Exact remaining count** | 0 | **3 external items** (E2, X5+E3+E4, X1+X2) **+ 2 engineering items** after them (C2 adapter, manifests) | 3 coding (C1, C3, C9) + C4† + 4 testing (T2–T5) + 5 decisions (O9, O13, O1, OD-1, OD-10) + 3† (O7, O8, OD-9) + 6 legal + 2 external (E8, E10) + Play declarations | Not countable: no task list exists for them (§6 lists capabilities, not tasks) |
-| **Exit evidence** | Met: CI and emulator only | A release run of `release-android.yml` from the protected Environment; the `.aab` on the internal track; **a tester signs in on a physical phone against staging** and turns blocking on (T3 started) | All of M1, plus: T2 (12 cases) and T3–T5 recorded on physical phones and staging; L1–L6 signed off; E8 report; the Play declarations accepted; production deploy verified; the counsel sign-off per translated language (Q7) | Each capability's own acceptance, defined when its tasks are |
+| **Exact remaining count** | 0 | **3 external items** (E2, X5+E3+E4, X1+X2) **+ 2 engineering items** after them (C2 adapter, manifests) | 3 coding (C1, C3, C9) + C4† + 4 testing (T2–T5) + 4 decisions (O9, O13, O1, OD-1) + 3† (O7, O8, OD-9) + 9 OPEN acceptance items (OD-10 record §6) + 6 legal + 2 external (E8, E10) + Play declarations | Not countable: no task list exists for them (§6 lists capabilities, not tasks) |
+| **Exit evidence** (binding under [OD-10](OD-10-DECISION-2026-11-09.md); none is met beyond M0) | Met: CI and emulator only | A release run of `release-android.yml` from the protected Environment; the `.aab` on the internal track; **a tester signs in on a physical phone against staging** and turns blocking on (T3 started). "A tester" means at least one (OD-10) | All of M1, plus: T2 (device cases M1, M2 and M6–M12) and T3–T5 recorded on physical phones and staging, **T4 retained and UNRESOLVED** (OD-10 record §8); L1–L6 signed off; E8 report; the Play declarations accepted; production deploy verified; the counsel sign-off per translated language (Q7). **And every §6 requirement:** where §2 and §6 overlap, the stricter applies (OD-10) | Each capability's own acceptance, defined when its tasks are; **plus device cases M3, M4 and M5**, moved from M2 by OD-10 with their dependencies (X4, C8; for M5 also the deployed gateway and the voice pipeline: [`FORWARDING-TEST-PREPARATION.md`](FORWARDING-TEST-PREPARATION.md)) |
 | **Product phases** (`../PRODUCT-ROADMAP.md`) | 1; built parts of 2 and 3 | 2 (OTP), 3 (screening for testers), 4 (staging), 5 (T3), 6 (signing, internal testing) | 2, 4, 5, 6 | 3, 4, 5 |
 
 † Only if Play Integrity is to be enforced.
@@ -167,18 +167,18 @@ From [`INTERNAL-TESTING-SETUP.md`](INTERNAL-TESTING-SETUP.md) (the step IDs are 
 
 ## 6. Evidence to declare production-ready
 
-Production-ready means **every** row below is met and recorded with its evidence. CI and emulator runs alone never qualify.
+Production-ready means **every** row below is met and recorded with its evidence. CI and emulator runs alone never qualify. **Binding under [OD-10](OD-10-DECISION-2026-11-09.md):** with §2's M2 exit evidence, these rows are release milestone M2's criteria, the stricter applying where they overlap.
 
 | Area | Required evidence |
 |---|---|
 | Sign-in, refresh, deletion | T3 on physical phones against staging, then production; the deletion code delivered (E2), and the web deletion page live (E10, C1) |
-| On-device screening | T2: all 12 cases on physical phones, per carrier (Jio, Airtel, Vi, BSNL), including OEM restrictions and dual-SIM |
+| On-device screening | T2: device cases M1, M2 and M6–M12 on physical phones, per carrier (Jio, Airtel, Vi, BSNL), including OEM restrictions and dual-SIM. This requirement stays in force until a separate owner decision explicitly confirms or replaces it. **The M2 carrier matrix, Android versions, dual-SIM coverage, OEM/device diversity, and test cases and pass thresholds: OPEN — M2 device/carrier acceptance matrix requires a separate owner decision** (OD-10 record §6). Device cases M3–M5 (forwarding) moved to release milestone M3 (OD-10) |
 | Release | A signed `.aab` from the protected Environment; Play App Signing; Play declarations accepted (Data safety, privacy policy URL, Delete account URL, permissions, content rating) |
 | Security | E8 report with findings closed; T5 key-rotation drill in staging; high-risk decisions approved with the independent review (OD-12) |
 | Privacy and legal | L1–L6 signed off by counsel and the DPDP review (E9); Q7 sign-off for each translated language shipped |
-| Operations | Staging and production deploys verified; health, metrics and alerting (E5 tracing as decided); database PITR (E4) |
+| Operations | Staging and production deploys verified; health, metrics and alerting (E5 tracing as decided); database PITR (E4). **Staging readiness/availability, p95 latency, failover/recovery and load-test targets: OPEN — to be defined and approved separately before M2** (OD-10 record §6) |
 | Languages | A language is called supported only with reviewed translation, the on-phone check, and Q7 |
-| Completion criteria | OD-10 approved, so "done" is defined |
+| Owner-decided acceptance items | The M2 device/carrier acceptance matrix and the staging performance and availability targets (OD-10 record §6) are decided by the owner, and their evidence recorded |
 
 ## 7. Critical path
 
@@ -208,6 +208,6 @@ Production-ready means **every** row below is met and recorded with its evidence
 5. Choose the SMS provider(s), and start DLT registration with the reviewed template text (E2).
 6. Authorise staging: AWS account, cluster, IAM and domain (X5, B1, B3); decide the manifests (C1).
 7. Register the Play developer account (personal or organisation), confirm the package name, create the upload key and Environment (X1, X2).
-8. Approve OD-10, Phase 19's completion criteria.
+8. **Done (2026-11-09, #261):** OD-10, Phase 19's completion criteria ([record](OD-10-DECISION-2026-11-09.md)).
 9. For M2: engage counsel for L1–L6 and Q7; commission E8; decide O9, O13, O1, OD-1 and the Play Integrity items.
 10. When ready: approve translators (Q0) and, separately, any speech-model step (OD-17).

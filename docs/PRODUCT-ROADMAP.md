@@ -35,13 +35,13 @@ The milestones keep their definitions:
 - 4 testing (T2–T5);
 - 15 external (E1–E10, X1–X5);
 - 6 legal (L1–L6);
-- 30 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-11, OD-13 and OD-15.
+- 29 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-10, OD-11, OD-13 and OD-15.
 
 High-risk items (H) overlap these and are listed with their phase.
 
 **Cross-phase gates**, not counted in a phase:
 - **OD-12:** an independent human reviewer. It gates every high-risk item.
-- **OD-10:** the completion criteria.
+- **OD-10:** the completion criteria. **Closed** (owner, 2026-11-09, #261): the exit evidence in §3 and the plan's milestones are binding ([record](phase19/OD-10-DECISION-2026-11-09.md)).
 - **The spending policy's category approvals** (plan §4).
 
 ### Product Phase 1: Engineering Foundation (M0)
@@ -137,7 +137,7 @@ High-risk items (H) overlap these and are listed with their phase.
   - **T2**, 12 carrier cases: 9 on-device cases, of which 5 have a result on one phone (M2 on Airtel only), and 3 needing forwarding. **T2 stays open:**
     - M2 on Jio, Vi and BSNL, M9 and M10 need more phones and SIMs;
     - M11 and M12 need a new session, with the owner's approval;
-    - M3–M5 need forwarding (X4);
+    - M3–M5 need forwarding (X4); these device cases are release milestone M3 acceptance (OD-10);
   - **T3**, sign-in, refresh and deletion on a phone against live hosts;
   - **T4**, Play Integrity verdicts;
   - **T5**, the key-rotation drill in staging.
@@ -180,8 +180,8 @@ High-risk items (H) overlap these and are listed with their phase.
 | 4 | 2 | 0 | 7 | 0 | 0 |
 | 5 | 0 | 4 | 1 | 0 | 0 |
 | 6 | 1 | 0 | 4 | 6 | 2 |
-| Cross-phase gates | — | — | — | — | 2 (OD-10, OD-12) |
-| **Total** | **15** | **4** | **15** | **6** | **30** |
+| Cross-phase gates | — | — | — | — | 1 (OD-12) |
+| **Total** | **15** | **4** | **15** | **6** | **29** |
 
 **Not countable yet:** these capabilities have no task list. They need one before they can be counted:
 - the multilingual voice assistant;
@@ -193,13 +193,13 @@ High-risk items (H) overlap these and are listed with their phase.
 
 ## 3. Exit evidence, by phase
 
-**A phase exits only with this evidence.** No phase has exited.
+**A phase exits only with this evidence.** No phase has exited. This exit evidence is binding under OD-10 (owner, 2026-11-09: [record](phase19/OD-10-DECISION-2026-11-09.md)); approving it completed nothing.
 
 | Product phase | Exit evidence |
 |---|---|
 | 1 | OD-16 and OD-18 decided; the owner-held engineering Phase 15/16 items closed or explicitly deferred by the owner; CI green on `main` |
 | 2 | A real code delivered by SMS (E2, C2), and sign-in, refresh and deletion on a physical phone against staging (T3); E8 report with findings closed; the identity decisions taken, and the high-risk ones with independent review (OD-12) |
-| 3 | On-device screening recorded on physical phones (T2's 9 cases); reviewed translations for each language claimed; for the assistant, OD-17 decided and calls answered through the voice path (M5) |
+| 3 | On-device screening recorded on physical phones (T2's 9 cases); reviewed translations for each language claimed; for the assistant, OD-17 decided and calls answered through the voice path (device case M5) |
 | 4 | Staging deployed and verified, with health, metrics and tracing; the key-rotation drill done (T5); production infrastructure verified; integrations live only under their category approvals |
 | 5 | T2 (12 cases), T3, T4 and T5 recorded on physical phones and live hosts; AI evaluation on consented recordings; a rollback exercised |
 | 6 | L1–L6 and Q7 signed off by counsel; Play declarations accepted; internal testing used by testers; a staged rollout with production monitoring in place |
