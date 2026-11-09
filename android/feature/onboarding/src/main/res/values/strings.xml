@@ -8,13 +8,13 @@
 <resources>
 
     <!-- Splash -->
-    <string name="onboarding_brand_name" translatable="false">Aegis AI</string>
-    <string name="onboarding_splash_logo_description">Aegis Shield Logo</string>
+    <string name="onboarding_brand_name" translatable="false">Lily AI</string>
+    <string name="onboarding_splash_logo_description">Lily AI logo</string>
     <string name="onboarding_splash_tagline">Autonomous Call Defense &amp; Screening</string>
 
     <!-- Welcome (A02) -->
     <string name="onboarding_welcome_logo_description">Logo</string>
-    <string name="onboarding_welcome_title">Welcome to Aegis AI</string>
+    <string name="onboarding_welcome_title">Welcome to Lily AI</string>
     <string name="onboarding_welcome_tagline">Block the calls you don\'t want, and get help with the ones you don\'t recognise.</string>
     <string name="onboarding_welcome_blocking_title">On-device blocking</string>
     <string name="onboarding_welcome_blocking">Numbers you block are rejected on this phone before it rings, even offline.</string>
@@ -49,7 +49,7 @@
     <string name="onboarding_phone_icon_description">Phone Verification</string>
     <string name="onboarding_phone_title_number">Enter Phone Number</string>
     <string name="onboarding_phone_title_code">Enter Verification Code</string>
-    <string name="onboarding_phone_subtitle_number">Aegis AI binds your mobile identity securely on-device.</string>
+    <string name="onboarding_phone_subtitle_number">Lily AI binds your mobile identity securely on-device.</string>
     <string name="onboarding_phone_subtitle_code">We sent a 6-digit code to %1$s</string>
     <string name="onboarding_phone_label_number">Mobile number, with country code</string>
     <string name="onboarding_phone_label_code">6-digit code</string>

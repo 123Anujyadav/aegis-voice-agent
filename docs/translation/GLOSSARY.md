@@ -8,7 +8,7 @@
 
 | English | What it means in this app | How to handle it |
 |---|---|---|
-| **Aegis AI**, Aegis | The product's name | A name, not a word to translate. **Keep `Aegis AI` in Latin letters in every translation** (Q1, owner, 2026-11-04). **The product's name is Lily AI** (owner, 2026-11-05): a branding cleanup replaces it before translation starts, and the same rule then applies to "Lily AI" |
+| **Lily AI** | The product's name (owner, 2026-11-05), on screen since the Lily AI visual port (2026-11-09). It replaced "Aegis AI" and "Aegis" in the app's words | A name, not a word to translate. **Keep `Lily AI` in Latin letters in every translation** (Q1, owner, 2026-11-04, applied to the new name). The launcher label stays "CallScreen" until the naming review (F26) |
 | **screen calls**, screening, screened, screenings | **Checking a call before the person has to deal with it.** Android's own screening decides whether a call rings or is rejected (blocking). The planned assistant answers an unknown caller the person doesn't pick up and asks who is calling and why | Not a display screen. Not medical screening. One term for "screening" in every row |
 | **screen** (noun), screens | A page of the app: "this app's screens" | Different from "screening". Use a word that cannot be read as "screening" (`settings_language_intro`) |
 | **assistant** | The planned automated voice that would answer unknown callers for the person. **Not available yet** | Not Google Assistant. A neutral word for a helper, not a human receptionist |

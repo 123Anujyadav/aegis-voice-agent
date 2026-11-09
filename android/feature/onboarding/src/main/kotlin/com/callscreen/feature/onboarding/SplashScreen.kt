@@ -10,11 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.aegisSafeArea
 import kotlinx.coroutines.delay
+import com.callscreen.core.designsystem.theme.LilyAiTokens
+import com.callscreen.core.ui.components.LilyLogo
 
 @Composable
 public fun SplashScreen(
@@ -61,7 +59,7 @@ public fun SplashScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(CallScreenTheme.colors.action.primary.fill)
+            .background(LilyAiTokens.navyGradient)
             // Centred in the area the system bars leave, as in landscape a side bar can be wide.
             .windowInsetsPadding(WindowInsets.aegisSafeArea),
         contentAlignment = Alignment.Center
@@ -73,27 +71,26 @@ public fun SplashScreen(
                 .scale(scale)
                 .alpha(alpha)
         ) {
-            Icon(
-                imageVector = Icons.Default.Shield,
-                contentDescription = stringResource(R.string.onboarding_splash_logo_description),
-                tint = CallScreenTheme.colors.action.secondary.fill,
-                modifier = Modifier.size(96.dp)
-            )
+            LilyLogo(size = 108.dp, contentDescription = stringResource(R.string.onboarding_splash_logo_description))
             Text(
                 text = stringResource(R.string.onboarding_brand_name),
                 style = CallScreenTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
-                color = CallScreenTheme.colors.content.inverse
+                // The background is the fixed navy gradient in every theme, so the text is fixed white.
+                color = SplashText
             )
             Text(
                 text = stringResource(R.string.onboarding_splash_tagline),
                 style = CallScreenTheme.typography.bodyLarge,
                 fontSize = 16.sp,
-                color = CallScreenTheme.colors.content.inverse.copy(alpha = 0.8f)
+                color = SplashText.copy(alpha = 0.8f)
             )
         }
     }
 }
+
+/** Text on the splash's fixed navy gradient (white: 14:1 or more on the navy). */
+private val SplashText = LilyAiTokens.logoPlate
 
 @Preview
 @Composable

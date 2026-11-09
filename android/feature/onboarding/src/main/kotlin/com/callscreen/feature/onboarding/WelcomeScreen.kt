@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -35,6 +34,10 @@ import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.components.AegisPrimaryButton
 import com.callscreen.core.ui.components.AegisScreenColumn
 import com.callscreen.core.ui.language.readInLanguages
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
+import com.callscreen.core.designsystem.token.Radius
+import com.callscreen.core.ui.components.LilyLogo
 
 @Composable
 public fun WelcomeScreen(
@@ -70,20 +73,7 @@ public fun WelcomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(CallScreenTheme.colors.action.primary.fill),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Shield,
-                    contentDescription = stringResource(R.string.onboarding_welcome_logo_description),
-                    tint = CallScreenTheme.colors.action.primary.content,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
+            LilyLogo(size = 88.dp, contentDescription = stringResource(R.string.onboarding_welcome_logo_description))
             Text(
                 text = stringResource(R.string.onboarding_welcome_title),
                 style = CallScreenTheme.typography.headlineLarge,
@@ -129,18 +119,20 @@ private fun WelcomeFeatureCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = CallScreenTheme.colors.surface.default)
+        shape = RoundedCornerShape(Radius.xxl),
+        colors = CardDefaults.cardColors(containerColor = CallScreenTheme.colors.surface.default),
+        border = BorderStroke(1.dp, CallScreenTheme.colors.border.subtle),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(48.dp)
+                    .clip(CircleShape)
                     .background(CallScreenTheme.colors.status.ai.subtle),
                 contentAlignment = Alignment.Center
             ) {

@@ -218,8 +218,8 @@ class TranslationKitTest(unittest.TestCase):
         def problems(name: str, source: str, text: str) -> list[str]:
             return kit.owner_term_problems(name, text, source)
 
-        self.assertEqual([], problems("t", "Welcome to Aegis AI", "Aegis AI में आपका स्वागत है"))
-        self.assertTrue(problems("t", "Welcome to Aegis AI", "एजिस एआई में आपका स्वागत है"))
+        self.assertEqual([], problems("t", "Welcome to Lily AI", "Lily AI में आपका स्वागत है"))
+        self.assertTrue(problems("t", "Welcome to Lily AI", "लिली एआई में आपका स्वागत है"))
         self.assertEqual([], problems("t", "AI screenings", "AI स्क्रीनिंग"))
         self.assertTrue(problems("t", "AI screenings", "एआई स्क्रीनिंग"))
         self.assertEqual([], problems("onboarding_phone_resend", "Send a new code", "नया OTP भेजें"))

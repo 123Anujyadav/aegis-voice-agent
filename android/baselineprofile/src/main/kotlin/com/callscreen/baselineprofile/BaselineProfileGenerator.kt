@@ -28,7 +28,7 @@ class BaselineProfileGenerator {
     fun generate() = rule.collect(packageName = PKG) {
         pressHome()
         startActivityAndWait()
-        device.text("Welcome to Aegis AI")
+        device.text("Welcome to Lily AI")
 
         device.text("भाषा · Language").click()
         device.text("Phone's language (English)")
@@ -41,7 +41,7 @@ class BaselineProfileGenerator {
         device.pressBack()
         device.text("Your SIM")
         device.pressBack()
-        device.text("Welcome to Aegis AI")
+        device.text("Welcome to Lily AI")
     }
 
     private fun UiDevice.text(text: String): UiObject2 =
