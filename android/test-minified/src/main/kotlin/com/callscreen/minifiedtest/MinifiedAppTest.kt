@@ -159,6 +159,100 @@ class MinifiedAppTest {
         }
     }
 
+    /**
+     * A language chosen in the app survives the app's process being killed
+     * (docs/phase19/LOCALISATION.md §4, "Not tested: real process death on a
+     * device"). The choice is made in the app's own picker, then the process
+     * is force-stopped and the app started cold: the picker shows the same
+     * choice. On Android 8 to 12 the app keeps the choice in its own file; on
+     * 13 and later Android keeps it as the per-app language, which is checked
+     * as well. The words stay English, the fallback, until a translation
+     * exists.
+     */
+    @Test
+    fun aLanguageChosenInTheAppSurvivesTheProcessBeingKilled() {
+        try {
+            awaitText("भाषा · Language").click()
+            awaitText("Phone's language (English)")
+            // The baseline, which also shows that chosen() tells the rows apart.
+            assertTrue("the phone's language is not chosen at the start", chosen("Phone's language (English)"))
+            assertFalse("Tamil is chosen before it was chosen", chosen(TAMIL))
+            reach(TAMIL).click()
+            // Choosing re-creates the screen in the language (a configuration change).
+            assertTrue("Tamil is not shown as chosen after choosing it.\n" + screen(), chosen(TAMIL))
+
+            device.pressHome()
+            shell("am force-stop $PKG")
+            assertTrue("the app's process survived force-stop", shell("pidof $PKG").isBlank())
+            launch(clearTask = true)
+
+            // A new process: the screens start in the chosen language (English words, no
+            // translation yet), and the picker still has Tamil chosen.
+            awaitText("Welcome to Lily AI")
+            awaitText("भाषा · Language").click()
+            reach(TAMIL)
+            assertTrue("Tamil is no longer chosen after the process was killed.\n" + screen(), chosen(TAMIL))
+            assertFalse("the phone's language is chosen after the process was killed", chosen(phoneLanguageRow()))
+            if (Build.VERSION.SDK_INT >= 33) {
+                val set = shell("cmd locale get-app-locales $PKG")
+                assertTrue("Android does not hold the per-app language: $set", "ta" in set)
+            }
+        } finally {
+            restorePhoneLanguage()
+        }
+    }
+
+    /** True if the picker row holding [label] is chosen (a radio button's checked state). */
+    private fun chosen(label: String): Boolean {
+        var node: UiObject2? = device.wait(Until.findObject(By.text(label)), TIMEOUT) ?: return false
+        repeat(4) {
+            val current = node ?: return false
+            if (current.isChecked || current.isSelected) return true
+            node = current.parent
+        }
+        return false
+    }
+
+    /**
+     * The picker's first row, "Phone's language (…)". Its parenthesis names
+     * the phone's language in the language currently chosen, so only the
+     * start of the label is fixed.
+     */
+    private fun phoneLanguageRow(): String {
+        val row = device.wait(Until.findObject(By.textStartsWith("Phone's language")), TIMEOUT)
+            ?: run {
+                fail("the phone's-language row is not on screen.\n" + screen())
+                error("unreachable")
+            }
+        return row.text
+    }
+
+    /**
+     * Back to the phone's language, so that no other test starts in Tamil.
+     * Through the picker first, as a person would. If that cannot be done, the
+     * app's data is cleared (which also clears the choice the app keeps on
+     * Android 8 to 12) and the app started again, so that the run's checks of
+     * the app's process and log still apply.
+     */
+    private fun restorePhoneLanguage() {
+        if (Build.VERSION.SDK_INT >= 33) shell("cmd locale set-app-locales $PKG")
+        val restored = runCatching {
+            if (device.findObject(By.textStartsWith("Phone's language")) == null) {
+                device.pressHome()
+                shell("am force-stop $PKG")
+                launch(clearTask = true)
+                awaitText("भाषा · Language").click()
+            }
+            device.wait(Until.findObject(By.textStartsWith("Phone's language")), TIMEOUT)?.click()
+            device.wait(Until.findObject(By.text("Phone's language (English)")), TIMEOUT) != null &&
+                chosen("Phone's language (English)")
+        }.getOrDefault(false)
+        if (!restored) {
+            shell("pm clear $PKG")
+            launch(clearTask = true)
+        }
+    }
+
     private fun launch(clearTask: Boolean) {
         val context = instrumentation.context
         val intent = requireNotNull(context.packageManager.getLaunchIntentForPackage(PKG)) {
@@ -236,6 +330,7 @@ class MinifiedAppTest {
 
     private companion object {
         const val PKG = "com.callscreen.staging"
+        const val TAMIL = "தமிழ்"
         const val TIMEOUT = 15_000L
         const val MAX_SCROLLS = 6
 
