@@ -115,6 +115,8 @@ It passes with a complete configuration. A normal debug build with no endpoints 
 
 ## Decisions that need your explicit approval
 
+The three external approvals (SMS and DLT, staging, Play) are set out as approval requests, each with its cost, data sharing, setup and the consequence of deferring, in [`M1-APPROVAL-REQUESTS.md`](M1-APPROVAL-REQUESTS.md) (2026-11-09).
+
 | Decision | Blocks |
 |---|---|
 | The SMS provider(s) and contract; DLT registration; the two template texts (A1–A3) | Any sign-in |
