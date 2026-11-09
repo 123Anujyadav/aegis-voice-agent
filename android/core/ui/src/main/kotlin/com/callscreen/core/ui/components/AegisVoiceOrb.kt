@@ -16,11 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.designsystem.theme.LilyAiTokens
 
 @Composable
 public fun AegisVoiceOrb(
@@ -29,39 +29,50 @@ public fun AegisVoiceOrb(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "orbPulse")
     val scale by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 1.15f,
+        initialValue = 0.92f,
+        targetValue = 1.12f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "orbScale"
     )
-
-    val gradient = Brush.radialGradient(
-        colors = listOf(
-            CallScreenTheme.colors.status.ai.fill,
-            CallScreenTheme.colors.status.voice.fill,
-            CallScreenTheme.colors.action.primary.fill
-        )
+    val ringScale by infiniteTransition.animateFloat(
+        initialValue = 1.05f,
+        targetValue = 1.28f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "ringScale"
     )
 
     Box(
-        modifier = modifier.size(140.dp),
+        modifier = modifier.size(160.dp),
         contentAlignment = Alignment.Center
     ) {
+        // The outer aura pulses only while listening.
+        if (isListening) {
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .scale(ringScale)
+                    .clip(CircleShape)
+                    .background(LilyAiTokens.brandViolet.copy(alpha = 0.12f))
+            )
+        }
         Box(
             modifier = Modifier
                 .size(130.dp)
                 .scale(if (isListening) scale else 1.0f)
                 .clip(CircleShape)
-                .background(gradient)
+                .background(LilyAiTokens.orbGradient)
         )
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(76.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.25f))
+                .background(Color.White.copy(alpha = 0.22f))
         )
     }
 }

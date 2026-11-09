@@ -29,6 +29,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.R
+import androidx.compose.foundation.BorderStroke
+import com.callscreen.core.designsystem.token.Radius
 
 public enum class CallType {
     Incoming,
@@ -51,11 +53,12 @@ public fun AegisCallCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Radius.xxl),
+        border = BorderStroke(1.dp, CallScreenTheme.colors.border.subtle),
         colors = CardDefaults.cardColors(
             containerColor = CallScreenTheme.colors.surface.default
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -66,11 +69,11 @@ public fun AegisCallCard(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(46.dp)
                         .clip(CircleShape)
                         .background(
                             when (callType) {
@@ -99,7 +102,7 @@ public fun AegisCallCard(
                             CallType.ScreenedAI -> CallScreenTheme.colors.status.ai.text
                             else -> CallScreenTheme.colors.action.primary.fill
                         },
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 

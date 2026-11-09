@@ -16,6 +16,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import androidx.compose.foundation.BorderStroke
+import com.callscreen.core.designsystem.token.Radius
 
 @Composable
 public fun AegisThreatCard(
@@ -39,10 +41,17 @@ public fun AegisThreatCard(
         else -> CallScreenTheme.colors.status.success.text
     }
 
+    val borderColor = when {
+        isHighRisk -> CallScreenTheme.colors.status.fraud.border
+        isMediumRisk -> CallScreenTheme.colors.status.spam.border
+        else -> CallScreenTheme.colors.status.success.border
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = cardBg)
+        shape = RoundedCornerShape(Radius.xxl),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),

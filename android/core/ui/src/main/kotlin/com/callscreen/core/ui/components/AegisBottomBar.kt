@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.ui.R
+import com.callscreen.core.designsystem.token.Radius
 
 public enum class AegisTab {
     Calls,
@@ -125,11 +126,11 @@ private fun AegisNavItem(
     modifier: Modifier = Modifier,
 ) {
     val containerColor by animateColorAsState(
-        if (isSelected) CallScreenTheme.colors.action.secondary.fill else CallScreenTheme.colors.surface.default,
+        if (isSelected) CallScreenTheme.colors.status.ai.subtle else CallScreenTheme.colors.surface.default,
         label = "navContainerColor"
     )
     val contentColor by animateColorAsState(
-        if (isSelected) CallScreenTheme.colors.action.primary.fill else CallScreenTheme.colors.content.secondary,
+        if (isSelected) CallScreenTheme.colors.brandAccent else CallScreenTheme.colors.content.secondary,
         label = "navContentColor"
     )
 
@@ -137,7 +138,7 @@ private fun AegisNavItem(
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(Radius.xxl))
                 .background(containerColor)
                 // A tab, read with its selected state.
                 .selectable(selected = isSelected, onClick = onClick, role = Role.Tab)
