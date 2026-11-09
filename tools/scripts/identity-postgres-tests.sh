@@ -40,9 +40,18 @@
 # establishes verified TLS and that an untrusted server or a host name the
 # certificate does not carry is refused at the handshake.
 #
+# Coverage report (COVERAGE_REPORT=1; F28 in docs/phase19/PRODUCTION-READINESS.md):
+# report only. Every `go test` run gets -cover; the offline auth modules
+# (accesstoken, dpop, middleware, platform) are tested too, so that their figure
+# is reported; and each package's statement coverage is printed after the test
+# summary (and added to the GitHub job summary when there is one). There is NO
+# floor: the figures never change the exit status. Coverage counts each
+# package's own tests only, as `go test -cover` does by default.
+#
 # Usage (from the repository root):
 #   POSTGRES_IMAGE=docker.io/library/postgres@sha256:<digest> \
 #   GO_TEST_FLAGS=-race \
+#   COVERAGE_REPORT=1 \
 #     tools/scripts/identity-postgres-tests.sh
 # =============================================================================
 set -euo pipefail
@@ -53,6 +62,12 @@ read -r -a GO_TEST_EXTRA <<< "${GO_TEST_FLAGS:-}"
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 modules=(services/go/identity services/go/edge-api)
+if [ "${COVERAGE_REPORT:-}" = "1" ]; then
+  GO_TEST_EXTRA+=(-cover)
+  # Offline modules on the auth path. They need no database and run here only
+  # so that the report includes them; pr-go tests them on every change.
+  modules+=(packages/go/accesstoken packages/go/dpop packages/go/middleware packages/go/platform)
+fi
 name="cs-idpg-$(od -An -N4 -tx4 /dev/urandom | tr -d ' \n')"
 log="$(mktemp)"
 certs="$(mktemp -d)"
@@ -176,6 +191,8 @@ fi
 summary_status=0
 "$py" -I - "$log" <<'PY' || summary_status=$?
 import json
+import os
+import re
 import sys
 
 ALLOWED_SKIPS = {
@@ -192,6 +209,8 @@ REQUIRED_PASSES = {
 
 counts = {"pass": 0, "fail": 0, "skip": 0}
 outputs, failed, skipped, passed, packages, raw = {}, [], [], set(), [], []
+coverage = {}
+COVERAGE_LINE = re.compile(r"^coverage: (.+?)(?: of statements)?$")
 with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
     for line in fh:
         if not line.startswith("{"):
@@ -202,6 +221,9 @@ with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
         action = e.get("Action")
         if action == "output":
             outputs.setdefault(key, []).append(e.get("Output", ""))
+            m = COVERAGE_LINE.match(e.get("Output", "").strip())
+            if m and not key[1]:
+                coverage[key[0]] = m.group(1)
         elif action in counts and key[1]:
             counts[action] += 1
             if action == "fail":
@@ -233,6 +255,20 @@ for action, pkg in packages:
 if raw and (failed or any(a == "fail" for a, _ in packages) or not packages):
     print("== non-JSON output (for example build errors):", file=sys.stderr)
     print("\n".join(raw), file=sys.stderr)
+if coverage:
+    # Report only: no floor, and nothing here changes the exit status.
+    print("== statement coverage per package (report only, no floor):")
+    for pkg in sorted(coverage):
+        print(f"{coverage[pkg]:>8}\t{pkg}")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        prefix = "github.com/callscreen/callscreen-platform/"
+        with open(summary, "a", encoding="utf-8") as fh:
+            fh.write("### Statement coverage, auth path (report only, no floor)\n\n")
+            fh.write("Each package's own tests, with real PostgreSQL where a test needs it.\n\n")
+            fh.write("| Package | Coverage |\n|---|---|\n")
+            for pkg in sorted(coverage):
+                fh.write(f"| `{pkg.removeprefix(prefix)}` | {coverage[pkg]} |\n")
 sys.exit(2 if unexpected or missing else 0)
 PY
 

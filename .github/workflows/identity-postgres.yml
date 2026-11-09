@@ -21,6 +21,11 @@
 # No CI secret and no external endpoint is used: the only credential is
 # generated inside the job and dies with it.
 #
+# It also REPORTS statement coverage for the auth path (F28): identity,
+# edge-api, pgshared, accesstoken, dpop, middleware and platform, per package,
+# in the log and the job summary. Report only: there is no floor, and the
+# figures never fail the job. A floor would be a separate decision.
+#
 # Kept as its own workflow so pr-go.yml is not edited, as gateway-postgres.yml.
 # =============================================================================
 name: identity-postgres
@@ -109,6 +114,7 @@ jobs:
         env:
           CGO_ENABLED: "1"
           GO_TEST_FLAGS: "-race"
+          COVERAGE_REPORT: "1"
         run: bash tools/scripts/identity-postgres-tests.sh
 
       # Belt and braces: the script's trap removes its container; this proves
