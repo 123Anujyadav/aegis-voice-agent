@@ -21,14 +21,22 @@ import (
 
 // Identity activation. See bootstrap's activation documentation for the
 // contract; in short: no identity variable set means the skeleton boots as it
-// always has (health listener only, no application port), some set means all
-// are required, and all set builds the service on PostgreSQL and serves the
+// always has (health listener only, no application port) in development, and
+// refuses to start in staging and production; some set means all are
+// required, and all set builds the service on PostgreSQL and serves the
 // identity API (internal/httpapi) on the application port.
 
 // errIdentityInactive is the readiness message while identity is inactive. The
 // check is non-critical, so readiness stays 200 ("degraded") exactly as the
 // skeleton's did, while saying plainly that no identity function is available.
 var errIdentityInactive = errors.New("identity inactive: no CS_IDENTITY_* security configuration supplied")
+
+// errIdentityRequired refuses an inactive identity in staging and production
+// (OD-15, production-readiness F12; owner decision 2026-11-09). There, a pod
+// that lost its identity configuration would otherwise pass readiness while
+// serving nothing; refusing makes its rollout fail, as edge-api's does. It
+// names the requirement only, never a value or a path.
+var errIdentityRequired = errors.New("identity is not configured: staging and production require the CS_IDENTITY_* activation variables")
 
 // dbCheckTimeout bounds the readiness ping; well inside a typical 1s probe.
 const dbCheckTimeout = 800 * time.Millisecond
@@ -56,14 +64,23 @@ var identityTracer = func(log *slog.Logger) runtime.Tracer {
 var openIdentity = bootstrap.Open
 
 // configureIdentity applies the activation policy. It returns an error — and
-// registers nothing — for partial or invalid configuration and for any
-// construction failure, including an unreachable database.
+// registers nothing — for partial or invalid configuration, for an inactive
+// identity in staging or production, and for any construction failure,
+// including an unreachable database.
 func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runners runnerRegistrar, health checkRegistrar, log *slog.Logger) error {
 	cfg, active, err := bootstrap.LoadActivation()
 	if err != nil {
 		return err
 	}
 	if !active {
+		// Only the deployed tiers refuse. Development, and a configuration
+		// that never named a tier, keep the skeleton. Environment is the
+		// validated platform value, so in a real run it is exactly one of
+		// development, staging or production; the variable defaulting to
+		// development when unset is a known limit (OD-15).
+		if svcCfg.Environment == "staging" || svcCfg.Environment == "production" {
+			return errIdentityRequired
+		}
 		health.Register(platform.CheckerFunc{
 			CheckName: "identity",
 			Fn:        func(context.Context) error { return errIdentityInactive },

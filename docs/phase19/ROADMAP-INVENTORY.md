@@ -1,6 +1,6 @@
 # Roadmap inventory: phases, remaining work and release prerequisites
 
-- **As of:** 2026-11-07, `main` `5b41b12` (`5b41b128dbdc24171a86713e52b3bdaa25aa0314`, #256), **for T2 (§3.2) and the owner-decision count (§3.3, §3.6) only**, re-checked on that date; OD-13's closure (#258) is added on top. The rest was last refreshed on 2026-11-01, at `main` `0d1ed04` (#209); merged since then and not re-counted here: the 46 PRs from #210 to #256 (all but #212, an open Dependabot PR), whose status is in `PRODUCTION-READINESS.md` and [`../PRODUCT-ROADMAP.md`](../PRODUCT-ROADMAP.md). Merged before that refresh: #201–#209. Post-merge CI is recorded per PR in `PRODUCTION-READINESS.md`.
+- **As of:** 2026-11-07, `main` `5b41b12` (`5b41b128dbdc24171a86713e52b3bdaa25aa0314`, #256), **for T2 (§3.2) and the owner-decision count (§3.3, §3.6) only**, re-checked on that date; OD-13's closure (#258) and OD-15's (#260, 2026-11-09, re-counted on `main` `8094ec7`) are added on top. The rest was last refreshed on 2026-11-01, at `main` `0d1ed04` (#209); merged since then and not re-counted here: the 46 PRs from #210 to #256 (all but #212, an open Dependabot PR), whose status is in `PRODUCTION-READINESS.md` and [`../PRODUCT-ROADMAP.md`](../PRODUCT-ROADMAP.md). Merged before that refresh: #201–#209. Post-merge CI is recorded per PR in `PRODUCTION-READINESS.md`.
 - **Method:** every count below is of items **defined in a named document or verified in the repository**. Nothing is estimated. Where documents conflict, the conflict is reported (§1), with the source treated as authoritative.
 - **Not claimed:** that Phase 19 is complete, or that the app is ready for Google Play.
 
@@ -108,9 +108,9 @@ The repository uses four different meanings of "phase". None defines a phase aft
 | T4 | Play Integrity verdicts from a Play-installed build | Blocked: E1, X1 | Readiness §8.4 |
 | T5 | Run the signing-key rotation runbook once in staging | Blocked: E3 (SRE) | Tracker E3 |
 
-### 3.3 Owner decisions: 31 pending
+### 3.3 Owner decisions: 30 pending
 
-**Re-counted 2026-11-07** on `5b41b12`: 15 tracker items (below) plus 17 of OD-1–OD-18. **OD-11 is closed** (#245, 2026-11-05); no other item in this section records a decision. OD-17 stays pending: the app's packaging is decided, but the speech questions are deferred. **Later on 2026-11-07: OD-13 decided by the owner and implemented** ([record](OD-13-DECISION-2026-11-07.md); #258), so 16 of OD-1–OD-18 and 31 in all remain.
+**Re-counted 2026-11-07** on `5b41b12`: 15 tracker items (below) plus 17 of OD-1–OD-18. **OD-11 is closed** (#245, 2026-11-05); no other item in this section records a decision. OD-17 stays pending: the app's packaging is decided, but the speech questions are deferred. **Later on 2026-11-07: OD-13 decided by the owner and implemented** ([record](OD-13-DECISION-2026-11-07.md); #258), so 16 of OD-1–OD-18 and 31 in all remain. **2026-11-09: OD-15 decided by the owner and implemented** ([record](OD-15-DECISION-2026-11-09.md); #260). Re-counted on `main` `8094ec7`: the 15 tracker items still record no decision, and of OD-1–OD-18 only OD-11, OD-13 and OD-15 are closed, so 15 of OD-1–OD-18 and **30** in all remain.
 
 - **Tracker O1–O17 (17),** less O10 and O11, which are in §3.4: **15.**
   - O9–O17 are the account-deletion decisions D1–D9.
@@ -133,7 +133,7 @@ The repository uses four different meanings of "phase". None defines a phase aft
 | OD-12 | **Identify an independent human reviewer** (gate G0a). Without one, every high-risk decision stays Proposed (§3.7) | `ARCHITECTURE_FREEZE.md` §6.1, rules 8 and 10 |
 | OD-13 | A corrupt session **file** is never recovered: DataStore has no corruption handler (production-readiness F3). Recovering means discarding the unreadable file, as the app already does for an unreadable record. **2026-11-07: decided by the owner** (replace an unparseable file with an empty one; sign in again; no new notice; the server session may stay live until its 24-hour expiry: [record](OD-13-DECISION-2026-11-07.md)) **and implemented in #258. OD-13 CLOSED** | `PRODUCTION-READINESS.md` §4 |
 | OD-14 | No sign-out action in the app (F8): whether to add one, and where | `PRODUCTION-READINESS.md` §4 |
-| OD-15 | identity started with no configuration boots inactive and reports ready (F12): whether staging and production should refuse to start instead | `PRODUCTION-READINESS.md` §4 |
+| OD-15 | identity started with no configuration boots inactive and reports ready (F12): whether staging and production should refuse to start instead. **2026-11-09: decided by the owner** (option A: staging and production exit non-zero before binding a port; development, unset and empty tiers keep the inactive skeleton; the unset-tier default accepted as a limit, mitigated by setting `CS_IDENTITY_ENVIRONMENT` in the pod specification; not high-risk: [record](OD-15-DECISION-2026-11-09.md)) **and implemented in #260. OD-15 CLOSED** | `PRODUCTION-READINESS.md` §4 |
 | OD-16 | How container base images are kept current: Renovate (configured with `pinDigests`, never active; an external app) or Dependabot `docker` update PRs (limit 0 today). Digest pinning follows | `PRODUCTION-READINESS.md` §3.8 |
 | OD-17 | The language set: Hindi, English, Tamil, Telugu, Malayalam and Kannada (owner, 2026-11-01). **The app's packaging is decided and applied** (owner, 2026-11-02: exactly these six; `android/app/release-locales.txt`). Still open: ADR-0005's voice languages; and the conflict between the free-only rule and the paid speech vendors of Accepted ADR-0005 and ADR-0007. **Owner, 2026-11-04:** all speech-model access and evaluation (A1–A5) deferred, ADR-0005 and ADR-0007 unchanged; the app-language decisions (language UX D1–D9, translation Q0–Q4) approved the same day ([`OWNER-DECISION-PACKET-2026-11-04.md`](OWNER-DECISION-PACKET-2026-11-04.md)) | `PRODUCTION-READINESS.md` §6; `SPEECH-PROVIDER-POLICY-CONFLICT.md`; translation questions (translators, product name, register): `docs/translation/QUESTIONS.md` |
 | OD-18 | The held Dependabot PRs, open now: #183, #184, #185 and #212 (#182 was closed by Dependabot on 2026-11-01 and replaced by #212, the same bump): decide them, or stop Dependabot rebasing them (`rebase-strategy: disabled` for `github-actions`). Each rebase re-runs full CI; on 2026-11-01 two of them queued about 186 `pr-go` jobs ahead of other work (production-readiness F14) | `PRODUCTION-READINESS.md` §4 |
@@ -177,7 +177,7 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 |---|---|---|
 | Coding | 15 | 0. C16–C24 done (#202–#208); the F13 test race fixed (#209). Routine work outside this list: `PRODUCTION-READINESS.md` §3 |
 | Testing | 4 (T2 has 12 cases; 5 of them have a result on one phone, M2 on Airtel only) | 0 that needs no hardware or approval. T2's M11 and M12 can run on an owner-provided phone, with the owner's approval (§3.2) |
-| Owner decisions | 31 (re-counted 2026-11-07; OD-11 and OD-13 closed) | — |
+| Owner decisions | 30 (re-counted 2026-11-09; OD-11, OD-13 and OD-15 closed) | — |
 | Privacy/legal reviews | 6 | — |
 | External dependencies | 15 | — |
 | High-risk decisions (§3.7) | 4, plus 3 conditional | 0: all need an independent human reviewer (OD-12) |

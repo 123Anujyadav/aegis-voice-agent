@@ -35,7 +35,7 @@ The milestones keep their definitions:
 - 4 testing (T2–T5);
 - 15 external (E1–E10, X1–X5);
 - 6 legal (L1–L6);
-- 31 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-11 and OD-13.
+- 30 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-11, OD-13 and OD-15.
 
 High-risk items (H) overlap these and are listed with their phase.
 
@@ -117,7 +117,7 @@ High-risk items (H) overlap these and are listed with their phase.
   - E6, the trusted-proxy model;
   - E7, FCM;
   - X4, the DID pool and carrier forwarding matrix.
-- **Owner decisions, 1:** OD-15 (an unconfigured identity refuses to start).
+- **Owner decisions, 0.** (OD-15, an unconfigured identity refusing to start in staging and production, closed, #260.)
 - **Also open:**
   - the deployment manifests (`INTERNAL-TESTING-SETUP.md` C1, owner's choice);
   - the telephony gateway's staging (owner-held P1 programme);
@@ -177,11 +177,11 @@ High-risk items (H) overlap these and are listed with their phase.
 | 1 | 0 | 0 | 0 | 0 | 2 |
 | 2 | 10 | 0 | 3 | 0 | 18 |
 | 3 | 2 | 0 | 0 | 0 | 6 |
-| 4 | 2 | 0 | 7 | 0 | 1 |
+| 4 | 2 | 0 | 7 | 0 | 0 |
 | 5 | 0 | 4 | 1 | 0 | 0 |
 | 6 | 1 | 0 | 4 | 6 | 2 |
 | Cross-phase gates | — | — | — | — | 2 (OD-10, OD-12) |
-| **Total** | **15** | **4** | **15** | **6** | **31** |
+| **Total** | **15** | **4** | **15** | **6** | **30** |
 
 **Not countable yet:** these capabilities have no task list. They need one before they can be counted:
 - the multilingual voice assistant;
