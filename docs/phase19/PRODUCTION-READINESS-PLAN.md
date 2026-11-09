@@ -95,6 +95,8 @@ A preliminary public search found other "Lily AI" products, so **trademark couns
 
 **Each of these needs its own, separate approval before any account, contract or spend:**
 
+The three that M1 needs (Play Console registration, SMS and DLT, staging) are written up as approval requests in [`M1-APPROVAL-REQUESTS.md`](M1-APPROVAL-REQUESTS.md).
+
 | Category | Covers | Known cost |
 |---|---|---|
 | **Play Console registration** | X1 | US$25, one-time (§3) |
