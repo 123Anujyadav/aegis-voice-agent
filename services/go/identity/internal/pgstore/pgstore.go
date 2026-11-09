@@ -140,13 +140,13 @@ func (r *Repository) SaveOtp(ctx context.Context, c *app.OtpChallenge) error {
 		return app.ErrMSISDNNotPseudonymised
 	}
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO identity_otp_challenges (request_id, msisdn_pseudonym, subscriber_id, code_hash, attempts, expires_at, purpose)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO identity_otp_challenges (request_id, msisdn_pseudonym, subscriber_id, code_hash, provider_ref, attempts, expires_at, purpose)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8)
 		ON CONFLICT (request_id) DO UPDATE SET
 			msisdn_pseudonym = EXCLUDED.msisdn_pseudonym, subscriber_id = EXCLUDED.subscriber_id,
-			code_hash = EXCLUDED.code_hash, attempts = EXCLUDED.attempts, expires_at = EXCLUDED.expires_at,
-			purpose = EXCLUDED.purpose`,
-		c.RequestID, c.MSISDNPseudonym, c.SubscriberID, c.CodeHash, c.Attempts, us(c.ExpiresAt), storedPurpose(c.Purpose))
+			code_hash = EXCLUDED.code_hash, provider_ref = EXCLUDED.provider_ref, attempts = EXCLUDED.attempts,
+			expires_at = EXCLUDED.expires_at, purpose = EXCLUDED.purpose`,
+		c.RequestID, c.MSISDNPseudonym, c.SubscriberID, c.CodeHash, c.ProviderRef, c.Attempts, us(c.ExpiresAt), storedPurpose(c.Purpose))
 	if err != nil {
 		return fmt.Errorf("pgstore: saving OTP challenge: %w", err)
 	}
@@ -158,8 +158,9 @@ func (r *Repository) GetOtp(ctx context.Context, requestID string) (*app.OtpChal
 	c := app.OtpChallenge{RequestID: requestID}
 	var purpose string
 	err := r.pool.QueryRow(ctx, `
-		SELECT msisdn_pseudonym, subscriber_id, code_hash, attempts, expires_at, purpose FROM identity_otp_challenges WHERE request_id = $1`,
-		requestID).Scan(&c.MSISDNPseudonym, &c.SubscriberID, &c.CodeHash, &c.Attempts, &c.ExpiresAt, &purpose)
+		SELECT msisdn_pseudonym, subscriber_id, code_hash, COALESCE(provider_ref, ''), attempts, expires_at, purpose
+		FROM identity_otp_challenges WHERE request_id = $1`,
+		requestID).Scan(&c.MSISDNPseudonym, &c.SubscriberID, &c.CodeHash, &c.ProviderRef, &c.Attempts, &c.ExpiresAt, &purpose)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, app.ErrInvalidOtp
 	}

@@ -139,7 +139,7 @@ From [`INTERNAL-TESTING-SETUP.md`](INTERNAL-TESTING-SETUP.md) (the step IDs are 
 1. **E. The SMS adapter (C2).** Claude Code writes it as soon as A1 names the provider, tested with the fake sender until credentials exist.
 2. **C. Deploy identity and edge-api** (after B; sign-in also needs A and E):
    - the manifests (the owner decides C1);
-   - `migrate` to `0009`;
+   - `migrate` to the latest migration;
    - the configuration;
    - readiness 200.
 3. **F. Pins and release variables** (after C): compute each host's SPKI pin and set the `play-release` variables. The edge-api origin must equal `CS_EDGE_API_PUBLIC_ORIGIN` exactly.

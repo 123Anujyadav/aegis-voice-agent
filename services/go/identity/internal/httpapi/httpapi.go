@@ -502,7 +502,7 @@ func (h *handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 		h.problem(w, r, http.StatusServiceUnavailable, "ERR_OTP_DELIVERY_FAILED")
 	case errors.Is(err, dpop.ErrReplayUnavailable), errors.Is(err, app.ErrEnrollmentUnavailable),
 		errors.Is(err, app.ErrDeviceRefreshUnavailable), errors.Is(err, app.ErrTokenIssuanceUnavailable),
-		errors.Is(err, app.ErrAccountDeletionUnavailable),
+		errors.Is(err, app.ErrAccountDeletionUnavailable), errors.Is(err, app.ErrOtpVerificationUnavailable),
 		errors.Is(err, context.DeadlineExceeded):
 		h.problem(w, r, http.StatusServiceUnavailable, "ERR_TEMPORARILY_UNAVAILABLE")
 	default:

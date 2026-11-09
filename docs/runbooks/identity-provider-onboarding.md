@@ -2,6 +2,7 @@
 
 - **Status:** **no provider is connected.**
   - identity refuses OTP requests truthfully (`ERR_OTP_DELIVERY_UNAVAILABLE`).
+  - A **Twilio Verify adapter** exists and is **disabled**: selected nowhere, with no credential or route ([`OTP-PROVIDERS.md`](../phase19/OTP-PROVIDERS.md) §8).
   - **In development only,** a mock provider can be selected
     (`CS_IDENTITY_OTP_PROVIDER=mock`, with `CS_IDENTITY_ENVIRONMENT=development`
     set explicitly). It sends nothing. See

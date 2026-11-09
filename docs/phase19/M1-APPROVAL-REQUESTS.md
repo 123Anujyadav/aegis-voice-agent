@@ -88,7 +88,7 @@ The adapter code (C2) is written **after** the choice, against the chosen provid
 **5. Accounts, credentials and setup.**
 - The owner: authorize the AWS account, the cluster or namespace, and IAM (B1); choose the domain for two HTTPS hosts (B3).
 - **The owner decides who writes or commits the identity and edge-api manifests (C1).** The staging overlay path is `infra/k8s/overlays/staging/` (ADR-0027). How it is built remains gate A5's to approve, so **no staging manifest has been written.**
-- SRE: PostgreSQL with `verify-full` (B2); TLS certificates and a backup key pair per host (B4); the keys as Secret files (B5, B6); the schema migrated to `0009` with `identity migrate` (C2).
+- SRE: PostgreSQL with `verify-full` (B2); TLS certificates and a backup key pair per host (B4); the keys as Secret files (B5, B6); the schema migrated to the latest migration with `identity migrate` (C2).
 - **Configuration:** the `CS_IDENTITY_*` and `CS_EDGE_API_*` names in `INTERNAL-TESTING-SETUP.md` C3–C4. **`CS_IDENTITY_ENVIRONMENT` must be set in the pod specification:** under OD-15, an unconfigured identity in staging or production exits 1.
 
 **6. Free or local alternative, and deferring.**
