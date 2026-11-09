@@ -2,6 +2,10 @@
 
 - **Status:** **no provider is connected.**
   - identity refuses OTP requests truthfully (`ERR_OTP_DELIVERY_UNAVAILABLE`).
+  - **In development only,** a mock provider can be selected
+    (`CS_IDENTITY_OTP_PROVIDER=mock`, with `CS_IDENTITY_ENVIRONMENT=development`
+    set explicitly). It sends nothing. See
+    [`../phase19/OTP-PROVIDERS.md`](../phase19/OTP-PROVIDERS.md).
   - Play Integrity verification fails closed (`unavailable`).
 - **What this runbook is:** what onboarding a real provider requires, and how
   the code receives it.

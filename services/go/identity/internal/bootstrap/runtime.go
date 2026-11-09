@@ -17,6 +17,7 @@ import (
 	"github.com/callscreen/callscreen-platform/packages/go/pgshared"
 	"github.com/callscreen/callscreen-platform/packages/go/platform"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
+	"github.com/callscreen/callscreen-platform/services/go/identity/internal/otpdelivery"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/pgstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -92,6 +93,9 @@ type ActivationConfig struct {
 	// value is RequireVerifiedTLS. Unexported, so platform.LoadConfig cannot
 	// populate it from a variable of the same name.
 	dbTLS pgshared.TLSPolicy
+	// otp is the resolved OTP delivery (otp.go). LoadActivation sets it; the
+	// zero value is no delivery. Unexported for the same reason as dbTLS.
+	otp OtpDelivery
 }
 
 // Validate applies SecurityConfig.Validate and the same blank and padding rule
@@ -153,6 +157,11 @@ func LoadActivation() (ActivationConfig, bool, error) {
 		return ActivationConfig{}, true, err
 	}
 	c.dbTLS = pgshared.PolicyForEnvironment(os.LookupEnv(EnvPrefix + "_ENVIRONMENT"))
+	otp, err := ResolveOtpDelivery()
+	if err != nil {
+		return ActivationConfig{}, true, err
+	}
+	c.otp = otp
 	return c, true, nil
 }
 
@@ -256,8 +265,22 @@ type Runtime struct {
 	Service     *app.IdentityService
 	pool        *pgxpool.Pool
 	housekeeper *pgstore.Housekeeper
+	otpProvider string
+	otpOutbox   *otpdelivery.Outbox
 	once        sync.Once
 }
+
+// OtpProvider names the OTP delivery in use: OtpProviderMock or
+// OtpProviderNone.
+func (r *Runtime) OtpProvider() string {
+	if r.otpProvider == "" {
+		return OtpProviderNone
+	}
+	return r.otpProvider
+}
+
+// OtpOutbox is the mock provider's outbox, or nil when the mock is not in use.
+func (r *Runtime) OtpOutbox() *otpdelivery.Outbox { return r.otpOutbox }
 
 // Housekeeper is the bounded cleanup for this runtime's database, built on the
 // same pool; it exists only when identity is activated.
@@ -329,6 +352,16 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 		pool.Close()
 		return nil, err
 	}
+	// OTP delivery (otp.go): the development-only mock, or none. Codes are
+	// minted, hashed and checked by the service either way.
+	sender, outbox, err := cfg.otp.otpSender(nil)
+	if err != nil {
+		pool.Close()
+		return nil, err
+	}
+	if sender != nil {
+		svc.SetOtpSender(sender)
+	}
 	// Every security audit event is appended to the durable, append-only log
 	// (migration 0005; ADR-0010 §10, ADR-0012 LEGAL_HOLD). Other auditors, such
 	// as the metrics counter, are added alongside it.
@@ -343,5 +376,5 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 		pool.Close()
 		return nil, err
 	}
-	return &Runtime{Service: svc, pool: pool, housekeeper: hk}, nil
+	return &Runtime{Service: svc, pool: pool, housekeeper: hk, otpProvider: cfg.otp.Provider, otpOutbox: outbox}, nil
 }

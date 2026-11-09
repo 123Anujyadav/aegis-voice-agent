@@ -33,7 +33,7 @@
 | A4 | **Provider credentials:** SRE provisions them as Kubernetes Secrets mounted as **files** (never an environment value or a ConfigMap) | SRE | — | — |
 | A5 | **Egress** from identity to each provider's API (a network-policy change) | SRE | **Yes:** network change | — |
 
-- **Local alternative:** the fake senders in the unit tests, and the end-to-end harness's stdout sender (`E2E-OTP`, `E2E-DELETION-CODE`). **Neither is a production integration.**
+- **Local alternative:** the development mock provider (`CS_IDENTITY_OTP_PROVIDER=mock`, accepted only with `CS_IDENTITY_ENVIRONMENT=development` set explicitly; [`OTP-PROVIDERS.md`](OTP-PROVIDERS.md)), the fake senders in the unit tests, and the end-to-end harness's stdout sender (`E2E-OTP`, `E2E-DELETION-CODE`). **None is a production integration, and none sends an SMS.** In staging, leave `CS_IDENTITY_OTP_PROVIDER` unset or `none` until a real provider is approved: `mock` is refused there.
 - **Runbook:** `docs/runbooks/identity-provider-onboarding.md` §1.
 
 ## B. Staging cloud, database, keys and domain (X5, E3, E4)

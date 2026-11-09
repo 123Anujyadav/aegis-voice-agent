@@ -118,7 +118,10 @@ func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runne
 	// counted in the same registry (httpapi.MetricSecurityEvents).
 	apiMetrics.Instrument(rt.Service)
 	log.Info("identity service constructed on PostgreSQL; HTTP API registered",
-		slog.Int("http_port", svcCfg.HTTPPort))
+		slog.Int("http_port", svcCfg.HTTPPort), slog.String("otp_provider", rt.OtpProvider()))
+	if rt.OtpProvider() == bootstrap.OtpProviderMock {
+		log.Warn("OTP delivery is the development-only mock: no SMS is sent, and codes are readable from its outbox")
+	}
 	return nil
 }
 
