@@ -19,6 +19,7 @@ import (
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/app"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/otpdelivery"
 	"github.com/callscreen/callscreen-platform/services/go/identity/internal/pgstore"
+	"github.com/callscreen/callscreen-platform/services/go/identity/internal/twilioverify"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -270,8 +271,8 @@ type Runtime struct {
 	once        sync.Once
 }
 
-// OtpProvider names the OTP delivery in use: OtpProviderMock or
-// OtpProviderNone.
+// OtpProvider names the OTP delivery in use: OtpProviderMock,
+// OtpProviderTwilio or OtpProviderNone.
 func (r *Runtime) OtpProvider() string {
 	if r.otpProvider == "" {
 		return OtpProviderNone
@@ -330,6 +331,17 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 	if _, loadSignerErr := loadSigner(cfg.Security, now); loadSignerErr != nil {
 		return nil, loadSignerErr
 	}
+	// OTP delivery (otp.go): the development-only mock, Twilio Verify (which
+	// generates and checks its own codes, app.OtpVerifier), or none. Built and
+	// validated here, before any connection; nothing here makes a request.
+	sender, outbox, err := cfg.otp.otpSender(nil)
+	if err != nil {
+		return nil, err
+	}
+	verifier, err := cfg.otp.otpVerifier(twilioverify.New)
+	if err != nil {
+		return nil, err
+	}
 
 	pool, err := newPool(dsn, cfg.dbTLS)
 	if err != nil {
@@ -352,15 +364,11 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 		pool.Close()
 		return nil, err
 	}
-	// OTP delivery (otp.go): the development-only mock, or none. Codes are
-	// minted, hashed and checked by the service either way.
-	sender, outbox, err := cfg.otp.otpSender(nil)
-	if err != nil {
-		pool.Close()
-		return nil, err
-	}
 	if sender != nil {
 		svc.SetOtpSender(sender)
+	}
+	if verifier != nil {
+		svc.SetOtpVerifier(verifier)
 	}
 	// Every security audit event is appended to the durable, append-only log
 	// (migration 0005; ADR-0010 §10, ADR-0012 LEGAL_HOLD). Other auditors, such

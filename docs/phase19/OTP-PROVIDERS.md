@@ -1,8 +1,9 @@
-# OTP providers: architecture, the development mock, and production activation
+# OTP providers: architecture, the development mock, Twilio Verify, and production activation
 
 - **As of:** 2026-11-09.
 - **Status:**
   - **The development mock is implemented.** It sends nothing, and is refused outside an explicitly development environment.
+  - **A Twilio Verify adapter is implemented and DISABLED** (§8). It is selected nowhere, and no Twilio credential, Verify service or route exists for this project. Activating it needs the owner's approvals (§5, §6).
   - **No real provider is connected.** Staging and production deliver no code: identity refuses OTP requests (`ERR_OTP_DELIVERY_UNAVAILABLE`), as before.
   - **No SMS has been sent, and no external account, API or route has been used or activated.**
 - **Related:**
@@ -18,6 +19,7 @@ One sign-in flow, in identity (`services/go/identity`). Nothing is duplicated, a
 |---|---|---|
 | The flow | `internal/app` (`RequestOtp`, `ValidateOtp*`, `checkCode`) | Mints each code (`crypto/rand`, 6 digits), stores **only its keyed hash**, and enforces expiry, the attempt limit, single use, and the per-number rate limits and lockout. The number itself is never stored (an HMAC pseudonym is). |
 | Delivery | `internal/otpdelivery` | `Sender`: an ordered failover over up to 3 `Provider`s, each attempt time-bounded, never returning provider text. `MockProvider`: the development provider. |
+| Provider-generated codes | `internal/app` (`OtpVerifier`), `internal/twilioverify` | A provider that generates, sends **and checks** codes itself (Twilio Verify). identity stores its verification id (`provider_ref`, migration `0010`) instead of a hash, and asks it whether a code is right. Every other control in the table below stays identity's (§8). |
 | Selection | `internal/bootstrap/otp.go` | `CS_IDENTITY_OTP_PROVIDER` chooses the provider at startup, under the rules in §2. |
 | HTTP | `internal/httpapi` | `POST /v1/otp/request` answers 202 with a request id and the lifetime. **The code is never in a response, a header or a log.** |
 
@@ -48,6 +50,8 @@ These are the existing **initial** values, "not production-tuned" in the code's 
 | `development` (**set explicitly**) | **mock** | mock | none | startup refused |
 | unset | none | **startup refused** | none | startup refused |
 | `staging`, `production` | none | **startup refused** | none | startup refused |
+
+`twilio` is accepted in any environment, but only with all four `CS_IDENTITY_TWILIO_*` variables (§8); any of them set **without** `twilio` stops startup.
 
 - **Why an unset environment is not enough for the mock:** elsewhere, an unset `CS_IDENTITY_ENVIRONMENT` reads as development (OD-15's known limit). A deployed pod that lost the variable must never sign anyone in with a code read from an outbox.
 - `CS_IDENTITY_OTP_MOCK_OUTBOX_FILE` is refused unless the mock is selected.
@@ -133,7 +137,7 @@ Each step needs the owner's approval where marked. **None is done.**
 
 ## 7. Known limitations and open decisions
 
-- **A real provider adapter is not merged.** A Twilio Verify adapter is prepared separately and held for the owner. Twilio Verify would generate and check codes itself, which moves verification out of identity: an authentication change that `ARCHITECTURE_FREEZE.md` §6.1 treats as high-risk.
+- **The Twilio Verify adapter (§8) changes who generates and checks codes.** It moves code generation and comparison from identity to Twilio, for challenges started through it. `ARCHITECTURE_FREEZE.md` §6.1 treats authentication changes as high-risk, so it needs the owner's decision and an independent human review (OD-12) before it is merged and before it is activated.
 - **Open owner decisions this touches:**
   - the SMS provider and the SMS and DLT approval (E2, R1);
   - a resend cooldown, if any (§1);
@@ -141,3 +145,70 @@ Each step needs the owner's approval where marked. **None is done.**
   - tuning of the initial limits;
   - the independent human reviewer for high-risk changes (OD-12).
 - **Production readiness is unchanged.** M1 still needs a delivered SMS, staging and Play (`M1-APPROVAL-REQUESTS.md`). The mock is for development and tests only.
+
+## 8. Twilio Verify (implemented, DISABLED)
+
+**Nothing here has been activated.** No Twilio API was called, no SMS was sent, and no account, Verify service, API key, route or billing setting was created or changed. Every test runs against a loopback test server, behind a transport that fails the test for any other host.
+
+### How it works
+
+| Step | identity (unchanged controls) | Twilio Verify |
+|---|---|---|
+| Request | Canonical number check, then the per-number request limit (3 per 15 minutes). **Only then** is Twilio asked | `POST /v2/Services/{VA…}/Verifications` with `To` and `Channel=sms`: Twilio generates the code and sends it |
+| Store | The challenge stores the verification id (`VE…`, not personal data), the number's pseudonym, and identity's own 5-minute expiry. **No code and no hash** | — |
+| Check | Attempt limit (3 per challenge), expiry, the per-number failure reservation and lockout, **then** Twilio is asked; single use is identity's atomic consume | `POST /v2/Services/{VA…}/VerificationCheck` with `VerificationSid` and `Code` (never the number) |
+
+- **Outcomes:** `approved` signs in. `pending`, a verification Twilio no longer has (404), or a code that is not digits counts as a **wrong code**, against identity's limits. A Twilio failure (timeout, 5xx, 429, an untrustworthy answer) is **not** a wrong code: nothing is counted, the challenge stays, and the API answers 503 `ERR_TEMPORARILY_UNAVAILABLE` (an existing code; the API contract is unchanged).
+- **A start that fails** leaves no challenge, and the request still counts against the number. The API answers 503 `ERR_OTP_DELIVERY_FAILED`, as for any provider.
+- **No retries.** A retried start could send a second SMS; a retried check could count twice at Twilio. Each call is bounded (4 s by default, 8 s at most) and by the request's own deadline.
+- **Duplicate requests:** bounded by identity's per-number limit before Twilio is called. Twilio itself also reuses a pending verification for the same number.
+- **Responses are trusted only if they name the configured account and Verify service** (and, for a check, the same verification). Redirects are never followed.
+- **Nothing is logged** by the adapter. Errors are fixed values: never the number, the code, a credential, a header or any of Twilio's response text.
+- **Credentials:** the API key secret is a **mounted Secret file**, read once at startup, and sent only as HTTP Basic credentials to `https://verify.twilio.com/v2`. The client refuses any other base URL except a loopback test server. The Android app never sees a credential or a code.
+- **Codes identity minted earlier** (before a switch) are still checked locally; Twilio is never asked about them.
+- **Only SMS** is requested. **No international-route fallback** is implemented; the route is Twilio account configuration (§5).
+
+### Configuration
+
+The task's names, mapped to identity's conventions (the `CS_IDENTITY_` prefix, and the secret as a file, as the runbook §1 requires):
+
+| Task name | identity variable | Kind |
+|---|---|---|
+| `OTP_PROVIDER` | `CS_IDENTITY_OTP_PROVIDER` = `twilio` | configuration |
+| `TWILIO_ACCOUNT_SID` | `CS_IDENTITY_TWILIO_ACCOUNT_SID` | configuration (`AC` + 32 hex) |
+| `TWILIO_API_KEY_SID` | `CS_IDENTITY_TWILIO_API_KEY_SID` | configuration (`SK` + 32 hex) |
+| `TWILIO_API_KEY_SECRET` | `CS_IDENTITY_TWILIO_API_KEY_SECRET_FILE` | **path to a mounted Secret file** (never an environment value) |
+| `TWILIO_VERIFY_SERVICE_SID` | `CS_IDENTITY_TWILIO_VERIFY_SERVICE_SID` | configuration (`VA` + 32 hex) |
+
+**Template, placeholders only.** These values are deliberately invalid: identity refuses to start with them.
+
+```sh
+# NOT FOR USE until the owner's approvals in §5 and §6 exist.
+CS_IDENTITY_OTP_PROVIDER=twilio
+CS_IDENTITY_TWILIO_ACCOUNT_SID=<AC followed by 32 hex digits>
+CS_IDENTITY_TWILIO_API_KEY_SID=<SK followed by 32 hex digits>
+CS_IDENTITY_TWILIO_API_KEY_SECRET_FILE=/var/run/secrets/identity/twilio-api-key-secret
+CS_IDENTITY_TWILIO_VERIFY_SERVICE_SID=<VA followed by 32 hex digits>
+```
+
+- The secret file holds the API key secret only; a trailing newline is tolerated.
+- Values are validated at startup, before any connection; errors name the variable, never the value or the path.
+
+### Activation (in addition to §6)
+
+- [ ] **Owner:** decide the high-risk change (Twilio generates and checks codes), with an independent human review (OD-12).
+- [ ] **Owner:** approve the SMS and DLT category with Twilio as the provider (`M1-APPROVAL-REQUESTS.md` R1).
+- [ ] **Owner, with Twilio:** confirm how Verify's SMS reaches Indian numbers on the **domestic** route: whose DLT entity, header and template it uses, and the PE–TM chain (§5). **Unverified here.** Creating a Verify service or an API key does not establish it.
+- [ ] **Owner:** upgrade the Twilio account and approve billing.
+- [ ] **SRE:** run `identity migrate` (adds `0010`) before rolling out the image.
+- [ ] **SRE:** the API key secret as a mounted Secret file; egress from identity to `verify.twilio.com` only.
+- [ ] **Test:** the runbook §1 acceptance on real handsets, recorded with evidence.
+
+### Tests
+
+| What | Where |
+|---|---|
+| Request shape (path, form, Basic credentials); outcomes; every error status; no retries; no redirects followed; untrustworthy answers refused; timeout and cancellation; no request for invalid arguments; configuration validated without echoing; the network guard | `internal/twilioverify/twilioverify_test.go` |
+| The flow with a provider that generates codes: no code minted, the id stored, approved once, reuse refused, wrong codes exhaust the challenge, expiry before the provider, provider failure uncounted, start failure leaves nothing, the rate limit before the provider, invalid ids, inconsistent challenges, earlier local codes | `internal/app/otp_verifier_test.go` |
+| Selection, the four variables, stray variables, the secret file, the adapter's mapping | `internal/bootstrap/otp_twilio_test.go` |
+| Migration `0010`: the round trip, and the database refusing both, neither or a malformed id | `internal/pgstore/provider_ref_test.go` (real PostgreSQL) |

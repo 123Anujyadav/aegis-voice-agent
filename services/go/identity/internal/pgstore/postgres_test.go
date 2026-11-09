@@ -308,12 +308,35 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 9 {
-		t.Fatalf("chain has %d steps, want 9", len(chain))
+	if len(chain) != 10 {
+		t.Fatalf("chain has %d steps, want 10", len(chain))
 	}
 	for i, step := range chain {
 		if step.Version != i+1 {
 			t.Fatalf("step %d is version %d: the chain is not contiguous", i, step.Version)
+		}
+	}
+
+	// 0010 adds the provider reference, NULL for every existing row, and the
+	// exactly-one rule every existing row meets; it changes no data.
+	var code10 []string
+	for _, line := range strings.Split(chain[9].SQL, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+			code10 = append(code10, line)
+		}
+	}
+	v10 := strings.Join(code10, "\n")
+	for _, want := range []string{
+		"ADD COLUMN provider_ref TEXT", "CHECK (provider_ref ~ '^[A-Za-z0-9]{2,64}$')",
+		"(provider_ref IS NULL AND code_hash <> '') OR (provider_ref IS NOT NULL AND code_hash = '')",
+	} {
+		if !strings.Contains(v10, want) {
+			t.Errorf("0010 lacks %q", want)
+		}
+	}
+	for _, forbidden := range []string{"DELETE FROM", "UPDATE IDENTITY", "INSERT INTO", "TRUNCATE", "DROP ", "SET NOT NULL", "TEXT NOT NULL"} {
+		if strings.Contains(strings.ToUpper(v10), forbidden) {
+			t.Errorf("0010 contains %q", forbidden)
 		}
 	}
 
