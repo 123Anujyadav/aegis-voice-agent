@@ -35,7 +35,7 @@ The milestones keep their definitions:
 - 4 testing (T2–T5);
 - 15 external (E1–E10, X1–X5);
 - 6 legal (L1–L6);
-- 32 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-11.
+- 31 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-11 and OD-13.
 
 High-risk items (H) overlap these and are listed with their phase.
 
@@ -78,7 +78,7 @@ High-risk items (H) overlap these and are listed with their phase.
   - C14, `client_id`;
   - C15, `BiometricPrompt`.
 - **External, 3:** E2 (SMS and DLT), E1 (Play Integrity), E8 (the cryptographic review or penetration test).
-- **Owner decisions, 19:** O1–O9, O12–O17 (the ADR ratifications, the identity policies, account deletion D1–D9), OD-4 (consent UI), OD-9, OD-13, OD-14.
+- **Owner decisions, 18:** O1–O9, O12–O17 (the ADR ratifications, the identity policies, account deletion D1–D9), OD-4 (consent UI), OD-9, OD-14. (OD-13 closed, #258.)
 - **High-risk, needing OD-12:** H1 (ADR-0032), H2 (= O17), H4–H6 (= O1, O2, O7, if classed high-risk), H7 (a refused refresh proof).
 - **Blocked by:** E2, and the SMS-and-DLT category approval, block every sign-in. The rest wait on decisions and OD-12.
 
@@ -175,13 +175,13 @@ High-risk items (H) overlap these and are listed with their phase.
 | Product phase | Coding | Testing | External | Legal | Owner decisions |
 |---|---|---|---|---|---|
 | 1 | 0 | 0 | 0 | 0 | 2 |
-| 2 | 10 | 0 | 3 | 0 | 19 |
+| 2 | 10 | 0 | 3 | 0 | 18 |
 | 3 | 2 | 0 | 0 | 0 | 6 |
 | 4 | 2 | 0 | 7 | 0 | 1 |
 | 5 | 0 | 4 | 1 | 0 | 0 |
 | 6 | 1 | 0 | 4 | 6 | 2 |
 | Cross-phase gates | — | — | — | — | 2 (OD-10, OD-12) |
-| **Total** | **15** | **4** | **15** | **6** | **32** |
+| **Total** | **15** | **4** | **15** | **6** | **31** |
 
 **Not countable yet:** these capabilities have no task list. They need one before they can be counted:
 - the multilingual voice assistant;
