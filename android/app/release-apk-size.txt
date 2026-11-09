@@ -10,4 +10,9 @@
 # setting): +17,140 bytes. The names' screen-reader language mark is set in
 # semantics, not through Text(AnnotatedString), which would have added ~20 KB
 # of rich-text layout code (the first version measured +33,524 bytes, over 2%).
-1399466
+# 2026-11-09: the Lily AI visual port: +64,641 bytes over main's staging APK
+# (1,399,778 -> 1,464,419). The logo is a 432 px WebP (31,714 bytes; the source
+# PNGs were 1254 px and ~430 KB each); the rest is Compose's bitmap painting
+# (Image, painterResource), which the app did not use before. The logo is a
+# raster illustration, so a vector drawable is not an option.
+1464419
