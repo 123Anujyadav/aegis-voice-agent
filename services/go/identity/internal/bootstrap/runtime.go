@@ -26,10 +26,19 @@ import (
 // The identity service is constructed only when it is deliberately activated.
 // Activation is the presence of ANY of the variables in ActivationVariables:
 //
-//   - none present: identity is INACTIVE. The process boots exactly as the
+//   - none present: identity is INACTIVE. No service is built and no secret
+//     is invented. What follows depends on the platform's validated
+//     ENVIRONMENT (OD-15, owner decision 2026-11-09). In development, the
+//     default when ENVIRONMENT is unset, the process boots exactly as the
 //     skeleton did — health listener only — and readiness carries a
-//     non-critical "identity" check reporting that identity is inactive. No
-//     service is built and no secret is invented.
+//     non-critical "identity" check reporting that identity is inactive. In
+//     staging or production, startup is refused (cmd/server,
+//     errIdentityRequired) before any port is bound, so the process exits
+//     non-zero and a rollout that lost its identity configuration fails
+//     instead of passing readiness. A deployment must therefore set
+//     CS_IDENTITY_ENVIRONMENT in the pod specification itself, apart from
+//     the Secret holding these variables: lost with them, the tier would
+//     read as development.
 //   - some present: identity is being activated, so ALL are required and
 //     validated. Anything missing or invalid stops startup.
 //   - all present and valid: the service is built on PostgreSQL.

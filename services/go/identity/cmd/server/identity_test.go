@@ -177,6 +177,137 @@ func TestConfigureIdentity_PartialConfigurationFailsClosed(t *testing.T) {
 	}
 }
 
+// tiers are the values a ServiceConfig's Environment can hold here: the three
+// that platform.ServiceConfig.Validate accepts, and the empty value of a
+// ServiceConfig that never named one (as testServiceConfig).
+var tiers = []string{"", "development", "staging", "production"}
+
+// OD-15 (F12): with no activation variable, the tier decides. Development,
+// and a ServiceConfig that names no tier, keep the skeleton; staging and
+// production refuse with the fixed errIdentityRequired, before constructing
+// or registering anything.
+func TestConfigureIdentity_InactiveRefusedOnlyInStagingAndProduction(t *testing.T) {
+	for _, env := range tiers {
+		t.Run("tier="+env, func(t *testing.T) {
+			clearIdentityEnv(t)
+			opened := 0
+			orig := openIdentity
+			openIdentity = func(ctx context.Context, c bootstrap.ActivationConfig, now func() time.Time) (*bootstrap.Runtime, error) {
+				opened++
+				return orig(ctx, c, now)
+			}
+			t.Cleanup(func() { openIdentity = orig })
+			cfg := testServiceConfig
+			cfg.Environment = env
+			runners, health := &fakeRunners{}, &fakeHealth{}
+
+			err := configureIdentity(context.Background(), cfg, runners, health, quiet)
+
+			if opened != 0 {
+				t.Errorf("an inactive identity opened a runtime %d times", opened)
+			}
+			if env == "staging" || env == "production" {
+				if !errors.Is(err, errIdentityRequired) {
+					t.Fatalf("err = %v, want errIdentityRequired", err)
+				}
+				// The fixed message only: no value, path or variable content.
+				if err.Error() != "identity is not configured: staging and production require the CS_IDENTITY_* activation variables" {
+					t.Errorf("message = %q", err.Error())
+				}
+				if len(runners.got)+len(health.got) != 0 || runners.metrics != nil {
+					t.Error("something was registered although startup is refused")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("tier %q: %v, want the inactive skeleton", env, err)
+			}
+			if len(runners.got) != 0 || runners.metrics != nil {
+				t.Error("a runner or metrics were registered for an inactive identity")
+			}
+			if len(health.got) != 1 || health.got[0].critical || health.got[0].c.Name() != "identity" ||
+				!errors.Is(health.got[0].c.Check(context.Background()), errIdentityInactive) {
+				t.Fatalf("checks = %+v, want one non-critical identity-inactive check", health.got)
+			}
+		})
+	}
+}
+
+// OD-15: a complete, valid configuration reaches construction in every tier,
+// exactly as before; the refusal applies only to an inactive identity.
+// Construction itself is stubbed: a real database is tested by
+// TestConfigureIdentity_Postgres.
+func TestConfigureIdentity_FullConfigurationIsActiveInEveryTier(t *testing.T) {
+	errStub := errors.New("stub: construction reached")
+	for _, env := range tiers {
+		t.Run("tier="+env, func(t *testing.T) {
+			clearIdentityEnv(t)
+			setFullIdentityEnv(t, "postgres://u:p@127.0.0.1:1/identity")
+			var got []bootstrap.ActivationConfig
+			orig := openIdentity
+			openIdentity = func(_ context.Context, c bootstrap.ActivationConfig, _ func() time.Time) (*bootstrap.Runtime, error) {
+				got = append(got, c)
+				return nil, errStub
+			}
+			t.Cleanup(func() { openIdentity = orig })
+			cfg := testServiceConfig
+			cfg.Environment = env
+
+			err := configureIdentity(context.Background(), cfg, &fakeRunners{}, &fakeHealth{}, quiet)
+
+			if !errors.Is(err, errStub) {
+				t.Fatalf("err = %v: a valid configuration did not reach construction", err)
+			}
+			if len(got) != 1 || got[0].Security.AccessTokenIssuer != "urn:callscreen:identity:test" {
+				t.Errorf("construction received %d configurations: %+v", len(got), got)
+			}
+		})
+	}
+}
+
+// OD-15: partial and invalid configurations keep their own errors in every
+// tier, never the inactive refusal, and name no value or path.
+func TestConfigureIdentity_PartialAndInvalidUnchangedInEveryTier(t *testing.T) {
+	for _, env := range tiers {
+		cfg := testServiceConfig
+		cfg.Environment = env
+		t.Run("partial/tier="+env, func(t *testing.T) {
+			clearIdentityEnv(t)
+			t.Setenv(bootstrap.ActivationVariables[0], "x")
+			runners, health := &fakeRunners{}, &fakeHealth{}
+			err := configureIdentity(context.Background(), cfg, runners, health, quiet)
+			if !errors.Is(err, bootstrap.ErrInvalidConfig) || errors.Is(err, errIdentityRequired) {
+				t.Fatalf("err = %v, want ErrInvalidConfig", err)
+			}
+			if len(runners.got)+len(health.got) != 0 {
+				t.Error("something was registered for a partial configuration")
+			}
+		})
+		t.Run("invalid/tier="+env, func(t *testing.T) {
+			clearIdentityEnv(t)
+			setFullIdentityEnv(t, "postgres://u:p@127.0.0.1:1/identity")
+			t.Setenv("CS_IDENTITY_ACCESS_TOKEN_ISSUER", " issuer-marker-value ")
+			runners, health := &fakeRunners{}, &fakeHealth{}
+			err := configureIdentity(context.Background(), cfg, runners, health, quiet)
+			if !errors.Is(err, bootstrap.ErrInvalidConfig) || errors.Is(err, errIdentityRequired) {
+				t.Fatalf("err = %v, want ErrInvalidConfig", err)
+			}
+			leaks := []string{
+				"issuer-marker-value", os.Getenv("CS_IDENTITY_HMAC_SECRET_KEY_FILE"),
+				os.Getenv("CS_IDENTITY_DATABASE_DSN_FILE"), os.Getenv("CS_IDENTITY_ACCESS_TOKEN_PRIVATE_KEY_FILE"),
+			}
+			for _, s := range leaks {
+				if strings.Contains(err.Error(), s) {
+					t.Errorf("the error carries %q: %v", s, err)
+				}
+			}
+			if len(runners.got)+len(health.got) != 0 {
+				t.Error("something was registered for an invalid configuration")
+			}
+		})
+	}
+}
+
 // setEnvironment sets, or with value nil removes, this service's ENVIRONMENT
 // variable for one test.
 func setEnvironment(t *testing.T, value *string) {
