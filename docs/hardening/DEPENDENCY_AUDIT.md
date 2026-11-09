@@ -360,3 +360,72 @@ library), is in the development set only and is not installed in images.
   how third-party notices reach artefacts is not defined.
 - This is a point-in-time record and is not enforced in CI.
 - Android dependencies are not covered.
+
+---
+
+## 12. Go licence inventory, refreshed (2026-11-09)
+
+Section 10 covered the three modules that had third-party requirements on
+`63cbed5`. Since then identity, edge-api and `pgshared` ship third-party code
+too, and identity added Google's OAuth2 library (the Play Integrity verifier's
+token source). Section 9 says the licence review "applies now and remains
+open"; this section brings the inventory up to date. Section 10 is kept as its
+point-in-time record. As there, this records which licence text each shipped
+module carries; it is not legal advice.
+
+**Scope and method:** exactly section 10's. The same `go list -deps` command
+(non-test build, `GOWORK=off`, `-mod=readonly`), run in **every** Go module
+on `main` `4d88878`. Six modules ship third-party code:
+- `packages/go/contracts-go`;
+- `packages/go/evalstore`;
+- `packages/go/pgshared`;
+- `services/go/edge-api`;
+- `services/go/identity`;
+- `services/go/telephony-gateway`.
+
+Every other module ships none. Each licence file was read from the module cache
+at the exact version, and identified by its standard text. The sha256 prefixes
+of the files section 10 also read are identical.
+
+**New since section 10** (modules or versions not in its table):
+
+| Module | Version | Shipped in | Licence file | Licence text | sha256 (prefix) |
+|---|---|---|---|---|---|
+| `golang.org/x/oauth2` | v0.36.0 | identity | `LICENSE` | BSD-3-Clause | `911f8f5782931320` |
+| `cloud.google.com/go/compute/metadata` | v0.3.0 | identity (through `x/oauth2`) | `LICENSE` | Apache-2.0 | `cfc7749b96f63bd3` |
+| `golang.org/x/sync` | v0.17.0 | edge-api, identity, `pgshared` | `LICENSE` | BSD-3-Clause | `911f8f5782931320` |
+| `golang.org/x/text` | v0.29.0 | edge-api, identity, `pgshared` | `LICENSE` | BSD-3-Clause | `911f8f5782931320` |
+
+**Unchanged modules, now shipped in more places:**
+
+| Module | Version | Licence | Shipped in |
+|---|---|---|---|
+| `github.com/jackc/pgx/v5` | v5.10.0 | MIT | edge-api, evalstore, identity, `pgshared`, telephony-gateway |
+| `github.com/jackc/pgpassfile` | v1.0.0 | MIT | the same five |
+| `github.com/jackc/pgservicefile` | v0.0.0-20240606120523-5a60cdf6a761 | MIT | the same five |
+| `github.com/jackc/puddle/v2` | v2.2.2 | MIT | edge-api, evalstore, identity, `pgshared` |
+
+The AWS SDK modules, `smithy-go`, `golang.org/x/sync` v0.21.0, `golang.org/x/text`
+v0.39.0 and v0.41.0, and `google.golang.org/protobuf` v1.36.4 are unchanged
+from section 10, in the same modules.
+
+**What the texts show:** every shipped module still carries a permissive
+licence (Apache-2.0, MIT or BSD-3-Clause), and none carries a copyleft licence.
+The one new Apache-2.0 module, `compute/metadata`, ships **no** NOTICE file.
+
+**The identity and edge-api images:** these are the two services with container
+images today (`container-images.yml`). They ship:
+- `pgx` and its three helpers (MIT);
+- `x/sync` and `x/text` (BSD-3-Clause);
+- in identity only, `x/oauth2` (BSD-3-Clause) and `compute/metadata`
+  (Apache-2.0).
+
+**Open items, unchanged and not resolved here:**
+- **How third-party notices reach artefacts** is not defined. That covers the
+  MIT and BSD copyright and permission notices, and the AWS NOTICE files. It
+  depends on the image strategy, which is still undecided (phase16 README).
+- **Point-in-time record:** this is not enforced in CI. A licence check would
+  have to run whenever a `go.mod` changes.
+- **Version skew:** `x/sync` and `x/text` are at different versions in
+  different modules. Each is covered by `govulncheck` on every Go PR. Aligning
+  them is a dependency update, not part of this inventory.
