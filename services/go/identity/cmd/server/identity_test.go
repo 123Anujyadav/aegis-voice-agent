@@ -292,8 +292,10 @@ func TestConfigureIdentity_PartialAndInvalidUnchangedInEveryTier(t *testing.T) {
 			if !errors.Is(err, bootstrap.ErrInvalidConfig) || errors.Is(err, errIdentityRequired) {
 				t.Fatalf("err = %v, want ErrInvalidConfig", err)
 			}
-			leaks := []string{"issuer-marker-value", os.Getenv("CS_IDENTITY_HMAC_SECRET_KEY_FILE"),
-				os.Getenv("CS_IDENTITY_DATABASE_DSN_FILE"), os.Getenv("CS_IDENTITY_ACCESS_TOKEN_PRIVATE_KEY_FILE")}
+			leaks := []string{
+				"issuer-marker-value", os.Getenv("CS_IDENTITY_HMAC_SECRET_KEY_FILE"),
+				os.Getenv("CS_IDENTITY_DATABASE_DSN_FILE"), os.Getenv("CS_IDENTITY_ACCESS_TOKEN_PRIVATE_KEY_FILE"),
+			}
 			for _, s := range leaks {
 				if strings.Contains(err.Error(), s) {
 					t.Errorf("the error carries %q: %v", s, err)
