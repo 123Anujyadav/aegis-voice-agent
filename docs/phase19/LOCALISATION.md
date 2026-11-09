@@ -145,7 +145,7 @@ The worksheets are kept equal to the English by a test. After changing any Engli
    Strings marked `translatable="false"` (product names, `app_name`) are left out.
 4. **A translator the owner approves fills the `translation` column. A second person reviews it** against the spec-linked English (§3).
 5. `python3 tools/i18n/translation_kit.py import --lang hi --translated-by "<translator, date>" --reviewed-by "<reviewer, date>" --names-consented hi.csv`. `--names-consented` confirms both people agreed to their names being recorded (owner decision Q0); without it nothing is written. **It refuses the whole worksheet, and writes nothing,** if:
-   - a row drops "Aegis AI" or "AI", or a sign-in-code row lacks "OTP" (owner decisions Q1, Q3, Q4, 2026-11-04);
+   - a row drops "Lily AI" (the product's name since 2026-11-05; `translation_kit.PRODUCT_NAME`) or "AI", or a sign-in-code row lacks "OTP" (owner decisions Q1, Q3, Q4, 2026-11-04);
    - any row is missing, empty, given twice, or not in English;
    - the English has changed since export;
    - a row translates an untranslatable string, or changes a placeholder;
