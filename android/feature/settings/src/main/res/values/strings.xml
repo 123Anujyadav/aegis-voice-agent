@@ -37,7 +37,7 @@
 
     <!-- Account deletion: only what the server does (docs/phase19/ACCOUNT-DELETION.md) -->
     <string name="settings_deletion_title">Delete account</string>
-    <string name="settings_deletion_entry_description">Permanently delete your Aegis account and sign out.</string>
+    <string name="settings_deletion_entry_description">Permanently delete your Lily AI account and sign out.</string>
     <string name="settings_deletion_what_happens">What deleting your account does</string>
     <string name="settings_deletion_deleted_server">Your account is deleted on our servers, on every phone where you are signed in.</string>
     <string name="settings_deletion_deleted_sessions">Your sign-in sessions, pending verification codes and device records are deleted.</string>

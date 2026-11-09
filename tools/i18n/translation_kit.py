@@ -133,7 +133,7 @@ FORBIDDEN = (
 
 #: The owner's translation decisions of 2026-11-04 (docs/phase19/OWNER-DECISION-PACKET-2026-11-04.md)
 #: that a worksheet can be checked against. Q1: the product's name stays in Latin letters.
-PRODUCT_NAME = "Aegis AI"
+PRODUCT_NAME = "Lily AI"
 #: Q3: "AI" stays untranslated, in Latin letters.
 AI_WORD = re.compile(r"\bAI\b")
 #: Q4: the sign-in code is "OTP" in every translation. These are the rows about that code,

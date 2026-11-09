@@ -13,6 +13,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import com.callscreen.core.designsystem.token.Radius
 
 public enum class StatusChipVariant {
     Verified,
@@ -46,7 +47,7 @@ public fun AegisStatusChip(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(Radius.full))
             .background(bgColor)
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {

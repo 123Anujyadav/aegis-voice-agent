@@ -64,7 +64,7 @@ class MinifiedAppTest {
     fun coldStartRoutesToWelcome() {
         // The splash reads the stored session (encrypted DataStore, Keystore) and routes a
         // phone with none to Welcome: Hilt, DataStore and navigation all ran minified.
-        awaitText("Welcome to Aegis AI")
+        awaitText("Welcome to Lily AI")
         awaitText("Get Protected")
         awaitText("On-device blocking")
     }
@@ -88,7 +88,7 @@ class MinifiedAppTest {
         device.pressBack()
         awaitText("Your SIM")
         device.pressBack()
-        awaitText("Welcome to Aegis AI")
+        awaitText("Welcome to Lily AI")
     }
 
     @Test
@@ -131,7 +131,7 @@ class MinifiedAppTest {
         reach("தமிழ்")
         reach("ಕನ್ನಡ")
         device.pressBack()
-        awaitText("Welcome to Aegis AI")
+        awaitText("Welcome to Lily AI")
     }
 
     /**
@@ -151,7 +151,7 @@ class MinifiedAppTest {
             device.pressHome()
             shell("am force-stop $PKG")
             launch(clearTask = true)
-            awaitText("Welcome to Aegis AI")
+            awaitText("Welcome to Lily AI")
             awaitText("Get Protected")
         } finally {
             // No --locales: back to the phone's language.

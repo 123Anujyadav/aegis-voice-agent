@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -52,7 +51,7 @@ public fun AegisTopAppBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(CallScreenTheme.colors.surface.sunken)
+            .background(CallScreenTheme.colors.surface.default)
             .windowInsetsPadding(windowInsets)
             // At least 64 dp, taller when a large font or a longer translation wraps the title.
             .heightIn(min = 64.dp)
@@ -75,14 +74,9 @@ public fun AegisTopAppBar(
             // The title takes the room the avatar leaves, and wraps within it.
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Shield,
-                contentDescription = stringResource(R.string.core_ui_logo),
-                tint = CallScreenTheme.colors.action.primary.fill,
-                modifier = Modifier.size(28.dp)
-            )
+            LilyLogo(size = 36.dp, contentDescription = stringResource(R.string.core_ui_logo))
             Text(
                 text = title,
                 style = CallScreenTheme.typography.titleLarge,
@@ -95,7 +89,7 @@ public fun AegisTopAppBar(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(CallScreenTheme.colors.surface.raised),
+                .background(CallScreenTheme.colors.surface.sunken),
             contentAlignment = Alignment.Center
         ) {
             Icon(

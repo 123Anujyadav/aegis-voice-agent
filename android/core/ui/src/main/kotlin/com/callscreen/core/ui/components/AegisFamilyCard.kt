@@ -25,6 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
+import androidx.compose.foundation.BorderStroke
+import com.callscreen.core.designsystem.token.Radius
 
 @Composable
 public fun AegisFamilyCard(
@@ -39,9 +41,10 @@ public fun AegisFamilyCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Radius.xxl),
         colors = CardDefaults.cardColors(containerColor = CallScreenTheme.colors.surface.default),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, CallScreenTheme.colors.border.subtle),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier

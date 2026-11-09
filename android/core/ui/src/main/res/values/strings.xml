@@ -13,8 +13,8 @@
     <string name="core_ui_tab_settings">Settings</string>
 
     <!-- Top app bar -->
-    <string name="core_ui_app_title" translatable="false">Aegis AI</string>
-    <string name="core_ui_logo">Aegis Shield Logo</string>
+    <string name="core_ui_app_title" translatable="false">Lily AI</string>
+    <string name="core_ui_logo">Lily AI logo</string>
     <!-- The top bar's Back arrow, read by screen readers (owner decision D6). -->
     <string name="core_ui_back">Back</string>
 

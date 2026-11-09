@@ -175,6 +175,10 @@ public data class StatusColorGroup(
  * @property status the ten semantic statuses
  * @property isDark whether this scheme is a dark variant, used to resolve
  *   elevation to tonal steps rather than shadows
+ * @property brandAccent the Lily AI brand accent for text and icons on
+ *   [SurfaceColors.default] and the AI status tint: the designed violet in
+ *   light mode, lighter or deeper variants where the theme needs them for
+ *   contrast. ContrastTest enforces it
  *
  * @see docs/design/02-color.md
  */
@@ -186,6 +190,7 @@ public data class CallScreenColors(
     public val action: ActionColorGroup,
     public val status: StatusColorGroup,
     public val isDark: Boolean,
+    public val brandAccent: Color = LilyAiTokens.brandViolet,
 ) {
 
     /**
@@ -314,6 +319,7 @@ public fun lightColors(): CallScreenColors = CallScreenColors(
         ),
     ),
     isDark = false,
+    brandAccent = LilyAiTokens.brandViolet,
 )
 
 /**
@@ -423,6 +429,7 @@ public fun darkColors(): CallScreenColors = CallScreenColors(
         ),
     ),
     isDark = true,
+    brandAccent = LilyAiTokens.brandVioletOnDark,
 )
 
 /**
@@ -453,6 +460,7 @@ public fun highContrastLightColors(): CallScreenColors {
             focus = Primitives.brand700,
         ),
         status = base.status.withoutSubtleTints(Primitives.neutral0),
+        brandAccent = LilyAiTokens.brandVioletHighContrast,
     )
 }
 
@@ -481,6 +489,7 @@ public fun highContrastDarkColors(): CallScreenColors {
             focus = Primitives.brand200,
         ),
         status = base.status.withoutSubtleTints(Primitives.neutral1000),
+        brandAccent = LilyAiTokens.brandVioletHighContrastOnDark,
     )
 }
 
