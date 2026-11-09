@@ -22,19 +22,19 @@ import (
 // built image is checked the same way by tools/scripts/image-smoke.sh.
 const startupHelperEnv = "AEGIS_IDENTITY_STARTUP_HELPER"
 
-// TestStartupHelperProcess is not a test on its own: it is the service, run
-// as a child process by the tests below, and it skips otherwise. It applies
-// main's own handling (main.go) to dispatch with no argument: os.Args here
-// holds the test framework's flags, not the service's.
-func TestStartupHelperProcess(t *testing.T) {
-	if os.Getenv(startupHelperEnv) != "1" {
-		t.Skip("helper process for the start-up tests; runs only when they start it")
+// TestMain runs the tests, except in the child the start-up tests start: there
+// it is the service, without the test framework, so no helper test is ever
+// reported skipped. It applies main's own handling (main.go) to dispatch with
+// no argument.
+func TestMain(m *testing.M) {
+	if os.Getenv(startupHelperEnv) == "1" {
+		if err := dispatch(nil); err != nil {
+			fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
-	if err := dispatch(nil); err != nil {
-		fmt.Fprintf(os.Stderr, "FATAL: %v\n", err)
-		os.Exit(1)
-	}
-	os.Exit(0)
+	os.Exit(m.Run())
 }
 
 // serviceProcess is a started helper. Its exited channel is closed once it has
@@ -49,7 +49,7 @@ type serviceProcess struct {
 // tier (unset when tier is nil) and its own ports.
 func startService(t *testing.T, tier *string, healthPort, httpPort int) (*serviceProcess, *bytes.Buffer) {
 	t.Helper()
-	cmd := exec.Command(os.Args[0], "-test.run=^TestStartupHelperProcess$")
+	cmd := exec.Command(os.Args[0])
 	env := []string{}
 	for _, kv := range os.Environ() {
 		if !strings.HasPrefix(strings.ToUpper(kv), "CS_IDENTITY_") && !strings.HasPrefix(kv, e2eProcessEnv+"=") {
