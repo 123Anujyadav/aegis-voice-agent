@@ -123,3 +123,35 @@ No test sends an SMS or contacts any provider.
 3. Only then:
    - a delivery-only adapter is merged, after its own review (S5);
    - the owner's external approvals proceed (R1, DLT, billing).
+
+## 9. Handoff to the reviewer (prepared 2026-11-09; OD-12 stays open)
+
+**Engagement (the owner's steps):**
+1. The owner chooses the reviewer against §1. The reviewer declares, in writing, no conflict of interest: not the drafter, and no commercial tie to an SMS provider under consideration.
+2. The owner grants **read-only** access to the repository, or supplies an archive of `main` at the commit under review. No credentials, staging access or provider accounts are needed: everything runs locally.
+3. The owner agrees the scope (§2) with the reviewer. If the owner chooses sign-out option A or B (`OWNER-DECISION-PACKET-2026-11-09.md` §4), that change joins the scope as **S7**, reviewed before it is merged.
+
+**Materials:**
+- **Decision and code:**
+  - ADR-0033;
+  - this package;
+  - `OTP-PROVIDERS.md`;
+  - the code paths in §2;
+  - draft PR #271, for reference only.
+- **Evidence:** the CI runs in §5, and the commands in §3.
+- **Environment:** Go 1.26.10, and Docker for the throwaway PostgreSQL. Linux or macOS is needed for `-race`.
+
+**The deliverable (a written report):**
+- For each scope item S1–S6 (and S7 if added): reviewed or not reviewed, and a statement of the conclusion.
+- Findings, each with:
+  - a severity (critical, high, medium, low or informational);
+  - the file and line;
+  - the evidence;
+  - a recommended fix.
+- Answers to §7's questions.
+- A recommendation on ADR-0033: accept, amend or reject. **The decision stays the owner's.**
+
+**Recording:**
+- The owner links the report from ADR-0033's approval record and from OD-12, and records their decision.
+- Findings become tracked items. Any fix is a new change, reviewed the same way.
+- **Nothing in this repository marks OD-12 done:** only the owner, on receiving the report.
