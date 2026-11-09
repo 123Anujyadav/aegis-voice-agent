@@ -97,8 +97,9 @@ The large-text tests render with Robolectric's **native graphics**. The default 
 | `AppLanguageListTest`, `TranslationConsistencyTest` | app | The list equals the packaged set; Android's list holds only translated languages; a translated language is complete |
 | `AppLanguageOnDeviceTest` | app, emulator API 26, 28, 35 | Choose Tamil in the picker: re-created in Tamil on the same screen; Back returns to Settings; on disk or in `LocaleManager`; a new activity starts in it; the session record is untouched; back to the phone's language |
 | `MinifiedAppTest.anAppLanguageWithoutATranslationStartsInEnglish` | test-minified, API 33+ | The R8 build, started with a per-app language, shows English |
+| `MinifiedAppTest.aLanguageChosenInTheAppSurvivesTheProcessBeingKilled` | test-minified, API 26 and later | The R8 build: Tamil chosen in the app's own picker; the process force-stopped (checked gone) and the app started cold; the picker still has Tamil chosen, and on 13+ Android holds it as the per-app language. Restores the phone's language afterwards |
 
-**Not tested:** real process death on a device. The next process reads the same file or Android setting that these tests read.
+**Process death: tested on emulators** (2026-11-09): `aLanguageChosenInTheAppSurvivesTheProcessBeingKilled`, which ran locally on API 35 (the per-app language Android keeps) and API 28 (the app's own file), and runs on CI's API 35 job on every change to `test-minified`, and nightly on 35, 28 and 26. **Not tested:** a physical phone, or a reboot.
 
 ## 5. Deliverables before claiming a language
 
