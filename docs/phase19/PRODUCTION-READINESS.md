@@ -248,6 +248,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
     - the service lifecycle every Go service runs on, `Service.Run` and `HTTPRunner` (`packages/go/platform`, #263);
     - the removal of connection detail (user, host, database, the server's message) from real `pgconn` errors (`packages/go/pgshared`, #264).
   - Each was mutation-checked. A start-up test flake from #260 (two free-port calls returning one port) is fixed in #265.
+  - **evalstore's real-PostgreSQL suite runs in CI** (2026-11-09, `evalstore-postgres.yml`, `tools/scripts/evalstore-postgres-tests.sh`). Until now 14 of its 15 tests skipped in CI because nothing set `AEGIS_EVALSTORE_DSN` (`docs/phase15/READINESS_AUDIT.md` §10.18.3, which proposed exactly this). It is a copy of the gateway's job with two differences (module and variable), on a throwaway pinned PostgreSQL, **failing on any skip**; not a required check, and the gateway's D8 files are unedited. First local run: 27 passed (with subtests), 0 skipped.
 - **Staging and production:** none.
 - **Concurrency correctness** is covered:
   - **Refresh rotation:** concurrent refreshes rotate exactly once in the service (`app/refresh_race_test.go`, `app/refresh_proof_test.go`). On real PostgreSQL, rotation is a compare-and-swap that holds across two store instances (`pgstore/contract_test.go`, `ReplaceSessionIsACompareAndSwap`).
