@@ -43,6 +43,8 @@ Record one row per phone used. **Write SIM numbers as "+91 •••••••
 - **Blocked:** it could not be run, and why;
 - **Not run.**
 
+**"Accepted with finding" is not a Passed result** (OD-10, owner, 2026-11-09: [record](OD-10-DECISION-2026-11-09.md) §7). The owner may accept a finding, but only explicitly, naming the criterion it applies to. Record the finding, its impact, evidence, risk, the owner's acceptance (date and exact wording) and any required remediation or follow-up.
+
 | Case | Phone | Carrier | Time | Steps followed as written? (yes, or what differed) | Observed | Result | Evidence files (redacted) |
 |---|---|---|---|---|---|---|---|
 | M1 | | | | | | Not run | |

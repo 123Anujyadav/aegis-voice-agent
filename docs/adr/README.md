@@ -172,6 +172,12 @@ Interpretations recorded here; the historical files are **not** edited
   future ratification follows this process if the owner classifies it as
   high-risk. Each changes how authentication, sessions or keys work, so that
   classification is expected.
+- **OD-10 (Phase 19 completion criteria)** is shown as an open owner decision
+  in ADR-0032 (its owner-decision item 14) and in its review packet (gate G10,
+  decision 14). It was decided by the owner on 2026-11-09: see
+  [`../phase19/OD-10-DECISION-2026-11-09.md`](../phase19/OD-10-DECISION-2026-11-09.md).
+  The adopted release milestone M1 criterion says "signs in" without naming a
+  method, so it stays valid whatever ADR-0032 (H1) decides.
 
 ## Format
 

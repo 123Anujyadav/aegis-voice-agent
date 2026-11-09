@@ -3,7 +3,7 @@
 - **As of:** 2026-10-26, `main` `0bde265`.
 - **Purpose:** the exact steps between the repository and a Play **internal-testing** release that testers can actually use (sign in, then set up call screening), in dependency order. Each step names who must act, whether it needs your explicit approval, its cost (all **unverified** unless stated), and the local or mock alternative.
 - **Nothing here has been done.** No account, provider, DLT registration, domain, server, key, secret, Environment variable or Play Console setting has been created. Nothing has connected to a live server, and no Play-installed build has been tested.
-- **Not claimed:** Google Play readiness. Phase 19's completion criteria are still only **proposed** (`ROADMAP-INVENTORY.md` §2, OD-10).
+- **Not claimed:** Google Play readiness. Phase 19's completion criteria are **adopted** (OD-10, owner, 2026-11-09: [record](OD-10-DECISION-2026-11-09.md)): release milestone M1's exit evidence. **It is not met.**
 - **Secrets never go into the repository, a ticket or chat.** Where a step needs one, it says where it lives: a GitHub Environment secret, or a Kubernetes Secret mounted as a file.
 
 ## 0. What depends on what
@@ -111,7 +111,7 @@ It passes with a complete configuration. A normal debug build with no endpoints 
 1. **Upload the `.aab`** to the internal-testing track yourself, in Play Console.
 2. **Testers sign in with their own numbers.** This needs A, E and C working.
 3. **Verify at submission (not verified here):** whether the internal track requires the Data safety form, a privacy policy URL, the account-deletion URL, or content-rating answers before it can be published.
-4. **Then run the device tests that need this setup:** T2 (the physical phone, SIM and carrier sheet, 12 cases) and T3 (sign-in, refresh and deletion on a device against the live hosts). Neither can run before.
+4. **Then run the device tests that need this setup:** T2 (the physical phone, SIM and carrier sheet: device cases M1, M2 and M6–M12; the forwarding device cases M3–M5 are release milestone M3 acceptance under OD-10) and T3 (sign-in, refresh and deletion on a device against the live hosts). Neither can run before.
 
 ## Decisions that need your explicit approval
 
@@ -121,7 +121,7 @@ It passes with a complete configuration. A normal debug build with no endpoints 
 | Staging authorization: account, cluster and IAM (B1); the domain (B3) | C, F, G |
 | The permanent package name `com.callscreen` (D2) | The first upload |
 | Who writes or commits the identity and edge-api manifests (C1) | C |
-| The Phase 19 completion criteria (OD-10) | Calling Phase 19 done |
+| The Phase 19 completion criteria (OD-10): **decided 2026-11-09 (#261)** | Calling Phase 19 done, which now needs release milestone M1's exit evidence |
 | The deletion-code budget value, and web deletion itself (O13 / D5) | Only web deletion; **not** internal testing |
 
 ## Costs that remain unknown

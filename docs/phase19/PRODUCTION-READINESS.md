@@ -1,6 +1,6 @@
 # Production readiness tracker
 
-- **As of:** 2026-11-09 (F12 fixed under OD-15, #260; before it: M8 passed, the device session's final cleanup recorded, F27 added, F3 fixed under OD-13 in #258), on `main` `8094ec7` (`8094ec710cfca61e9fdd840383905d523e63569d`) of 2026-11-09 (#259). Entries are updated with each merge.
+- **As of:** 2026-11-09 (completion criteria adopted under OD-10, #261; before it: F12 fixed under OD-15 in #260, M8 passed, the device session's final cleanup recorded, F27 added, F3 fixed under OD-13 in #258), on `main` `c3178a0` (`c3178a0021409aff84b16e3b0b2924dc94585dc5`) of 2026-11-09 (#260). Entries are updated with each merge.
 - **The plan to production, with the external dependencies, owner actions and exit evidence:** [`PRODUCTION-READINESS-PLAN.md`](PRODUCTION-READINESS-PLAN.md) (2026-11-05).
 - **Verdict: not production-ready.** Nothing has been deployed anywhere, only M1, M2's Airtel run, M6 (accepted with a recorded finding), M7 and M8 have passed, on one physical phone (§3.5), and no Play release exists. Builds and CI passing are not readiness (§1).
 - **Method:** every entry cites the code, test, workflow or document it rests on. It comes from an audit of the repository at `7f60bac`, re-checked against each later merge. Nothing is estimated, and there are no percentages.
@@ -249,7 +249,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - **OTP:** concurrent validation consumes a code once, and concurrent wrong guesses are all counted (`app/otp_race_test.go`).
   - **Real PostgreSQL:** races between erasure and sign-in (`pgstore/erasure_signin_race_test.go`), and housekeeping across replicas (`pgstore/housekeeping_test.go`).
 - **Blocker:** there are no load, chaos or fault-injection tests for identity or edge-api. Load figures mean something only on representative hosts (X5); a shared CI runner would give numbers that measure the runner.
-- **Next action:** after X5, a load and failover test against staging, with targets the owner sets (OD-10).
+- **Next action:** after X5, a load and failover test against staging. **Its targets (readiness/availability, p95 latency, failover/recovery, load test): OPEN — to be defined and approved separately before M2** ([OD-10 record](OD-10-DECISION-2026-11-09.md) §6).
 
 ### 3.11 Play Store, privacy and release validation
 
@@ -318,7 +318,7 @@ These are recommendations from an AI-performed review, offered so that each deci
    - E2 (SMS provider and DLT), then C2;
    - X5 with E3 and E4 (staging hosts, keys, database, pins);
    - X1 and X2 (the Play Console and the upload key);
-   - OD-10 (what "done" means).
+   - OD-10 (what "done" means): **decided 2026-11-09 (#261)**; release milestone M1 is Phase 19's completion, and it is not met.
 
    All are owner or external items. Then T3 on a physical device (X3).
 2. **Production:** everything above, plus:

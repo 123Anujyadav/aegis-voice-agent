@@ -1,6 +1,6 @@
 # Roadmap inventory: phases, remaining work and release prerequisites
 
-- **As of:** 2026-11-07, `main` `5b41b12` (`5b41b128dbdc24171a86713e52b3bdaa25aa0314`, #256), **for T2 (§3.2) and the owner-decision count (§3.3, §3.6) only**, re-checked on that date; OD-13's closure (#258) and OD-15's (#260, 2026-11-09, re-counted on `main` `8094ec7`) are added on top. The rest was last refreshed on 2026-11-01, at `main` `0d1ed04` (#209); merged since then and not re-counted here: the 46 PRs from #210 to #256 (all but #212, an open Dependabot PR), whose status is in `PRODUCTION-READINESS.md` and [`../PRODUCT-ROADMAP.md`](../PRODUCT-ROADMAP.md). Merged before that refresh: #201–#209. Post-merge CI is recorded per PR in `PRODUCTION-READINESS.md`.
+- **As of:** 2026-11-07, `main` `5b41b12` (`5b41b128dbdc24171a86713e52b3bdaa25aa0314`, #256), **for T2 (§3.2) and the owner-decision count (§3.3, §3.6) only**, re-checked on that date; OD-13's closure (#258), OD-15's (#260, 2026-11-09, re-counted on `main` `8094ec7`) and OD-10's (#261, 2026-11-09, re-counted on `main` `c3178a0`) are added on top. The rest was last refreshed on 2026-11-01, at `main` `0d1ed04` (#209); merged since then and not re-counted here: the 46 PRs from #210 to #256 (all but #212, an open Dependabot PR), whose status is in `PRODUCTION-READINESS.md` and [`../PRODUCT-ROADMAP.md`](../PRODUCT-ROADMAP.md). Merged before that refresh: #201–#209. Post-merge CI is recorded per PR in `PRODUCTION-READINESS.md`.
 - **Method:** every count below is of items **defined in a named document or verified in the repository**. Nothing is estimated. Where documents conflict, the conflict is reported (§1), with the source treated as authoritative.
 - **Not claimed:** that Phase 19 is complete, or that the app is ready for Google Play.
 
@@ -22,7 +22,7 @@ The repository uses four different meanings of "phase". None defines a phase aft
    - `ACCOUNT-DELETION.md` §5 uses D1–D9.
 
    **To disambiguate:** cite account-deletion decisions by their tracker IDs, O9–O17 (`EXTERNAL-DEPENDENCIES.md` §2), which are unique.
-3. **No phase defines completion criteria.** Searching the repository for exit, completion or acceptance criteria finds none for Phases 15, 16, 18 or 19. Phase 19's working definition so far is the readiness blockers (`RELEASE-READINESS-ASSESSMENT.md` §7–§8) and the tracker. **Defining them is an owner decision** (OD-10 below).
+3. **No phase defines completion criteria.** Searching the repository for exit, completion or acceptance criteria finds none for Phases 15, 16, 18 or 19. Phase 19's working definition so far is the readiness blockers (`RELEASE-READINESS-ASSESSMENT.md` §7–§8) and the tracker. **Defining them is an owner decision** (OD-10 below). **Resolved for Phase 19 and the release milestones on 2026-11-09:** OD-10 adopts the plan's milestone exit evidence and the product roadmap's phase exit evidence as binding ([record](OD-10-DECISION-2026-11-09.md)). Phases 15, 16 and 18 remain without criteria of their own.
 4. **Earlier phases are open, not closed:**
    - Phase 15 is "NOT closed" (`READINESS_AUDIT.md` §10.20.6: blocker groups 1, 3, 4, 5, 6, 8, 9, plus #35 and #44);
    - Phase 16 is open, with a "Blocked, with the decision each needs" table of 7 rows (`docs/phase16-platform/README.md` §M1);
@@ -52,8 +52,8 @@ The repository uses four different meanings of "phase". None defines a phase aft
   - #207: C21 (backup and device-transfer rules), the deletion-screen crash guard and the on-device session test (done);
   - #208: C24, fuzzing of the auth parsers (done);
   - #209: the API 28 emulator failure of `ProtectionListsTest` (production-readiness F13), a keyboard race in the test, fixed in the test (done).
-- **Completion criteria:** none defined (conflict 3).
-- **Proposed criteria, NOT approved (OD-10).** Re-checked 2026-11-01 on `0d1ed04`: no document records an approval (ADR-0032 and its packet list OD-10 as an open owner decision), and this section is the only place they are written. Phase 19 is complete when:
+- **Completion criteria: adopted by OD-10 (owner, 2026-11-09; [record](OD-10-DECISION-2026-11-09.md)).** Phase 19 is complete when release milestone M1's exit evidence (`PRODUCTION-READINESS-PLAN.md` §2) is met, with "a tester" meaning at least one. **It is not met.**
+- **Superseded by OD-10; kept for history. Proposed criteria, NOT approved (OD-10).** Re-checked 2026-11-01 on `0d1ed04`: no document records an approval (ADR-0032 and its packet list OD-10 as an open owner decision), and this section is the only place they are written. Phase 19 is complete when:
   - a Play **internal-testing** release can be built by `release-android.yml` from a protected Environment;
   - testers can sign in and use on-device screening against deployed staging hosts;
   - every §4.1 internal-testing item is done.
@@ -103,14 +103,14 @@ The repository uses four different meanings of "phase". None defines a phase aft
 | # | Task | State | Source |
 |---|---|---|---|
 | T1 | Device (instrumented) coverage of A09b, Protection, the blocklist notice, the F14 banner and the Settings checklist | **Done.** Most of it was already done by #181; this row had been stale (validation doc §4.3, corrected). #195 adds the Settings checklist, the role lost before the feed was opened (a defect, fixed), the role revoked with no holder, and Android 9's checklist and feed. **Emulators: API 35 16/16, API 28 12/12.** | Validation doc §4.3 |
-| T2 | Physical phone, SIM and carrier sheet M1–M12 (**12 cases**, including forwarding and Indian number presentation) | **Partly run, 2026-11-06 and 2026-11-07,** on one phone (a Redmi 9 Power, Android 12) and one carrier (Airtel): M1, M2 (Airtel only), M7 and M8 Passed; M6 accepted with a recorded finding ([session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md); [checklist](PHYSICAL-DEVICE-TEST-CHECKLIST.md) §5). **Still open:** M2 on Jio, Vi and BSNL, and M10, need more SIMs (X3); M9 needs an Android 8 or 9 phone (X3); M11 and M12 need a new session on a phone, with the owner's approval; M3–M5 need forwarding (X4) | Validation doc §5 |
+| T2 | Physical phone, SIM and carrier sheet M1–M12 (**12 cases**, including forwarding and Indian number presentation) | **Partly run, 2026-11-06 and 2026-11-07,** on one phone (a Redmi 9 Power, Android 12) and one carrier (Airtel): M1, M2 (Airtel only), M7 and M8 Passed; M6 accepted with a recorded finding ([session record](DEVICE-TEST-SESSION-2026-11-05-redmi9power.md); [checklist](PHYSICAL-DEVICE-TEST-CHECKLIST.md) §5). **Still open:** M2 on Jio, Vi and BSNL, and M10, need more SIMs (X3); M9 needs an Android 8 or 9 phone (X3); M11 and M12 need a new session on a phone, with the owner's approval; M3–M5 need forwarding (X4). **Under OD-10, device cases M1, M2 and M6–M12 are release milestone M2 acceptance, and M3–M5 release milestone M3's** | Validation doc §5 |
 | T3 | Sign-in, refresh and deletion on a device against live hosts | Blocked: X5, E2 | Readiness §8.4 |
 | T4 | Play Integrity verdicts from a Play-installed build | Blocked: E1, X1 | Readiness §8.4 |
 | T5 | Run the signing-key rotation runbook once in staging | Blocked: E3 (SRE) | Tracker E3 |
 
-### 3.3 Owner decisions: 30 pending
+### 3.3 Owner decisions: 29 pending
 
-**Re-counted 2026-11-07** on `5b41b12`: 15 tracker items (below) plus 17 of OD-1–OD-18. **OD-11 is closed** (#245, 2026-11-05); no other item in this section records a decision. OD-17 stays pending: the app's packaging is decided, but the speech questions are deferred. **Later on 2026-11-07: OD-13 decided by the owner and implemented** ([record](OD-13-DECISION-2026-11-07.md); #258), so 16 of OD-1–OD-18 and 31 in all remain. **2026-11-09: OD-15 decided by the owner and implemented** ([record](OD-15-DECISION-2026-11-09.md); #260). Re-counted on `main` `8094ec7`: the 15 tracker items still record no decision, and of OD-1–OD-18 only OD-11, OD-13 and OD-15 are closed, so 15 of OD-1–OD-18 and **30** in all remain.
+**Re-counted 2026-11-07** on `5b41b12`: 15 tracker items (below) plus 17 of OD-1–OD-18. **OD-11 is closed** (#245, 2026-11-05); no other item in this section records a decision. OD-17 stays pending: the app's packaging is decided, but the speech questions are deferred. **Later on 2026-11-07: OD-13 decided by the owner and implemented** ([record](OD-13-DECISION-2026-11-07.md); #258), so 16 of OD-1–OD-18 and 31 in all remain. **2026-11-09: OD-15 decided by the owner and implemented** ([record](OD-15-DECISION-2026-11-09.md); #260). Re-counted on `main` `8094ec7`: the 15 tracker items still record no decision, and of OD-1–OD-18 only OD-11, OD-13 and OD-15 are closed, so 15 of OD-1–OD-18 and **30** in all remain. **Later on 2026-11-09: OD-10 decided by the owner and implemented** ([record](OD-10-DECISION-2026-11-09.md); #261). Re-counted on `main` `c3178a0`: the 15 tracker items still record no decision, and of OD-1–OD-18 only OD-10, OD-11, OD-13 and OD-15 are closed, so 14 of OD-1–OD-18 and **29** in all remain.
 
 - **Tracker O1–O17 (17),** less O10 and O11, which are in §3.4: **15.**
   - O9–O17 are the account-deletion decisions D1–D9.
@@ -128,7 +128,7 @@ The repository uses four different meanings of "phase". None defines a phase aft
 | OD-7 | Business analytics (defer) | Prototype audit §3 |
 | OD-8 | The frontend stack (also blocks C1) | Readiness §4, §7 |
 | OD-9 | Workload identity federation approval for the verifier (memo §12 B1) | Readiness §7; Play Integrity memo §12 |
-| OD-10 | Phase 19 completion criteria (§2) | This inventory, conflict 3 |
+| OD-10 | Phase 19 completion criteria (§2). **2026-11-09: decided by the owner** (option A: the plan's milestone exit evidence and the roadmap's phase exit evidence are binding; release milestone M2 is the union of plan §2 and §6; device cases M3–M5 move to release milestone M3; T4 stays in M2, unresolved; the rule for findings adopted; nine acceptance items left OPEN: [record](OD-10-DECISION-2026-11-09.md)) **and implemented in #261. OD-10 CLOSED** | This inventory, conflict 3 |
 | OD-11 | The F14 banner's first sentence, "Another app is now screening your calls", is a UX-spec text the app cannot verify, and it is false when the subscriber simply turned screening off. **Proposed amendment in Appendix A (not applied, awaiting your OK).** | Validation doc §4.3 (#195) **2026-11-05: approved (reviewed by ChatGPT on the owner's behalf) and applied in #245** (`OWNER-DECISION-PACKET-2026-11-05.md` §5, Q6). **OD-11 CLOSED** with #245; device evidence on `770cde3`: API 35 27/27, API 28 23/23, API 26 23/23, each with the R8 build's functional tests and launch check (runs 41969917154, 41969920931, 41969924508) |
 | OD-12 | **Identify an independent human reviewer** (gate G0a). Without one, every high-risk decision stays Proposed (§3.7) | `ARCHITECTURE_FREEZE.md` §6.1, rules 8 and 10 |
 | OD-13 | A corrupt session **file** is never recovered: DataStore has no corruption handler (production-readiness F3). Recovering means discarding the unreadable file, as the app already does for an unreadable record. **2026-11-07: decided by the owner** (replace an unparseable file with an empty one; sign in again; no new notice; the server session may stay live until its 24-hour expiry: [record](OD-13-DECISION-2026-11-07.md)) **and implemented in #258. OD-13 CLOSED** | `PRODUCTION-READINESS.md` §4 |
@@ -177,7 +177,7 @@ All costs are **unverified** unless the cited document says otherwise. None was 
 |---|---|---|
 | Coding | 15 | 0. C16–C24 done (#202–#208); the F13 test race fixed (#209). Routine work outside this list: `PRODUCTION-READINESS.md` §3 |
 | Testing | 4 (T2 has 12 cases; 5 of them have a result on one phone, M2 on Airtel only) | 0 that needs no hardware or approval. T2's M11 and M12 can run on an owner-provided phone, with the owner's approval (§3.2) |
-| Owner decisions | 30 (re-counted 2026-11-09; OD-11, OD-13 and OD-15 closed) | — |
+| Owner decisions | 29 (re-counted 2026-11-09; OD-10, OD-11, OD-13 and OD-15 closed) | — |
 | Privacy/legal reviews | 6 | — |
 | External dependencies | 15 | — |
 | High-risk decisions (§3.7) | 4, plus 3 conditional | 0: all need an independent human reviewer (OD-12) |
@@ -225,13 +225,13 @@ Everything in §4.1, plus:
   - C3, the deletion-code adapter, after O13;
   - C9, the reviewer path, after OD-1;
   - C4, only if Play Integrity is to be enforced (O7, O8).
-- **Testing:** T1–T5, including the 12 carrier cases.
+- **Testing:** T1–T5. Under OD-10, T2 means device cases M1, M2 and M6–M12, per plan §6 (the M2 device/carrier acceptance matrix is OPEN); device cases M3–M5 are release milestone M3 acceptance; **T4 is retained and UNRESOLVED** (the Play Integrity decision is deferred).
 - **Decisions:**
   - D1 (O9);
   - D5 (O13);
   - O1 (ADR-0029);
   - OD-1;
-  - OD-10;
+  - OD-10: **decided 2026-11-09 (#261)**; its nine acceptance items remain OPEN (record §6);
   - the Play Integrity decisions, if it is used: O7, O8 and OD-9.
 - **Privacy/legal:** L1–L6.
 - **External:** E8 and E10.
@@ -241,7 +241,7 @@ Everything in §4.1, plus:
 
 1. **E2:** choose an SMS/OTP provider and begin India DLT registration. It blocks every sign-in. It is an external dependency, and its cost is unverified.
 2. **X5:** choose where staging identity and edge-api run, so their origins and pins can be set as the Environment variables (#194).
-3. **OD-10:** approve Phase 19's completion criteria (§2), so that "done" is defined.
+3. **OD-10:** approve Phase 19's completion criteria (§2), so that "done" is defined. **Done: decided 2026-11-09 (#261).**
 
 **Only if internal testing should use email sign-in instead of SMS:** OD-12 (an independent human reviewer), then ADR-0032's approvals (§3.7, H1) and its implementation. That path is longer than E2.
 
