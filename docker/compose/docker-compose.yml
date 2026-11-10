@@ -5,7 +5,7 @@
 # one command, so that "works on my machine" means the same thing for everyone.
 #
 # THIS IS NOT A PRODUCTION TOPOLOGY. Production runs on Kubernetes from
-# infra/kubernetes. Nothing here is tuned for durability, and every credential is
+# infra/k8s (ADR-0027). Nothing here is tuned for durability, and every credential is
 # a well-known development value. Reusing this file for a shared or
 # internet-reachable environment would expose all of them.
 #

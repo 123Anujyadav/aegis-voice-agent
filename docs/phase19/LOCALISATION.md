@@ -97,8 +97,9 @@ The large-text tests render with Robolectric's **native graphics**. The default 
 | `AppLanguageListTest`, `TranslationConsistencyTest` | app | The list equals the packaged set; Android's list holds only translated languages; a translated language is complete |
 | `AppLanguageOnDeviceTest` | app, emulator API 26, 28, 35 | Choose Tamil in the picker: re-created in Tamil on the same screen; Back returns to Settings; on disk or in `LocaleManager`; a new activity starts in it; the session record is untouched; back to the phone's language |
 | `MinifiedAppTest.anAppLanguageWithoutATranslationStartsInEnglish` | test-minified, API 33+ | The R8 build, started with a per-app language, shows English |
+| `MinifiedAppTest.aLanguageChosenInTheAppSurvivesTheProcessBeingKilled` | test-minified, API 26 and later | The R8 build: Tamil chosen in the app's own picker; the process force-stopped (checked gone) and the app started cold; the picker still has Tamil chosen, and on 13+ Android holds it as the per-app language. Restores the phone's language afterwards |
 
-**Not tested:** real process death on a device. The next process reads the same file or Android setting that these tests read.
+**Process death: tested on emulators** (2026-11-09): `aLanguageChosenInTheAppSurvivesTheProcessBeingKilled`, which ran locally on API 35 (the per-app language Android keeps) and API 28 (the app's own file), and runs on CI's API 35 job on every change to `test-minified`, and nightly on 35, 28 and 26. **Not tested:** a physical phone, or a reboot.
 
 ## 5. Deliverables before claiming a language
 
@@ -144,7 +145,7 @@ The worksheets are kept equal to the English by a test. After changing any Engli
    Strings marked `translatable="false"` (product names, `app_name`) are left out.
 4. **A translator the owner approves fills the `translation` column. A second person reviews it** against the spec-linked English (§3).
 5. `python3 tools/i18n/translation_kit.py import --lang hi --translated-by "<translator, date>" --reviewed-by "<reviewer, date>" --names-consented hi.csv`. `--names-consented` confirms both people agreed to their names being recorded (owner decision Q0); without it nothing is written. **It refuses the whole worksheet, and writes nothing,** if:
-   - a row drops "Aegis AI" or "AI", or a sign-in-code row lacks "OTP" (owner decisions Q1, Q3, Q4, 2026-11-04);
+   - a row drops "Lily AI" (the product's name since 2026-11-05; `translation_kit.PRODUCT_NAME`) or "AI", or a sign-in-code row lacks "OTP" (owner decisions Q1, Q3, Q4, 2026-11-04);
    - any row is missing, empty, given twice, or not in English;
    - the English has changed since export;
    - a row translates an untranslatable string, or changes a placeholder;

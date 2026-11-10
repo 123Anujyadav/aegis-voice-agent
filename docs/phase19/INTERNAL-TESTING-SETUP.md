@@ -33,7 +33,7 @@
 | A4 | **Provider credentials:** SRE provisions them as Kubernetes Secrets mounted as **files** (never an environment value or a ConfigMap) | SRE | — | — |
 | A5 | **Egress** from identity to each provider's API (a network-policy change) | SRE | **Yes:** network change | — |
 
-- **Local alternative:** the fake senders in the unit tests, and the end-to-end harness's stdout sender (`E2E-OTP`, `E2E-DELETION-CODE`). **Neither is a production integration.**
+- **Local alternative:** the development mock provider (`CS_IDENTITY_OTP_PROVIDER=mock`, accepted only with `CS_IDENTITY_ENVIRONMENT=development` set explicitly; [`OTP-PROVIDERS.md`](OTP-PROVIDERS.md)), the fake senders in the unit tests, and the end-to-end harness's stdout sender (`E2E-OTP`, `E2E-DELETION-CODE`). **None is a production integration, and none sends an SMS.** In staging, leave `CS_IDENTITY_OTP_PROVIDER` unset or `none` until a real provider is approved: `mock` is refused there.
 - **Runbook:** `docs/runbooks/identity-provider-onboarding.md` §1.
 
 ## B. Staging cloud, database, keys and domain (X5, E3, E4)
@@ -114,6 +114,8 @@ It passes with a complete configuration. A normal debug build with no endpoints 
 4. **Then run the device tests that need this setup:** T2 (the physical phone, SIM and carrier sheet: device cases M1, M2 and M6–M12; the forwarding device cases M3–M5 are release milestone M3 acceptance under OD-10) and T3 (sign-in, refresh and deletion on a device against the live hosts). Neither can run before.
 
 ## Decisions that need your explicit approval
+
+The three external approvals (SMS and DLT, staging, Play) are set out as approval requests, each with its cost, data sharing, setup and the consequence of deferring, in [`M1-APPROVAL-REQUESTS.md`](M1-APPROVAL-REQUESTS.md) (2026-11-09).
 
 | Decision | Blocks |
 |---|---|
