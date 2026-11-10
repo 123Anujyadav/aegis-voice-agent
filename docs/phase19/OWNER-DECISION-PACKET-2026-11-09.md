@@ -292,6 +292,22 @@
 - **Not part of this decision:** this brief's option A also proposed `rebase-strategy: disabled` for GitHub Actions. **The owner kept that as a separate decision (F14), and it is unchanged.**
 - **`release-android.yml`** was not run. The `play-release` Environment does not exist, and dispatching the workflow would create it without the protection the owner sets first (`INTERNAL-TESTING-SETUP.md` D5).
 
+### 3b: the caller lists' "cleared" state (2026-11-10): option A, decided under the owner's delegation
+
+- **Who decided:** on 2026-11-10 the owner delegated the routine Android UX choices 3a, 3b and 3c to Claude Code. This is that decision, not an owner decision. It is not one of the 27 register decisions.
+- **Chosen:** option A. A list the subscriber emptied shows its existing heading alone: "No blocked numbers" or "No allowed numbers", one line, no action. **No new strings, so no translation change.**
+- **Why:**
+  - It matches the app's words: "blocklist" appears nowhere in the app, so §1.2's "Blocklist is empty" would be the only place.
+  - It needs no new string.
+  - It keeps the first-run explanation for someone who has not yet seen it.
+- **How:**
+  - one remembered yes or no per list (`callscreen_caller_lists`; data inventory D10b), set when the list holds an entry;
+  - `CallerListState.cleared` when the list is empty and the flag is set.
+  - **Correction to §3b above:** the cleared heading appears as soon as the last number is removed, while the 5-second Undo is still offered, not after it. Undo puts the number back, and the state with it.
+- **Tests:**
+  - **the ViewModel** (`CallerListViewModelTest`): first run vs cleared, remembered across screens, Undo, the lists independent;
+  - **Robolectric** (`CallerListClearedTierTest`): the cleared blocked and allowed states show the heading alone; first run shows the explanation; the flags persist per list, apart from the screening-role file.
+
 ### F14: Dependabot rebasing (2026-11-10): disabled for GitHub Actions, decided under the owner's delegation
 
 - **Who decided:** the owner asked for F14 to be decided as routine repository maintenance (2026-11-10). It is not one of the 27 register decisions.

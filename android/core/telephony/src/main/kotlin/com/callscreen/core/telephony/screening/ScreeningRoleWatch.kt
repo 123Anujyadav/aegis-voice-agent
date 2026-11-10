@@ -9,9 +9,13 @@ public interface Flag {
     public fun set()
 }
 
-/** A [Flag] in app-private shared preferences (not backed up: the app sets allowBackup false). */
-public class PreferencesFlag(context: Context, private val key: String) : Flag {
-    private val prefs = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+/**
+ * A [Flag] in app-private shared preferences (not backed up: the app sets
+ * allowBackup false). [file] defaults to the screening-role file, so existing
+ * flags keep their place; another feature passes its own file.
+ */
+public class PreferencesFlag(context: Context, private val key: String, file: String = FILE) : Flag {
+    private val prefs = context.applicationContext.getSharedPreferences(file, Context.MODE_PRIVATE)
 
     override fun get(): Boolean = prefs.getBoolean(key, false)
 
