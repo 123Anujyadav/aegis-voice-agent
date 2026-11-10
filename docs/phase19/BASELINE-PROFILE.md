@@ -6,7 +6,12 @@
   - Google Play delivers it with the app;
   - for a sideloaded or emulator install, `androidx.profileinstaller`, already a dependency, writes it after the first launch.
 
-**Status, 2026-11-04:**
+**Status, 2026-11-10 (regenerated after the Lily AI visual port, #267):**
+- **Why:** #267 rewrote the Splash and Welcome screens. The cold start now runs `LilyLogo` and `LilyAiTokens`, which the 2026-11-04 profile had **0** rules for, and Compose's generated lambda classes for those screens were renamed.
+- **Regenerated and committed:** `android/app/src/main/baseline-prof.txt`, **17,088 rules** (from 16,450), of which **825** are the app's own code (from 735). That includes `LilyLogo` (4) and `LilyAiTokens` (5).
+- **The diff was reviewed like code:** 282 app rules were added and 192 removed. They are the renamed lambdas of the navigation graph and onboarding screens, and the new logo and tokens. No test, debug or preview class is included.
+
+**First generated, 2026-11-04:**
 - **Generated and committed:** `android/app/src/main/baseline-prof.txt`, 16,450 rules.
 - **Recorded on:** an Android 9 emulator (Google APIs image, rooted).
 - **Installation is verified on that emulator.**
@@ -47,6 +52,16 @@ cp baselineprofile/build/outputs/connected_android_test_additional_output/profil
 Review the diff like code. CI compiles the generator (`pr-android`) but does not run it.
 
 **Why not record from the staging build:** staging is R8-minified. A profile recorded from it names classes as R8 renamed them (`LA/A;`), and those names change with every build. The first attempt did exactly that, and was discarded.
+
+## Evidence, 2026-11-10 (the regeneration)
+
+| Check | Result |
+|---|---|
+| Generator run | The same rooted Android 9 emulator (`Aegis_API_28`), `main` `bdde12c`: 1 test passed; 17,088 rules, 825 of them the app's own |
+| Merged into the staging (R8) build | `assets/dexopt/baseline.prof` is 5,651 bytes (`baseline.profm` 596) |
+| APK size gate | `android-apk-gate.sh`: **1,464,419 bytes, change 0** against the reviewed size (limit 1,493,707). Languages `en hi kn ml ta te` |
+| Installed on a device | Staging APK on that emulator: `ProfileInstaller: Installing profile for com.callscreen.staging`. The current profile is 5,647 bytes after the first launch |
+| Startup time | **Not measured**, as before: emulator timing is not a phone's (X3) |
 
 ## Evidence, 2026-11-04
 
