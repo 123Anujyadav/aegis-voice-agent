@@ -320,6 +320,26 @@
 - **Trade-off accepted:** an open Actions PR is not refreshed on its own. Conflicts are resolved by that one update.
 - **Unchanged:** branch protection, required checks, schedules, limits and labels.
 
+### 3a: haptic confirmation (2026-11-10): option A, decided under the owner's delegation
+
+- **Who decided:** under the owner's 2026-11-10 delegation of routine UX choices. This is not an owner decision, and not one of the 27 register decisions.
+- **Chosen:** option A, Android's touch feedback through the view (`ConfirmHaptic` in `core/ui`).
+  - **API 30 and later:** `CONFIRM`.
+  - **API 26–29:** `VIRTUAL_KEY`.
+  - **No `VIBRATE` permission:** the release permissions are unchanged.
+  - **The system "Touch feedback" setting** is honoured by the platform.
+- **Where:**
+  - a number added to the caller list on screen (an add, or an add that moves it from the other list; not a move out);
+  - the F14 banner clearing when the role is regained.
+- **Why:**
+  - It meets §5.8's rules (consequential actions only; respect the setting) without a new permission.
+  - The spec's own API 26–28 cell names a constant that does not exist there. `05-motion.md` §5.8 carries a dated note.
+- **Tests:**
+  - `ConfirmHapticTest`: the constant by API level, and the replaceable feedback;
+  - `CallerListHapticTest` (Robolectric): an add confirms once; an add-move here confirms; a removal does not; the rule for every message;
+  - `RoleRegainedTest`: only the banner clearing confirms.
+  - **The feel itself needs a phone:** emulators have no vibration motor.
+
 ## After the owner decides
 
 Each decision is recorded in this packet's §5 (to be added) with its date. Only then is the chosen option implemented, one PR per decision. Each:
