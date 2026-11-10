@@ -12,8 +12,10 @@
 # No registry login, no push, no secrets: publishing an image is a deployment
 # decision (X5). The runner's own Docker builds; no third-party action runs.
 #
-# The base images are pinned by exact tag, not yet by digest (see the
-# Dockerfile's note); this workflow does not change that.
+# The Go builder image is pinned by tag and digest (OD-16; the Dockerfile's
+# note). Dependabot's update PRs for it change docker/go/Dockerfile, which
+# this workflow's path filter covers, so every update is built and
+# smoke-tested here before it can be merged.
 # =============================================================================
 name: container-images
 

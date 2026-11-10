@@ -17,22 +17,29 @@
 # `golang:1.23`. A floating tag resolves to a different image next week, so
 # rebuilding an old commit would not reproduce the artefact that was tested.
 #
-# DIGEST PINNING IS NOT YET APPLIED. The intended end state is
-# `golang:1.26.10-alpine3.23@sha256:<digest>`, which is what actually makes a
-# build forensically reconstructable — a patch tag is still mutable in principle.
-# The digests are deliberately absent rather than guessed: a wrong digest either
-# fails the pull or, worse, pins an image nobody verified.
+# PINNED BY DIGEST AS WELL AS TAG (OD-16, owner decision 2026-11-10). A patch
+# tag is mutable: the registry rebuilds it (the digest for this very tag changed
+# on 2026-11-01 and again by 2026-11-06), so the tag alone does not reproduce
+# the artefact that was tested. The digest is the multi-architecture image
+# index, read on 2026-11-10 from the registry (registry-1.docker.io, the
+# Docker-Content-Digest of library/golang:1.26.10-alpine3.23) and from the
+# Docker Hub API, which agreed. Its amd64 and arm64 images set
+# GOLANG_VERSION=1.26.10 and sit on alpine-minirootfs 3.23.8.
 #
-# Renovate populates them on its first run (`pinDigests: true` in
-# renovate.json5), which is the correct mechanism because it resolves the digest
-# against the registry and keeps it updated with the tag.
+# UPDATE THE TAG AND THE DIGEST TOGETHER, in BOTH stages below, never one
+# alone. Dependabot does this (.github/dependabot.yml, docker /docker/go):
+# patch releases only, one PR at a time, built and smoke-tested by
+# container-images.yml. By hand: read the new tag's index digest from the
+# registry. Either way, the same PR sets GO_VERSION in the workflows to the
+# tag's Go version (below). docs/hardening/DEPENDENCY_AUDIT.md §13 records
+# the policy.
 #
 # The Go patch matches GO_VERSION in .github/workflows/pr-go.yml: the shipped
 # binary is built by the toolchain CI tested and scanned. go1.26.10 fixes
 # GO-2026-6809 (crypto/x509), and is at least every `go` directive in the
 # workspace (1.25.0); go1.23.5 was below them. Alpine 3.23 because that is the
 # variant published for this patch.
-FROM golang:1.26.10-alpine3.23 AS manifests
+FROM golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38681dbab2eeb1fdb2427f43 AS manifests
 
 # Every module go.work lists must be present, or the go command refuses the
 # whole workspace ("cannot load module ... listed in go.work") before it
@@ -47,7 +54,7 @@ COPY packages/go ./packages/go
 COPY services/go ./services/go
 RUN find packages services -type f ! -name go.mod ! -name go.sum -delete  && find packages services -depth -type d -empty -delete
 
-FROM golang:1.26.10-alpine3.23 AS build
+FROM golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38681dbab2eeb1fdb2427f43 AS build
 
 # git is needed for module resolution; ca-certificates for fetching over TLS.
 # --no-cache avoids leaving an apk index in the layer.
