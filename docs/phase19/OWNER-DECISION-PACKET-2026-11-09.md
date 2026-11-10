@@ -308,6 +308,18 @@
   - **the ViewModel** (`CallerListViewModelTest`): first run vs cleared, remembered across screens, Undo, the lists independent;
   - **Robolectric** (`CallerListClearedTierTest`): the cleared blocked and allowed states show the heading alone; first run shows the explanation; the flags persist per list, apart from the screening-role file.
 
+### F14: Dependabot rebasing (2026-11-10): disabled for GitHub Actions, decided under the owner's delegation
+
+- **Who decided:** the owner asked for F14 to be decided as routine repository maintenance (2026-11-10). It is not one of the 27 register decisions.
+- **Decided:** `rebase-strategy: disabled` for the `github-actions` entry. The Docker entries keep the default.
+- **Why:**
+  - An Actions update touches most workflows, so each automatic rebase re-ran the full matrix (about 160–175 checks) every time `main` moved.
+  - Branch protection (strict, up-to-date) already guarantees that the merged head was tested.
+  - The PR is updated once, just before merging, with `gh pr update-branch` (a merge commit, no force) or `@dependabot rebase`, and its checks run on that exact head.
+  - The Docker PRs run a small set of checks, so their rebases cost little.
+- **Trade-off accepted:** an open Actions PR is not refreshed on its own. Conflicts are resolved by that one update.
+- **Unchanged:** branch protection, required checks, schedules, limits and labels.
+
 ## After the owner decides
 
 Each decision is recorded in this packet's §5 (to be added) with its date. Only then is the chosen option implemented, one PR per decision. Each:

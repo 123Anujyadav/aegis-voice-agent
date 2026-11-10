@@ -106,6 +106,15 @@ updates:
       time: "05:00"
       timezone: "Asia/Kolkata"
     open-pull-requests-limit: 5
+    # F14 (decided 2026-11-10 under the owner's delegation): no automatic
+    # rebasing. An Actions update touches most workflows, so every rebase
+    # re-ran the full CI matrix (about 160-175 checks) each time main moved;
+    # on 2026-11-01 two open PRs queued about 186 pr-go jobs. Branch protection
+    # requires an up-to-date branch anyway, so the PR is brought up to date
+    # once, just before merging (gh pr update-branch, a merge commit, or
+    # "@dependabot rebase"), and its checks run again on that exact head.
+    # The Docker entries keep the default: their PRs run a small set of checks.
+    rebase-strategy: disabled
     labels: ["security", "ci"]
     commit-message:
       prefix: "ci(deps)"
