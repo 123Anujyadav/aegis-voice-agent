@@ -1,12 +1,12 @@
 # Blocker map (2026-11-10): what blocks each remaining task, and what each unblocks
 
-- **As of:** `main` `149c97e`, re-verified on 2026-11-10. **Updated the same day at `main` `52acbdf`,** after the Android UX choices 3a, 3b and 3c and F14 were decided under the owner's delegation and implemented (#283–#286). CI on `main` is green; the latest nightly runs (2026-11-09) passed.
+- **As of:** `main` `149c97e`, re-verified on 2026-11-10. **Updated the same day at `main` `52acbdf`,** after the Android UX choices 3a, 3b and 3c and F14 were decided under the owner's delegation and implemented (#283–#286). **Updated again at `main` `063663e`,** after the A09b copy fix (#288) and the three safe preparation items of the integration matrix (#289–#292). The records were re-checked: nothing in `ROADMAP-INVENTORY.md` §3 or `docs/adr` has changed since `149c97e`. ADR-0033 stays Proposed, OD-12 stays open, and **27** decisions remain. CI on `main` is green; the latest nightly runs (2026-11-09) passed.
 - **Milestones:** **M0 only.** M1 is not met (OD-10 exit evidence: a release run, the `.aab` on the internal track, and a tester signing in on a physical phone against staging).
 - **What this is:** every remaining Phase 19 task, against the one thing it waits for.
   - **Sources:** `ROADMAP-INVENTORY.md` §3 (the register: **27 open owner decisions**), `OD-10-DECISION-2026-11-09.md` §6, `OWNER-DECISION-PACKET-2026-11-09.md`, and `OD-12-OTP-REVIEW-PACKAGE.md`.
   - **When a blocker clears, the work in its row starts automatically,** subject to the gates it lists.
   - **Nothing here decides anything.**
-- **Unblocked engineering tasks today: none.** Rounds #262–#286 completed every task that a requirement documents and nothing gates. The one documented follow-up left, a CI build for the Python image, has a trigger that is not met (a deployed Python service; `DEPENDENCY_AUDIT.md` §13).
+- **Unblocked engineering tasks today: none.** Rounds #262–#292 completed every task that a requirement documents and nothing gates, including the matrix's three safe preparation items (§5). The one documented follow-up left, a CI build for the Python image, has a trigger that is not met (a deployed Python service; `DEPENDENCY_AUDIT.md` §13).
 
 ## 1. The independent reviewer (OD-12): one gate for every authentication change
 
@@ -71,7 +71,11 @@ Per integration (SMS, telephony, ASR, TTS, LLM, orchestration, fraud, PostgreSQL
 - the OTP architecture record (ADR-0033);
 - the device-test checklist and evidence template;
 - the forwarding-test preparation;
-- the staging configuration contract (`INTERNAL-TESTING-SETUP.md` C2–C5).
+- the staging configuration contract (`INTERNAL-TESTING-SETUP.md` C2–C5);
+- the integration matrix's safe items:
+  - the `integrations` placeholder guard (#290);
+  - the observability catalogue (#291);
+  - the provider-port conformance suites for STT, TTS, LLM and telephony (#292).
 
 **Not prepared, on purpose:**
 - **implementations of choices not yet made:** sign-out, the OTP policy (the UX options 3a, 3b and 3c are now decided and implemented);
