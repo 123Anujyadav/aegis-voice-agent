@@ -323,7 +323,14 @@ dialog; Tertiary → "Not now".
 |---|---|---|---|
 | Enables | "We can tell you when a call is being screened, while it's happening." | "We can block numbers you've blocked, and let people you know ring through, without the call ever leaving your phone." | "People in your contacts ring through instead of being screened." |
 | Never | "We won't send you marketing." | "We can't hear your calls. Android doesn't allow that for any app, including this one." | "Your contacts stay on your phone. We don't upload them." |
-| If declined | "Screening still works. You'll find out afterwards instead of during." | "Every unknown call gets forwarded, which may cost you carrier charges and means people you know get screened too." | "People you know will be screened like anyone else." |
+| If declined | "Screening still works. You'll find out afterwards instead of during." | "Numbers you block will still ring, and calls won't be checked on this phone. You can turn blocking on later in Protection." | "People you know will be screened like anyone else." |
+
+**Note (2026-11-10), A09b's "If declined" line, changed at the owner's direction:**
+- **The original wording was** "Every unknown call gets forwarded, which may cost you carrier charges and means people you know get screened too."
+- **Why it changed:** it describes the designed product with call forwarding, which is not set up before release milestone M3. Shown today, it would promise a behaviour that does not happen.
+- **The new line states what declining does now:** the app cannot block or check calls on this phone, and blocking can be turned on later from Protection ("Turn on blocking").
+- **When forwarding exists,** the line is revisited together with the forwarding work.
+- **Record:** `docs/phase19/OWNER-DECISION-PACKET-2026-11-09.md` §5.
 
 **`A09b`'s "never" line is the most important sentence in onboarding.** The
 single largest fear a call-screening app triggers is "this app is listening to

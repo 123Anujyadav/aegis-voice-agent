@@ -89,4 +89,14 @@ class ScreeningRoleCopyTest {
             assertFalse(word in missing.lowercase(), word)
         }
     }
+
+    @Test
+    @DisplayName("the first-time if-declined line promises no forwarding (none exists before M3) and names the way back")
+    fun declinedLineIsTrueToday() {
+        val line = strings.getValue("onboarding_role_declined").lowercase()
+        for (word in listOf("forward", "carrier", "charge", "screened too")) {
+            assertFalse(word in line, word)
+        }
+        assertTrue("protection" in line, line)
+    }
 }
