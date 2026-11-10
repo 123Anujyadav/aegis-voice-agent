@@ -1,6 +1,9 @@
 # Blocker map (2026-11-10): what blocks each remaining task, and what each unblocks
 
 - **As of:** `main` `149c97e`, re-verified on 2026-11-10. **Updated the same day at `main` `52acbdf`,** after the Android UX choices 3a, 3b and 3c and F14 were decided under the owner's delegation and implemented (#283–#286). **Updated again at `main` `063663e`,** after the A09b copy fix (#288) and the three safe preparation items of the integration matrix (#289–#292). The records were re-checked: nothing in `ROADMAP-INVENTORY.md` §3 or `docs/adr` has changed since `149c97e`. ADR-0033 stays Proposed, OD-12 stays open, and **27** decisions remain. CI on `main` is green; the latest nightly runs (2026-11-09) passed.
+- **Re-verified at `main` `3e84a40` (2026-11-10, later):** #288–#293 merged with green post-merge CI; the 2026-11-10 nightlies passed; the records are unchanged, and nothing in the OD-12 review scope has changed since the package was written. Added the per-integration readiness requirements and the local-model test procedure (§5). Two items for the owner, neither blocking M1:
+  - **The India-only domestic SMS launch scope** (restated by the owner on 2026-11-10) is recorded, but the code does not enforce it: that is ADR-0033 **Q2**, still open, and an identity change behind OD-12.
+  - **Six findings in the local-model adapters' tests and code** (`LOCAL-MODEL-ADAPTER-TESTING.md` §5) wait for the owner to confirm whether `packages/go/voice` may be edited. This machine's Whisper CLI does not currently run (a NumPy and numba version conflict); fixing it changes the owner's Python installation.
 - **Milestones:** **M0 only.** M1 is not met (OD-10 exit evidence: a release run, the `.aab` on the internal track, and a tester signing in on a physical phone against staging).
 - **What this is:** every remaining Phase 19 task, against the one thing it waits for.
   - **Sources:** `ROADMAP-INVENTORY.md` §3 (the register: **27 open owner decisions**), `OD-10-DECISION-2026-11-09.md` §6, `OWNER-DECISION-PACKET-2026-11-09.md`, and `OD-12-OTP-REVIEW-PACKAGE.md`.
@@ -62,7 +65,7 @@
 
 ## 5. Safe preparation that remains
 
-Per integration (SMS, telephony, ASR, TTS, LLM, orchestration, fraud, PostgreSQL, cloud, monitoring, FCM, Play Integrity): [`INTEGRATION-DEPENDENCY-MATRIX.md`](INTEGRATION-DEPENDENCY-MATRIX.md) (2026-11-10), with the local preparation that is safe now and what is deliberately not prepared.
+Per integration (SMS, telephony, ASR, TTS, LLM, orchestration, fraud, PostgreSQL, cloud, monitoring, FCM, Play Integrity): [`INTEGRATION-DEPENDENCY-MATRIX.md`](INTEGRATION-DEPENDENCY-MATRIX.md) (2026-11-10), with the local preparation that is safe now and what is deliberately not prepared. What each must satisfy before activation (prerequisites, security requirements, test evidence): [`INTEGRATION-READINESS-REQUIREMENTS.md`](INTEGRATION-READINESS-REQUIREMENTS.md). The local-model adapters' test coverage and how to run their real-runtime tests: [`LOCAL-MODEL-ADAPTER-TESTING.md`](LOCAL-MODEL-ADAPTER-TESTING.md).
 
 **All of it is done:**
 - the decision briefs (packet §1–§4);
@@ -72,6 +75,7 @@ Per integration (SMS, telephony, ASR, TTS, LLM, orchestration, fraud, PostgreSQL
 - the device-test checklist and evidence template;
 - the forwarding-test preparation;
 - the staging configuration contract (`INTERNAL-TESTING-SETUP.md` C2–C5);
+- the per-integration readiness requirements and the local-model test procedure (2026-11-10);
 - the integration matrix's safe items:
   - the `integrations` placeholder guard (#290);
   - the observability catalogue (#291);

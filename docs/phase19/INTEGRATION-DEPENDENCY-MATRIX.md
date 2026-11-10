@@ -7,6 +7,8 @@
   - [`BLOCKER-MAP-2026-11-10.md`](BLOCKER-MAP-2026-11-10.md): the blockers;
   - [`M1-APPROVAL-REQUESTS.md`](M1-APPROVAL-REQUESTS.md): the M1 approvals;
   - `PRODUCTION-READINESS-PLAN.md` §3–§4: the readiness matrix and the spending categories.
+  - [`INTEGRATION-READINESS-REQUIREMENTS.md`](INTEGRATION-READINESS-REQUIREMENTS.md): for each integration, the prerequisites, implementation dependencies, security requirements and test evidence, with citations (2026-11-10).
+  - [`LOCAL-MODEL-ADAPTER-TESTING.md`](LOCAL-MODEL-ADAPTER-TESTING.md): what the Whisper, Piper and Ollama adapters' tests cover, and how to run the real-runtime tests.
 
 **Words used below:**
 - **Port:** the interface the product codes against.
