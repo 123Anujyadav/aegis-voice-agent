@@ -35,7 +35,7 @@ The milestones keep their definitions:
 - 4 testing (T2–T5);
 - 15 external (E1–E10, X1–X5);
 - 6 legal (L1–L6);
-- 29 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-10, OD-11, OD-13 and OD-15.
+- 27 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-10, OD-11, OD-13, OD-15, OD-16 and OD-18.
 
 High-risk items (H) overlap these and are listed with their phase.
 
@@ -53,7 +53,7 @@ High-risk items (H) overlap these and are listed with their phase.
   - security foundations: log redaction, `verify-full` TLS, fail-closed services, secrets as mounted files;
   - evaluation infrastructure: `packages/go/evaluation`, `evalstore`, `evalsubjects`, the offline speech scorer.
 - **Remaining:**
-  - **2 owner decisions:** OD-16 (base-image updates), OD-18 (the held Dependabot PRs #183–#185, #212);
+  - **0 owner decisions.** OD-16 (base-image updates) and OD-18 (the held Dependabot PRs) were decided by the owner on 2026-11-10 and implemented (#278; #183, #184, #185, #212);
   - **owner-held engineering work outside the inventory's counts:** engineering Phase 15 (not closed; blocker groups in `phase15/READINESS_AUDIT.md` §10.20.6), engineering Phase 16 (a blocked table, `phase16-platform/README.md` §M1), and the telephony P1 programme. Much of it is in the owner's uncommitted worktree.
 - **Blocked by:** owner decisions only.
 
@@ -174,14 +174,14 @@ High-risk items (H) overlap these and are listed with their phase.
 
 | Product phase | Coding | Testing | External | Legal | Owner decisions |
 |---|---|---|---|---|---|
-| 1 | 0 | 0 | 0 | 0 | 2 |
+| 1 | 0 | 0 | 0 | 0 | 0 |
 | 2 | 10 | 0 | 3 | 0 | 18 |
 | 3 | 2 | 0 | 0 | 0 | 6 |
 | 4 | 2 | 0 | 7 | 0 | 0 |
 | 5 | 0 | 4 | 1 | 0 | 0 |
 | 6 | 1 | 0 | 4 | 6 | 2 |
 | Cross-phase gates | — | — | — | — | 1 (OD-12) |
-| **Total** | **15** | **4** | **15** | **6** | **29** |
+| **Total** | **15** | **4** | **15** | **6** | **27** |
 
 **Not countable yet:** these capabilities have no task list. They need one before they can be counted:
 - the multilingual voice assistant;
