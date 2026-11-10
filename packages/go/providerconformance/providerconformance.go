@@ -1,11 +1,13 @@
 // Package providerconformance holds behavioural conformance suites for the
-// provider ports: speech.STTProvider, speech.TTSProvider and runtime.Provider.
+// provider ports: speech.STTProvider, speech.TTSProvider, runtime.Provider and
+// telephony.Provider.
 //
 // Each suite is a list of checks, and each check enforces one sentence of the
 // port's documented contract, quoted in its Contract field. Nothing is checked
 // that the port's documentation does not say. A suite runs against any
-// implementation: the fakes in speech and runtime today, and every vendor or
-// local-model adapter later, which then has a ready acceptance test.
+// implementation: the fakes in speech, runtime and telephony today, and every
+// vendor, carrier or local-model adapter later, which then has a ready
+// acceptance test.
 //
 // Use it from a test:
 //
@@ -19,7 +21,8 @@
 // Bounds are deliberately generous (two seconds by default for "does not
 // block"): a conformance suite proves a contract, not a latency target. The
 // LLM cancellation check uses ADR-0011's 20 ms budget plus a scheduling
-// allowance, both overridable.
+// allowance, and the telephony cancellation checks allow 250 ms; all are
+// overridable.
 package providerconformance
 
 import (
