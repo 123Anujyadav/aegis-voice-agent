@@ -163,7 +163,14 @@ class ScreeningRoleStatesTest {
         compose.onNodeWithText("Not now").performClick()
         compose.awaitText("AI Screening Persona")
 
-        show(AegisDestinations.SCREENING_ROLE)
+        // A new composition, as a new onboarding would be: setContent at the same call site
+        // keeps the remembered NavController (still on the persona screen), so key it apart.
+        compose.activity.setContent {
+            androidx.compose.runtime.key("after-decline") {
+                CallScreenTheme { AegisNavGraph(startDestination = AegisDestinations.SCREENING_ROLE) }
+            }
+        }
+        compose.waitForIdle()
         compose.awaitText("What you're missing")
         compose.onNodeWithText("If you say no").assertDoesNotExist()
         compose.onNodeWithText("You're currently missing on-device blocking", substring = true).assertExists()
