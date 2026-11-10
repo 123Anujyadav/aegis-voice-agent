@@ -252,6 +252,13 @@ lands as noise.
 **Respect the system setting.** If haptic feedback is disabled, we emit nothing.
 No exceptions, including the fraud alert.
 
+**Note (2026-11-10), the Android implementation of `haptic.confirm`:**
+- **The table's API 26–28 cell is not implementable:** `HapticFeedbackConstants.CONFIRM` exists only from API 30.
+- **The API 29 and 30+ cells need the `Vibrator`,** and with it the `VIBRATE` permission. The app's permissions are pinned and reviewed (`android/app/release-permissions.txt`).
+- **What the app does instead:** `View.performHapticFeedback`, with `CONFIRM` on API 30 and later and `VIRTUAL_KEY` (the `haptic.click` level) on API 26–29. It needs no permission, and the platform honours the "Touch feedback" setting, as this section requires.
+- **Used for:** a number added to a caller list (A32), and the F14 banner clearing when the role is regained.
+- **Decided** under the owner's delegation of routine UX choices (`docs/phase19/OWNER-DECISION-PACKET-2026-11-09.md` §3a, option A; recorded in its §5). The table above keeps its original text.
+
 ---
 
 ## 5.9 Rules

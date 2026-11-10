@@ -27,6 +27,7 @@ import com.callscreen.core.telephony.screening.PreferencesFlag
 import com.callscreen.core.telephony.screening.ScreeningRole
 import com.callscreen.core.telephony.screening.ScreeningRoleWatch
 import com.callscreen.core.ui.components.AegisTab
+import com.callscreen.core.ui.components.rememberConfirmHaptic
 
 /**
  * F14's words (docs/ux/android/08-user-flows.md, "Losing and regaining the
@@ -48,13 +49,18 @@ public fun CallsFeedRoute(onCallClick: (String) -> Unit, onTabSelected: (AegisTa
     val context = LocalContext.current
     val watch = remember { ScreeningRoleWatch(PreferencesFlag(context, PreferencesFlag.HELD_BEFORE)) }
     var lost by remember { mutableStateOf(false) }
+    val haptic = rememberConfirmHaptic()
+    // F14 "granted → banner clears, haptic.confirm" (decision packet §3a).
+    val recheck = {
+        val now = watch.lost(ScreeningRole.status(context))
+        if (roleRegained(lost, now)) haptic.confirm()
+        lost = now
+    }
     LifecycleResumeEffect(Unit) {
-        lost = watch.lost(ScreeningRole.status(context))
+        recheck()
         onPauseOrDispose {}
     }
-    val request = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        lost = watch.lost(ScreeningRole.status(context))
-    }
+    val request = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { recheck() }
     CallsFeedScreen(
         onCallClick = onCallClick,
         onTabSelected = onTabSelected,
@@ -86,3 +92,6 @@ internal fun ScreeningRoleBanner(onSwitchBack: () -> Unit, modifier: Modifier = 
         }
     }
 }
+
+/** F14: the banner was showing and the role is held again, so the banner clears. */
+internal fun roleRegained(wasLost: Boolean, nowLost: Boolean): Boolean = wasLost && !nowLost
