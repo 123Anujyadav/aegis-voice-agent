@@ -2,6 +2,19 @@
 // push, cloud and messaging integrations, with placeholder implementations.
 // None of the implementations here contacts a provider: each returns a fixed
 // or synthetic result.
+//
+// NOT FOR PRODUCT USE. Despite their names, ExotelClient, PlivoClient,
+// SarvamSttClient, GoogleSttClient and ElevenLabsClient are placeholders, a
+// HealthCheck here always succeeds, and MockAwsWrapper.EncryptKms does not
+// encrypt. The product's provider ports are elsewhere:
+//
+//   - telephony: telephony.Provider (packages/go/telephony);
+//   - speech: speech.STTProvider and speech.TTSProvider (packages/go/speech);
+//   - LLM: runtime.Provider (packages/go/runtime);
+//   - SMS one-time codes: otpdelivery.Provider (services/go/identity).
+//
+// No other module imports this package, and guard_test.go keeps it that way
+// (docs/phase19/INTEGRATION-DEPENDENCY-MATRIX.md).
 package integrations
 
 import (
@@ -171,7 +184,8 @@ func (a *MockAwsWrapper) UploadS3Object(ctx context.Context, bucket, key string,
 }
 
 // EncryptKms does NOT encrypt: it returns the plaintext with a "KMS_ENC:"
-// prefix.
+// prefix. Data passed to it is stored in the clear by whatever keeps the
+// result, so it must never receive real or personal data.
 func (a *MockAwsWrapper) EncryptKms(ctx context.Context, keyID string, plaintext []byte) ([]byte, error) {
 	return append([]byte("KMS_ENC:"), plaintext...), nil
 }
