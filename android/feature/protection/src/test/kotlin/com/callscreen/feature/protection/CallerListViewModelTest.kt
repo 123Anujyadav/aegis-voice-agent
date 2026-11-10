@@ -208,4 +208,63 @@ class CallerListViewModelTest {
         advanceUntilIdle()
         assertEquals(ListMessage.ADDED, vm.state.value.message)
     }
+
+    private fun TestScope.screenWith(type: ListType, flag: MemoryFlag): CallerListViewModel {
+        val vm = CallerListViewModel(
+            store,
+            SavedStateHandle(mapOf(CallerListViewModel.LIST_ARG to CallerListViewModel.argOf(type))),
+            dispatcher,
+            flag,
+        )
+        advanceUntilIdle()
+        return vm
+    }
+
+    @Test
+    @DisplayName("A32 cleared tier: a list the subscriber emptied is cleared, a first-run list is not, and it is remembered")
+    fun clearedTier() = runTest(dispatcher) {
+        val flag = MemoryFlag()
+        val vm = screenWith(ListType.BLOCK, flag)
+        assertFalse(vm.state.value.cleared, "a list that never held an entry is the first-run state")
+
+        vm.add("98765 00001")
+        advanceUntilIdle()
+        assertFalse(vm.state.value.cleared)
+        assertTrue(flag.get(), "an entry marks the list as having held one")
+
+        vm.remove(vm.state.value.entries.single())
+        advanceUntilIdle()
+        assertTrue(vm.state.value.entries.isEmpty())
+        assertTrue(vm.state.value.cleared, "emptied by the subscriber")
+
+        // Another visit, or a restart, with the same remembered flag.
+        assertTrue(screenWith(ListType.BLOCK, flag).state.value.cleared)
+    }
+
+    @Test
+    @DisplayName("A32 cleared tier: Undo puts the entry back, and the list is no longer cleared")
+    fun undoLeavesTheClearedTier() = runTest(dispatcher) {
+        val vm = screenWith(ListType.BLOCK, MemoryFlag())
+        vm.add("98765 00001")
+        advanceUntilIdle()
+        vm.remove(vm.state.value.entries.single())
+        runCurrent()
+        assertTrue(vm.state.value.cleared)
+        vm.undo()
+        runCurrent()
+        assertFalse(vm.state.value.cleared)
+        assertEquals(listOf("+919876500001"), vm.state.value.entries.map { it.number.value })
+    }
+
+    @Test
+    @DisplayName("A32 cleared tier: each list remembers on its own")
+    fun eachListRemembersOnItsOwn() = runTest(dispatcher) {
+        val blocked = screenWith(ListType.BLOCK, MemoryFlag())
+        blocked.add("98765 00001")
+        advanceUntilIdle()
+        blocked.remove(blocked.state.value.entries.single())
+        advanceUntilIdle()
+        assertTrue(blocked.state.value.cleared)
+        assertFalse(screenWith(ListType.ALLOW, MemoryFlag()).state.value.cleared, "the allowlist never held an entry")
+    }
 }

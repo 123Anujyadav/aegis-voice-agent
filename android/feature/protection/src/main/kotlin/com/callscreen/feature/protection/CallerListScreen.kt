@@ -183,7 +183,7 @@ internal fun CallerListScreen(
             when {
                 state.loading -> Unit
                 state.unreadable -> item(key = "unreadable") { Unreadable(onDiscardUnreadable) }
-                state.entries.isEmpty() -> item(key = "empty") { Empty(copy) }
+                state.entries.isEmpty() -> item(key = "empty") { Empty(copy, cleared = state.cleared) }
                 else -> {
                     item(key = "search") { SearchField(state.query, onQueryChange) }
                     itemsIndexed(state.visible, key = { _, entry -> entry.number.value }) { index, entry ->
@@ -360,8 +360,13 @@ internal fun EntryDetail(
     }
 }
 
+/**
+ * A32's empty states. First run: the heading and its explanation. Cleared (the
+ * subscriber emptied the list): the heading alone, one line and no action;
+ * they have already seen the explanation.
+ */
 @Composable
-private fun Empty(copy: CallerListCopy) {
+private fun Empty(copy: CallerListCopy, cleared: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 32.dp)) {
         Text(
             text = stringResource(copy.emptyTitle),
@@ -369,7 +374,7 @@ private fun Empty(copy: CallerListCopy) {
             fontWeight = FontWeight.Bold,
             color = CallScreenTheme.colors.content.primary,
         )
-        for (line in copy.emptyLines) {
+        if (!cleared) for (line in copy.emptyLines) {
             Text(
                 text = stringResource(line),
                 style = CallScreenTheme.typography.bodyLarge,

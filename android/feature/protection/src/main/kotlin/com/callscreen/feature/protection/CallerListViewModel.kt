@@ -1,5 +1,6 @@
 package com.callscreen.feature.protection
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,7 +11,10 @@ import com.callscreen.core.telephony.callerlist.ListRefusal
 import com.callscreen.core.telephony.callerlist.ListSource
 import com.callscreen.core.telephony.callerlist.StoreHealth
 import com.callscreen.core.telephony.prefilter.ListType
+import com.callscreen.core.telephony.screening.Flag
+import com.callscreen.core.telephony.screening.PreferencesFlag
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -60,6 +64,13 @@ public data class CallerListState(
     val message: ListMessage? = null,
     /** The entry just removed, while it can still be undone. */
     val undoable: CallerListEntry? = null,
+    /**
+     * A32 "cleared" tier: the list is empty because the subscriber emptied it
+     * (it has held an entry before), so the screen shows its heading alone,
+     * without the first-run explanation (owner delegation, 2026-11-10; decision
+     * packet §3b, option A).
+     */
+    val cleared: Boolean = false,
 ) {
     /** The entries matching [query] (its digits), newest first. */
     val visible: List<CallerListEntry>
@@ -80,10 +91,13 @@ public class CallerListViewModel internal constructor(
     private val store: CallerListStore,
     savedState: SavedStateHandle,
     private val io: CoroutineDispatcher,
+    /** Whether this list has ever held an entry on this phone (the "cleared" tier). */
+    private val hadEntries: Flag = MemoryFlag(),
 ) : ViewModel() {
 
     @Inject
-    public constructor(store: CallerListStore, savedState: SavedStateHandle) : this(store, savedState, Dispatchers.IO)
+    public constructor(store: CallerListStore, savedState: SavedStateHandle, @ApplicationContext context: Context) :
+        this(store, savedState, Dispatchers.IO, hadEntriesFlag(context, typeOf(savedState.get<String>(LIST_ARG))))
 
     private val type: ListType = typeOf(savedState.get<String>(LIST_ARG))
     private val mutable = MutableStateFlow(CallerListState(type))
@@ -177,15 +191,34 @@ public class CallerListViewModel internal constructor(
     }
 
     private suspend fun reload() {
-        val (health, entries) = withContext(io) { store.health() to store.entries(type) }
+        val (health, entries, had) = withContext(io) {
+            val health = store.health()
+            val entries = store.entries(type)
+            if (entries.isNotEmpty() && !hadEntries.get()) hadEntries.set()
+            Triple(health, entries, hadEntries.get())
+        }
         mutable.update {
-            it.copy(loading = false, entries = entries, unreadable = health == StoreHealth.UNREADABLE)
+            it.copy(
+                loading = false,
+                entries = entries,
+                unreadable = health == StoreHealth.UNREADABLE,
+                cleared = entries.isEmpty() && had,
+            )
         }
     }
 
     public companion object {
         /** The navigation argument: "block" or "allow". */
         public const val LIST_ARG: String = "list"
+
+        /**
+         * One "has held an entry" flag per list, in its own preferences file:
+         * a yes or no, never a number (ANDROID-DATA-INVENTORY.md D10b).
+         */
+        internal const val LISTS_FILE: String = "callscreen_caller_lists"
+
+        internal fun hadEntriesFlag(context: Context, type: ListType): Flag =
+            PreferencesFlag(context, if (type == ListType.BLOCK) "blocklist_had_entries" else "allowlist_had_entries", LISTS_FILE)
         public const val UNDO_WINDOW_MILLIS: Long = 5_000
 
         public fun argOf(type: ListType): String = if (type == ListType.BLOCK) "block" else "allow"
@@ -212,5 +245,14 @@ public class CallerListViewModel internal constructor(
                 ListRefusal.INVALID_LABEL -> ListMessage.INVALID_LABEL
             }
         }
+    }
+}
+
+/** A [Flag] held in memory only: the default for tests and previews. */
+internal class MemoryFlag(private var value: Boolean = false) : Flag {
+    override fun get(): Boolean = value
+
+    override fun set() {
+        value = true
     }
 }
