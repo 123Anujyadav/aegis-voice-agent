@@ -1,12 +1,12 @@
 # Blocker map (2026-11-10): what blocks each remaining task, and what each unblocks
 
-- **As of:** `main` `149c97e`, re-verified on 2026-11-10. CI on `main` is green, and the latest nightly runs (2026-11-09) passed.
+- **As of:** `main` `149c97e`, re-verified on 2026-11-10. **Updated the same day at `main` `52acbdf`,** after the Android UX choices 3a, 3b and 3c and F14 were decided under the owner's delegation and implemented (#283–#286). CI on `main` is green; the latest nightly runs (2026-11-09) passed.
 - **Milestones:** **M0 only.** M1 is not met (OD-10 exit evidence: a release run, the `.aab` on the internal track, and a tester signing in on a physical phone against staging).
 - **What this is:** every remaining Phase 19 task, against the one thing it waits for.
   - **Sources:** `ROADMAP-INVENTORY.md` §3 (the register: **27 open owner decisions**), `OD-10-DECISION-2026-11-09.md` §6, `OWNER-DECISION-PACKET-2026-11-09.md`, and `OD-12-OTP-REVIEW-PACKAGE.md`.
   - **When a blocker clears, the work in its row starts automatically,** subject to the gates it lists.
   - **Nothing here decides anything.**
-- **Unblocked engineering tasks today: none.** Rounds #262–#281 completed every task that a requirement documents and nothing gates. The one documented follow-up left, a CI build for the Python image, has a trigger that is not met (a deployed Python service; `DEPENDENCY_AUDIT.md` §13).
+- **Unblocked engineering tasks today: none.** Rounds #262–#286 completed every task that a requirement documents and nothing gates. The one documented follow-up left, a CI build for the Python image, has a trigger that is not met (a deployed Python service; `DEPENDENCY_AUDIT.md` §13).
 
 ## 1. The independent reviewer (OD-12): one gate for every authentication change
 
@@ -22,8 +22,8 @@
 |---|---|---|
 | **OD-14** | Sign-out (F8): option A (this phone), B (plus revocation) or C (none) | The sign-out implementation and its tests (packet §4), then OD-12 review before merge |
 | **OTP policy** (ADR-0033 Q2–Q7; not counted as register rows) | Country allowlist; global sign-in budget; whether a new request invalidates earlier codes; resend cooldown; idempotency key; tuning of the limits | Each change in identity, then OD-12 review before merge |
-| **Android UX** (packet §3; not counted as register rows) | 3a haptics; 3b the caller lists' "cleared" state; 3c the screening-role screen after a decline (including the "If you say no" forwarding text, which is not true today) | Each choice's implementation, with the tests listed in the packet. Routine Android, not authentication |
-| **F14** (not a register row; its status still reads "Open (OD-18)") | Whether Dependabot stops rebasing its PRs (`rebase-strategy`) | A one-line `dependabot.yml` change |
+| **Android UX** (packet §3; not counted as register rows) | 3a haptics; 3b the caller lists' "cleared" state; 3c the screening-role screen after a decline | **Done 2026-11-10**, decided under the owner's delegation (packet §5): 3b #283 `d8531d9`; 3a #286 `3632a76`; 3c #285 `52acbdf`. **One copy question remains:** the first-time "If you say no" text (the UX spec's words, held to the spec by `ScreeningRoleCopyTest`) says unknown calls get forwarded. That is not true until forwarding exists (M3). Changing the spec's consequence statement is a copy decision for the owner |
+| **F14** (not a register row) | Whether Dependabot stops rebasing its PRs (`rebase-strategy`) | **Done 2026-11-10**, decided under the owner's delegation: `rebase-strategy: disabled` for GitHub Actions only (#284 `c219eb2`; packet §5) |
 | **OD-1** | A reviewer sign-in path for Play review | C9 (also needs OD-12) |
 | **OD-2** | Server-side allowlist sync | C7 (high-risk, needs an ADR-0012 amendment) |
 | **OD-3** | Spam-reputation policy | Screening behaviour for reputation bands |
@@ -72,8 +72,28 @@
 - the staging configuration contract (`INTERNAL-TESTING-SETUP.md` C2–C5).
 
 **Not prepared, on purpose:**
-- **implementations of choices not yet made:** the UX options, sign-out, the OTP policy;
+- **implementations of choices not yet made:** sign-out, the OTP policy (the UX options 3a, 3b and 3c are now decided and implemented);
 - **staging manifests:** gate A5;
 - **provider code beyond the delivery interface:** that waits on R1 and the OD-12 review.
 
 Writing them first would pre-empt a decision or a review.
+
+## 6. The 27 open decisions, classified (2026-11-10)
+
+The owner asked for each open register decision to be classified, and for the routine ones to be resolved under the standing delegation.
+
+**Result: none of the 27 is a routine decision that can be delegated.** Each sits in at least one category the owner reserves, or depends on something external.
+
+- **The owner-reserved categories** (the standing autonomy rules; `ARCHITECTURE_FREEZE.md` §6.1): authentication and identity, cryptography and session security, privacy, consent, retention and deletion, legal, production security, and T4.
+- **The routine choices that could be delegated** (3a, 3b, 3c and F14) were not register rows. They are decided and implemented (§5 of the decision packet).
+
+| Category | Decisions | Why it cannot be delegated |
+|---|---|---|
+| **Authentication, identity or session security: needs the independent review (OD-12) and the owner** | O1 (ratify ADR-0029), O2 (ADR-0030 D30.3, stored subscriber ids), O3 (OTP backoff), O4 (session lifetime), O5 (SIM-swap policies), O7 (ratify ADR-0031), O8 (what a restricted session may do), O12 (step-up before deletion), O17 (access-token revocation), OD-1 (a reviewer sign-in path), OD-14 (sign-out) | Each changes how identity is proved, how sessions live, or what an authenticated session may do. These are reserved, and high-risk items need rule 8's review |
+| **Privacy, consent, retention, deletion or legal: the owner, with privacy and legal review (E9, L1–L6)** | O6 (device-history retention), O9 (may an erased number sign up again), O13 (the web deletion approach), O14 (attestation retention), O15 (immediate deletion or a grace period), O16 (A53d, the deletion confirmation), OD-2 (server-side allowlist sync), OD-4 (consent UI), OD-6 (family sharing), OD-7 (business analytics) | Each decides what personal data is kept, shared or deleted, or what is consented to. These are reserved categories |
+| **External approval or spend** | OD-9 (workload identity federation for the Play Integrity verifier; cloud), OD-17 (speech and voice languages; paid vendors, deferred by the owner) | A cloud resource or a paid service. Both also touch reserved areas (T4; voice data) |
+| **Product decision that depends on an external or deferred input** | OD-3 (spam-reputation policy), OD-5 (voice choice in the app) | OD-3 has no reputation data source in the product; a source is an external service. OD-5 depends on OD-17 (speech, deferred). Deciding either now would decide nothing that can be built |
+| **Architecture (ADR) with an external dependency** | OD-8 (the frontend stack) | It decides a new technology stack (an ADR), for the web deletion page, which also needs a domain and hosting (E10, external). The owner has deferred the web dashboard |
+| **Governance, which cannot be waived** | OD-12 (an independent human reviewer) | Rule 8 needs a human independent of the drafter. Claude Code cannot be that reviewer (rule 7) |
+
+**Physical-device and carrier dependencies** are not register decisions. They are listed in §4: M2 on Jio, Vi and BSNL, M9, M10, M11 and M12.
