@@ -126,6 +126,8 @@ No test sends an SMS or contacts any provider.
 
 ## 9. Handoff to the reviewer (prepared 2026-11-09; OD-12 stays open)
 
+A send-ready brief for approaching candidates (the message, channels, selection criteria, a conflict-of-interest declaration, and the owner's decisions before sending) is in [`OD-12-REVIEWER-ENGAGEMENT-BRIEF.md`](OD-12-REVIEWER-ENGAGEMENT-BRIEF.md) (2026-11-10). No candidate has been contacted.
+
 **Engagement (the owner's steps):**
 1. The owner chooses the reviewer against §1. The reviewer declares, in writing, no conflict of interest: not the drafter, and no commercial tie to an SMS provider under consideration.
 2. The owner grants **read-only** access to the repository, or supplies an archive of `main` at the commit under review. No credentials, staging access or provider accounts are needed: everything runs locally.
