@@ -277,6 +277,21 @@
 - **F14** (Dependabot's rebase strategy) is a separate decision and is unchanged.
 - Recorded with its implementation; see `DEPENDENCY_AUDIT.md` §13.
 
+### OD-18: the held Dependabot PRs (owner, 2026-11-10): approved; the PRs merged
+
+- **Approved:** merge the four held PRs, one at a time, each after all required checks pass on its exact final head.
+- **Merged** (each PR's diff was only its own action's references, each pin was checked against the upstream tag's commit, and `main`'s post-merge CI was green before the next PR):
+
+  | PR | Change | Merged as |
+  |---|---|---|
+  | #183 | `actions/upload-artifact` 4.6.2 → 7.0.2 | `627b40d` |
+  | #184 | `actions/setup-go` 5.6.0 → 7.0.0 | `546ade8` |
+  | #185 | `actions/checkout` 4.4.0 → 7.0.1 | `4bef103` |
+  | #212 | `astral-sh/setup-uv` 5.4.2 → 10.3.3 | `386030b` |
+
+- **Not part of this decision:** this brief's option A also proposed `rebase-strategy: disabled` for GitHub Actions. **The owner kept that as a separate decision (F14), and it is unchanged.**
+- **`release-android.yml`** was not run. The `play-release` Environment does not exist, and dispatching the workflow would create it without the protection the owner sets first (`INTERNAL-TESTING-SETUP.md` D5).
+
 ## After the owner decides
 
 Each decision is recorded in this packet's §5 (to be added) with its date. Only then is the chosen option implemented, one PR per decision. Each:
