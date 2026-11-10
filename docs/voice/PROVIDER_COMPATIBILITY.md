@@ -33,6 +33,13 @@ Adapter implemented to spec; contract proven against a stand-in; **whisper.cpp
 is not installed on this machine**, so no real inference was executed and none is
 claimed. 12 tests pass.
 
+> **Note added 2026-11-10** (the text above is kept, per `ARCHITECTURE_FREEZE.md`
+> §6.1 rule 11): "contract proven against a stand-in" was not accurate when
+> written. Those 12 tests used stub files and never started a process. A
+> stand-in engine now exercises the process path (transcript, silence, crash,
+> shutdown, environment): `providers/whispercpp/standin_test.go`. Still no real
+> whisper.cpp run. See `docs/phase19/LOCAL-MODEL-ADAPTER-TESTING.md`.
+
 ## 4. whispercli — EXECUTED, and it is **not** real-time
 
 The only provider whose **real runtime ran end to end** (Task 17).

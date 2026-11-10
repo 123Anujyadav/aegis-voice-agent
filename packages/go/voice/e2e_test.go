@@ -48,6 +48,8 @@ import (
 //	EXECUTED  — the stage genuinely ran against real software on this machine.
 //	NOT RUN   — the runtime is absent; nothing was executed and nothing faked.
 //	BLOCKED   — an upstream stage did not produce what this stage needs.
+//	FAILED    — the runtime is present, ran, and failed. The test fails: a
+//	            crashed recogniser is not one that heard nothing.
 //
 // PASS is never used for a stage that did not execute. A fabricated transcript
 // or a synthesised "successful" generation would make this whole file a lie
@@ -56,7 +58,7 @@ import (
 // stageResult records what happened at one boundary.
 type stageResult struct {
 	stage   string
-	status  string // EXECUTED | NOT RUN | BLOCKED
+	status  string // EXECUTED | NOT RUN | BLOCKED | FAILED
 	detail  string
 	elapsed time.Duration
 }
@@ -86,7 +88,7 @@ func (tr *e2eTrace) report(t *testing.T) {
 	}
 	b.WriteString(strings.Repeat("-", 78) + "\n")
 
-	var executed, notRun, blocked int
+	var executed, notRun, blocked, failed int
 	for _, r := range tr.results {
 		switch r.status {
 		case "EXECUTED":
@@ -95,11 +97,17 @@ func (tr *e2eTrace) report(t *testing.T) {
 			notRun++
 		case "BLOCKED":
 			blocked++
+		case "FAILED":
+			failed++
 		}
 	}
-	b.WriteString(fmt.Sprintf("%d EXECUTED, %d NOT RUN, %d BLOCKED\n",
-		executed, notRun, blocked))
+	b.WriteString(fmt.Sprintf("%d EXECUTED, %d NOT RUN, %d BLOCKED, %d FAILED\n",
+		executed, notRun, blocked, failed))
 	t.Log(b.String())
+	if failed > 0 {
+		t.Errorf("%d stage(s) FAILED: a runtime on this machine is present but does not work; "+
+			"see the trace above", failed)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -306,7 +314,7 @@ func TestE2E_LocalIntegration(t *testing.T) {
 		elapsed := time.Since(start)
 
 		if sttErr != nil {
-			tr.record("4. STT (whisper CLI)", "NOT RUN",
+			tr.record("4. STT (whisper CLI)", "FAILED",
 				"the runtime is present but the run failed: "+sttErr.Error(), elapsed)
 		} else {
 			transcript = text
@@ -594,6 +602,13 @@ func runRealSTT(
 		select {
 		case seg, ok := <-stream.Results():
 			if !ok {
+				// Results closes on success AND on failure. Close reports which:
+				// a recogniser that crashed has produced no transcript, and that
+				// must not read as one that heard nothing.
+				if closeErr := stream.Close(); closeErr != nil {
+					reg.Report(ProviderID(selected.ID()), speech.OutcomeFailure)
+					return "", selected.ID(), fmt.Errorf("the recogniser failed: %w", closeErr)
+				}
 				reg.Report(ProviderID(selected.ID()), speech.OutcomeSuccess)
 				return strings.TrimSpace(text.String()), selected.ID(), nil
 			}

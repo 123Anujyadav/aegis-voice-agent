@@ -123,6 +123,11 @@ func (c Config) validate() error {
 	}
 	if c.Executable == "" {
 		problems = append(problems, "Executable must be set")
+	} else if !filepath.IsAbs(c.Executable) {
+		problems = append(problems, "Executable must be an absolute path; a relative one resolves against the working directory, where anything could be planted")
+	}
+	if c.WorkDir != "" && !filepath.IsAbs(c.WorkDir) {
+		problems = append(problems, "WorkDir must be an absolute path when set; the buffered audio is written there")
 	}
 	if c.Model == "" {
 		problems = append(problems, "Model must be set")

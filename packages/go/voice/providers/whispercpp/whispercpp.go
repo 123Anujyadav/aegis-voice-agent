@@ -35,6 +35,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -113,9 +114,13 @@ func (c Config) validate() error {
 	}
 	if c.Executable == "" {
 		problems = append(problems, "Executable must be set")
+	} else if !filepath.IsAbs(c.Executable) {
+		problems = append(problems, "Executable must be an absolute path; a relative one resolves against the working directory, where anything could be planted")
 	}
 	if c.ModelPath == "" {
 		problems = append(problems, "ModelPath must be set")
+	} else if !filepath.IsAbs(c.ModelPath) {
+		problems = append(problems, "ModelPath must be an absolute path; a relative one resolves against the working directory, where anything could be planted")
 	}
 	if c.Language == "" {
 		problems = append(problems, "Language must be set")
@@ -297,6 +302,9 @@ func (p *Provider) OpenSTT(ctx context.Context, cfg speech.STTConfig) (speech.ST
 func (p *Provider) processConfig() process.Config {
 	cfg := p.cfg.Process
 	cfg.Executable = p.cfg.Executable
+	// An allowlist, as piper and whispercli use: the operator's whole shell,
+	// credentials included, is not the recogniser's business.
+	cfg.InheritEnv = process.DefaultInheritEnv()
 
 	args := []string{
 		"-m", p.cfg.ModelPath,
@@ -330,6 +338,11 @@ type stream struct {
 	closed   bool
 	sentSend bool
 	seq      uint64
+
+	// failure records an engine that died rather than finishing. Without it,
+	// a crash closes Results exactly as silence does.
+	failureMu sync.Mutex
+	failure   error
 }
 
 // Compile-time proof that the frozen stream port is satisfied.
@@ -391,7 +404,51 @@ func (s *stream) Close() error {
 	err := s.proc.Stop(context.Background())
 	s.wg.Wait()
 
+	// An engine that died before Close outranks a stop error, and Stop reports
+	// nothing at all for a child that had already exited.
+	if failure := s.Err(); failure != nil {
+		return failure
+	}
 	return err
+}
+
+// Err returns why recognition failed, or nil.
+//
+// The speech.STTStream port reports errors only from calls a caller makes. An engine
+// that dies while transcribing has no such call to fail, so without this the
+// only symptom is an empty transcript, which is also what silence produces.
+// A caller checks it after Results closes; Close returns the same error.
+func (s *stream) Err() error {
+	s.failureMu.Lock()
+	defer s.failureMu.Unlock()
+	return s.failure
+}
+
+// noteExit records a child that exited non-zero on its own, as whispercli
+// does. A child killed because the caller closed the stream is not a failure.
+func (s *stream) noteExit(produced int) {
+	// Exited is closed after the exit status is stored, so the read below is
+	// ordered rather than racing the reaper.
+	select {
+	case <-s.proc.Exited():
+	case <-s.done:
+		return
+	}
+	select {
+	case <-s.done:
+		return
+	default:
+	}
+	exitErr := s.proc.ExitError()
+	if exitErr == nil {
+		return
+	}
+	s.failureMu.Lock()
+	defer s.failureMu.Unlock()
+	if s.failure == nil {
+		s.failure = fmt.Errorf("whispercpp: the engine exited with %w after %d segments; stderr: %s",
+			exitErr, produced, s.proc.StderrTail())
+	}
 }
 
 // pump turns the child's stdout into transcript segments.
@@ -399,10 +456,15 @@ func (s *stream) pump() {
 	defer s.wg.Done()
 	defer close(s.results)
 
+	// produced counts delivered segments, for the failure message. On every
+	// natural end, the exit status is recorded BEFORE Results closes, so a
+	// caller that checks Err after the close sees a crash.
+	produced := 0
 	for {
 		select {
 		case line, ok := <-s.proc.Lines():
 			if !ok {
+				s.noteExit(produced)
 				return
 			}
 			seg, isResult := s.parse(line)
@@ -411,6 +473,7 @@ func (s *stream) pump() {
 			}
 			select {
 			case s.results <- seg:
+				produced++
 			case <-s.done:
 				return
 			}
@@ -426,11 +489,13 @@ func (s *stream) pump() {
 				if seg, ok := s.parse(line); ok {
 					select {
 					case s.results <- seg:
+						produced++
 					case <-s.done:
 						return
 					}
 				}
 			}
+			s.noteExit(produced)
 			return
 		}
 	}
