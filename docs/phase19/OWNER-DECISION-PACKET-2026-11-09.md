@@ -260,6 +260,23 @@
 
 ---
 
+## 5. Decisions recorded
+
+### OD-16: base-image maintenance (owner, 2026-11-10): approved as recommended
+
+- **The Go builder image** (`docker/go/Dockerfile`):
+  - Dependabot version updates for `/docker/go`;
+  - the existing daily schedule;
+  - one PR at a time;
+  - patch releases only. A new Go minor or major stays a deliberate change, made together with `GO_VERSION`.
+- **Pinned by digest:** `golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38681dbab2eeb1fdb2427f43`.
+  - It is the multi-architecture index, read on 2026-11-10 from the registry and from the Docker Hub API, which agreed.
+  - Its amd64 and arm64 images are Go 1.26.10 on Alpine 3.23.8.
+- **The Python image:** security updates only.
+- **Renovate:** not installed.
+- **F14** (Dependabot's rebase strategy) is a separate decision and is unchanged.
+- Recorded with its implementation; see `DEPENDENCY_AUDIT.md` §13.
+
 ## After the owner decides
 
 Each decision is recorded in this packet's §5 (to be added) with its date. Only then is the chosen option implemented, one PR per decision. Each:

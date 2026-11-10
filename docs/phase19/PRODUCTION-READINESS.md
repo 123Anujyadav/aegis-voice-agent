@@ -189,7 +189,7 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
 
 - **Implemented:**
   - only a generic Kubernetes template (`infra/k8s/base`);
-  - a Go Dockerfile without digest pinning;
+  - a Go Dockerfile whose builder image is pinned by tag and digest (OD-16, 2026-11-10);
   - local Compose.
   - There is no Terraform.
   - identity and edge-api expose metrics; tracing goes to a log exporter only.
@@ -197,16 +197,15 @@ Each area lists the evidence, then the remaining blocker and what it depends on,
   - `container-images.yml` (#206, `bba198d`) builds the identity and edge-api images on every relevant PR and checks them: non-root, the static binary starts in the scratch image, the commit is logged, and each behaves as documented with no configuration. Nothing is pushed.
   - Nothing deploys anything.
   - No alert rules exist anywhere. Under Accepted ADR-0013, dashboards and alert rules are operator artefacts kept outside this repository, so they wait on E5 (the observability backend). The signals they need exist: for example `identity_security_audit_failures_total`, which identity's code says should page.
-  - **The base images are pinned by tag only.**
-    - The Dockerfile leaves digests to Renovate (`pinDigests: true` in `renovate.json5`), but Renovate has never opened a PR in this repository.
-    - Dependabot's `docker` entry has `open-pull-requests-limit: 0`.
-    - So nothing would keep a digest current, and the tag is rebuilt upstream: on 2026-11-01 the registry's digest for `golang:1.26.10-alpine3.23` differed from one pulled earlier the same day.
-    - Pinning without an updater would freeze base-image security fixes.
+  - **Base images (OD-16, owner decision 2026-11-10; `docs/hardening/DEPENDENCY_AUDIT.md` §13):**
+    - **The Go builder image** (`docker/go/Dockerfile`, both build stages) is pinned by tag **and** digest, `golang:1.26.10-alpine3.23@sha256:78e7f1e4…7f43`, verified against the registry and the Docker Hub API. Dependabot opens version-update PRs for it (patch releases only, one at a time), and `container-images.yml` builds and smoke-tests every one. The shipped images are `FROM scratch`, so no base-image OS package ships.
+    - **The Python image** (`docker/python/Dockerfile`) stays **security updates only**: no CI job builds or tests it.
+    - Renovate is not installed.
 - **Staging and production:** **nothing deployed.**
 - **Blocker:**
   - X5, E3, E4, E5;
   - `INTERNAL-TESTING-SETUP.md` B1 and C1. The per-service manifests are in owner-held, uncommitted work.
-- **Next action:** the owner chooses the staging account and budget (X5) and chooses how base images are kept current (F12, OD-15, is decided and fixed in #260; identity's manifests must set `CS_IDENTITY_ENVIRONMENT` in the pod specification, `INTERNAL-TESTING-SETUP.md` C3): enable the Renovate app, which is an external integration, or allow Dependabot `docker` update PRs. Digest pinning follows that choice.
+- **Next action:** the owner chooses the staging account and budget (X5) (F12, OD-15, is decided and fixed in #260; identity's manifests must set `CS_IDENTITY_ENVIRONMENT` in the pod specification, `INTERNAL-TESTING-SETUP.md` C3). How base images are kept current is decided (OD-16, 2026-11-10) and implemented: Dependabot for the Go builder image, with digest pinning.
 
 ### 3.9 Android compatibility and performance
 

@@ -13,6 +13,11 @@
 # Every ecosystem below is therefore configured with `open-pull-requests-limit:
 # 0`, which disables version updates while LEAVING SECURITY UPDATES ENABLED —
 # security PRs are explicitly exempt from that limit.
+#
+# Two exceptions have version updates: GitHub Actions (below), and the Go
+# builder image in docker/go (OD-16, owner decision 2026-11-10). Renovate is
+# NOT installed; for the Go builder image, Dependabot is the updater
+# (docs/hardening/DEPENDENCY_AUDIT.md §13).
 # =============================================================================
 version: 2
 
@@ -57,10 +62,30 @@ updates:
     commit-message:
       prefix: "fix(deps)"
 
+  # The Go builder image (docker/go/Dockerfile, both build stages): VERSION
+  # updates (OD-16, owner decision 2026-11-10). The image is pinned by tag AND
+  # digest; a Dependabot PR moves both together, and container-images.yml
+  # builds and smoke-tests identity and edge-api on it. Patch releases only:
+  # a new Go minor or major is a deliberate toolchain change made together
+  # with GO_VERSION in the workflows, not an automatic update. The shipped
+  # images are FROM scratch, so this image is the build stage only.
   - package-ecosystem: docker
-    directories:
-      - "/docker/go"
-      - "/docker/python"
+    directory: "/docker/go"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "golang"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    labels: ["security", "dependencies"]
+    commit-message:
+      prefix: "fix(deps)"
+
+  # The Python image (docker/python/Dockerfile): SECURITY UPDATES ONLY (OD-16).
+  # No CI job builds or tests it, so a routine version update could not be
+  # verified before merging.
+  - package-ecosystem: docker
+    directory: "/docker/python"
     schedule:
       interval: daily
     open-pull-requests-limit: 0

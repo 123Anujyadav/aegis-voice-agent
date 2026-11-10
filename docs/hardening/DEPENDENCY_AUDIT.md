@@ -429,3 +429,51 @@ images today (`container-images.yml`). They ship:
 - **Version skew:** `x/sync` and `x/text` are at different versions in
   different modules. Each is covered by `govulncheck` on every Go PR. Aligning
   them is a dependency update, not part of this inventory.
+
+---
+
+## 13. Container base-image maintenance (OD-16, 2026-11-10)
+
+**Decision:** the owner, 2026-11-10 (OD-16; `docs/phase19/OWNER-DECISION-PACKET-2026-11-09.md` §2 and §5). Renovate is **not** installed. Dependabot, already installed, is the updater.
+
+### Policy
+
+| Image | Where | Updates | Why |
+|---|---|---|---|
+| **The Go builder** `golang:1.26.10-alpine3.23` | `docker/go/Dockerfile`, both build stages (`manifests`, `build`) | **Dependabot version updates**: `/docker/go`, daily (the existing cadence), at most one open PR, **patch releases only**. Security updates as published | Tested: `container-images.yml` builds identity and edge-api and smoke-tests them on every change to the Dockerfile |
+| **Python** `python:3.12.8-slim-bookworm`, and `ghcr.io/astral-sh/uv:0.5.14` copied into it | `docker/python/Dockerfile` | **Security updates only** (`open-pull-requests-limit: 0`) | **No CI job builds or tests this image,** so a routine update could not be verified before merging. It ships OS packages, unlike the Go images |
+| `scratch` (the identity and edge-api runtime) | `docker/go/Dockerfile`, `runtime` stage | None: it has no contents | Nothing to update |
+
+**Out of scope, unchanged:** `docker/Dockerfile.base` (`golang:1.26.10-alpine3.23` and `alpine:3.20`; built by no workflow), and the development-only Compose images (`postgres`, `redis`).
+
+### The pinned Go builder image
+
+- **Reference:** `golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38681dbab2eeb1fdb2427f43`
+- **What the digest is:** the multi-architecture **image index** (OCI). So the same reference serves amd64 and arm64.
+- **How it was verified (2026-11-10):**
+  - the registry's `Docker-Content-Digest` for `library/golang:1.26.10-alpine3.23`, read from `registry-1.docker.io`;
+  - the Docker Hub API's `digest` for the tag (last updated 2026-11-06), which agreed;
+  - the amd64 and arm64 image configurations set `GOLANG_VERSION=1.26.10` and `GOTOOLCHAIN=local`;
+  - the base layer is `alpine-minirootfs-3.23.8`.
+- **The Go version is unchanged** (1.26.10, equal to `GO_VERSION` in the workflows).
+- **Why the pin matters:**
+  - a locally cached copy pulled before 2026-11-06 had another digest (`sha256:a07f231c…`);
+  - the registry's digest for this tag also changed on 2026-11-01;
+  - the tag alone does not reproduce what was tested.
+
+### How the version and digest are updated together
+
+- **Dependabot:** for an image pinned as `tag@digest`, a Dependabot PR replaces both, in every `FROM` line of the Dockerfile. `container-images.yml` builds and smoke-tests the result. Merging needs every required check green, as for any PR.
+- **Patch releases only.** The `ignore` rule skips Go minor and major versions, such as 1.27. A new minor is a **deliberate toolchain change**: the Dockerfile tag and `GO_VERSION` in the workflows move together in one reviewed PR.
+- **A Dependabot patch PR also needs a matching `GO_VERSION` bump.** For example, 1.26.10 to 1.26.11: change `GO_VERSION` in the workflows in the same PR, so that CI tests and scans the toolchain the image ships. The Dockerfile's comment says so.
+- **By hand**, if ever needed:
+  1. read the new tag's **index** digest from the registry, using `docker buildx imagetools inspect <tag>` or the registry's `Docker-Content-Digest`;
+  2. cross-check it against Docker Hub;
+  3. change the tag and the digest **together** in both stages.
+
+### Limitations and residual risks
+
+- **Whether Dependabot also proposes digest-only updates** (the same tag, rebuilt upstream) is **not verified here**. It will be seen on its first runs. Without such updates, a rebuilt tag is not followed until the next patch release. That is the intended trade: reproducibility first.
+- **The Python image** has no CI build or test. Its security PRs, when they come, need a manual `docker build` and a check before merging. A CI job for it is a follow-up for when a Python service is deployed.
+- **`renovate.json5`** still describes Renovate as the routine updater. It is inactive configuration: Renovate is not installed. It was left unchanged here: correcting or removing it is a separate change.
+- **F14** (whether Dependabot rebases its open PRs, re-running full CI) is a separate owner decision and is unchanged. With at most one open Docker PR, its CI load is small.
