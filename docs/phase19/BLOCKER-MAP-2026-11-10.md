@@ -62,6 +62,8 @@
 
 ## 5. Safe preparation that remains
 
+Per integration (SMS, telephony, ASR, TTS, LLM, orchestration, fraud, PostgreSQL, cloud, monitoring, FCM, Play Integrity): [`INTEGRATION-DEPENDENCY-MATRIX.md`](INTEGRATION-DEPENDENCY-MATRIX.md) (2026-11-10), with the local preparation that is safe now and what is deliberately not prepared.
+
 **All of it is done:**
 - the decision briefs (packet §1–§4);
 - the M1 approval requests;
