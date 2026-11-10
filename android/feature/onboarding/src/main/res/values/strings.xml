@@ -80,6 +80,9 @@
     <string name="onboarding_role_declined">Every unknown call gets forwarded, which may cost you carrier charges and means people you know get screened too.</string>
     <string name="onboarding_role_continue">Continue</string>
     <string name="onboarding_role_not_now">Not now</string>
+    <!-- A09b shown once more after a decline ("previously denied"): the loss in the past tense (decision packet §3c) -->
+    <string name="onboarding_role_missing_label">What you\'re missing</string>
+    <string name="onboarding_role_missing">You\'re currently missing on-device blocking: numbers you\'ve blocked can still ring, and calls aren\'t checked on this phone.</string>
 
     <!-- Assistant setup (A10) -->
     <string name="onboarding_ai_icon_description">AI Persona</string>

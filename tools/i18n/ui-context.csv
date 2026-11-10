@@ -105,6 +105,8 @@ onboarding_role_declined_label,heading
 onboarding_role_declined,text
 onboarding_role_continue,button
 onboarding_role_not_now,button
+onboarding_role_missing_label,heading
+onboarding_role_missing,text
 onboarding_ai_icon_description,spoken
 onboarding_ai_title,heading
 onboarding_ai_intro,text

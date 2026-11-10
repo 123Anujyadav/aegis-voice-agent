@@ -149,4 +149,29 @@ class ScreeningRoleStatesTest {
         ScreeningDevice.dismissSystemDialog()
         compose.awaitText("AI Screening Persona")
     }
+
+    /**
+     * A09b after a decline (decision packet §3c): "Not now" is remembered, and the
+     * rationale shown again states the loss in the past tense. The flags live in the
+     * screening-role preferences file, which [start] clears before each test.
+     */
+    @Test
+    fun aDeclineIsRememberedAndTheRationaleThenStatesTheLoss() {
+        ScreeningDevice.roleHolder(null)
+        show(AegisDestinations.SCREENING_ROLE)
+        compose.onNodeWithText("If you say no").assertExists()
+        compose.onNodeWithText("Not now").performClick()
+        compose.awaitText("AI Screening Persona")
+
+        show(AegisDestinations.SCREENING_ROLE)
+        compose.awaitText("What you're missing")
+        compose.onNodeWithText("If you say no").assertDoesNotExist()
+        compose.onNodeWithText("You're currently missing on-device blocking", substring = true).assertExists()
+        compose.onNodeWithText("Not now").performClick()
+        compose.awaitText("AI Screening Persona")
+        assertTrue(
+            "a second decline must stop the rationale being offered",
+            !com.callscreen.core.telephony.screening.ScreeningRoleDeclines.on(compose.activity).shouldOffer(),
+        )
+    }
 }

@@ -28,6 +28,7 @@ import com.callscreen.app.session.SignedOutScreen
 import com.callscreen.core.auth.SessionEndCause
 import com.callscreen.core.telephony.prefilter.ListType
 import com.callscreen.core.telephony.screening.ScreeningRole
+import com.callscreen.core.telephony.screening.ScreeningRoleDeclines
 import com.callscreen.core.telephony.screening.ScreeningRoleStatus
 import com.callscreen.core.ui.components.AegisTab
 import com.callscreen.core.ui.components.LocalAegisBack
@@ -220,8 +221,11 @@ public fun AegisNavGraph(
                 val context = LocalContext.current
                 PhoneVerificationRoute(
                     onVerified = {
-                        // A09b only when the role can be asked for and is not held (A09 edge cases).
-                        val next = if (ScreeningRole.status(context) == ScreeningRoleStatus.NOT_HELD) {
+                        // A09b only when the role can be asked for and is not held (A09 edge cases),
+                        // and not after a second decline ("permanently denied": ScreeningRoleDeclines).
+                        val next = if (ScreeningRole.status(context) == ScreeningRoleStatus.NOT_HELD &&
+                            ScreeningRoleDeclines.on(context).shouldOffer()
+                        ) {
                             AegisDestinations.SCREENING_ROLE
                         } else {
                             AegisDestinations.AI_SETUP
