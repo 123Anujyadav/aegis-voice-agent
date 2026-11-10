@@ -528,6 +528,12 @@ func TestAdapter_RealToolProducesNoFabricatedTranscript(t *testing.T) {
 	}
 	elapsed := time.Since(start)
 
+	// No segments proves nothing if the tool never ran: a crash also closes
+	// Results with nothing in it.
+	if err := s.(*stream).Err(); err != nil {
+		t.Fatalf("the recogniser failed, so its silence proves nothing: %v", err)
+	}
+
 	for _, seg := range segments {
 		t.Logf("tone produced a segment: %q", seg.Text)
 	}
@@ -627,6 +633,9 @@ func TestAdapter_RealToolTranscribesRealSpeech(t *testing.T) {
 	elapsed := time.Since(start)
 
 	got := strings.ToLower(text.String())
+	if err := s.(*stream).Err(); err != nil {
+		t.Fatalf("the recogniser failed: %v", err)
+	}
 	if count == 0 {
 		t.Fatal("real speech produced no transcript at all")
 	}

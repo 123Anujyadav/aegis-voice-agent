@@ -52,7 +52,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -100,6 +99,9 @@ type Config struct {
 	ID rt.ProviderID
 
 	// BaseURL is the daemon's address. Empty means [DefaultBaseURL].
+	//
+	// LOOPBACK ONLY: its host must be localhost, 127.0.0.1 or ::1 (see
+	// endpoint.go). A remote daemon is refused at construction.
 	BaseURL string
 
 	// Model is the model to generate with.
@@ -135,8 +137,11 @@ type Config struct {
 	// length of the generation.
 	MaxChunkBytes int
 
-	// HTTPClient overrides the client. Optional; used by tests and by an
-	// operator who needs a proxy.
+	// HTTPClient overrides the client. Optional; used by tests.
+	//
+	// Its transport is the caller's responsibility: the adapter's own client
+	// dials only loopback addresses and uses no proxy, and a supplied one is
+	// trusted to do the same. Redirects are refused either way.
 	HTTPClient *http.Client
 }
 
@@ -160,6 +165,10 @@ func (c Config) validate() error {
 			problems = append(problems, "BaseURL must be http or https, got "+u.Scheme)
 		case u.Host == "":
 			problems = append(problems, "BaseURL has no host")
+		default:
+			if problem := endpointProblem(u); problem != "" {
+				problems = append(problems, problem)
+			}
 		}
 	}
 	if c.MaxContextTokens <= 0 {
@@ -233,22 +242,7 @@ func New(cfg Config) (*Provider, error) {
 	}
 	base = strings.TrimRight(base, "/")
 
-	client := cfg.HTTPClient
-	if client == nil {
-		// No client-level Timeout: it applies to the WHOLE exchange including
-		// the response body, so on a streaming response it would kill a healthy
-		// generation partway through. Bounding belongs on the context, which is
-		// per-request and which cancellation already uses.
-		client = &http.Client{
-			Transport: &http.Transport{
-				DialContext:           (&net.Dialer{Timeout: 2 * time.Second}).DialContext,
-				ResponseHeaderTimeout: 30 * time.Second,
-				MaxIdleConnsPerHost:   4,
-			},
-		}
-	}
-
-	return &Provider{cfg: cfg, base: base, client: client}, nil
+	return &Provider{cfg: cfg, base: base, client: guardedClient(cfg.HTTPClient)}, nil
 }
 
 // ID returns the authored provider identifier.

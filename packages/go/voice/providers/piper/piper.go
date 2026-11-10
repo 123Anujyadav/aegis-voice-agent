@@ -41,6 +41,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -132,18 +133,26 @@ type Config struct {
 	MaxChunkChars int
 }
 
+// pathProblem reports a required path that is missing or relative. A relative
+// path resolves against the working directory, where anything could be planted.
+func pathProblem(field, path string) []string {
+	switch {
+	case path == "":
+		return []string{field + " must be set"}
+	case !filepath.IsAbs(path):
+		return []string{field + " must be an absolute path; a relative one resolves against the working directory, where anything could be planted"}
+	}
+	return nil
+}
+
 func (c Config) validate() error {
 	var problems []string
 
 	if c.ID == "" {
 		problems = append(problems, "ID must be set")
 	}
-	if c.Executable == "" {
-		problems = append(problems, "Executable must be set")
-	}
-	if c.ModelPath == "" {
-		problems = append(problems, "ModelPath must be set")
-	}
+	problems = append(problems, pathProblem("Executable", c.Executable)...)
+	problems = append(problems, pathProblem("ModelPath", c.ModelPath)...)
 	if c.Language == "" {
 		problems = append(problems, "Language must be set")
 	}
