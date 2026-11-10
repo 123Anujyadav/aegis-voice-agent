@@ -89,6 +89,13 @@ mark ([`07 §7.1`](../design/07-states.md)).
 | Fraud queue clear (console) | Queue clear | Cases appear here when a screening scores above the review threshold. |
 | No team members (portal) | You're the only member | Invite people to give them access to calls and numbers. |
 
+**Note (2026-11-10), the Android caller lists' cleared state:** the app shows
+"No blocked numbers" and "No allowed numbers", one line with no action, rather
+than "Blocklist is empty". The app's words are "Blocked numbers" and "Allowed
+numbers" everywhere, and "blocklist" appears in none of them. Chosen under the
+owner's delegation of routine UX choices (`docs/phase19/OWNER-DECISION-PACKET-2026-11-09.md`
+§3b, option A; recorded in its §5). The row above keeps its original text.
+
 ---
 
 ## 1.3 Errors
