@@ -60,6 +60,7 @@ import com.callscreen.core.telephony.prefilter.ListType
 import com.callscreen.core.ui.components.AegisPrimaryButton
 import com.callscreen.core.ui.components.AegisStatusChip
 import com.callscreen.core.ui.components.AegisTopAppBar
+import com.callscreen.core.ui.components.rememberConfirmHaptic
 import com.callscreen.core.ui.components.StatusChipVariant
 import java.time.Instant
 import java.time.ZoneId
@@ -118,9 +119,12 @@ internal fun CallerListScreen(
     val messageText = state.message?.let { copy.message(it).text() }
     val undoLabel = stringResource(CallerListCopy.UNDO)
     val addNumber = stringResource(CallerListCopy.ADD_NUMBER)
+    val haptic = rememberConfirmHaptic()
 
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
+        // A32 "Add: row inserts, haptic.confirm" (decision packet §3a).
+        if (gainedAnEntry(state.type, message)) haptic.confirm()
         val undo = message == ListMessage.REMOVED && state.undoable != null
         val result = snackbar.showSnackbar(
             message = messageText ?: return@LaunchedEffect,
@@ -503,4 +507,16 @@ internal class CallerListCopy private constructor(private val type: ListType) {
         /** A number read digit by digit ("+ 9 1 9 8 …"), as A32's accessibility rules ask. */
         fun spoken(number: String): String = number.toList().joinToString(" ")
     }
+}
+
+/**
+ * Whether [message] means the list on screen gained an entry: an add, or an
+ * add that moved the number here from the other list. A move out of this
+ * list (from the detail sheet) is not a gain.
+ */
+internal fun gainedAnEntry(type: ListType, message: ListMessage): Boolean = when (message) {
+    ListMessage.ADDED -> true
+    ListMessage.MOVED_TO_BLOCKED -> type == ListType.BLOCK
+    ListMessage.MOVED_TO_ALLOWED -> type == ListType.ALLOW
+    else -> false
 }
