@@ -7,6 +7,8 @@
   - Claude Code cannot act as the reviewer (§6.1 rule 7), and its reviews never satisfy rule 8 (rule 9).
 - **The detail behind it:** [`OD-12-OTP-REVIEW-PACKAGE.md`](OD-12-OTP-REVIEW-PACKAGE.md): the scope, threat analysis, evidence, commands (§3) and handoff (§9).
 
+> **Note added 2026-11-10:** an updated message (current commit; Batch A now, Batch B quoted separately), the reviewer selection checklist and the review-readiness checklist are in [`OWNER-ACTION-PACK-2026-11-10.md`](OWNER-ACTION-PACK-2026-11-10.md) §3–§5. This brief's channels (§2), criteria (§3) and declaration (§4) still apply.
+
 ## 1. The message, ready to send
 
 > **Subject:** Independent security review: OTP sign-in architecture of an Android call-screening app (Go backend)
