@@ -126,6 +126,8 @@ No test sends an SMS or contacts any provider.
 
 ## 9. Handoff to the reviewer (prepared 2026-11-09; OD-12 stays open)
 
+> **Note added 2026-11-11:** candidates are shortlisted, with a recommendation, a budget ceiling and the source archive plan, in [`OD-12-REVIEWER-SHORTLIST.md`](OD-12-REVIEWER-SHORTLIST.md). Nobody has been contacted.
+
 A send-ready brief for approaching candidates (the message, channels, selection criteria, a conflict-of-interest declaration, and the owner's decisions before sending) is in [`OD-12-REVIEWER-ENGAGEMENT-BRIEF.md`](OD-12-REVIEWER-ENGAGEMENT-BRIEF.md) (2026-11-10). No candidate has been contacted.
 
 **Engagement (the owner's steps):**

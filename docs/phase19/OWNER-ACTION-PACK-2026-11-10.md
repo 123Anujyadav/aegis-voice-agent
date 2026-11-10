@@ -20,7 +20,7 @@
 
 | # | Action | Why first | Costs money or shares code? | Detail |
 |---|---|---|---|---|
-| **1** | **Engage an independent security reviewer (OD-12).** Approve the scope, the budget ceiling and how code is shared; then send the message in §4 to candidates | It gates **every** authentication change, including the SMS adapter on M1's critical path, and 11 of the 27 decisions | **Both:** a paid engagement, and sharing source code under a confidentiality agreement | §2–§5 |
+| **1** | **Approve the OD-12 reviewer contact** (updated 2026-11-11): Claude Code has shortlisted and recommended reviewers ([`OD-12-REVIEWER-SHORTLIST.md`](OD-12-REVIEWER-SHORTLIST.md): Cure53 first, then Trail of Bits and Payatu). Approve the first contact (no product name, no code), the Batch A budget ceiling (US$20,000 international or ₹4,00,000 India-based, retest included, before taxes) and archive-only code sharing after a confidentiality agreement (shortlist §7) | It gates **every** authentication change, including the SMS adapter on M1's critical path, and 11 of the 27 decisions | **Both:** a paid engagement, and sharing source code under a confidentiality agreement | Shortlist §7; §2–§5 |
 | **2** | **Complete the naming review (F26)**, and confirm the permanent Play package name (D2) | R1's DLT templates must match the SMS text exactly, and Play fixes the package name at the first upload. Both wait for it | Trademark counsel, if used (owner's choice) | §7 |
 | **3** | **Approve R1:** an SMS provider, a fallback, and India DLT registration (domestic route only) | DLT is the slowest external step. Starting it early shortens M1 the most | **Yes:** DLT entity about ₹5,900 including GST; about ₹0.10–₹0.30 per SMS (published guides) | §7 |
 | **4** | **Approve R3:** the Google Play developer account | Can run in parallel; distribution to testers needs it | **Yes:** US$25, one-time | §7 |
@@ -83,6 +83,8 @@
 
 **A recommendation for the owner to decide:** engage Batch A now, and ask the same reviewer to quote Batch B separately. Batch A alone unblocks M1. Batch B unblocks M2's identity work, and can follow.
 
+> **2026-11-11:** the shortlist, the recommendation, the Batch A and B comparison, the budget ceiling and the archive plan are in [`OD-12-REVIEWER-SHORTLIST.md`](OD-12-REVIEWER-SHORTLIST.md). The owner delegated reviewer discovery to Claude Code; contact, choosing the reviewer, agreements, payment and sharing code still need the owner's explicit approval.
+
 ## 3. Reviewer selection checklist
 
 **Independence (required; the candidate signs the declaration in the brief §4):**
@@ -140,7 +142,7 @@
 
 **Engagement steps:**
 1. The owner approves the scope (Batch A; S7 if OD-14 is decided; OD-1 if wanted), the budget ceiling, the sharing method, and who signs.
-2. The owner sends §4 through the channels in the brief §2. **Claude Code sends nothing.**
+2. **Claude Code has done the discovery and shortlisting** ([shortlist](OD-12-REVIEWER-SHORTLIST.md), 2026-11-11). On the owner's explicit approval, the first-contact message goes to the shortlisted candidates: sent by the owner, or by Claude Code from the owner's mailbox if authorised. **Nothing is sent without that approval.**
 3. Each candidate returns a profile or CV, the signed conflict-of-interest declaration, availability, and a quote.
 4. The owner selects a reviewer against this checklist, and signs the confidentiality agreement and the engagement.
 5. The owner shares the archive (or read-only access) at the named commit, with the package and ADR-0033.
