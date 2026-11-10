@@ -371,6 +371,17 @@
 - **Unchanged:** the label "If you say no", the other three blocks, the after-decline variant (3c), and the A09a and A09c lines.
 - **Revisit** the line with the forwarding work (M3).
 
+### The Ollama endpoint policy (owner, 2026-11-10): ratified exactly as proposed
+
+- **Who decided:** the owner. It was proposed by Claude Code under delegation in #295 (`81cf93d`) and ratified exactly as proposed. It is not one of the 27 register decisions.
+- **Decided:** [`OLLAMA-ENDPOINT-POLICY.md`](OLLAMA-ENDPOINT-POLICY.md):
+  - the development Ollama adapter talks only to `localhost`, `127.0.0.1` or `::1`;
+  - LAN and public endpoints, credentials in the URL, proxies on the adapter's own client, and redirects on any client are refused;
+  - there is no override.
+- **Classification:** routine, as proposed (the owner's classification is final).
+- **Not decided:** remote inference. It stays a separate future privacy and security decision, high-risk, needing the owner's decision and the OD-12 review.
+- **Recorded and pinned:** the policy's §5; `providers/ollama/endpoint_policy_test.go` fails if the code or the record drifts from it.
+
 ## After the owner decides
 
 Each decision is recorded in this packet's §5 (to be added) with its date. Only then is the chosen option implemented, one PR per decision. Each:

@@ -202,4 +202,4 @@ These rules already hold on `main`, and every integration below keeps them:
 | No record covers LLM data residency | E9 and L1 |
 | No fraud ADR | OD-3 |
 | No FCM test plan | O5, E7 |
-| ~~The local-model adapters' findings, including Ollama accepting a non-loopback host~~ **Fixed 2026-11-10** ([`LOCAL-MODEL-ADAPTER-TESTING.md`](LOCAL-MODEL-ADAPTER-TESTING.md) §5; [`OLLAMA-ENDPOINT-POLICY.md`](OLLAMA-ENDPOINT-POLICY.md)). A remote model endpoint stays a separate, high-risk decision | The owner (ratify or reclassify the loopback policy) |
+| ~~The local-model adapters' findings, including Ollama accepting a non-loopback host~~ **Fixed 2026-11-10** ([`LOCAL-MODEL-ADAPTER-TESTING.md`](LOCAL-MODEL-ADAPTER-TESTING.md) §5; [`OLLAMA-ENDPOINT-POLICY.md`](OLLAMA-ENDPOINT-POLICY.md)). A remote model endpoint stays a separate, high-risk decision | **Loopback policy ratified by the owner 2026-11-10.** Remote inference: the owner's decision and the OD-12 review |
