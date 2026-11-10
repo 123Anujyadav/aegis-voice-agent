@@ -71,4 +71,22 @@ class ScreeningRoleCopyTest {
             ScreeningRoleCopy.blocks,
         )
     }
+
+    @Test
+    @DisplayName("after a decline: the same first three blocks, then the loss in the past tense, and nothing about forwarding")
+    fun afterADecline() {
+        assertEquals(ScreeningRoleCopy.blocks.dropLast(1), ScreeningRoleCopy.blocksAfterDecline.dropLast(1))
+        assertEquals(
+            R.string.onboarding_role_missing_label to R.string.onboarding_role_missing,
+            ScreeningRoleCopy.blocksAfterDecline.last(),
+        )
+        assertEquals("What you're missing", strings.getValue("onboarding_role_missing_label"))
+        val missing = strings.getValue("onboarding_role_missing")
+        // The spec's past-tense opening (06-screens, A09b edge cases: "You're currently missing…").
+        assertTrue(missing.startsWith("You're currently missing"), missing)
+        // Only what is true today: call forwarding is not set up, so it is not mentioned.
+        for (word in listOf("forward", "carrier", "charge", "microphone", "record")) {
+            assertFalse(word in missing.lowercase(), word)
+        }
+    }
 }

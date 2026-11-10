@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -28,6 +29,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.callscreen.core.designsystem.theme.CallScreenTheme
 import com.callscreen.core.telephony.screening.ScreeningRole
+import com.callscreen.core.telephony.screening.ScreeningRoleDeclines
 import com.callscreen.core.ui.components.AegisPrimaryButton
 import com.callscreen.core.ui.components.aegisSafeArea
 
@@ -46,6 +48,15 @@ internal object ScreeningRoleCopy {
         R.string.onboarding_role_never_label to R.string.onboarding_role_never,
         R.string.onboarding_role_declined_label to R.string.onboarding_role_declined,
     )
+
+    /**
+     * Shown once more after a decline (A09b "previously denied"): the fourth
+     * block states the loss in the past tense. It says only what is true today,
+     * that blocking on this phone is off; it does not mention call forwarding,
+     * which is not set up (decision packet §3c).
+     */
+    val blocksAfterDecline: List<Pair<Int, Int>> = blocks.dropLast(1) +
+        (R.string.onboarding_role_missing_label to R.string.onboarding_role_missing)
     @StringRes val CONTINUE: Int = R.string.onboarding_role_continue
     @StringRes val NOT_NOW: Int = R.string.onboarding_role_not_now
 }
@@ -59,13 +70,21 @@ internal object ScreeningRoleCopy {
 @Composable
 public fun ScreeningRoleRoute(onDone: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val request = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { onDone() }
+    val declines = remember { ScreeningRoleDeclines.on(context) }
+    // Read once: the variant shown must not change while the person is reading it.
+    val previouslyDeclined = remember { declines.previouslyDeclined() }
+    val leave = {
+        declines.recordOutcome(ScreeningRole.status(context))
+        onDone()
+    }
+    val request = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { leave() }
     ScreeningRoleScreen(
         onContinueClick = {
             val intent = ScreeningRole.requestIntent(context)
-            if (intent != null) request.launch(intent) else onDone()
+            if (intent != null) request.launch(intent) else leave()
         },
-        onNotNowClick = onDone,
+        onNotNowClick = leave,
+        previouslyDeclined = previouslyDeclined,
         modifier = modifier,
     )
 }
@@ -75,6 +94,7 @@ internal fun ScreeningRoleScreen(
     onContinueClick: () -> Unit,
     onNotNowClick: () -> Unit,
     modifier: Modifier = Modifier,
+    previouslyDeclined: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -98,7 +118,7 @@ internal fun ScreeningRoleScreen(
                 color = CallScreenTheme.colors.content.primary,
                 modifier = Modifier.semantics { heading() },
             )
-            for ((label, line) in ScreeningRoleCopy.blocks) {
+            for ((label, line) in if (previouslyDeclined) ScreeningRoleCopy.blocksAfterDecline else ScreeningRoleCopy.blocks) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = stringResource(label),

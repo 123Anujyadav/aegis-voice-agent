@@ -51,6 +51,7 @@
 | D9 | **SIM state and operator name** | `SimSummary` / `TelephonyManager` (no permission) | Shown on the SIM screen | **Displayed only.** Not stored or sent. | VERIFIED | Not retained | none |
 | D10 | **"Role held before" flag** | `PreferencesFlag` (SharedPreferences `callscreen_screening_role`) | Detecting the role being taken by another app (F14) | Device only | VERIFIED | Until uninstall | none |
 | D10b | **"List has held an entry" flags**: one yes or no per list (blocked, allowed), never a number | `PreferencesFlag` (SharedPreferences `callscreen_caller_lists`; `CallerListViewModel.hadEntriesFlag`) | A32's "cleared" empty state: a list the subscriber emptied shows its heading alone (decision packet §3b, 2026-11-10) | Device only | VERIFIED | Until uninstall | none |
+| D10c | **"Screening role declined" flags**: declined once, declined twice; yes or no only | `ScreeningRoleDeclines` (SharedPreferences `callscreen_screening_role`) | A09b: shown once more in the past tense after a decline, and not offered after a second (decision packet §3c, 2026-11-10) | Device only | VERIFIED | Until uninstall | none |
 | D11 | **Crash and diagnostic data** | No SDK; release logs nothing | n/a | None | **Not collected** (VERIFIED: no SDK, no logging) | n/a | **PLANNED:** a crash-reporting tree via the backend (`CallScreenApplication` comment). It would need declaring when built. |
 
 ## 4. Debug builds only (never in release)
