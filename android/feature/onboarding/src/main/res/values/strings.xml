@@ -77,7 +77,7 @@
     <string name="onboarding_role_never_label">What we\'ll never do</string>
     <string name="onboarding_role_never">We can\'t hear your calls. Android doesn\'t allow that for any app, including this one.</string>
     <string name="onboarding_role_declined_label">If you say no</string>
-    <string name="onboarding_role_declined">Every unknown call gets forwarded, which may cost you carrier charges and means people you know get screened too.</string>
+    <string name="onboarding_role_declined">Numbers you block will still ring, and calls won\'t be checked on this phone. You can turn blocking on later in Protection.</string>
     <string name="onboarding_role_continue">Continue</string>
     <string name="onboarding_role_not_now">Not now</string>
     <!-- A09b shown once more after a decline ("previously denied"): the loss in the past tense (decision packet §3c) -->
