@@ -72,7 +72,7 @@ The repository uses four different meanings of "phase". None defines a phase aft
 | # | Task | Class | Blocked on | Source |
 |---|---|---|---|---|
 | C1 | Web deletion page | O, X | Frontend stack (OD-8) and E10 | `ACCOUNT-DELETION.md` §3.0 |
-| C2 | Sign-in SMS provider adapter (`OtpSender`) | X | E2. Contract defined in #198 | Readiness §7 |
+| C2 | Sign-in SMS provider adapter (`OtpSender`) | X | E2. Contract defined in #198. **2026-11-11: delivery-only MSG91 and Twilio adapters drafted in #301,** held for OD-12R; not wired or activated | Readiness §7 |
 | C3 | Deletion-code provider adapter (`DeletionCodeSender`) and budget configuration | X, O | E2, O13, a budget value. Seam in #197 | Tracker §3 |
 | C4 | Wire the Play Integrity verifier into identity | O, X | O7 (ADR-0031), E1, memo §12 B1 | Tracker §3; readiness §7 |
 | C5 | FCM integration | X | E7 | Readiness §7 |
