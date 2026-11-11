@@ -440,22 +440,23 @@ images today (`container-images.yml`). They ship:
 
 | Image | Where | Updates | Why |
 |---|---|---|---|
-| **The Go builder** `golang:1.26.10-alpine3.23` | `docker/go/Dockerfile`, both build stages (`manifests`, `build`) | **Dependabot version updates**: `/docker/go`, daily (the existing cadence), at most one open PR, **patch releases only**. Security updates as published | Tested: `container-images.yml` builds identity and edge-api and smoke-tests them on every change to the Dockerfile |
+| **The Go builder** `golang:1.26.11-alpine3.23` | `docker/go/Dockerfile`, both build stages (`manifests`, `build`) | **Dependabot version updates**: `/docker/go`, daily (the existing cadence), at most one open PR, **patch releases only**. Security updates as published | Tested: `container-images.yml` builds identity and edge-api and smoke-tests them on every change to the Dockerfile |
 | **Python** `python:3.12.8-slim-bookworm`, and `ghcr.io/astral-sh/uv:0.5.14` copied into it | `docker/python/Dockerfile` | **Security updates only** (`open-pull-requests-limit: 0`) | **No CI job builds or tests this image,** so a routine update could not be verified before merging. It ships OS packages, unlike the Go images |
 | `scratch` (the identity and edge-api runtime) | `docker/go/Dockerfile`, `runtime` stage | None: it has no contents | Nothing to update |
 
-**Out of scope, unchanged:** `docker/Dockerfile.base` (`golang:1.26.10-alpine3.23` and `alpine:3.20`; built by no workflow), and the development-only Compose images (`postgres`, `redis`).
+**Out of scope, unchanged:** `docker/Dockerfile.base` (`golang:1.26.11-alpine3.23` and `alpine:3.20`; built by no workflow), and the development-only Compose images (`postgres`, `redis`).
 
 ### The pinned Go builder image
 
-- **Reference:** `golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38681dbab2eeb1fdb2427f43`
+- **Reference:** `golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4` (updated 2026-11-11 for GO-2026-6859, `net/http`, fixed in go1.26.11; previously `golang:1.26.10-alpine3.23@sha256:78e7f1e419545bc4b8b5ee8a40a99ddb5df1216d38681dbab2eeb1fdb2427f43`, verified 2026-11-10 as below)
 - **What the digest is:** the multi-architecture **image index** (OCI). So the same reference serves amd64 and arm64.
 - **How it was verified (2026-11-10):**
   - the registry's `Docker-Content-Digest` for `library/golang:1.26.10-alpine3.23`, read from `registry-1.docker.io`;
   - the Docker Hub API's `digest` for the tag (last updated 2026-11-06), which agreed;
   - the amd64 and arm64 image configurations set `GOLANG_VERSION=1.26.10` and `GOTOOLCHAIN=local`;
   - the base layer is `alpine-minirootfs-3.23.8`.
-- **The Go version is unchanged** (1.26.10, equal to `GO_VERSION` in the workflows).
+- **2026-11-11, by hand (the procedure below):** the registry's `Docker-Content-Digest` for `library/golang:1.26.11-alpine3.23` and the Docker Hub API's digest agreed on `sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4`; the amd64 and arm64 configurations set `GOLANG_VERSION=1.26.11` and `GOTOOLCHAIN=local`.
+- **The Go version** is 1.26.11, equal to `GO_VERSION` in the workflows.
 - **Why the pin matters:**
   - a locally cached copy pulled before 2026-11-06 had another digest (`sha256:a07f231c…`);
   - the registry's digest for this tag also changed on 2026-11-01;
