@@ -7,6 +7,7 @@
   - It does not treat a permission as proof that data is uploaded.
   - It does not say "never shared" unless the whole flow shows it.
 - **Nothing here has been submitted.** Section 6 lists the owner's questions.
+- **Draft answers built from this inventory** (Data safety, privacy policy, listing, console answers; for owner and legal review, not submitted): [`PLAY-RELEASE-DRAFTS.md`](PLAY-RELEASE-DRAFTS.md) (2026-11-11).
 
 **Status key:**
 - **VERIFIED:** current release behaviour, shown by code and build output.
