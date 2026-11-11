@@ -1,5 +1,7 @@
 # OD-12: reviewer shortlist, recommendation and engagement plan (2026-11-11)
 
+> **Superseded 2026-11-11 by the owner's revised direction:** no external security firm is to be engaged, and the hiring and quotation process is stopped. **Nothing was sent to any candidate.** This document is kept as a record only. OD-12 stays open; see [`OD-12-REVISED-DIRECTION-2026-11-11.md`](OD-12-REVISED-DIRECTION-2026-11-11.md). The archive tool (§6) remains useful under option A there.
+
 - **As of:** `main` `ea751f8`. Research done on 2026-11-10 and 11 from **public sources only**: firms' own pages, their published reports, the CERT-In list and public price data.
 - **Nobody was contacted.** No form was submitted, no quote requested, no account created, and no project detail was used in any search.
 - **Status: a recommendation.** OD-12 stays **open** until the owner engages a reviewer and receives the report (rules 8 and 10). Claude Code cannot be the reviewer (rule 7).
