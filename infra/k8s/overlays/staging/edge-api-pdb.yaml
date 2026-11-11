@@ -1,0 +1,16 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# Keeps one of edge-api's two replicas through voluntary disruptions such as a
+# node drain.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: edge-api
+  labels:
+    app.kubernetes.io/name: edge-api
+    app.kubernetes.io/component: edge-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: edge-api

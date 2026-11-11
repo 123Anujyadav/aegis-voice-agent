@@ -1,0 +1,107 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# RUN ONCE, BY AN OPERATOR. Applies identity's schema (INTERNAL-TESTING-SETUP
+# C2): the identity binary with the single argument `migrate`. It is the ONLY
+# path that applies DDL; neither service migrates at startup. It reads only
+# CS_IDENTITY_DATABASE_DSN_FILE (and CS_IDENTITY_ENVIRONMENT for the TLS
+# policy), prints the migration names and the resulting version, never the
+# DSN, and exits non-zero on any failure.
+#
+# Not part of the main overlay, so `kubectl apply -k` of the overlay never runs
+# it. Run it before the first rollout and before rolling out a build with a
+# newer schema, after the main overlay has created the namespace, the
+# ServiceAccount, the network policies and the Secrets:
+#   kubectl -n lily-staging delete job identity-migrate --ignore-not-found
+#   kubectl apply -k infra/k8s/overlays/staging/migrate
+#   kubectl -n lily-staging wait --for=condition=complete job/identity-migrate --timeout=10m
+#   kubectl -n lily-staging logs job/identity-migrate
+# Its image digest must be the one identity's Deployment runs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: identity-migrate
+  labels:
+    app.kubernetes.io/name: identity-migrate
+    app.kubernetes.io/component: identity
+  annotations:
+    run-once-by-operator: "true"
+    description: >-
+      Applies the identity database schema. Run once by an operator before the
+      first rollout and before each schema-changing rollout; never applied
+      automatically.
+spec:
+  # A failed migration is investigated, not retried blindly.
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  # Kept for a day so the operator can read its log.
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: identity-migrate
+        app.kubernetes.io/component: identity
+    spec:
+      restartPolicy: Never
+      serviceAccountName: identity
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          # Replaced by migrate/kustomization.yaml `images`.
+          image: identity-image
+          imagePullPolicy: IfNotPresent
+          args:
+            - migrate
+          env:
+            - name: CS_IDENTITY_ENVIRONMENT
+              value: staging
+            - name: CS_IDENTITY_DATABASE_DSN_FILE
+              value: /etc/lily/secrets/database-dsn
+          volumeMounts:
+            - name: secrets
+              mountPath: /etc/lily/secrets
+              readOnly: true
+            - name: db-ca
+              mountPath: /etc/lily/db-ca
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: secrets
+          secret:
+            secretName: identity-secrets
+            # 0400 (octal), in decimal.
+            defaultMode: 256
+            # Only the DSN: the migration needs no key.
+            items:
+              - key: database-dsn
+                path: database-dsn
+        - name: db-ca
+          secret:
+            secretName: db-ca-bundle
+            # 0444 (octal).
+            defaultMode: 292
+            items:
+              - key: ca-bundle.pem
+                path: ca-bundle.pem

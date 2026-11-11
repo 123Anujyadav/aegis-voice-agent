@@ -1,0 +1,29 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# Every pod in the namespace may query the cluster DNS (CoreDNS on EKS, label
+# k8s-app=kube-dns in kube-system) on port 53, and nothing else through this
+# policy. The database's host name must resolve for verify-full TLS.
+#
+# If the cluster runs NodeLocal DNSCache, SRE replaces this peer with the
+# node-local address.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

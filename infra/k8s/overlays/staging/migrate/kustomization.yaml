@@ -1,0 +1,30 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# The identity migrate Job, on its own, so that applying the staging overlay
+# never runs a migration. Applied by an operator only; see
+# identity-migrate-job.yaml for the procedure.
+#
+# It relies on objects the main overlay (..) creates: the namespace, the
+# identity ServiceAccount, the network policies (database egress includes
+# app.kubernetes.io/name=identity-migrate) and the Secrets identity-secrets and
+# db-ca-bundle.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: lily-staging
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: lily
+      app.kubernetes.io/managed-by: kustomize
+      environment: staging
+    includeSelectors: false
+
+resources:
+  - identity-migrate-job.yaml
+
+# Must equal the identity entry in ../kustomization.yaml.
+images:
+  - name: identity-image
+    newName: <REGISTRY>/identity
+    digest: sha256:<IDENTITY_IMAGE_DIGEST>

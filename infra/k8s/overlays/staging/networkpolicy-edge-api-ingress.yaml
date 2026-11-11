@@ -1,0 +1,31 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# Who may reach edge-api: the ingress controller's namespace on 8080, and the
+# kubelet on the health port 8081. See networkpolicy-identity-ingress.yaml for
+# the ALB and CNI notes, which apply here too. edge-api verifies tokens locally
+# (no call to identity per request), so identity does not need to reach it and
+# it does not need to reach identity.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: edge-api-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: edge-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <INGRESS_CONTROLLER_NAMESPACE>
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - ipBlock:
+            cidr: <NODE_SUBNET_CIDR>
+      ports:
+        - protocol: TCP
+          port: 8081

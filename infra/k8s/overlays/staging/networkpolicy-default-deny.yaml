@@ -1,0 +1,23 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# Default deny, both directions, for every pod in the namespace. Each allowed
+# flow is a separate, named policy in this directory:
+#   networkpolicy-dns-egress.yaml        every pod -> cluster DNS
+#   networkpolicy-database-egress.yaml   identity, edge-api, migrate -> PostgreSQL
+#   networkpolicy-identity-ingress.yaml  ingress controller, kubelet -> identity
+#   networkpolicy-edge-api-ingress.yaml  ingress controller, kubelet -> edge-api
+# Nothing else is allowed: no internet egress, no SMS provider (not approved),
+# no AWS API (neither service calls one), and no pod-to-pod traffic.
+#
+# NetworkPolicy is enforced only if the cluster's CNI enforces it (on EKS, the
+# VPC CNI with network policy enabled, or Calico/Cilium). SRE confirms this
+# before A5; otherwise these objects are accepted and silently do nothing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

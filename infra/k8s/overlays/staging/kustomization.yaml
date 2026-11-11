@@ -1,0 +1,67 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# Staging overlay for identity and edge-api. Self-contained: it does NOT
+# reference ../../base (the generic template there is left exactly as it is on
+# main, and infra/k8s/base/services/ is untouched). See README.md.
+#
+# Render (local only, contacts no cluster):
+#   kubectl kustomize infra/k8s/overlays/staging
+#
+# The identity migrate Job is NOT in this kustomization: it is applied
+# separately, once, by an operator (migrate/kustomization.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: lily-staging
+
+# Common labels on metadata only. `labels` with includeSelectors: false is used
+# instead of the deprecated `commonLabels`, because commonLabels also rewrites
+# selectors, including NetworkPolicy peer podSelectors: it would add these
+# labels to the kube-dns selector in networkpolicy-dns-egress.yaml and so
+# silently block DNS.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: lily
+      app.kubernetes.io/managed-by: kustomize
+      environment: staging
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - identity-serviceaccount.yaml
+  - identity-externalsecret.yaml
+  - identity-deployment.yaml
+  - identity-service.yaml
+  - identity-pdb.yaml
+  - edge-api-serviceaccount.yaml
+  - edge-api-externalsecret.yaml
+  - edge-api-deployment.yaml
+  - edge-api-service.yaml
+  - edge-api-pdb.yaml
+  - db-ca-externalsecret.yaml
+  - networkpolicy-default-deny.yaml
+  - networkpolicy-dns-egress.yaml
+  - networkpolicy-database-egress.yaml
+  - networkpolicy-identity-ingress.yaml
+  - networkpolicy-edge-api-ingress.yaml
+
+# The access-token contract both services must agree on byte for byte
+# (INTERNAL-TESTING-SETUP C3, C4). Generated with a content hash in its name,
+# so a change rolls both Deployments. Not secret: none of these is a key.
+configMapGenerator:
+  - name: access-token-contract
+    literals:
+      - issuer=<ACCESS_TOKEN_ISSUER>
+      - audience=<ACCESS_TOKEN_AUDIENCE>
+      - kid=<ACCESS_TOKEN_KID>
+
+# One image per service, built from docker/go/Dockerfile with
+# --build-arg SERVICE=<name>. Always by digest, never by tag. The same entries
+# appear in migrate/kustomization.yaml and must stay identical to these.
+images:
+  - name: identity-image
+    newName: <REGISTRY>/identity
+    digest: sha256:<IDENTITY_IMAGE_DIGEST>
+  - name: edge-api-image
+    newName: <REGISTRY>/edge-api
+    digest: sha256:<EDGE_API_IMAGE_DIGEST>

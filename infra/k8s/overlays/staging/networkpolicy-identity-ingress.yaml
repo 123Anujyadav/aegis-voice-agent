@@ -1,0 +1,69 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# Who may reach identity:
+#   - the ingress controller's namespace, on the application port (8080) only;
+#   - the kubelet, on the health port (8081) only, for /readyz and /healthz.
+#
+# The ingress controller is not chosen (the Ingress itself waits for B3/B4).
+# If it is the AWS Load Balancer Controller with IP targets, the ALB connects
+# to the pods directly, so SRE replaces the namespaceSelector peer with an
+# ipBlock of the ALB's subnets.
+#
+# Some CNIs always admit traffic from the pod's own node (and so the kubelet's
+# probes); others do not. The node-subnet rule makes the probes work either
+# way; SRE removes it if the chosen CNI does not need it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: identity-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: identity
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <INGRESS_CONTROLLER_NAMESPACE>
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - ipBlock:
+            cidr: <NODE_SUBNET_CIDR>
+      ports:
+        - protocol: TCP
+          port: 8081
+#
+# ---------------------------------------------------------------------------
+# DISABLED: identity egress to an SMS/OTP provider.
+#
+# Not part of this draft and must not be enabled by editing this comment. It
+# needs, in order: the owner's choice of provider (INTERNAL-TESTING-SETUP A1),
+# India DLT registration (A2, A3), the provider credentials as mounted Secret
+# files (A4), and the owner's approval of the network change itself (A5 of
+# INTERNAL-TESTING-SETUP; not to be confused with the telephony gate A5 that
+# this overlay is drafted for). identity has no SMS adapter wired today
+# (CS_IDENTITY_OTP_PROVIDER accepts only `mock` or `none`). When approved, it
+# would be a separate policy file, roughly:
+#
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: identity-sms-provider-egress
+# spec:
+#   podSelector:
+#     matchLabels:
+#       app.kubernetes.io/name: identity
+#   policyTypes:
+#     - Egress
+#   egress:
+#     - to:
+#         - ipBlock:
+#             cidr: <SMS_PROVIDER_EGRESS_CIDR>   # or an egress proxy/gateway
+#       ports:
+#         - protocol: TCP
+#           port: 443
+# ---------------------------------------------------------------------------

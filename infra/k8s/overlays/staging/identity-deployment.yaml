@@ -1,0 +1,185 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# identity in staging (INTERNAL-TESTING-SETUP C1, C3). Every variable name
+# below is read by the Go code; README.md cites the file and line of each.
+#
+# - CS_IDENTITY_ENVIRONMENT is set HERE, in the pod specification, apart from
+#   the Secret (OD-15, owner decision 2026-11-09). With the tier set, an
+#   identity that receives none of its activation variables refuses to start,
+#   so a rollout that lost its configuration fails instead of passing
+#   readiness.
+# - Secrets are FILES (SECURITY.md); the *_FILE variables point into the
+#   read-only Secret volume at /etc/lily/secrets/. No secret value is an
+#   environment value.
+# - Play Integrity variables (CS_IDENTITY_PLAY_INTEGRITY_*) stay UNSET: O7 and
+#   E1 are undecided, so sessions are recorded `unverified` (C3).
+# - CS_IDENTITY_OTP_PROVIDER is `none`: no SMS provider is approved (A1-A5),
+#   so OTP requests are refused with ERR_OTP_DELIVERY_UNAVAILABLE. Setting it
+#   explicitly means even a lost tier can never select the development mock.
+# - The service never migrates at startup: run the migrate Job (migrate/)
+#   first (C2).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity
+  labels:
+    app.kubernetes.io/name: identity
+    app.kubernetes.io/component: identity
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: identity
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: identity
+        app.kubernetes.io/component: identity
+    spec:
+      serviceAccountName: identity
+      # identity never calls the Kubernetes API; see identity-serviceaccount.yaml.
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # Longer than the platform's default CS_IDENTITY_SHUTDOWN_TIMEOUT (25s),
+      # so the graceful drain completes before the kubelet kills the process.
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        # nobody:nogroup, the image's USER (docker/go/Dockerfile).
+        runAsUser: 65534
+        runAsGroup: 65534
+        # Secret files are root-owned. fsGroup makes them group-owned by 65534
+        # and the kubelet adds group read, so defaultMode 0400 becomes 0440:
+        # readable by this process and nobody else.
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: identity
+      containers:
+        - name: identity
+          # Replaced by kustomization.yaml `images` with a registry and digest.
+          image: identity-image
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          env:
+            # --- Tier (OD-15): in the pod spec, never in the Secret ----------
+            - name: CS_IDENTITY_ENVIRONMENT
+              value: staging
+            # --- Ports (platform.ServiceConfig; equal to the defaults) -------
+            - name: CS_IDENTITY_HTTP_PORT
+              value: "8080"
+            - name: CS_IDENTITY_HEALTH_PORT
+              value: "8081"
+            # --- Secret files (mounted below) --------------------------------
+            - name: CS_IDENTITY_ACCESS_TOKEN_PRIVATE_KEY_FILE
+              value: /etc/lily/secrets/access-token-private-key.pem
+            - name: CS_IDENTITY_HMAC_SECRET_KEY_FILE
+              value: /etc/lily/secrets/hmac-secret-key
+            - name: CS_IDENTITY_DATABASE_DSN_FILE
+              value: /etc/lily/secrets/database-dsn
+            # --- Access-token contract: byte-identical to edge-api's ----------
+            # One generated ConfigMap feeds both services, so they cannot drift.
+            - name: CS_IDENTITY_ACCESS_TOKEN_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: access-token-contract
+                  key: issuer
+            - name: CS_IDENTITY_ACCESS_TOKEN_AUDIENCE
+              valueFrom:
+                configMapKeyRef:
+                  name: access-token-contract
+                  key: audience
+            - name: CS_IDENTITY_ACCESS_TOKEN_KID
+              valueFrom:
+                configMapKeyRef:
+                  name: access-token-contract
+                  key: kid
+            # --- Canonical URLs: https, one origin, the one the app is built
+            # with; paths exactly /v1/otp/validate and /v1/token/refresh -------
+            - name: CS_IDENTITY_ENROLLMENT_CANONICAL_URL
+              value: https://identity.<DOMAIN>/v1/otp/validate
+            - name: CS_IDENTITY_REFRESH_CANONICAL_URL
+              value: https://identity.<DOMAIN>/v1/token/refresh
+            # --- OTP delivery: none until an SMS provider is approved ---------
+            - name: CS_IDENTITY_OTP_PROVIDER
+              value: none
+          volumeMounts:
+            - name: secrets
+              mountPath: /etc/lily/secrets
+              readOnly: true
+            - name: db-ca
+              mountPath: /etc/lily/db-ca
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            # Starting values for staging; SRE sizes them from observed use.
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: secrets
+          secret:
+            secretName: identity-secrets
+            # 0400 (octal), written in decimal because YAML parsers disagree
+            # on leading-zero octal.
+            defaultMode: 256
+            # Listed explicitly: a missing key fails the mount (fail closed).
+            items:
+              - key: access-token-private-key.pem
+                path: access-token-private-key.pem
+              - key: hmac-secret-key
+                path: hmac-secret-key
+              - key: database-dsn
+                path: database-dsn
+        - name: db-ca
+          secret:
+            secretName: db-ca-bundle
+            # 0444 (octal): a CA bundle is public.
+            defaultMode: 292
+            items:
+              - key: ca-bundle.pem
+                path: ca-bundle.pem
