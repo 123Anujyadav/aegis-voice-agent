@@ -4,8 +4,9 @@
 //
 // WHY THIS MODULE EXISTS
 //
-// ADR-0006 (Accepted) puts the four LLM tiers on Claude; the runtime codes
-// against runtime.Provider and names no vendor. This module holds the vendor
+// ADR-0006 (Accepted) puts the four LLM tiers on Claude, and ADR-0007
+// (Accepted) makes ElevenLabs Flash the default synthesiser; the runtime and
+// speech modules code against their ports and name no vendor. This module holds the vendor
 // side of that seam, so the frozen runtime, speech and media modules stay
 // vendor-free.
 //
@@ -23,14 +24,14 @@ module github.com/callscreen/callscreen-platform/packages/go/aiproviders
 go 1.25.0
 
 require (
+	github.com/callscreen/callscreen-platform/packages/go/media v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/providerconformance v0.0.0
 	github.com/callscreen/callscreen-platform/packages/go/runtime v0.0.0
+	github.com/callscreen/callscreen-platform/packages/go/speech v0.0.0
 )
 
 require (
-	github.com/callscreen/callscreen-platform/packages/go/media v0.0.0 // indirect
 	github.com/callscreen/callscreen-platform/packages/go/metrics v0.0.0 // indirect
-	github.com/callscreen/callscreen-platform/packages/go/speech v0.0.0 // indirect
 	github.com/callscreen/callscreen-platform/packages/go/telephony v0.0.0 // indirect
 )
 
