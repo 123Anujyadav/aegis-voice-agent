@@ -382,6 +382,25 @@
 - **Not decided:** remote inference. It stays a separate future privacy and security decision, high-risk, needing the owner's decision and the OD-12 review.
 - **Recorded and pinned:** the policy's §5; `providers/ollama/endpoint_policy_test.go` fails if the code or the record drifts from it.
 
+### OD-12R, gate A5, ADR-0034 (owner, 2026-11-12): approved
+
+Given by the owner's explicit written approval in the Claude Code session of 2026-11-12 ("OWNER DECISIONS CONFIRMED").
+
+- **OD-12R: option B.**
+  - Internal security assurance can support M1 engineering and validation.
+  - Independent human review stays mandatory before M2.
+  - Internal AI-assisted testing is never represented as independent assurance.
+  - Adopted as governance amendment G2 (`ARCHITECTURE_FREEZE.md` §6.2). OD-12 stays open, now required before M2.
+- **Gate A5: approved.** Write and validate the identity and edge-api staging manifests; verify every environment variable against the application's configuration; validate locally, without deploying or provisioning (ADR-0027, dated note).
+- **ADR-0034: approved.** Add the gRPC and WebSocket dependencies; implement the Google and Deepgram streaming speech-to-text adapters, with unit, integration and failure-path tests; keep real activation disabled. ADR-0034 is Accepted.
+- **Explicitly not authorised:**
+  - SMS provider activation or paid SMS;
+  - DLT registration or fees;
+  - cloud provisioning or staging deployment;
+  - Google or Deepgram API activation or paid usage;
+  - production credentials or external accounts;
+  - production release or Play publishing.
+
 ## After the owner decides
 
 Each decision is recorded in this packet's §5 (to be added) with its date. Only then is the chosen option implemented, one PR per decision. Each:

@@ -235,6 +235,46 @@ themselves are not edited):
 - **A review a record calls "independent"** without naming a human reviewer is
   read as an AI-performed review.
 
+### 6.2 · Governance amendment G2: internal assurance for release milestone M1 (2026-11-12)
+
+This amendment **adds to** §6.1. Its rules keep their wording and are read
+together with it.
+
+- **Decision:** the repository owner chose option B of OD-12R on 2026-11-12
+  (`docs/phase19/OD-12-REVISED-DIRECTION-2026-11-11.md` §3 and §6).
+- **Adoption:** by the owner's explicit written approval in the Claude Code session of 2026-11-12 ("OWNER DECISIONS CONFIRMED"), and merged on that
+  instruction. Rule 6 reserves changes to these rules to the owner. Claude
+  Code drafted this text; it did not decide it.
+
+**Rules added:**
+
+**Rule 8a. Release milestone M1 may rest on internal security assurance.**
+For work toward release milestone M1 (internal testing with known testers;
+OD-10), the owner may accept a high-risk decision, or authorise a high-risk
+change to merge, on **internal security assurance evidence**:
+- an AI-performed review (labelled under rule 9);
+- automated security tests;
+- threat modelling;
+- remediation evidence.
+
+The approval record states "accepted for M1 on internal assurance; independent
+human review outstanding". Each such acceptance is still the owner's own
+decision (rule 6). Claude Code prepares the evidence and proposes; it never
+accepts.
+
+**Rule 8b. Independent human review stays mandatory before M2.** Rule 8 applies
+unchanged before release milestone M2 (production) and before any public
+release. A decision accepted under rule 8a remains "accepted for M1 only". No
+change accepted under 8a reaches production users until an independent human
+review has been recorded for it.
+
+**Unchanged:**
+- **Rule 9:** internal, AI-assisted testing is never represented as independent
+  assurance.
+- **Rule 10:** applies to M2 and later exactly as written.
+- **OD-12:** identifying an independent human reviewer stays open, and is now
+  required before M2.
+
 ---
 
 ## 7 · Where things are

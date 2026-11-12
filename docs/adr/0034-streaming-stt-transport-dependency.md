@@ -1,6 +1,6 @@
 # ADR-0034: Transport dependency for streaming speech-to-text
 
-- **Status:** Proposed
+- **Status:** **Accepted** (2026-11-12, repository owner), as proposed
 - **Date:** 2026-11-11
 - **Deciders:** the repository owner (see `README.md`, "Approval")
 - **Independent human review:** proposed as **not high-risk** (a transport library for vendors already accepted in ADR-0005; §Approval record). The owner's classification is final (rule 6).
@@ -108,12 +108,12 @@
 
 | Field | Record |
 |---|---|
-| Decision | — (Proposed) |
+| Decision | **Accepted as proposed:** gRPC with Google's Speech v2 client, and a small WebSocket library, each contained to its own adapter module and added with its adapter |
 | Classification | Proposed **not high-risk**: it adds transport libraries for vendors already accepted in ADR-0005, and changes no authentication model, trust boundary, invariant or personal-data flow (the flow was decided in ADR-0005 and ADR-0012). **The owner's classification is final** |
-| Owner decision | — |
+| Owner decision | 2026-11-12, the owner's explicit written approval in the Claude Code session of 2026-11-12 ("OWNER DECISIONS CONFIRMED"): "ADR-0034: APPROVED. Add the required gRPC and WebSocket dependencies. Implement Google and Deepgram streaming STT provider adapters ... Keep real provider activation disabled." The owner's acceptance of the not-high-risk classification is final (rule 6) |
 | Independent human review | Not required if the classification stands |
 | AI involvement | Drafted by Claude Code (AI-performed) |
-| Does not | Activate any vendor; approve the speech spending category; decide OD-17 |
+| Does not | Activate any vendor or paid usage; create accounts or credentials; approve the speech spending category; decide OD-17 |
 | Supersedes | nothing |
 
 ## References
