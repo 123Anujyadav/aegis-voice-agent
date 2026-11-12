@@ -84,7 +84,7 @@ These are the existing **initial** values, "not production-tuned" in the code's 
 
 **Delivery is counted** in `identity_otp_deliveries_total{provider,outcome}` once the HTTP API is registered. This applies to the mock too.
 
-**Account-deletion codes are not wired:** enabling them is decision O13.
+**Account-deletion codes are not wired:** enabling them is decision O13. **The F-1 controls cover sign-in codes only:** the allowlist and the hourly cap apply in `RequestOtp`, and the deletion path (`web_erasure.go`) has its own budget (migration 0009) but no allowlist. Before deletion codes are wired, while the allowlist is in force (M1), that path must also refuse numbers outside it. Audit of 2026-11-12: `SetDeletionCodeSender` has no production caller.
 
 **None of this activates anything.** It needs R1 (an account, DLT entity, header and templates, the India domestic route, billing) and the owner's ADR-0033 decision under rule 8a.
 
