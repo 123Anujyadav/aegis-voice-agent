@@ -22,7 +22,7 @@ import (
 
 const (
 	indiaNumber = "+919876543210"
-	adapterCode   = "135790"
+	adapterCode = "135790"
 )
 
 // sid builds a Twilio-shaped identifier at runtime: GitHub push protection
