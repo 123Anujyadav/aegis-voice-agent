@@ -108,7 +108,7 @@ joined by `joinEnvName` (`packages/go/platform/config.go:174`).
 | `CS_IDENTITY_REFRESH_CANONICAL_URL` | `https://identity.<DOMAIN>/v1/token/refresh` | `services/go/identity/internal/bootstrap/bootstrap.go:90`; path `services/go/identity/internal/routes/routes.go:22` | The deletion URL is derived from it |
 | `CS_IDENTITY_HMAC_SECRET_KEY_FILE` | `/etc/lily/secrets/hmac-secret-key` | `services/go/identity/internal/bootstrap/runtime.go:88` | Secret file |
 | `CS_IDENTITY_DATABASE_DSN_FILE` | `/etc/lily/secrets/database-dsn` | `services/go/identity/internal/bootstrap/runtime.go:89`; migrate: `services/go/identity/cmd/server/identity.go:154` | Secret file; also the only identity variable the migrate Job needs |
-| `CS_IDENTITY_OTP_PROVIDER` | `none` | `services/go/identity/internal/bootstrap/otp.go:38` | Accepts only `mock` (explicit development only) or `none`. Explicit `none` means no SMS delivery, and a lost tier can never select the mock |
+| `CS_IDENTITY_OTP_PROVIDER` | `none` | `services/go/identity/internal/bootstrap/otp.go:42` | Accepts only `mock` (explicit development only) or `none`. Explicit `none` means no SMS delivery, and a lost tier can never select the mock |
 
 The eight activation variables are listed at `services/go/identity/internal/bootstrap/runtime.go:64-73`.
 The migrate command is dispatched at `services/go/identity/cmd/server/main.go:53`.
@@ -134,7 +134,8 @@ The six activation variables are listed at `services/go/edge-api/internal/auth/a
 | Variable(s) | Code | Why unset |
 |---|---|---|
 | `CS_IDENTITY_PLAY_INTEGRITY_{PACKAGE_NAME,CERT_DIGESTS,MAX_AGE,FUTURE_SKEW,DECODE_TIMEOUT,CREDENTIAL_CONFIG_FILE}` | `services/go/identity/internal/bootstrap/playintegrity.go:48-66` | O7 and E1 undecided; sessions are recorded `unverified` (C3) |
-| `CS_IDENTITY_OTP_MOCK_OUTBOX_FILE` | `services/go/identity/internal/bootstrap/otp.go:39` | Development-only mock |
+| `CS_IDENTITY_OTP_MOCK_OUTBOX_FILE` | `services/go/identity/internal/bootstrap/otp.go:43` | Development-only mock |
+| `CS_IDENTITY_OTP_ALLOWED_NUMBERS_FILE`, `CS_IDENTITY_OTP_SIGNIN_HOURLY_CAP` | `services/go/identity/internal/bootstrap/otp_controls.go:51-52` | The F-1 tester allowlist (a mounted Secret file) and global hourly sign-in SMS cap. **Required only when a real provider (`msg91`, `twilio`) is configured**, and startup is refused without both. With this overlay's `none` they are refused as stray configuration ([`OTP-PROVIDERS.md`](../../../../docs/phase19/OTP-PROVIDERS.md) §2) |
 | `CS_EDGE_API_ACCESS_TOKEN_PREVIOUS_PUBLIC_KEY_FILE`, `CS_EDGE_API_ACCESS_TOKEN_PREVIOUS_KID` | `services/go/edge-api/internal/auth/auth.go:103-104` | Only during a key rotation (runbook) |
 | `CS_*_LOG_LEVEL`, `CS_*_LOG_FORMAT`, `CS_*_SHUTDOWN_TIMEOUT`, `CS_*_READ_HEADER_TIMEOUT`, `CS_*_REGION` | `packages/go/platform/config.go:312,331,335,341,346` | Defaults suffice (`info`, `json`, `25s`, `5s`, `in-south-1`). `terminationGracePeriodSeconds: 30` exceeds the 25s shutdown timeout |
 | `CS_*_VERSION` | `packages/go/platform/config.go:318` | Ignored: the binary's build metadata wins |

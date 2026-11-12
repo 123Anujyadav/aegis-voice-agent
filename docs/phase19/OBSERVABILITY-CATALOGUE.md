@@ -30,7 +30,7 @@ Every name is subsystem-prefixed (ADR-0013), and **every label has a closed voca
 | `identity_security_audit_failures_total` | counter | `type` | As above | Audit events that were **not** recorded. The code says any non-zero rate "should page" (line 40) |
 | `identity_play_integrity_outcomes_total` | counter | `outcome` | Verification outcomes | No verifier is configured, so every call would be `unavailable` (line 51) |
 | `identity_play_integrity_restrictions_total` | counter | `reason` | Restriction reasons | Why a verdict was restricted (line 52) |
-| `identity_otp_deliveries_total` | counter | `provider`, `outcome` | provider: a validated short name, else `other`. Outcome: `delivered`, `failed`, `timeout`, `abandoned` (`otpdelivery.Outcome`) | OTP send attempts per provider (line 59). **Not hooked to the development mock today** (`OTP-PROVIDERS.md` §1) |
+| `identity_otp_deliveries_total` | counter | `provider`, `outcome` | provider: a validated short name, else `other`. Outcome: `delivered`, `failed`, `timeout`, `abandoned` (`otpdelivery.Outcome`) | OTP send attempts per provider (line 59). **Hooked since 2026-11-12** (`bootstrap.Runtime.ObserveOtpDeliveries`, installed when the HTTP API is registered): the mock and any real provider |
 | `identity_deletion_code_deliveries_total` | counter | `provider`, `outcome` | As above | Account-deletion code sends, apart from sign-in (line 65). No provider is configured |
 
 ### edge-api (`services/go/edge-api/internal/auth/metrics.go`)
@@ -70,5 +70,5 @@ Every name is subsystem-prefixed (ADR-0013), and **every label has a closed voca
 
 - **No alert rules, SLO rules or dashboards.** They are operator artefacts under ADR-0013, and need E5.
 - **No tracing backend:** ADR-0028 is Proposed and conditional.
-- **The development OTP mock is not counted** in `identity_otp_deliveries_total`. Hooking it in is an identity change (OD-12).
+- **Since 2026-11-12, OTP deliveries are counted** in `identity_otp_deliveries_total`, the mock's included (`OTP-PROVIDERS.md` §2). Account-deletion code deliveries remain unwired (O13).
 - **Signals the code calls for alerting are named here only as inputs** to that future work. Examples are `identity_security_audit_failures_total` and the `refresh.token_reused` event. **No threshold is set by this document.**

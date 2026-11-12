@@ -660,6 +660,7 @@ func TestHTTP_ErrorMapping(t *testing.T) {
 		{app.ErrSessionNotDeviceBound, 401, "ERR_INVALID_TOKEN"},
 		{app.ErrDeviceProofRequired, 401, "ERR_INVALID_TOKEN"},
 		{app.ErrOtpDeliveryFailed, 503, "ERR_OTP_DELIVERY_FAILED"},
+		{app.ErrOtpDeliveryUnavailable, 503, "ERR_OTP_DELIVERY_UNAVAILABLE"},
 		{fmt.Errorf("%w: x", dpop.ErrReplayUnavailable), 503, "ERR_TEMPORARILY_UNAVAILABLE"},
 		{app.ErrEnrollmentUnavailable, 503, "ERR_TEMPORARILY_UNAVAILABLE"},
 		{app.ErrDeviceRefreshUnavailable, 503, "ERR_TEMPORARILY_UNAVAILABLE"},

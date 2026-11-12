@@ -308,13 +308,31 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 9 {
-		t.Fatalf("chain has %d steps, want 9", len(chain))
+	if len(chain) != 10 {
+		t.Fatalf("chain has %d steps, want 10", len(chain))
 	}
 	for i, step := range chain {
 		if step.Version != i+1 {
 			t.Fatalf("step %d is version %d: the chain is not contiguous", i, step.Version)
 		}
+	}
+
+	// 0010 creates the sign-in delivery budget's table, holding an hour and
+	// a count only, and touches no existing table or row.
+	if chain[9].Name != "0010_signin_delivery_budget.sql" {
+		t.Errorf("step 10 is %q", chain[9].Name)
+	}
+	var code10 []string
+	for _, line := range strings.Split(chain[9].SQL, "\n") {
+		if l := strings.TrimSpace(line); l != "" && !strings.HasPrefix(l, "--") {
+			code10 = append(code10, l)
+		}
+	}
+	if v10 := strings.Join(code10, "\n"); v10 != "CREATE TABLE identity_signin_delivery_budget (\n"+
+		"hour_start  TIMESTAMPTZ PRIMARY KEY,\n"+
+		"deliveries  INTEGER     NOT NULL CHECK (deliveries >= 0)\n"+
+		");" {
+		t.Errorf("0010 statements = %q", v10)
 	}
 
 	// 0009 adds the challenge purpose (a default every existing row meets)
