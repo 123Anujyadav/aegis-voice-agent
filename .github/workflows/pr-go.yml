@@ -58,7 +58,10 @@ env:
   # fixed in go1.26.10) was published, and govulncheck failed every module
   # that reaches it. An exact version is what the build actually uses; moving
   # it is a deliberate change. Keep the four workflows and docker/ in step.
-  GO_VERSION: "1.26.10"
+  # 2026-11-11: go1.26.11 for GO-2026-6859 (net/http: a data race on
+  # "Connection: close" under MaxBytesReader can panic an HTTP/1 server),
+  # published 2026-11-11; govulncheck failed every module that serves HTTP.
+  GO_VERSION: "1.26.11"
   # No implicit toolchain downloads. The version this file declares is the
   # version the build uses, or the build fails and says so.
   GOTOOLCHAIN: "local"
