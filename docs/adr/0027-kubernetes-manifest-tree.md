@@ -263,6 +263,8 @@ staging manifests in separate repositories.
 | kubeconform policy for `kustomization.yaml` and CRD kinds | owner / SRE (`/infra/` code owner) | pending |
 | A5 (staging manifests) and every later gate | owner, per P1-38 §2 | **unapproved**; this ADR does not approve any of them |
 
+> **Note added 2026-11-12** (the row above is kept, rule 11): **gate A5 was approved by the owner on 2026-11-12** for the identity and edge-api staging overlay at `infra/k8s/overlays/staging/`: write it, and validate it locally. **It does not approve cloud provisioning, a staging deployment, or any later gate.** Record: `docs/phase19/OWNER-DECISION-PACKET-2026-11-09.md` §5.
+
 ## Appendix: proposed amendment text (applies only if Option 1 is accepted)
 
 **How to amend.** The owner records the change as an amendment, for example a
