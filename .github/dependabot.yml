@@ -28,6 +28,9 @@ updates:
       - "/packages/go/eventbus"
       - "/packages/go/contracts-go"
       - "/services/go/*"
+      # ADR-0034: the speech adapters carry third-party transports (gRPC,
+      # coder/websocket); security updates only, like every Go module here.
+      - "/packages/go/speechproviders/*"
     schedule:
       interval: daily
     open-pull-requests-limit: 0

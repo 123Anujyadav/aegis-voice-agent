@@ -67,6 +67,7 @@ use (
 	./packages/go/repository
 	./packages/go/runtime
 	./packages/go/speech
+	./packages/go/speechproviders/deepgram
 	./packages/go/telemetry
 	./packages/go/telephony
 	./packages/go/toolruntime

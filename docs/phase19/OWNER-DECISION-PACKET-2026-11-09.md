@@ -401,6 +401,23 @@ Given by the owner's explicit written approval in the Claude Code session of 202
   - production credentials or external accounts;
   - production release or Play publishing.
 
+### ADR-0033 for M1, and the F-1 controls (owner, 2026-11-12): approved
+
+Given by the owner's explicit written approval in the Claude Code session of 2026-11-12 ("OWNER DECISIONS CONFIRMED": "ADR-0033 for M1 under rule 8a"; both F-1 controls).
+
+- **ADR-0033 is accepted for M1 under rule 8a,** on the internal assurance in `ADR-0033-M1-INTERNAL-ASSURANCE.md`. The independent human review is still required before M2.
+- **F-1 is approved: both controls.**
+  - **(1) An explicit allowlist of approved M1 tester numbers:** delivery to any other number is denied.
+  - **(2) A global hourly cap across all sign-in SMS deliveries,** enforced atomically.
+  - Both fail closed when their configuration is missing or invalid.
+  - Both are in place **before any real SMS delivery**.
+- **Not authorised:**
+  - activating MSG91 or Twilio live;
+  - DLT registration;
+  - SMS charges or any paid service;
+  - staging provisioning or deployment;
+  - production release.
+
 ## After the owner decides
 
 Each decision is recorded in this packet's §5 (to be added) with its date. Only then is the chosen option implemented, one PR per decision. Each:

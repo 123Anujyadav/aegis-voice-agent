@@ -34,6 +34,10 @@
 - **Decide ADR-0034** (streaming speech-to-text transport). It unblocks the Google and Deepgram adapters as code, not their activation (OD-17).
 - **When OD-12R is decided,** draft #301 (the delivery-only SMS adapters) follows that route. It is not activated without R1.
 
+**Added 2026-11-12, after OD-12R (B), gate A5 and ADR-0034:**
+- **Decide ADR-0033 and #301 for M1 under rule 8a:** [`ADR-0033-M1-INTERNAL-ASSURANCE.md`](ADR-0033-M1-INTERNAL-ASSURANCE.md) §3. Also choose the **SMS-pumping control (F-1)** before any real SMS: an M1 tester allowlist, a global send budget, or both.
+- Gate A5 is done: the staging overlay is merged (#306), but not applied. ADR-0034 is accepted; the Google and Deepgram adapters are being built.
+
 **The critical path to M1:** actions 1–5 in parallel. Then:
 1. the reviewer's report;
 2. the owner decides ADR-0033;

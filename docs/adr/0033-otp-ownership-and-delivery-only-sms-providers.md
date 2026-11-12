@@ -1,6 +1,8 @@
 # ADR-0033: One-time codes are owned by identity; SMS providers only deliver them (Option A)
 
-- **Status:** **Proposed: the owner's PREFERRED architecture (2026-11-09); high-risk; awaiting independent human review. Not accepted, not ratified.**
+- **Status:** **Accepted for release milestone M1 on internal assurance (2026-11-12, repository owner, rule 8a); independent human review outstanding, and required before M2 (rule 8b).** High-risk. Not accepted for production.
+  - **The record below is kept as written (rule 11).** On 2026-11-12, under governance amendment G2 (`ARCHITECTURE_FREEZE.md` §6.2), the owner accepted Option A **for M1 only**, on the internal assurance in [`../phase19/ADR-0033-M1-INTERNAL-ASSURANCE.md`](../phase19/ADR-0033-M1-INTERNAL-ASSURANCE.md). The owner also approved **both F-1 SMS-abuse controls** for M1: an explicit allowlist of the M1 testers' numbers, and a global hourly cap on sign-in SMS deliveries (§7; Q3 answered). The controls must be in place before any real SMS is delivered.
+  - **Earlier status (2026-11-09):** Proposed, the owner's preferred architecture, awaiting independent human review.
   - **Owner preference, not formal approval.** On 2026-11-09 the repository owner selected **Option A** as their preferred architecture. Under `ARCHITECTURE_FREEZE.md` §6.1, an authentication decision becomes Accepted only with the owner's decision **and** an independent human review (rules 6 and 8). No independent reviewer exists yet (OD-12, gate G0a), so this ADR stays **Proposed**. Rule 7 also applies: drafting is not a decision.
   - **High-risk** under `docs/adr/README.md`, "Approval": it concerns authentication, identity, and a vendor processing personal data (phone numbers). That is the author's proposed classification; the final classification is the owner's (rule 6).
   - **What Option A changes in the code: nothing.** It describes the architecture `main` already has (§2). It records it as the intended architecture for every SMS provider, and rules out code-generating providers such as Twilio Verify (PR #271, not selected).
@@ -205,4 +207,6 @@ ADR-0010 §9 requires a fallback. Under Option A, Twilio and MSG91 (or any pair)
 | Owner preference: Option A | Repository owner | **Recorded, 2026-11-09** (preference, not formal approval) |
 | AI-performed analysis | Claude Code | Done, 2026-11-09 (this document). Not an independent review |
 | Independent human security review | A qualified reviewer independent of the drafter (OD-12) | **Not available; not started** |
-| Formal decision (Accepted / amended / rejected) | Repository owner | **Pending**, after the review |
+| Formal decision (Accepted / amended / rejected) | Repository owner | **Accepted for M1 on internal assurance, 2026-11-12 (rule 8a)**, by the owner's explicit written approval in the Claude Code session of 2026-11-12 ("OWNER DECISIONS CONFIRMED": "ADR-0033 for M1 under rule 8a"; both F-1 controls). **Not accepted for M2 or production.** That needs the independent human review (rule 8b) |
+| F-1 controls (§7; Q3) | Repository owner | **Approved for M1, 2026-11-12:** a tester-number allowlist and a global hourly sign-in SMS cap, both required (fail closed) before any real SMS |
+| Does not authorise | — | Activating MSG91 or Twilio; DLT registration; SMS charges or any paid service; staging provisioning or deployment; production release |

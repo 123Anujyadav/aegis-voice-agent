@@ -478,3 +478,120 @@ images today (`container-images.yml`). They ship:
 - **The Python image** has no CI build or test. Its security PRs, when they come, need a manual `docker build` and a check before merging. A CI job for it is a follow-up for when a Python service is deployed.
 - **`renovate.json5`** still describes Renovate as the routine updater. It is inactive configuration: Renovate is not installed. It was left unchanged here: correcting or removing it is a separate change.
 - **F14** (whether Dependabot rebases its open PRs, re-running full CI) is a separate owner decision and is unchanged. With at most one open Docker PR, its CI load is small.
+
+---
+
+## 14. `github.com/coder/websocket` for the Deepgram adapter (ADR-0034, 2026-11-12)
+
+**Authority:** ADR-0034, approved by the owner 2026-11-12. One small WebSocket library for Deepgram (ADR-0005's secondary), contained to its adapter module.
+
+| Module | Version | Released | `go` directive | Shipped in | Licence file | Licence text | sha256 (prefix) |
+|---|---|---|---|---|---|---|---|
+| `github.com/coder/websocket` | v1.8.15 | 2026-06-15 | 1.23 | `packages/go/speechproviders/deepgram` only | `LICENSE.txt` | ISC | `cc0975a5f6305145` |
+
+- **Why this version:** the latest release on 2026-11-12, and more than two weeks old. Its `go` directive (1.23) is below the toolchain (go1.26.11).
+- **No transitive dependencies:** the library's `go.mod` has no `require` block, and its `go.sum` is empty. In the adapter module, `GOWORK=off go list -deps ./...` lists only:
+  - the standard library;
+  - the first-party `speech`, `media`, `runtime` and `metrics` modules;
+  - `github.com/coder/websocket` itself, with its `internal/bpool`, `internal/errd` and `internal/util` packages.
+
+  With `-test`, it adds `providerconformance` and `telephony`, both first-party.
+- **Contained:** no other `go.mod` or `go.sum` in the repository names it.
+- **No NOTICE file.** The ISC text requires that its copyright and permission notice be kept with copies. That is section 12's open item: how third-party notices reach artefacts. No artefact ships this module today, because nothing activates the adapter.
+- **Not activated:** using the adapter needs the speech spending category (OD-17), the DPDP review (E9), and ADR-0012's consent conditions for a cross-border recogniser.
+
+## 15. Google STT v2 adapter: gRPC and the Speech v2 client (ADR-0034, 2026-11-12)
+
+ADR-0034 (approved by the owner on 2026-11-12) admits gRPC and Google's
+generated Speech v2 client for the ADR-0005 primary recogniser, contained to
+one new module, `packages/go/speechproviders/google`, with licence evidence
+recorded here. The adapter is not activated. As in §10 and §12, this records
+which licence text each shipped module carries; it is not legal advice.
+
+**Direct dependencies** (each released at least two weeks before 2026-11-12;
+each declares `go 1.26.0`, except protobuf at `go 1.23`):
+
+| Module | Version | Released | Licence |
+|---|---|---|---|
+| `cloud.google.com/go/speech` (`apiv2`, `apiv2/speechpb`) | v1.38.1 | 2026-10-28 | Apache-2.0 |
+| `google.golang.org/grpc` | v1.85.0 | 2026-10-27 | Apache-2.0, with `NOTICE.txt` |
+| `google.golang.org/api` (`option`) | v0.310.0 | 2026-10-28 | BSD-3-Clause |
+| `google.golang.org/protobuf` | v1.36.12 | 2026-08-10 | BSD-3-Clause |
+
+`cloud.google.com/go/auth` is pinned to the tagged v0.24.2 (2026-10-28). Left
+alone, `google.golang.org/api` v0.310.0 selects an untagged pseudo-version
+(`v0.24.1-0.20261001053825-dbc26066f70a`).
+
+**Method:** §10's. `go list -deps` (non-test build, `GOWORK=off`,
+`-mod=readonly`) in the new module. Each licence file was read from the module
+cache at the exact version and identified by its standard text.
+
+**Counts:**
+- `go list -m all`: 94 third-party modules in the module graph;
+- `go list -deps ./...`: 474 packages outside the repository, 209 of them the
+  standard library, 265 third-party;
+- linked third-party modules: **32**, the same with tests.
+
+| Module | Version | Licence | File | sha256 (prefix) |
+|---|---|---|---|---|
+| `cloud.google.com/go/auth` | v0.24.2 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `cloud.google.com/go/auth/oauth2adapt` | v0.3.0 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `cloud.google.com/go/compute/metadata` | v0.10.0 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `cloud.google.com/go/longrunning` | v1.3.0 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `cloud.google.com/go/speech` | v1.38.1 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `github.com/cespare/xxhash/v2` | v2.3.0 | MIT | `LICENSE.txt` | `f566a9f97bacdaf0` |
+| `github.com/felixge/httpsnoop` | v1.1.0 | MIT | `LICENSE.txt` | `8108e14b5cb2b6bc` |
+| `github.com/go-logr/logr` | v1.4.4 | Apache-2.0 | `LICENSE` | `b40930bbcf80744c` |
+| `github.com/go-logr/stdr` | v1.2.2 | Apache-2.0 | `LICENSE` | `c71d239df91726fc` |
+| `github.com/google/s2a-go` | v0.1.11 | Apache-2.0 | `LICENSE.md` | `cfc7749b96f63bd3` |
+| `github.com/googleapis/enterprise-certificate-proxy` | v0.3.24 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `github.com/googleapis/gax-go/v2` | v2.27.0 | BSD-3-Clause | `LICENSE` | `b95218cd9607855a` |
+| `go.opentelemetry.io/auto/sdk` | v1.2.1 | Apache-2.0 | `LICENSE` | `c71d239df91726fc` |
+| `go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc` | v0.72.0 | Apache-2.0 | `LICENSE` | `1ae07514be1d7bb3` |
+| `go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp` | v0.72.0 | Apache-2.0 | `LICENSE` | `1ae07514be1d7bb3` |
+| `go.opentelemetry.io/otel` | v1.47.0 | Apache-2.0 | `LICENSE` | `1ae07514be1d7bb3` |
+| `go.opentelemetry.io/otel/log` | v1.47.0 | Apache-2.0 | `LICENSE` | `1ae07514be1d7bb3` |
+| `go.opentelemetry.io/otel/metric` | v1.47.0 | Apache-2.0 | `LICENSE` | `1ae07514be1d7bb3` |
+| `go.opentelemetry.io/otel/trace` | v1.47.0 | Apache-2.0 | `LICENSE` | `1ae07514be1d7bb3` |
+| `golang.org/x/crypto` | v0.58.0 | BSD-3-Clause | `LICENSE` | `911f8f5782931320` |
+| `golang.org/x/net` | v0.61.0 | BSD-3-Clause | `LICENSE` | `911f8f5782931320` |
+| `golang.org/x/oauth2` | v0.37.0 | BSD-3-Clause | `LICENSE` | `911f8f5782931320` |
+| `golang.org/x/sync` | v0.24.0 | BSD-3-Clause | `LICENSE` | `911f8f5782931320` |
+| `golang.org/x/sys` | v0.49.0 | BSD-3-Clause | `LICENSE` | `911f8f5782931320` |
+| `golang.org/x/text` | v0.43.0 | BSD-3-Clause | `LICENSE` | `911f8f5782931320` |
+| `golang.org/x/time` | v0.16.0 | BSD-3-Clause | `LICENSE` | `911f8f5782931320` |
+| `google.golang.org/api` | v0.310.0 | BSD-3-Clause | `LICENSE` | `110244b02140866e` |
+| `google.golang.org/genproto` | v0.0.0-20261012220534-4341edf3f941 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `google.golang.org/genproto/googleapis/api` | v0.0.0-20261012220534-4341edf3f941 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `google.golang.org/genproto/googleapis/rpc` | v0.0.0-20261019180522-ce908d29299b | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `google.golang.org/grpc` | v1.85.0 | Apache-2.0 | `LICENSE` | `cfc7749b96f63bd3` |
+| `google.golang.org/protobuf` | v1.36.12 | BSD-3-Clause | `LICENSE` | `4835612df0098ca9` |
+
+**What the texts show:** every linked module carries a permissive licence
+(Apache-2.0, BSD-3-Clause or MIT); none is copyleft. Only `grpc` ships a NOTICE
+file (`NOTICE.txt`).
+
+**Containment:**
+- **Standalone (`GOWORK=off`), which is how this inventory and §12 are taken:**
+  no other module's dependency set changes.
+- **Kept out of `go.work`, so the workspace is unchanged.** Workspace builds
+  share one version selection. Measured before this change, adding this module
+  to `go.work` would have raised shared modules in other binaries, among them
+  the **identity** image: `cloud.google.com/go/compute/metadata` v0.3.0 →
+  v0.10.0, `golang.org/x/oauth2` v0.36.0 → v0.37.0, and `golang.org/x/sys`
+  newly added; `google.golang.org/protobuf` in `contracts-go`; `x/sync` and
+  `x/text` in edge-api, telephony-gateway, pgshared and evalstore. That is a
+  silent dependency change to the authentication path, which ADR-0034's
+  containment rules out.
+- **So the module builds only standalone (`GOWORK=off`):**
+  - `.github/workflows/speech-google.yml` builds it, vets it, tests it with
+    `-race`, lints it, and runs `govulncheck` on it, with the same pinned actions
+    and tool versions as `pr-go`;
+  - `pr-go`'s gofumpt check already covers every file under `packages/go`.
+- **Its `go 1.26.0` directive** (all three Google modules require it) is within
+  CI's go1.26.11 and does not touch `go.work`.
+- **Adding it to `go.work` later** is a separate decision. It would change the
+  identity binary's dependencies, so it needs the owner's classification.
+
+**Open items:**
+- The same as §12: how notices reach artefacts, and no enforcement in CI.
