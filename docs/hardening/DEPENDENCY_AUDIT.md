@@ -478,3 +478,24 @@ images today (`container-images.yml`). They ship:
 - **The Python image** has no CI build or test. Its security PRs, when they come, need a manual `docker build` and a check before merging. A CI job for it is a follow-up for when a Python service is deployed.
 - **`renovate.json5`** still describes Renovate as the routine updater. It is inactive configuration: Renovate is not installed. It was left unchanged here: correcting or removing it is a separate change.
 - **F14** (whether Dependabot rebases its open PRs, re-running full CI) is a separate owner decision and is unchanged. With at most one open Docker PR, its CI load is small.
+
+---
+
+## 14. `github.com/coder/websocket` for the Deepgram adapter (ADR-0034, 2026-11-12)
+
+**Authority:** ADR-0034, approved by the owner 2026-11-12. One small WebSocket library for Deepgram (ADR-0005's secondary), contained to its adapter module.
+
+| Module | Version | Released | `go` directive | Shipped in | Licence file | Licence text | sha256 (prefix) |
+|---|---|---|---|---|---|---|---|
+| `github.com/coder/websocket` | v1.8.15 | 2026-06-15 | 1.23 | `packages/go/speechproviders/deepgram` only | `LICENSE.txt` | ISC | `cc0975a5f6305145` |
+
+- **Why this version:** the latest release on 2026-11-12, and more than two weeks old. Its `go` directive (1.23) is below the toolchain (go1.26.11).
+- **No transitive dependencies:** the library's `go.mod` has no `require` block, and its `go.sum` is empty. In the adapter module, `GOWORK=off go list -deps ./...` lists only:
+  - the standard library;
+  - the first-party `speech`, `media`, `runtime` and `metrics` modules;
+  - `github.com/coder/websocket` itself, with its `internal/bpool`, `internal/errd` and `internal/util` packages.
+
+  With `-test`, it adds `providerconformance` and `telephony`, both first-party.
+- **Contained:** no other `go.mod` or `go.sum` in the repository names it.
+- **No NOTICE file.** The ISC text requires that its copyright and permission notice be kept with copies. That is section 12's open item: how third-party notices reach artefacts. No artefact ships this module today, because nothing activates the adapter.
+- **Not activated:** using the adapter needs the speech spending category (OD-17), the DPDP review (E9), and ADR-0012's consent conditions for a cross-border recogniser.
