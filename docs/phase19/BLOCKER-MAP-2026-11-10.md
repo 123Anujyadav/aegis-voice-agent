@@ -8,6 +8,14 @@
 - **The owner's actions, consolidated and prioritised** (2026-11-10, at `1fed94f`): [`OWNER-ACTION-PACK-2026-11-10.md`](OWNER-ACTION-PACK-2026-11-10.md). OD-12 comes first; it lists every one of the 27 decisions with its review need, the exact R1–R3 steps, hardware, and an outreach message and checklists for the reviewer. Nothing has been sent.
 - **Revised direction (2026-11-11):** the owner stopped external reviewer hiring. Nothing was sent. OD-12 stays **open**, and the new decision **OD-12R** (how rule 8 is met without a firm) is prepared in [`OD-12-REVISED-DIRECTION-2026-11-11.md`](OD-12-REVISED-DIRECTION-2026-11-11.md). Until it is decided, authentication changes stay draft. Internal security assurance (AI-performed, labelled as such) starts now.
 - **2026-11-12: the owner decided OD-12R (B: governance amendment G2), approved gate A5 and accepted ADR-0034** (#309).
+  - **Later on 2026-11-12:**
+    - the Deepgram adapter merged (#311 `cfe744d`), with one dependency, `coder/websocket`;
+    - the Google STT v2 adapter merged (#312 `5618ee5`). It is **kept out of `go.work`**, because adding it would have raised identity's `x/oauth2` and `compute/metadata`, and it is built standalone by `speech-google.yml`.
+    - All four provider adapters (Claude, ElevenLabs, Deepgram, Google) are built and tested against local fakes. **None is activated.**
+    - **Remaining M1 blockers:**
+      - the owner's rule-8a decision on ADR-0033 and #301, plus the F-1 SMS-pumping control;
+      - R1 (SMS and DLT), R2 (staging provisioning) and R3 (Play);
+      - a physical phone for T3.
   - **#306** (the staging overlay) is merged, schema-validated and not applied.
   - **#301** gained startup selection and delivery metrics.
   - **M1 critical path:** your rule-8a decision on ADR-0033 and #301, and the SMS-pumping control F-1 ([`ADR-0033-M1-INTERNAL-ASSURANCE.md`](ADR-0033-M1-INTERNAL-ASSURANCE.md)); then R1, R2 and R3.
