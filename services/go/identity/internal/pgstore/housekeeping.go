@@ -141,12 +141,14 @@ type HousekeepingResult struct {
 	// DeletionReceipts are web-deletion receipts past the challenge's expiry,
 	// and DeletionBudgetHours old hours of the deletion-code budget.
 	DeletionReceipts, DeletionBudgetHours int64
+	// SignInBudgetHours are old hours of the sign-in delivery budget (0010).
+	SignInBudgetHours int64
 }
 
 // Total is the number of rows the iteration deleted.
 func (r HousekeepingResult) Total() int64 {
 	return r.Challenges + r.Requests + r.Failures + r.RateStates + r.Sessions + r.Proofs + r.ErasureReceipts +
-		r.DeletionReceipts + r.DeletionBudgetHours
+		r.DeletionReceipts + r.DeletionBudgetHours + r.SignInBudgetHours
 }
 
 // Housekeeper deletes expired identity state in bounded batches.
@@ -235,6 +237,14 @@ var housekeepingSteps = []struct {
 		SELECT hour_start FROM identity_deletion_code_budget WHERE hour_start < $1::timestamptz - interval '1 hour'
 		ORDER BY hour_start LIMIT $2 FOR UPDATE SKIP LOCKED)`, false,
 		func(r *HousekeepingResult, n int64) { r.DeletionBudgetHours = n },
+	},
+	{
+		// The same rule for the sign-in delivery budget: the current hour,
+		// whose count the cap still needs, is never deleted.
+		"sign-in budget hours", `DELETE FROM identity_signin_delivery_budget WHERE hour_start IN (
+		SELECT hour_start FROM identity_signin_delivery_budget WHERE hour_start < $1::timestamptz - interval '1 hour'
+		ORDER BY hour_start LIMIT $2 FOR UPDATE SKIP LOCKED)`, false,
+		func(r *HousekeepingResult, n int64) { r.SignInBudgetHours = n },
 	},
 }
 

@@ -496,7 +496,10 @@ func (h *handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, app.ErrTokenReused), errors.Is(err, app.ErrInvalidToken),
 		errors.Is(err, app.ErrSessionNotDeviceBound), errors.Is(err, app.ErrDeviceProofRequired):
 		h.problem(w, r, http.StatusUnauthorized, "ERR_INVALID_TOKEN")
-	case errors.Is(err, app.ErrDeletionCodesUnavailable):
+	case errors.Is(err, app.ErrDeletionCodesUnavailable), errors.Is(err, app.ErrOtpDeliveryUnavailable):
+		// The F-1 sign-in delivery controls (a number off the tester list,
+		// or the hourly cap spent) answer exactly as "no delivery
+		// configured" does in requestOtp, and say nothing about which.
 		h.problem(w, r, http.StatusServiceUnavailable, "ERR_OTP_DELIVERY_UNAVAILABLE")
 	case errors.Is(err, app.ErrOtpDeliveryFailed):
 		h.problem(w, r, http.StatusServiceUnavailable, "ERR_OTP_DELIVERY_FAILED")

@@ -108,6 +108,12 @@ var (
 	// ErrOtpDeliveryFailed is a code the configured OtpSender could not hand
 	// on. The challenge is removed: a code nobody received must not stay live.
 	ErrOtpDeliveryFailed = errors.New("identity: the one-time code could not be delivered")
+	// ErrOtpDeliveryUnavailable is a sign-in code that will not be delivered
+	// under the sign-in delivery controls (signin_controls.go): the number is
+	// not an approved tester's, this hour's delivery cap is spent, or the cap
+	// could not be checked. It is answered exactly as "no delivery
+	// configured" is, and says nothing about which of them applied.
+	ErrOtpDeliveryUnavailable = errors.New("identity: one-time codes cannot be delivered at present")
 
 	// ErrInvalidToken is an access or refresh token that does not verify or
 	// names no live session.
@@ -351,6 +357,14 @@ type IdentityRepository interface {
 	// ResetOtpFailures clears msisdn's failures and lockout after a successful
 	// verification.
 	ResetOtpFailures(ctx context.Context, msisdnPseudonym string) error
+	// ReserveSignInDelivery counts one sign-in code delivery in the hour
+	// starting at hourStart and reports whether it is within limit. It is ONE
+	// atomic step, and the count only increases while it is below limit: of
+	// any number of concurrent calls (on every replica sharing the store)
+	// exactly limit are true in an hour, and a refused call counts nothing. A
+	// limit below 1 is always false. An error is the store's own; the caller
+	// treats it as a refusal (signin_controls.go).
+	ReserveSignInDelivery(ctx context.Context, hourStart time.Time, limit int) (bool, error)
 	// SaveSession and ReplaceSession refuse, with ErrRefreshTokenNotHashed and
 	// before anything else, a session that fails CheckStorableSession: one
 	// carrying a raw RefreshToken, or a RefreshTokenHash that is not canonical.
@@ -425,6 +439,9 @@ type MemoryIdentityRepository struct {
 	// deletion-code requests per hour.
 	deletionReceipts map[string]deletionReceipt
 	deletionRequests map[time.Time]int
+	// signInDeliveries counts sign-in code deliveries per hour
+	// (ReserveSignInDelivery, signin_controls.go).
+	signInDeliveries map[time.Time]int
 }
 
 // otpRateState is one MSISDN's rate-limit state: the times of its OTP requests
@@ -572,6 +589,7 @@ func NewMemoryIdentityRepository() *MemoryIdentityRepository {
 		erasureReceipts:  make(map[string]erasureReceipt),
 		deletionReceipts: make(map[string]deletionReceipt),
 		deletionRequests: make(map[time.Time]int),
+		signInDeliveries: make(map[time.Time]int),
 	}
 }
 
@@ -1031,6 +1049,9 @@ type IdentityService struct {
 	// otpSender delivers one-time codes. Nil — the default, and the only value
 	// production code sets today — means no delivery exists; see SetOtpSender.
 	otpSender OtpSender
+	// signInControls are the F-1 sign-in delivery controls
+	// (signin_controls.go); nil, the default, means none are configured.
+	signInControls *signInDeliveryControls
 	// integrity is Play Integrity verification (integrity.go); nil means
 	// unavailable, and VerifyPlayIntegrity then fails closed.
 	integrity *integrityCheck
@@ -1261,6 +1282,18 @@ func (s *IdentityService) RequestOtp(ctx context.Context, msisdn string) (string
 		return "", ErrInvalidMSISDN
 	}
 
+	// THE TESTER ALLOWLIST (F-1), when configured, before any other work: a
+	// number that is not an approved tester's creates no challenge, spends no
+	// per-number allowance and no delivery budget, and is answered exactly as
+	// "no delivery available". It is compared as its pseudonym, never logged.
+	pseudonym, err := s.msisdnPseudonym(msisdn)
+	if err != nil {
+		return "", err
+	}
+	if c := s.signInControls; c != nil && !c.allows(pseudonym) {
+		return "", ErrOtpDeliveryUnavailable
+	}
+
 	// PER-NUMBER RATE LIMIT, before any OTP work. The per-challenge attempt
 	// limit alone was bypassable: each new challenge brought three fresh
 	// guesses. The key is the canonical MSISDN validated just above, so one
@@ -1269,10 +1302,6 @@ func (s *IdentityService) RequestOtp(ctx context.Context, msisdn string) (string
 	//
 	// THE NUMBER ITSELF GOES NO FURTHER THAN THIS FUNCTION. Everything stored
 	// is keyed by its pseudonym, and the subscriber id is derived here, once.
-	pseudonym, err := s.msisdnPseudonym(msisdn)
-	if err != nil {
-		return "", err
-	}
 	if err := s.repo.ReserveOtpRequest(ctx, pseudonym, s.now(), s.ratePolicy); err != nil {
 		return "", err
 	}
@@ -1323,6 +1352,14 @@ func (s *IdentityService) RequestOtp(ctx context.Context, msisdn string) (string
 	// failing provider cannot be used to request without limit. The sender's
 	// error is not returned: its text is the provider's and may echo the number.
 	if s.otpSender != nil {
+		// THE GLOBAL HOURLY CAP (F-1), when configured: reserved last, after
+		// the cheap per-number checks, immediately before the code is handed
+		// on. A spent hour, or a store that cannot answer, sends nothing, and
+		// the challenge is withdrawn exactly as for a failed delivery.
+		if err := s.reserveSignInDelivery(ctx); err != nil {
+			s.withdrawUndeliveredOtp(ctx, reqID)
+			return "", err
+		}
 		if err := s.otpSender.SendOtp(ctx, msisdn, code); err != nil {
 			s.withdrawUndeliveredOtp(ctx, reqID)
 			return "", ErrOtpDeliveryFailed
