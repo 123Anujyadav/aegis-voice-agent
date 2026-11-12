@@ -1,10 +1,11 @@
 # Staging overlay: identity and edge-api
 
-**Status: DRAFT for gate A5 approval (ADR-0027). Not applied. Nothing is
-deployed.** No cluster, registry, secret store or DNS name exists for it yet.
-These files are a proposal for the owner's review. They are not a record that
-staging is authorized: staging authorization (`docs/phase19/INTERNAL-TESTING-SETUP.md`
-B1) and gate A5 are both still open.
+**Status: gate A5 APPROVED by the owner on 2026-11-12** (ADR-0027, dated note):
+write these manifests and validate them locally. **Not applied. Nothing is
+deployed.** No cluster, registry, secret store or DNS name exists for them yet.
+A5's approval **does not** authorise cloud provisioning or a staging deployment.
+Those are staging authorisation (`docs/phase19/INTERNAL-TESTING-SETUP.md` B1,
+R2), which is still open.
 
 - **Path.** ADR-0027 (Accepted) sets one manifest tree, `infra/k8s`, with the
   staging overlay at `infra/k8s/overlays/staging/`.
@@ -209,16 +210,27 @@ There is no shell, so `readOnlyRootFilesystem: true` costs nothing.
   ConfigMap). Not in scope.
 - Any change to `infra/k8s/base/`.
 
-## How this draft was checked (locally, offline)
+## How these manifests were checked (locally; no cluster contacted)
 
 - `kubectl kustomize infra/k8s/overlays/staging` and `… /migrate` render with
-  kustomize v5.8.1 (client only; no cluster contacted).
-- kubeconform ran on the rendered output against an empty local schema
-  directory, with `-ignore-missing-schemas -strict`. It checked YAML parsing
-  and `apiVersion`/`kind` detection only. **No schema validation ran**: no
-  Kubernetes or ESO schemas are available offline, and none was downloaded.
-  ADR-0027's kubeconform policy, with pinned schemas and CRD handling, is still
-  an open decision.
+  kustomize v5.8.1 (client only).
+- **Schema validation, 2026-11-12:** kubeconform, `-strict`, against the
+  Kubernetes 1.33.0 schemas and the External Secrets CRD schemas
+  (datreeio/CRDs-catalog; public JSON, fetched read-only):
+  `Summary: 19 resources found in 2 files - Valid: 19, Invalid: 0, Errors: 0, Skipped: 0`.
+  The command:
+
+  ```sh
+  kubectl kustomize infra/k8s/overlays/staging > staging.yaml
+  kubectl kustomize infra/k8s/overlays/staging/migrate > migrate.yaml
+  kubeconform -strict -summary -kubernetes-version 1.33.0 \
+    -schema-location default \
+    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+    staging.yaml migrate.yaml
+  ```
+- **No CI job validates them yet:** ADR-0027's kubeconform policy (pinned
+  schemas, CRD handling) is still an open decision. An earlier offline pass,
+  before A5, checked parsing only.
 - A local script parsed every file and checked the rendered pods: the
   restricted security fields, digests, probes, ports, read-only mounts, every
   `*_FILE` pointing at a projected key, and every env name present in the Go
