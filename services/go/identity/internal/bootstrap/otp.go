@@ -139,20 +139,20 @@ func resolveMockOrNone(provider, outbox string, lookup func(string) (string, boo
 }
 
 // otpSender builds the sender for d: nil, and no outbox, for no delivery.
-func (d OtpDelivery) otpSender(observe func(string, otpdelivery.Outcome)) (*otpdelivery.Sender, *otpdelivery.Outbox, error) {
+func (d OtpDelivery) otpSender(obs *deliveryObserver) (*otpdelivery.Sender, *otpdelivery.Outbox, error) {
 	if d.real != nil {
 		if d.controls == nil {
 			return nil, nil, fmt.Errorf("%w: a real OTP provider requires %s and %s", ErrInvalidConfig,
 				OtpAllowedNumbersFileVariable, OtpSignInHourlyCapVariable)
 		}
-		sender, err := d.realSender(observe)
+		sender, err := d.realSender(obs)
 		return sender, nil, err
 	}
 	if d.Provider != OtpProviderMock {
 		return nil, nil, nil
 	}
 	outbox := otpdelivery.NewOutbox(d.MockOutboxFile)
-	sender, err := otpdelivery.NewMockSender(outbox, observe)
+	sender, err := otpdelivery.NewMockSender(outbox, obs.outcomes())
 	if err != nil {
 		return nil, nil, err
 	}

@@ -1046,8 +1046,9 @@ type IdentityService struct {
 	deletionBudget   int
 	deletionDispatch func(func())
 
-	// otpSender delivers one-time codes. Nil — the default, and the only value
-	// production code sets today — means no delivery exists; see SetOtpSender.
+	// otpSender delivers one-time codes. Nil, the default, means no delivery
+	// exists; see SetOtpSender. Bootstrap installs one only for the
+	// development mock or a selected delivery-only provider (ADR-0033).
 	otpSender OtpSender
 	// signInControls are the F-1 sign-in delivery controls
 	// (signin_controls.go); nil, the default, means none are configured.
@@ -1146,8 +1147,9 @@ func (s *IdentityService) SetAccessTokenSigner(signer *accesstoken.Signer) { s.a
 func (s *IdentityService) SetRefreshProofVerifier(v *dpop.Verifier) { s.refreshProof = v }
 
 // OtpSender delivers a one-time code to a phone number: the one place the code
-// and the raw number leave the service. No implementation exists in this
-// repository (there is no SMS provider); tests supply fakes.
+// and the raw number leave the service. The package internal/otpdelivery
+// implements it: the development mock and the delivery-only MSG91 and Twilio
+// adapters (ADR-0033), none activated outside development.
 type OtpSender interface {
 	SendOtp(ctx context.Context, msisdn, code string) error
 }
@@ -1323,12 +1325,12 @@ func (s *IdentityService) RequestOtp(ctx context.Context, msisdn string) (string
 	//
 	// Only the HASH is stored, and the code is never logged, never returned from
 	// this function and never placed in the HTTP response. That is deliberate and
-	// it has a consequence, recorded rather than worked around: NOTHING DELIVERS
-	// THIS CODE. ADR-0010 (a) specifies SMS OTP at enrolment; no SMS path exists
-	// (see packages/go/integrations, whose provider clients place no calls), so
-	// in production today no caller can learn the code and the flow cannot be
-	// completed. Returning the code to make the flow "work" would publish the
-	// credential to every unauthenticated caller of this endpoint.
+	// it has a consequence, recorded rather than worked around: only the
+	// configured OtpSender delivers this code (ADR-0010 (a); ADR-0033: the
+	// provider only delivers). Without one, no caller can learn the code and
+	// the flow cannot be completed. Returning the code to make the flow "work"
+	// would publish the credential to every unauthenticated caller of this
+	// endpoint.
 	code := s.newCode()
 	hash := s.hashString(code)
 

@@ -14,11 +14,26 @@ import (
 // as its variable). MSG91's own OTP API, which generates and verifies codes, is
 // deliberately NOT used: under ADR-0033 the provider only delivers.
 //
-// The wire format below follows MSG91's published Flow API (POST
-// /api/v5/flow, "authkey" header, recipients with the template's variables).
-// It has not been exercised against MSG91: that needs an account and a
-// registered template (R1), and is checked by the onboarding runbook's cases
-// S1–S6 before activation. ADR-0033 Q9 records the open facts.
+// The wire format follows MSG91's published "Send SMS" API, re-verified
+// against https://docs.msg91.com/sms/send-sms on 2026-11-13 (record:
+// docs/phase19/MSG91-INTEGRATION.md §3): POST
+// https://control.msg91.com/api/v5/flow with the "authkey", "content-type"
+// and "accept" headers; a JSON body of template_id, short_url,
+// realTimeResponse and recipients, each recipient being "mobiles" in
+// international format without "+" plus the template's variables, whose names
+// are case-sensitive; and the answer {"type":"success","message":"<request
+// id>"}. The request id is what MSG91's SMS Logs API and delivery reports are
+// keyed by.
+//
+// It has NOT been exercised against MSG91: that needs an account, a
+// DLT-registered template and the owner's approval of one test transaction
+// (R1). A "success" answer means MSG91 accepted the request, not that the
+// handset received the message; delivery is read from MSG91's logs by the
+// request id.
+//
+// One request per call, never retried here (Provider's contract): a request
+// that timed out may still have been accepted, and repeating it could deliver
+// the code twice.
 
 // MSG91APIHost is MSG91's API host.
 const MSG91APIHost = "control.msg91.com"
@@ -38,6 +53,12 @@ type MSG91Config struct {
 	// "otp"). The flow's text is registered with MSG91 and DLT, so the adapter
 	// sends only the code, never text.
 	CodeVariable string
+	// Accepted, if set, receives MSG91's request id for each accepted message,
+	// so the message can be traced in MSG91's logs. The id carries neither the
+	// number nor the code; an answer without a well-formed id is still
+	// accepted, but reports nothing. It must be safe for concurrent use and
+	// must not block.
+	Accepted func(requestID string)
 	// BaseURL overrides the API address; tests only (loopback over TLS).
 	BaseURL string
 	// HTTPClient overrides the client; tests only.
@@ -49,6 +70,7 @@ var msg91IDPattern = regexp.MustCompile(`^[A-Za-z0-9]{1,64}$`)
 type msg91 struct {
 	name, key, base, signInFlow, variable string
 	client                                *http.Client
+	accepted                              func(requestID string)
 }
 
 type msg91WithDeletion struct {
@@ -79,7 +101,7 @@ func NewMSG91(cfg MSG91Config) (Provider, error) {
 	}
 	m := &msg91{
 		name: cfg.Name, key: key, base: base, signInFlow: cfg.SignInFlowID,
-		variable: cfg.CodeVariable, client: guardedClient(cfg.HTTPClient),
+		variable: cfg.CodeVariable, client: guardedClient(cfg.HTTPClient), accepted: cfg.Accepted,
 	}
 	if cfg.DeletionFlowID != "" {
 		return &msg91WithDeletion{msg91: m, deletionFlow: cfg.DeletionFlowID}, nil
@@ -111,7 +133,10 @@ func (m *msg91) send(ctx context.Context, flow, msisdn, code string) error {
 	body, err := json.Marshal(map[string]any{
 		"template_id": flow,
 		"short_url":   "0",
-		"recipients":  []map[string]string{{"mobiles": "91" + national, m.variable: code}},
+		// MSG91: "provides a real-time response ... addressing most API error
+		// codes", so a refusal is answered now rather than only by email.
+		"realTimeResponse": "1",
+		"recipients":       []map[string]string{{"mobiles": "91" + national, m.variable: code}},
 	})
 	if err != nil {
 		return ErrRejected
@@ -136,11 +161,17 @@ func (m *msg91) send(ctx context.Context, flow, msisdn, code string) error {
 	}
 	// MSG91 can answer 200 with {"type":"error"}: only "success" is delivery.
 	var answer struct {
-		Type string `json:"type"`
+		Type    string `json:"type"`
+		Message string `json:"message"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<10)).Decode(&answer); err != nil ||
 		answer.Type != "success" {
 		return ErrRejected
+	}
+	// On success "message" is the request id. It is passed on only when it
+	// has the shape of one: anything else might be provider text.
+	if m.accepted != nil && msg91IDPattern.MatchString(answer.Message) {
+		m.accepted(answer.Message)
 	}
 	return nil
 }

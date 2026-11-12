@@ -3,14 +3,18 @@
 // each attempt bounded in time (ADR-0010 §9: "a fallback provider is
 // required"; §15: "Secondary OTP provider; delivery rate monitored").
 //
-// WHAT THIS IS, AND WHAT IT IS NOT. No SMS provider is implemented in this
-// repository. A real Provider needs a commercial account, credentials
-// provisioned as Secrets, egress to the provider, and in India registered
-// sender ids and message templates (TRAI DLT). None of those exist, so nothing
-// here delivers a message, and identity is not configured with it: without an
-// OtpSender, identity refuses OTP requests with ERR_OTP_DELIVERY_UNAVAILABLE,
-// truthfully. This package is the boundary a provider adapter plugs into, and
-// its failover semantics, tested with fakes.
+// WHAT THIS IS, AND WHAT IT IS NOT. This package holds the delivery-only
+// MSG91 (the selected primary) and Twilio adapters (msg91.go, twilio.go) and
+// the development mock. A real Provider also needs a commercial account,
+// credentials provisioned as Secrets, egress to the provider, and in India
+// registered sender ids and message templates (TRAI DLT). None of those
+// exist, so nothing here has delivered a message: without an OtpSender,
+// identity refuses OTP requests with ERR_OTP_DELIVERY_UNAVAILABLE, truthfully.
+// The adapters are tested against local stand-ins only.
+//
+// With one provider (MSG91 alone, the M1 selection) a code is handed over in
+// at most one request: nothing here retries. With two, a timed-out attempt is
+// followed by the next provider (below).
 //
 // # Semantics
 //

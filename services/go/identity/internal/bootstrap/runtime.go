@@ -281,6 +281,17 @@ func (r *Runtime) ObserveOtpDeliveries(hook func(provider string, outcome otpdel
 	}
 }
 
+// ObserveOtpAcceptances installs the hook that receives a provider's request
+// id for each sign-in message it accepted (MSG91 only), so a message can be
+// traced in the provider's delivery logs. It carries neither the number nor
+// the code. Accepted means the provider took the request, not that the
+// handset received it.
+func (r *Runtime) ObserveOtpAcceptances(hook func(provider, requestID string)) {
+	if r.otpObserver != nil {
+		r.otpObserver.setAccepted(hook)
+	}
+}
+
 // OtpProvider names the OTP delivery in use: OtpProviderMock or
 // OtpProviderNone.
 func (r *Runtime) OtpProvider() string {
@@ -370,7 +381,7 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 	// (otp_controls.go: installOtpDelivery refuses a real provider without
 	// them, whatever produced cfg).
 	observer := &deliveryObserver{}
-	outbox, err := installOtpDelivery(svc, cfg.otp, observer.observe)
+	outbox, err := installOtpDelivery(svc, cfg.otp, observer)
 	if err != nil {
 		pool.Close()
 		return nil, err

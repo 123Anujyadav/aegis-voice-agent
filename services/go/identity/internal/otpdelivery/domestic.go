@@ -21,10 +21,11 @@ package otpdelivery
 //   - Errors are fixed values: never the provider's text, which may echo the
 //     number or the code. Nothing is logged. No retry: Sender owns failover.
 //
-// NOT ACTIVATED. Nothing configures these adapters (bootstrap selects only the
-// development mock), no credential exists, and no DLT entity, header or
-// template is registered (R1). They are an authentication change, held until
-// OD-12R is decided (OD-12-REVISED-DIRECTION-2026-11-11.md).
+// NOT ACTIVATED. Bootstrap builds them only when CS_IDENTITY_OTP_PROVIDER
+// names them, and then only with the F-1 controls (internal/bootstrap); no
+// credential exists, and no DLT entity, header or template is registered
+// (R1). ADR-0033 is accepted for M1 only (2026-11-12, rule 8a); MSG91 is the
+// owner's selected primary provider (2026-11-13).
 
 import (
 	"errors"
