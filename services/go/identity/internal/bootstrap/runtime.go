@@ -267,7 +267,18 @@ type Runtime struct {
 	housekeeper *pgstore.Housekeeper
 	otpProvider string
 	otpOutbox   *otpdelivery.Outbox
+	otpObserver *deliveryObserver
 	once        sync.Once
+}
+
+// ObserveOtpDeliveries installs the hook that receives every sign-in code
+// delivery attempt's provider and outcome (otpdelivery.Config.Observe): the
+// delivery metrics (httpapi.Metrics.ObserveOtpDelivery). It carries nothing
+// from the message.
+func (r *Runtime) ObserveOtpDeliveries(hook func(provider string, outcome otpdelivery.Outcome)) {
+	if r.otpObserver != nil {
+		r.otpObserver.set(hook)
+	}
 }
 
 // OtpProvider names the OTP delivery in use: OtpProviderMock or
@@ -352,9 +363,11 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 		pool.Close()
 		return nil, err
 	}
-	// OTP delivery (otp.go): the development-only mock, or none. Codes are
-	// minted, hashed and checked by the service either way.
-	sender, outbox, err := cfg.otp.otpSender(nil)
+	// OTP delivery (otp.go, otp_providers.go): the development-only mock, real
+	// delivery-only providers, or none. Codes are minted, hashed and checked by
+	// the service either way.
+	observer := &deliveryObserver{}
+	sender, outbox, err := cfg.otp.otpSender(observer.observe)
 	if err != nil {
 		pool.Close()
 		return nil, err
@@ -376,5 +389,8 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 		pool.Close()
 		return nil, err
 	}
-	return &Runtime{Service: svc, pool: pool, housekeeper: hk, otpProvider: cfg.otp.Provider, otpOutbox: outbox}, nil
+	return &Runtime{
+		Service: svc, pool: pool, housekeeper: hk,
+		otpProvider: cfg.otp.Provider, otpOutbox: outbox, otpObserver: observer,
+	}, nil
 }

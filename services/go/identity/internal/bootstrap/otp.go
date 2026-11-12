@@ -28,8 +28,10 @@ import (
 // mock in any other environment, an unknown value, or an outbox file without
 // the mock, stops startup.
 //
-// No SMS provider is configured here: a real provider needs the owner's
-// approval of the SMS and DLT category (docs/phase19/M1-APPROVAL-REQUESTS.md).
+// Real delivery-only providers (msg91, twilio) are selected the same way:
+// otp_providers.go. Using one needs the owner's approval of the SMS and DLT
+// category (docs/phase19/M1-APPROVAL-REQUESTS.md, R1); nothing here supplies
+// credentials.
 // The variables are read only when identity is activated; they never activate
 // it.
 
@@ -49,10 +51,21 @@ const (
 // OtpDelivery is the resolved OTP delivery configuration. The zero value is
 // no delivery.
 type OtpDelivery struct {
-	// Provider is OtpProviderMock, or "" for no delivery.
+	// Provider is OtpProviderMock, the real provider list as configured (for
+	// example "msg91,twilio"), or "" for no delivery.
 	Provider string
 	// MockOutboxFile is the mock's outbox file, or "".
 	MockOutboxFile string
+	// real holds the selected real providers, in failover order, and their
+	// variables; nil for the mock or no delivery. A pointer keeps OtpDelivery
+	// comparable.
+	real *realProviders
+}
+
+// realProviders is the resolved real-provider selection.
+type realProviders struct {
+	names    []string
+	settings map[string]string
 }
 
 // ResolveOtpDelivery applies the rules above to the process environment.
@@ -95,9 +108,10 @@ func resolveOtpDelivery(lookup func(string) (string, bool)) (OtpDelivery, error)
 		}
 	case OtpProviderNone:
 	default:
-		// The value is an operator's word, never a secret, but it is not
-		// echoed: an unknown value may be a misplaced credential.
-		return OtpDelivery{}, fmt.Errorf("%w: %s must be %s or %s", ErrInvalidConfig, OtpProviderVariable, OtpProviderMock, OtpProviderNone)
+		return resolveRealSelection(provider, outboxSet, lookup)
+	}
+	if _, err := resolveRealProviders(nil, lookup); err != nil {
+		return OtpDelivery{}, err // a real provider's variable without that provider selected
 	}
 	if outboxSet && provider != OtpProviderMock {
 		return OtpDelivery{}, fmt.Errorf("%w: %s is set, but the OTP provider is not the mock", ErrInvalidConfig, OtpMockOutboxFileVariable)
@@ -110,6 +124,10 @@ func resolveOtpDelivery(lookup func(string) (string, bool)) (OtpDelivery, error)
 
 // otpSender builds the sender for d: nil, and no outbox, for no delivery.
 func (d OtpDelivery) otpSender(observe func(string, otpdelivery.Outcome)) (*otpdelivery.Sender, *otpdelivery.Outbox, error) {
+	if d.real != nil {
+		sender, err := d.realSender(observe)
+		return sender, nil, err
+	}
 	if d.Provider != OtpProviderMock {
 		return nil, nil, nil
 	}

@@ -55,6 +55,38 @@ These are the existing **initial** values, "not production-tuned" in the code's 
 - These variables are read only when identity is activated, and never activate it. Startup logs the provider name (`otp_provider`), and warns when it is the mock.
 - **Production builds:** the server is one binary for every tier, so the mock is excluded at startup by environment, not at build time. The Android app has no provider code and never sees a code or credential.
 
+### Real delivery-only providers (`internal/bootstrap/otp_providers.go`; held until the owner accepts ADR-0033 for M1)
+
+`CS_IDENTITY_OTP_PROVIDER` may name real providers, comma-separated and without spaces, in the order they are tried: `msg91`, `twilio`, `msg91,twilio` or `twilio,msg91`.
+
+| Provider | Variables (all required when selected) |
+|---|---|
+| `msg91` | `CS_IDENTITY_OTP_MSG91_AUTH_KEY_FILE` (a mounted Secret file); `CS_IDENTITY_OTP_MSG91_SIGNIN_FLOW_ID` (the registered flow); `CS_IDENTITY_OTP_MSG91_CODE_VARIABLE` (the flow's variable that receives the code) |
+| `twilio` | `CS_IDENTITY_OTP_TWILIO_ACCOUNT_SID_FILE`, `CS_IDENTITY_OTP_TWILIO_API_KEY_SID_FILE`, `CS_IDENTITY_OTP_TWILIO_API_KEY_SECRET_FILE` (mounted Secret files); `CS_IDENTITY_OTP_TWILIO_MESSAGING_SERVICE_SID`; `CS_IDENTITY_OTP_TWILIO_SIGNIN_TEMPLATE` (the DLT-registered text, with `{code}` once) |
+
+**What startup refuses:**
+- any selected provider with a missing or blank variable;
+- **any provider variable set for a provider that is not selected** (no half-configured provider);
+- the same provider twice, or more than two;
+- the mock combined with a real provider;
+- a mock outbox file with a real provider.
+
+**Startup reads the credential files,** so a missing, relative or malformed one stops startup without echoing its content.
+
+**What the adapters enforce:**
+- **India only:** `+91` mobile numbers, refused before anything is sent. There is no international route.
+- **Delivery only:** identity's code, in the registered template.
+- **Transport:** TLS to the provider's API host only, with no redirects.
+- **Errors** are fixed values, never provider text.
+
+**Each attempt is bounded at 2 s,** and identity fails over to the next provider in order.
+
+**Delivery is counted** in `identity_otp_deliveries_total{provider,outcome}` once the HTTP API is registered. This applies to the mock too.
+
+**Account-deletion codes are not wired:** enabling them is decision O13.
+
+**None of this activates anything.** It needs R1 (an account, DLT entity, header and templates, the India domestic route, billing) and the owner's ADR-0033 decision under rule 8a.
+
 ## 3. Local development with the mock
 
 1. Run identity as usual for development (the activation variables, and `service migrate` on a local PostgreSQL), plus:
