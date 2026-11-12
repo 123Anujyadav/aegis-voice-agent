@@ -1,0 +1,32 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# identity, edge-api and the identity migrate Job may open TCP 5432 to the
+# PostgreSQL database (INTERNAL-TESTING-SETUP B2), and nowhere else through
+# this policy.
+#
+# The database is outside the cluster (Aurora PostgreSQL per ADR-0008/0009), so
+# the peer is an ipBlock: the CIDR of the database subnets, filled by SRE. If
+# the staging database were in-cluster instead, SRE replaces the ipBlock with a
+# namespaceSelector and podSelector for it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-database-egress
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - identity
+          - identity-migrate
+          - edge-api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: <DATABASE_SUBNET_CIDR>
+      ports:
+        - protocol: TCP
+          port: 5432

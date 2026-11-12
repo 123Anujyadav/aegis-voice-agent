@@ -7,6 +7,24 @@
   - **Update, the same day:** the owner directed the remediation. `voice` was found not to be frozen (that document, §6). All six findings, and a seventh found during the fix, are fixed; the Ollama adapter is loopback only (`OLLAMA-ENDPOINT-POLICY.md`). **The owner ratified that policy exactly as proposed (2026-11-10)**; tests pin it. Remote inference stays a separate high-risk decision behind OD-12, and the count of open decisions stays 27. Whisper runs from an isolated virtual environment; the global Python is unchanged.
 - **The owner's actions, consolidated and prioritised** (2026-11-10, at `1fed94f`): [`OWNER-ACTION-PACK-2026-11-10.md`](OWNER-ACTION-PACK-2026-11-10.md). OD-12 comes first; it lists every one of the 27 decisions with its review need, the exact R1–R3 steps, hardware, and an outreach message and checklists for the reviewer. Nothing has been sent.
 - **Revised direction (2026-11-11):** the owner stopped external reviewer hiring. Nothing was sent. OD-12 stays **open**, and the new decision **OD-12R** (how rule 8 is met without a firm) is prepared in [`OD-12-REVISED-DIRECTION-2026-11-11.md`](OD-12-REVISED-DIRECTION-2026-11-11.md). Until it is decided, authentication changes stay draft. Internal security assurance (AI-performed, labelled as such) starts now.
+- **Revised-direction execution (2026-11-11, at `main` `fafd2e7`):**
+  - **Merged:**
+    - #299 `290cdd9`: the OD-12 record and OD-12R;
+    - #300 `5daaf76`: the Claude adapter (ADR-0006), not activated;
+    - #302 `c5d59ae`: internal security assurance tests and register (AI-performed; 23 of 24 threats covered, gaps G1–G5);
+    - #303 `474372e`: the Play release drafts;
+    - #304 `86b608e`: **Go 1.26.11 for GO-2026-6859** (`net/http`), which had failed `govulncheck` in every HTTP module;
+    - #305 `b3c1728`: ADR-0034, Proposed (the streaming speech-to-text transport);
+    - #307 `fafd2e7`: the ElevenLabs adapter (ADR-0007), not activated.
+  - **Held drafts:**
+    - **#301:** delivery-only SMS adapters (MSG91, Twilio; India `+91` only). An authentication change, held until **OD-12R** is decided;
+    - **#306:** the identity and edge-api staging overlay, held for **gate A5** (ADR-0027). Nothing is applied.
+  - **New owner decisions:**
+    - OD-12R;
+    - gate A5 on #306;
+    - ADR-0034 (gRPC and a WebSocket library for streaming speech-to-text).
+    - The decision count is unchanged: OD-12R refines OD-12, and A5 and ADR-0034 are gates or records, not register rows.
+  - **Eligible engineering after this round:** none that is not behind one of those decisions or an external approval. Speech-to-text adapters wait for ADR-0034; activating any adapter waits for its spending category, and for DPDP review (E9) where caller data leaves India.
 - *(Superseded)* **OD-12 reviewer discovery done** (2026-11-11, at the owner's direction): [`OD-12-REVIEWER-SHORTLIST.md`](OD-12-REVIEWER-SHORTLIST.md) recommends **Cure53** for Batch A, with Trail of Bits and Payatu as alternates, all on verified public evidence. A Batch A budget ceiling and a verified fixed-commit archive tool (`tools/scripts/review-archive.sh`) are in it. **Waiting for the owner's approval** of the first contact, the ceiling and archive-only sharing (§7). OD-12 stays open.
 - **Milestones:** **M0 only.** M1 is not met (OD-10 exit evidence: a release run, the `.aab` on the internal track, and a tester signing in on a physical phone against staging).
 - **What this is:** every remaining Phase 19 task, against the one thing it waits for.

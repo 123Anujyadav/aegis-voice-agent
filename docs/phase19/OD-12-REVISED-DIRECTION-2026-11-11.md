@@ -46,6 +46,13 @@
 
 **If the owner chooses B,** the amendment text is ready to draft as a PR for the owner to merge. Claude Code cannot adopt it: rule 6 reserves changes to the rules to the owner.
 
+### 3a. Decided: option B (owner, 2026-11-12)
+
+- **Decision:** the owner's explicit written approval in the Claude Code session of 2026-11-12 ("OWNER DECISIONS CONFIRMED"): "OD-12R: Option B. Internal security assurance can support M1 engineering and validation. Independent human security review remains mandatory before M2 production. Internal AI-assisted testing must never be represented as independent assurance."
+- **Recorded as:** governance amendment G2 (`ARCHITECTURE_FREEZE.md` §6.2, rules 8a and 8b).
+- **OD-12 stays open:** an independent human reviewer is required before M2.
+- **What changes in practice:** a high-risk authentication decision needed for M1 can be accepted **by the owner** on internal assurance evidence, recorded as "accepted for M1 on internal assurance; independent human review outstanding". Each acceptance is still the owner's decision. Claude Code prepares the evidence and asks.
+
 ## 4. The internal security assurance programme (what Claude Code does now)
 
 Every artefact is labelled **"AI-performed internal assurance; not an independent security review."** The programme has five strands:

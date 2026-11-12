@@ -1,0 +1,16 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# Keeps one of identity's two replicas through voluntary disruptions such as a
+# node drain.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: identity
+  labels:
+    app.kubernetes.io/name: identity
+    app.kubernetes.io/component: identity
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: identity

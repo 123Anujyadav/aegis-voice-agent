@@ -29,6 +29,11 @@
 | **7** | **Arrange the device sessions and hardware** (§8) | T2 and T3 need phones and SIMs | Hardware, if bought | §8 |
 | **8** | **Work through the other decisions** (§6), in the order the review and the privacy review (E9) allow | They gate M2, M3 and individual features, not M1 | Some need privacy and legal review (E9, L1–L6) | §6 |
 
+**Added 2026-11-11 (revised direction):**
+- **Review draft #306 for gate A5:** the identity and edge-api staging overlay. Approving A5 lets it merge; applying it still needs R2.
+- **Decide ADR-0034** (streaming speech-to-text transport). It unblocks the Google and Deepgram adapters as code, not their activation (OD-17).
+- **When OD-12R is decided,** draft #301 (the delivery-only SMS adapters) follows that route. It is not activated without R1.
+
 **The critical path to M1:** actions 1–5 in parallel. Then:
 1. the reviewer's report;
 2. the owner decides ADR-0033;
