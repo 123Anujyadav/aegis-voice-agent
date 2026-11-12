@@ -38,6 +38,18 @@
 - **Decide ADR-0033 and #301 for M1 under rule 8a:** [`ADR-0033-M1-INTERNAL-ASSURANCE.md`](ADR-0033-M1-INTERNAL-ASSURANCE.md) §3. Also choose the **SMS-pumping control (F-1)** before any real SMS: an M1 tester allowlist, a global send budget, or both.
 - Gate A5 is done: the staging overlay is merged (#306), but not applied. ADR-0034 is accepted; the Google and Deepgram adapters are being built.
 
+**Done 2026-11-12 (round 2):**
+- ADR-0033 is accepted for M1 under rule 8a, and both F-1 controls are approved (#314).
+- #301 merged (`0a8e88d`), with the tester allowlist and the global hourly cap. Startup refuses a real provider without both.
+- **Your next M1 actions:**
+  - R1: provider, DLT, then a separate activation approval;
+  - R2: staging;
+  - R3: Play;
+  - a physical phone.
+- **At activation, you supply:**
+  - the testers' numbers, in the allowlist file;
+  - the hourly cap value.
+
 **The critical path to M1:** actions 1–5 in parallel. Then:
 1. the reviewer's report;
 2. the owner decides ADR-0033;

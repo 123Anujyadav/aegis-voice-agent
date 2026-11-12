@@ -18,7 +18,30 @@
       - a physical phone for T3.
   - **#306** (the staging overlay) is merged, schema-validated and not applied.
   - **#301** gained startup selection and delivery metrics.
-  - **M1 critical path:** your rule-8a decision on ADR-0033 and #301, and the SMS-pumping control F-1 ([`ADR-0033-M1-INTERNAL-ASSURANCE.md`](ADR-0033-M1-INTERNAL-ASSURANCE.md)); then R1, R2 and R3.
+  - *(Done in round 2, above)* **M1 critical path:** your rule-8a decision on ADR-0033 and #301, and the SMS-pumping control F-1 ([`ADR-0033-M1-INTERNAL-ASSURANCE.md`](ADR-0033-M1-INTERNAL-ASSURANCE.md)); then R1, R2 and R3.
+- **2026-11-12, round 2: the owner accepted ADR-0033 for M1 under rule 8a and approved both F-1 controls** (#314). **#301 merged (`0a8e88d`):**
+  - the delivery-only SMS adapters and startup selection;
+  - the F-1 controls. **Delivery is denied** to numbers outside the tester allowlist, and to every number once the **global hourly cap** is reached. A real provider cannot start without both (fail closed).
+  - **Test evidence (mocks and local fakes only; no real SMS sent or validated):**
+    - the allowlist refuses before anything is spent, and never logs a number;
+    - the cap stops at exactly N and resets each hour;
+    - 50 concurrent requests at cap 10 deliver exactly 10 (20 rounds);
+    - 60 concurrent reservations on real PostgreSQL at limit 13 store 13;
+    - two runtimes sharing one database deliver exactly the cap;
+    - store errors fail closed;
+    - every configuration error refuses startup;
+    - every refusal is the same `503`;
+    - the single install point and single send site are pinned by tests;
+    - six deliberate mutations (allowlist, lock, store errors, the both-required rule, the install guards, the SQL guard) are each caught;
+    - CI ran the full Go matrix with `-race` and the real-PostgreSQL `identity-postgres` suite.
+    - **Incident, disclosed:** during one local mutation run, a test probably made one HTTPS request to `control.msg91.com` with a fake key. No credentials exist, so nothing could be sent. The bootstrap tests now route all outbound HTTPS to a dead loopback proxy (`816b821`), pinned by a test.
+  - **Nothing is activated:** no MSG91 or Twilio account, DLT, SMS charge or staging deployment.
+  - **Remaining M1 blockers:**
+    - R1: SMS provider, DLT and live activation, each separately authorised;
+    - R2: staging provisioning;
+    - R3: Play;
+    - a physical phone for T3.
+  - **Before M2:** the independent human review (rule 8b, OD-12).
 - **Revised-direction execution (2026-11-11, at `main` `fafd2e7`):**
   - **Merged:**
     - #299 `290cdd9`: the OD-12 record and OD-12R;
@@ -80,7 +103,7 @@
 
 | Approval | Unblocks |
 |---|---|
-| **R1: SMS and DLT** (E2: provider, DLT entity, header, templates, India domestic route, billing) | C2 (a delivery-only adapter per ADR-0033, then OD-12 review); C3 with O13; T3 together with R2. **The critical path to M1** |
+| **R1: SMS and DLT** (E2: provider, DLT entity, header, templates, India domestic route, billing) | C2 is **built** (#301; F-1 controls included); R1 now gates only its **activation**, which needs separate authorisation. Independent review is required before M2; C3 with O13; T3 together with R2. **The critical path to M1** |
 | **R2: staging** (X5, E3, E4: AWS account and IAM, the domain, TLS certificates and backup pins, the database). **Gate A5** decides how the staging manifests are built; **C1** decides who writes them | Staging manifests; `migrate`; the release variables (origins, pins); T3; T5 (key rotation drill); the load and failover tests (with OD-10 §6, items 1–4); the signed-in minified tests and a signed-in baseline profile |
 | **R3: Play Console** (X1, X2): the account, package name (after the naming review, F26), the protected `play-release` Environment (D5) **before** the upload-key secrets (D6) | The first `release-android.yml` run (not run: the Environment does not exist, and dispatching would create it unprotected); the `.aab` on the internal track; the Play declarations |
 | E1 (Play Integrity) | C4 and T4 (with O7 and OD-9). **T4 stays unresolved**: neither activated nor removed |

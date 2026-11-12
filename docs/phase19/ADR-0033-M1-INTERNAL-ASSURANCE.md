@@ -37,7 +37,7 @@
 
 1. **Accept ADR-0033 for M1 under rule 8a.** It would be recorded as "accepted for M1 on internal assurance; independent human review outstanding". An independent review is required before M2.
 2. **Authorise #301 to merge for M1.** It brings the delivery-only adapters and their startup selection. **Merging activates nothing:** without R1 and its variables, identity behaves exactly as today.
-3. **Choose the F-1 control before any real SMS:** a tester allowlist for M1, a global send budget, or both (recommended), with the values (the testers' numbers; an hourly cap). Claude Code implements and tests the choice as an identity change under the same rule.
+3. **Decided 2026-11-12:** both controls were approved, and built in #301 (`0a8e88d`). Startup refuses a real provider without both. Mocks and local fakes only; no real SMS was validated. **Original text:** **Choose the F-1 control before any real SMS:** a tester allowlist for M1, a global send budget, or both (recommended), with the values (the testers' numbers; an hourly cap). Claude Code implements and tests the choice as an identity change under the same rule.
 4. **Optional for M1:** Q2 (India-only at sign-in), Q4 and Q5.
 
 **What none of this authorises:** activating a provider, paid SMS, DLT registration (R1), deploying staging (R2), or production (M2).
