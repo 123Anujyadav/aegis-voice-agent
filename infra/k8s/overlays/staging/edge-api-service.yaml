@@ -1,0 +1,20 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# In-cluster address of edge-api's application listener. ClusterIP only; no
+# Ingress until B3 and B4 (see identity-service.yaml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-api
+  labels:
+    app.kubernetes.io/name: edge-api
+    app.kubernetes.io/component: edge-api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: edge-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

@@ -1,0 +1,21 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# The staging namespace for identity and edge-api. Pod Security Admission
+# enforces the `restricted` profile: a pod that is not non-root, that allows
+# privilege escalation, that keeps any capability, or that has no seccomp
+# profile is refused at admission, not just warned about.
+#
+# The version label is `latest`, the profile of the cluster's own Kubernetes
+# version. SRE may pin it to the cluster's minor version (for example
+# `v1.<MINOR>`) so that a cluster upgrade cannot tighten the profile silently.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lily-staging
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest

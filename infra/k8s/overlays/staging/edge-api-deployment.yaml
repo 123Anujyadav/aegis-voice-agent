@@ -1,0 +1,170 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# edge-api in staging (INTERNAL-TESTING-SETUP C1, C4). Every variable name
+# below is read by the Go code; README.md cites the file and line of each.
+#
+# - CS_EDGE_API_ENVIRONMENT is set in the pod specification, like identity's
+#   tier. Outside an explicit `development` the replay database must be
+#   verified TLS (ADR-0029).
+# - Secrets are FILES (SECURITY.md) under the read-only /etc/lily/secrets/.
+# - Issuer, audience and kid come from the same generated ConfigMap as
+#   identity's, so they are byte-identical (C4; rotation runbook §2).
+# - CS_EDGE_API_PUBLIC_ORIGIN is EXACTLY the edge-api origin the app is built
+#   with: scheme and host, no path. Every DPoP proof's htu is this origin plus
+#   the request path; the request's Host and X-Forwarded-* are never used.
+# - The rotation-only variables CS_EDGE_API_ACCESS_TOKEN_PREVIOUS_PUBLIC_KEY_FILE
+#   and CS_EDGE_API_ACCESS_TOKEN_PREVIOUS_KID are absent (set both or neither,
+#   only during a rotation).
+# - edge-api has no migrate step: it uses identity's database, and its replay
+#   table is created by identity's migrations (C4). It refuses to start until
+#   that table exists, so run the identity migrate Job first.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-api
+  labels:
+    app.kubernetes.io/name: edge-api
+    app.kubernetes.io/component: edge-api
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: edge-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: edge-api
+        app.kubernetes.io/component: edge-api
+    spec:
+      serviceAccountName: edge-api
+      # edge-api never calls the Kubernetes API; see edge-api-serviceaccount.yaml.
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # Longer than the platform's default CS_EDGE_API_SHUTDOWN_TIMEOUT (25s).
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        # nobody:nogroup, the image's USER (docker/go/Dockerfile).
+        runAsUser: 65534
+        runAsGroup: 65534
+        # Makes the root-owned Secret files group-readable by 65534 only
+        # (defaultMode 0400 becomes 0440).
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: edge-api
+      containers:
+        - name: edge-api
+          # Replaced by kustomization.yaml `images` with a registry and digest.
+          image: edge-api-image
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          env:
+            # --- Tier: in the pod spec, never in the Secret -------------------
+            - name: CS_EDGE_API_ENVIRONMENT
+              value: staging
+            # --- Ports (platform.ServiceConfig; equal to the defaults) -------
+            - name: CS_EDGE_API_HTTP_PORT
+              value: "8080"
+            - name: CS_EDGE_API_HEALTH_PORT
+              value: "8081"
+            # --- Secret files (mounted below) --------------------------------
+            - name: CS_EDGE_API_ACCESS_TOKEN_PUBLIC_KEY_FILE
+              value: /etc/lily/secrets/access-token-public-key.pem
+            - name: CS_EDGE_API_DATABASE_DSN_FILE
+              value: /etc/lily/secrets/database-dsn
+            # --- Access-token contract: byte-identical to identity's ----------
+            - name: CS_EDGE_API_ACCESS_TOKEN_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: access-token-contract
+                  key: issuer
+            - name: CS_EDGE_API_ACCESS_TOKEN_AUDIENCE
+              valueFrom:
+                configMapKeyRef:
+                  name: access-token-contract
+                  key: audience
+            - name: CS_EDGE_API_ACCESS_TOKEN_KID
+              valueFrom:
+                configMapKeyRef:
+                  name: access-token-contract
+                  key: kid
+            # --- Public origin: exactly the app's build value ----------------
+            - name: CS_EDGE_API_PUBLIC_ORIGIN
+              value: https://api.<DOMAIN>
+          volumeMounts:
+            - name: secrets
+              mountPath: /etc/lily/secrets
+              readOnly: true
+            - name: db-ca
+              mountPath: /etc/lily/db-ca
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            # Starting values for staging; SRE sizes them from observed use.
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: secrets
+          secret:
+            secretName: edge-api-secrets
+            # 0400 (octal), in decimal.
+            defaultMode: 256
+            items:
+              - key: access-token-public-key.pem
+                path: access-token-public-key.pem
+              - key: database-dsn
+                path: database-dsn
+        - name: db-ca
+          secret:
+            secretName: db-ca-bundle
+            # 0444 (octal): a CA bundle is public.
+            defaultMode: 292
+            items:
+              - key: ca-bundle.pem
+                path: ca-bundle.pem

@@ -1,0 +1,22 @@
+# DRAFT for gate A5 approval (ADR-0027). Not applied; nothing is deployed.
+#
+# In-cluster address of identity's application listener. ClusterIP only: public
+# exposure is an Ingress, which is deliberately absent until the domain, TLS
+# certificates and pins exist (INTERNAL-TESTING-SETUP B3, B4). The health port
+# is not part of the Service: the kubelet probes the pods directly.
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity
+  labels:
+    app.kubernetes.io/name: identity
+    app.kubernetes.io/component: identity
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: identity
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
