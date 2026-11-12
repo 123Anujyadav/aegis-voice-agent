@@ -31,13 +31,15 @@ import (
 // LIMITS: the number's existing OTP request limit and failed-verification
 // lockout apply, SHARED with sign-in (the same pseudonym key), and a global
 // hourly budget caps deletion-code requests across all numbers (counted
-// whether or not a code is sent, so it reveals nothing about a number).
+// whether or not a code is sent, so it reveals nothing about a number). While
+// the F-1 tester allowlist is configured (signin_controls.go), a number
+// outside it is refused first, as at sign-in.
 //
-// DELIVERY: only a DeletionCodeSender delivers deletion codes. No provider
-// implements one (production configures no OTP sender at all), so without
-// one, and without a budget, every request is ErrDeletionCodesUnavailable,
-// for every number alike. The end-to-end harness's stdout sender is
-// test-only.
+// DELIVERY: only a DeletionCodeSender delivers deletion codes. The MSG91 and
+// Twilio adapters can implement one, but nothing in production installs it
+// (enabling web deletion codes is decision O13), so without one, and without
+// a budget, every request is ErrDeletionCodesUnavailable, for every number
+// alike. The end-to-end harness's stdout sender is test-only.
 
 // ErrDeletionCodesUnavailable means deletion codes cannot be issued now: no
 // deletion-code sender or no budget is configured, or this hour's budget is
@@ -109,6 +111,14 @@ func (s *IdentityService) RequestDeletionCode(ctx context.Context, msisdn string
 	pseudonym, err := s.msisdnPseudonym(msisdn)
 	if err != nil {
 		return "", err
+	}
+	// F-1: while the tester allowlist is in force (M1), a deletion code is a
+	// code sent by SMS like any other, so a number outside the list is
+	// refused here too, before anything is spent, with the same answer as
+	// "deletion codes unavailable". Deletion codes are not wired (O13); this
+	// keeps them from ever bypassing the allowlist once they are.
+	if c := s.signInControls; c != nil && !c.allows(pseudonym) {
+		return "", ErrDeletionCodesUnavailable
 	}
 	// The number's own request limit, shared with sign-in.
 	now := s.now()

@@ -31,8 +31,9 @@ import (
 //
 // Without them (the default) RequestOtp behaves exactly as before. Bootstrap
 // requires both whenever a real provider is configured (internal/bootstrap,
-// otp_controls.go); account-deletion codes are not covered (they are not
-// wired: decision O13).
+// otp_controls.go). The allowlist also applies to account-deletion codes
+// (web_erasure.go), which are not wired (decision O13), so they can never
+// bypass it; they have their own hourly budget instead of this cap.
 
 // MaxSignInHourlyCap is the largest accepted hourly cap.
 const MaxSignInHourlyCap = 10000
