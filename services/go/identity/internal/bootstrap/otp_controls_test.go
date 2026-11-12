@@ -211,11 +211,15 @@ func TestInstallOtpDelivery_RealProviderInstallsTheControlsFirst(t *testing.T) {
 	if !ok || n != len(testerNumbers) || hourlyCap != 7 || !svc.CanDeliverOtp() {
 		t.Fatalf("controls (%d, %d, %v), can deliver %v", n, hourlyCap, ok, svc.CanDeliverOtp())
 	}
-	// Behaviour: a number not on the list is refused before anything else,
-	// so no provider is contacted. (No allowlisted request is made here: it
-	// would be handed to the real adapter.)
-	if _, err := svc.RequestOtp(context.Background(), "+919999999999"); !errors.Is(err, app.ErrOtpDeliveryUnavailable) {
-		t.Errorf("a number off the list: %v, want ErrOtpDeliveryUnavailable", err)
+	// Behaviour: a number not on the list is refused before anything else.
+	// The number is deliberately NOT an Indian mobile number: were the
+	// allowlist check ever missing, the real adapter would still refuse it
+	// locally (otpdelivery.ErrNotDomestic) before any network I/O, so this
+	// test cannot contact a provider even under a mutation. No allowlisted
+	// request is made here: it would be handed to the adapter.
+	reqID, err := svc.RequestOtp(context.Background(), "+14155552671")
+	if !errors.Is(err, app.ErrOtpDeliveryUnavailable) || reqID != "" {
+		t.Errorf("a number off the list: (%q, %v), want ErrOtpDeliveryUnavailable", reqID, err)
 	}
 }
 
