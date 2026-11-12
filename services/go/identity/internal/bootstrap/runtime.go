@@ -365,15 +365,15 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 	}
 	// OTP delivery (otp.go, otp_providers.go): the development-only mock, real
 	// delivery-only providers, or none. Codes are minted, hashed and checked by
-	// the service either way.
+	// the service either way. A real provider is installed only together
+	// with the F-1 sign-in delivery controls, which go in first
+	// (otp_controls.go: installOtpDelivery refuses a real provider without
+	// them, whatever produced cfg).
 	observer := &deliveryObserver{}
-	sender, outbox, err := cfg.otp.otpSender(observer.observe)
+	outbox, err := installOtpDelivery(svc, cfg.otp, observer.observe)
 	if err != nil {
 		pool.Close()
 		return nil, err
-	}
-	if sender != nil {
-		svc.SetOtpSender(sender)
 	}
 	// Every security audit event is appended to the durable, append-only log
 	// (migration 0005; ADR-0010 §10, ADR-0012 LEGAL_HOLD). Other auditors, such

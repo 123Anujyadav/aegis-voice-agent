@@ -31,7 +31,9 @@ import (
 // Real delivery-only providers (msg91, twilio) are selected the same way:
 // otp_providers.go. Using one needs the owner's approval of the SMS and DLT
 // category (docs/phase19/M1-APPROVAL-REQUESTS.md, R1); nothing here supplies
-// credentials.
+// credentials. A real provider also REQUIRES the sign-in delivery controls,
+// the tester allowlist and the hourly cap (otp_controls.go); the mock accepts
+// them optionally, and no delivery refuses them.
 // The variables are read only when identity is activated; they never activate
 // it.
 
@@ -60,6 +62,9 @@ type OtpDelivery struct {
 	// variables; nil for the mock or no delivery. A pointer keeps OtpDelivery
 	// comparable.
 	real *realProviders
+	// controls are the sign-in delivery controls (otp_controls.go): always
+	// set with real providers, optional with the mock, nil with no delivery.
+	controls *signInControls
 }
 
 // realProviders is the resolved real-provider selection.
@@ -116,15 +121,30 @@ func resolveOtpDelivery(lookup func(string) (string, bool)) (OtpDelivery, error)
 	if outboxSet && provider != OtpProviderMock {
 		return OtpDelivery{}, fmt.Errorf("%w: %s is set, but the OTP provider is not the mock", ErrInvalidConfig, OtpMockOutboxFileVariable)
 	}
+	return resolveMockOrNone(provider, outbox, lookup)
+}
+
+// resolveMockOrNone finishes a mock or no-delivery selection with its
+// sign-in delivery controls (otp_controls.go): optional with the mock,
+// refused with no delivery.
+func resolveMockOrNone(provider, outbox string, lookup func(string) (string, bool)) (OtpDelivery, error) {
+	controls, err := resolveSignInControls(false, provider == OtpProviderMock, lookup)
+	if err != nil {
+		return OtpDelivery{}, err
+	}
 	if provider == OtpProviderNone {
 		return OtpDelivery{}, nil // the zero value is no delivery
 	}
-	return OtpDelivery{Provider: provider, MockOutboxFile: outbox}, nil
+	return OtpDelivery{Provider: provider, MockOutboxFile: outbox, controls: controls}, nil
 }
 
 // otpSender builds the sender for d: nil, and no outbox, for no delivery.
 func (d OtpDelivery) otpSender(observe func(string, otpdelivery.Outcome)) (*otpdelivery.Sender, *otpdelivery.Outbox, error) {
 	if d.real != nil {
+		if d.controls == nil {
+			return nil, nil, fmt.Errorf("%w: a real OTP provider requires %s and %s", ErrInvalidConfig,
+				OtpAllowedNumbersFileVariable, OtpSignInHourlyCapVariable)
+		}
 		sender, err := d.realSender(observe)
 		return sender, nil, err
 	}

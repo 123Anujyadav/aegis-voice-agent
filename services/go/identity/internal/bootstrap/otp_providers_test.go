@@ -58,7 +58,7 @@ func merge(maps ...map[string]string) map[string]string {
 }
 
 func TestRealOtpProviders_AreSelectedExplicitlyInFailoverOrder(t *testing.T) {
-	base := map[string]string{environmentVariable: "staging"}
+	base := merge(map[string]string{environmentVariable: "staging"}, controlsEnv(t))
 	for _, tc := range []struct {
 		provider string
 		env      map[string]string
@@ -88,7 +88,7 @@ func TestRealOtpProviders_AreSelectedExplicitlyInFailoverOrder(t *testing.T) {
 }
 
 func TestRealOtpProviders_PartialOrConflictingConfigurationStopsStartup(t *testing.T) {
-	base := map[string]string{environmentVariable: "staging"}
+	base := merge(map[string]string{environmentVariable: "staging"}, controlsEnv(t))
 	missing := msg91Env(t)
 	delete(missing, OtpMSG91CodeVariableVariable)
 	blank := msg91Env(t)
@@ -113,7 +113,7 @@ func TestRealOtpProviders_PartialOrConflictingConfigurationStopsStartup(t *testi
 }
 
 func TestRealOtpProviders_ErrorsNeverEchoCredentialsOrUnknownValues(t *testing.T) {
-	base := map[string]string{environmentVariable: "staging"}
+	base := merge(map[string]string{environmentVariable: "staging"}, controlsEnv(t))
 	// A credential pasted into the selector must not be echoed.
 	_, err := resolveOtpDelivery(lookupFrom(merge(base, map[string]string{OtpProviderVariable: "sk_live_misplaced_secret"})))
 	if err == nil || strings.Contains(err.Error(), "misplaced_secret") {

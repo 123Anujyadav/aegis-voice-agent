@@ -18,6 +18,11 @@ import (
 // half-configured provider can never be used by accident. Credentials are
 // FILES (mounted Secrets), never values.
 //
+// A real provider REQUIRES the F-1 sign-in delivery controls as well: the
+// tester allowlist file and the hourly cap (otp_controls.go). Without both,
+// valid, startup is refused, and installOtpDelivery refuses to install a real
+// sender without them whatever the configuration path.
+//
 // What this does not do:
 //   - Activate anything: without these variables nothing changes, and the
 //     staging overlay sets CS_IDENTITY_OTP_PROVIDER=none. Using a provider
@@ -94,7 +99,13 @@ func resolveRealSelection(provider string, outboxSet bool, lookup func(string) (
 	if err != nil {
 		return OtpDelivery{}, err
 	}
-	return OtpDelivery{Provider: provider, real: &realProviders{names: names, settings: settings}}, nil
+	// F-1: a real provider is never selected without both sign-in delivery
+	// controls (otp_controls.go).
+	controls, err := resolveSignInControls(true, true, lookup)
+	if err != nil {
+		return OtpDelivery{}, err
+	}
+	return OtpDelivery{Provider: provider, real: &realProviders{names: names, settings: settings}, controls: controls}, nil
 }
 
 // resolveRealProviders checks every provider variable against the selection
