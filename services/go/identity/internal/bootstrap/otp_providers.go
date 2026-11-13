@@ -43,6 +43,12 @@ const (
 	OtpMSG91AuthKeyFileVariable  = EnvPrefix + "_OTP_MSG91_AUTH_KEY_FILE"
 	OtpMSG91SignInFlowIDVariable = EnvPrefix + "_OTP_MSG91_SIGNIN_FLOW_ID"
 	OtpMSG91CodeVariableVariable = EnvPrefix + "_OTP_MSG91_CODE_VARIABLE"
+	// OtpMSG91IPv4OnlyVariable is optional: "true" makes every MSG91
+	// connection IPv4 only, with no IPv6 fallback and no proxy
+	// (otpdelivery.MSG91Config.IPv4Only), for an authkey whose IP security
+	// allows only an IPv4 address. Unset or "false" changes nothing. Any other
+	// value, or setting it without msg91 selected, stops startup.
+	OtpMSG91IPv4OnlyVariable = EnvPrefix + "_OTP_MSG91_IPV4_ONLY"
 
 	OtpTwilioAccountSIDFileVariable    = EnvPrefix + "_OTP_TWILIO_ACCOUNT_SID_FILE"
 	OtpTwilioAPIKeySIDFileVariable     = EnvPrefix + "_OTP_TWILIO_API_KEY_SID_FILE"
@@ -62,6 +68,12 @@ var realProviderVariables = map[string][]string{
 		OtpTwilioAccountSIDFileVariable, OtpTwilioAPIKeySIDFileVariable, OtpTwilioAPIKeySecretFileVariable,
 		OtpTwilioMessagingServiceVariable, OtpTwilioSignInTemplateVariable,
 	},
+}
+
+// optionalProviderVariables lists, per provider, the variables it accepts but
+// does not require; each is "true" or "false".
+var optionalProviderVariables = map[string][]string{
+	OtpProviderMSG91: {OtpMSG91IPv4OnlyVariable},
 }
 
 // parseRealProviders reads a provider list of one or two distinct real
@@ -131,6 +143,22 @@ func resolveRealProviders(names []string, lookup func(string) (string, bool)) (m
 			settings[v] = value
 		}
 	}
+	for provider, vars := range optionalProviderVariables {
+		for _, v := range vars {
+			value, set := lookup(v)
+			if !set {
+				continue
+			}
+			if !selected[provider] {
+				return nil, fmt.Errorf("%w: %s is set, but %s is not a selected OTP provider", ErrInvalidConfig, v, provider)
+			}
+			if value != "true" && value != "false" {
+				// Not echoed: an unexpected value may be a misplaced secret.
+				return nil, fmt.Errorf("%w: %s must be true or false", ErrInvalidConfig, v)
+			}
+			settings[v] = value
+		}
+	}
 	return settings, nil
 }
 
@@ -152,6 +180,7 @@ func (d OtpDelivery) realSender(obs *deliveryObserver) (*otpdelivery.Sender, err
 				SignInFlowID: settings[OtpMSG91SignInFlowIDVariable],
 				CodeVariable: settings[OtpMSG91CodeVariableVariable],
 				Accepted:     obs.acceptedBy(OtpProviderMSG91),
+				IPv4Only:     settings[OtpMSG91IPv4OnlyVariable] == "true",
 			})
 		case OtpProviderTwilio:
 			p, err = otpdelivery.NewTwilio(otpdelivery.TwilioConfig{

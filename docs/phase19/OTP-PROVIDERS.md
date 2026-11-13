@@ -64,7 +64,7 @@ These are the existing **initial** values, "not production-tuned" in the code's 
 
 | Provider | Variables (all required when selected) |
 |---|---|
-| `msg91` | `CS_IDENTITY_OTP_MSG91_AUTH_KEY_FILE` (a mounted Secret file); `CS_IDENTITY_OTP_MSG91_SIGNIN_FLOW_ID` (the registered flow); `CS_IDENTITY_OTP_MSG91_CODE_VARIABLE` (the flow's variable that receives the code) |
+| `msg91` | `CS_IDENTITY_OTP_MSG91_AUTH_KEY_FILE` (a mounted Secret file); `CS_IDENTITY_OTP_MSG91_SIGNIN_FLOW_ID` (the registered flow); `CS_IDENTITY_OTP_MSG91_CODE_VARIABLE` (the flow's variable that receives the code). **Optional:** `CS_IDENTITY_OTP_MSG91_IPV4_ONLY` (`true` or `false`; unset means `false`), which makes MSG91 connections IPv4 only, with no IPv6 fallback and no proxy ([`MSG91-INTEGRATION.md`](MSG91-INTEGRATION.md) §4) |
 | `twilio` | `CS_IDENTITY_OTP_TWILIO_ACCOUNT_SID_FILE`, `CS_IDENTITY_OTP_TWILIO_API_KEY_SID_FILE`, `CS_IDENTITY_OTP_TWILIO_API_KEY_SECRET_FILE` (mounted Secret files); `CS_IDENTITY_OTP_TWILIO_MESSAGING_SERVICE_SID`; `CS_IDENTITY_OTP_TWILIO_SIGNIN_TEMPLATE` (the DLT-registered text, with `{code}` once) |
 
 **What startup refuses:**
@@ -79,7 +79,7 @@ These are the existing **initial** values, "not production-tuned" in the code's 
 **What the adapters enforce:**
 - **India only:** `+91` mobile numbers, refused before anything is sent. There is no international route.
 - **Delivery only:** identity's code, in the registered template.
-- **Transport:** TLS to the provider's API host only, with no redirects.
+- **Transport:** TLS to the provider's API host only, with no redirects. MSG91 can be made IPv4 only (`CS_IDENTITY_OTP_MSG91_IPV4_ONLY=true`), for IP security that allows only an IPv4 address; startup then refuses a proxy, or any client it cannot restrict.
 - **Errors** are fixed values, never provider text.
 
 **Each attempt is bounded at 2 s.** Nothing retries the same provider. With two providers, identity fails over to the next in order: a timed-out first attempt may still have been delivered, so the subscriber may receive the same code twice (never two different codes). With `msg91` alone, a code is handed over in at most one request.
@@ -181,6 +181,8 @@ The owner approved both controls for M1 on 2026-11-12 ([ADR-0033](../adr/0033-ot
 | F-1: both variables required with a real provider, optional with the mock, refused with none; no number in any error; the only sender installation; two runtimes share one cap | `internal/bootstrap/otp_controls_test.go`, `otp_controls_postgres_test.go` |
 | F-1 through HTTP: refusals are byte-for-byte "delivery unavailable", and nothing leaks | `internal/httpapi/signin_controls_test.go` |
 | MSG91: the verified Send SMS contract (headers, exactly the documented body fields, `91` + number, the code variable only); the request id reported only when well-formed; one request per call whatever the answer; alone in the Sender, at most one request per code | `internal/otpdelivery/msg91_test.go` |
+| MSG91 IPv4-only mode: off by default and unchanged; delivers over IPv4 via a name with both families; no IPv6 fallback (no connection to an IPv6 listener); proxies refused at startup and per request; unenforceable clients refused; TLS still verified; redirects still refused; one request per timeout; India-only and fixed errors kept; Twilio unaffected | `internal/otpdelivery/msg91_ipv4_test.go` |
+| `CS_IDENTITY_OTP_MSG91_IPV4_ONLY`: unset means off; only `true`/`false`; refused without `msg91`; one fixed refusal message; startup refused when a proxy would carry MSG91 | `internal/bootstrap/otp_msg91_ipv4_test.go` |
 | Deletion codes: the allowlist applies first and spends nothing; nothing in production wires them (source scan) | `internal/app/web_erasure_allowlist_test.go`, `internal/bootstrap/deletion_unwired_test.go` |
 
 **No test makes a network request.** The mock delivers in-process, and the adapters are tested against local TLS stand-ins. **Every package whose tests build a real provider client** routes all outbound HTTP(S) to a dead loopback proxy in `TestMain` (`main_test.go`), pinned by `no_network_test.go`: `internal/otpdelivery`, `internal/bootstrap`, `internal/playintegrity`, and `packages/go/aiproviders/{anthropic,elevenlabs}`, `packages/go/speechproviders/{deepgram,google}`. **A new provider package must add the same guard.**

@@ -59,6 +59,12 @@ type MSG91Config struct {
 	// accepted, but reports nothing. It must be safe for concurrent use and
 	// must not block.
 	Accepted func(requestID string)
+	// IPv4Only makes every MSG91 connection IPv4 only, with no IPv6 fallback
+	// and no proxy (restrictToIPv4): for an MSG91 authkey whose IP security
+	// allows only an IPv4 address, from a host that would otherwise prefer
+	// IPv6. False (the default) leaves the connection exactly as before. When
+	// true and the restriction cannot be guaranteed, NewMSG91 fails.
+	IPv4Only bool
 	// BaseURL overrides the API address; tests only (loopback over TLS).
 	BaseURL string
 	// HTTPClient overrides the client; tests only.
@@ -99,9 +105,15 @@ func NewMSG91(cfg MSG91Config) (Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	client := guardedClient(cfg.HTTPClient)
+	if cfg.IPv4Only {
+		if err := restrictToIPv4(client, base); err != nil {
+			return nil, err
+		}
+	}
 	m := &msg91{
 		name: cfg.Name, key: key, base: base, signInFlow: cfg.SignInFlowID,
-		variable: cfg.CodeVariable, client: guardedClient(cfg.HTTPClient), accepted: cfg.Accepted,
+		variable: cfg.CodeVariable, client: client, accepted: cfg.Accepted,
 	}
 	if cfg.DeletionFlowID != "" {
 		return &msg91WithDeletion{msg91: m, deletionFlow: cfg.DeletionFlowID}, nil
