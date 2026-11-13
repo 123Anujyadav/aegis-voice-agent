@@ -46,7 +46,7 @@
 ## Decision 2: Domain invariant sign-offs, and O2 (stored random account ids)
 
 **Proposed wording for the record (one line per invariant, rule 5):**
-> "INV-ID-1 becomes 'A Subscriber has at most one active verified MSISDN'. INV-ID-2 becomes 'A verified MSISDN maps to at most one active Subscriber'. INV-ID-7 becomes 'An erased Subscriber's account id is tombstoned and never reused; its authentication identifiers and verified numbers are deleted' (option A). INV-ID-8 and INV-ID-10 are unchanged, with the rulings recorded in ADR-0035. INV-ID-3 and INV-ID-9 are unchanged. O2 (ADR-0030 D30.3) is accepted: new accounts receive stored random ids; existing number-derived ids are unchanged. All for M1 on internal assurance."
+> "INV-ID-1 becomes 'A Subscriber has at most one active verified MSISDN'. INV-ID-2 becomes 'A verified MSISDN maps to at most one active Subscriber'. INV-ID-7 becomes 'An erased Subscriber's account id is tombstoned and never reused; its authentication identifiers and verified numbers are deleted' (option A). INV-ID-8 and INV-ID-10 are unchanged, with the rulings worded in ADR-0035's invariant table. INV-ID-3 and INV-ID-9 are unchanged. O2 (ADR-0030 D30.3) is accepted as worded in ADR-0035 D35.1: new accounts receive stored random ids; existing number-derived ids are unchanged. All for M1 on internal assurance."
 
 **Options:**
 - **INV-ID-7 option A:** re-signup with the same Google account after erasure is allowed, as a new account. This matches today's code for numbers (O9).

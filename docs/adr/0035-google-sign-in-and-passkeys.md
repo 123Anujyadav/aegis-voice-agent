@@ -54,6 +54,7 @@
 - New accounts get `usr_` + 32 lowercase hex characters from 128 random bits (`crypto/rand`), the same shape the erasure table already requires. It is stored in a new `identity_accounts` table (account id, created at, status) and never derived from any identifier.
 - **Existing number-derived ids are not migrated or changed.** The OTP route keeps its current derivation, untouched.
 - This is ADR-0030 D30.3 (owner decision **O2**), generalised beyond the number: **its acceptance is a prerequisite.**
+- **Proposed O2 wording:** "Every account created by Google Sign-In or a passkey receives a stored account id, `usr_` followed by 32 lowercase hexadecimal characters from 128 bits of a cryptographically secure random source, recorded in `identity_accounts` and never derived from any identifier. Existing number-derived ids are not migrated or changed, and the SMS route keeps its derivation. Authentication methods and verified numbers refer to the account id; none is the account's key."
 
 ### D35.2 Authentication methods attached to the account
 
@@ -114,7 +115,11 @@
 
 - **New phone, same person:** Google Sign-In on the new phone signs into the same account with a new DPoP device key; synced passkeys (Google Password Manager) also work there. The old device's sessions can be revoked (D35.9).
 - **Lost method:** any other linked method recovers the account; users are encouraged to hold both Google and a passkey.
-- **Lost every method:** **proposed for M1: the account is lost** (no support-led recovery), and its data can be erased through the existing in-app deletion only while signed in. A support process is an owner decision (decision 7 in the summary).
+- **Lost every method:** **proposed for M1: the account is lost** (no support-led recovery). A support process is an owner decision (decision 7 in the summary). The consequences, stated plainly:
+  - **The person cannot sign in again** to that account, and nobody at Lily AI can restore access.
+  - **They cannot delete it themselves:** in-app deletion needs a signed-in session, and web deletion for Google-only accounts is an M2 item (D35.10). Its data stays stored until a deletion path exists. At M1 the accounts hold only the owner's testers' test data, and the owner can ask for a manual database erasure through the existing erasure code.
+  - **A new sign-up creates a new, empty account**, if the gate allows it. Nothing from the lost account carries over.
+  - **Before M2** the owner decides a recovery position and a deletion path for unreachable accounts (DPDP: the right to erasure).
 - **Verified phone as recovery** is out of scope until the phone-verification ADR.
 
 ### D35.8 M1 abuse gate: tester allowlist and hourly account-creation cap
@@ -160,9 +165,9 @@
 | **INV-ID-2** | "An MSISDN maps to at most one active Subscriber" | "A **verified** MSISDN maps to at most one active Subscriber" | A number can be verified on one account only. **Open edge:** a legacy number-derived account (today's OTP route) for the same number; the phone-verification ADR must refuse or reconcile it |
 | **INV-ID-3** | "A device credential is generated on-device, is non-exportable, and never enters our domain" | **Unchanged** | Passkeys do not replace the DPoP device key; every session stays bound to it |
 | **INV-ID-7** | "An erased Subscriber's identifiers are tombstoned and never reused" | **Option A (recommended):** "An erased Subscriber's **account id** is tombstoned and never reused; its authentication identifiers and verified numbers are deleted." **Option B:** unchanged wording, extended to Google subject pseudonyms and passkey credential ids | A: the person may sign up again with the same Google account, as a new account (matches today's code for numbers; O9). B: an erased Google identity can never sign up again; needs a tombstone list of pseudonyms |
-| **INV-ID-8** | "Every `PERSONAL` attribute is residency-bound…" | **Unchanged**; owner ruling recorded | Lily AI sends no personal attribute abroad: it fetches Google's public keys and verifies tokens in India, storing only pseudonyms. The person's Google account itself is held by Google under their own relationship. Privacy review (L1, L4) confirms the notice |
+| **INV-ID-8** | "Every `PERSONAL` attribute is residency-bound and does not leave the India region except under the four-condition consent gate" | **Wording unchanged.** Proposed ruling: "Google Sign-In does not breach INV-ID-8: identity sends no personal attribute out of India; it fetches Google's public signing keys and verifies the ID token in India, and stores only a pseudonym of the Google issuer and subject. The person's Google account is held by Google under the person's own relationship with Google, outside this context. The privacy notice discloses Google Sign-In (L4)." | Lily AI sends no personal attribute abroad. A privacy review (L1, L4) confirms the notice before M2 |
 | **INV-ID-9** | "A Subscriber cannot be `ACTIVE` with zero `TRUSTED` Devices" | **Unchanged** | Every sign-in enrols a DPoP device key |
-| **INV-ID-10** | "There is no password, passphrase or knowledge factor anywhere in this context" | **Unchanged**; owner ruling recorded | Passkey user verification (biometric or screen lock) happens on the person's device; identity never receives or stores a knowledge factor |
+| **INV-ID-10** | "There is no password, passphrase or knowledge factor anywhere in this context" | **Wording unchanged.** Proposed ruling: "Passkeys do not breach INV-ID-10: user verification (biometric, PIN or pattern) happens on the person's device and only its result reaches identity, as a signed flag; identity never receives, stores or checks a knowledge factor. Google Sign-In is federation, not a knowledge factor held by this context." | No password or PIN is ever stored or checked by Lily AI |
 
 ### Consequences
 
