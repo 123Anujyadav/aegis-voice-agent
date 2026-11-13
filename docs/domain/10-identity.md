@@ -449,6 +449,13 @@ than in the interface.
 | **INV-ID-9** | A Subscriber cannot be `ACTIVE` with zero `TRUSTED` Devices | |
 | **INV-ID-10** | There is no password, passphrase or knowledge factor anywhere in this context | ADR-0010 |
 
+**Dated note, 2026-11-13: owner sign-offs for release milestone M1 only** (ADR-0035, accepted for M1 on internal assurance, rule 8a; independent human review required before M2). The table above is unchanged as the record; for M1 these readings apply:
+- **INV-ID-1** reads: "A Subscriber has at most one active verified MSISDN".
+- **INV-ID-2** reads: "A verified MSISDN maps to at most one active Subscriber". The legacy phone-account collision is a blocker for future phone verification (ADR-0035 D35.3).
+- **INV-ID-7** reads: "An erased Subscriber's account id is tombstoned and never reused; its authentication identifiers and verified numbers are deleted".
+- **INV-ID-8** is unchanged; the owner's ruling, with its limitations and the external privacy dependency EPD-1 (Google's own processing), is in ADR-0035.
+- **INV-ID-10** is unchanged; the owner's ruling on passkey user verification is in ADR-0035.
+
 ---
 
 ## 10.13 State Machines

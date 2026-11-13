@@ -2,6 +2,11 @@
 
 - **Status:** **Proposed: high-risk; awaiting independent human review. Not
   accepted, not ratified, not implemented.**
+  - **Dated note, 2026-11-13 (rule 11; the text below is unchanged):** the
+    owner **withdrew the email-first direction** recorded here.
+    [ADR-0035](0035-google-sign-in-and-passkeys.md) (Google Sign-In, then
+    passkeys; accepted for M1 on internal assurance) replaces it, and carries
+    this ADR's Google analysis (D32.1, D32.3–D32.7) forward.
   - **High-risk** under `docs/adr/README.md`, "Approval": it would supersede
     part of an Accepted ADR (ADR-0010 §5(a)), change identity invariants, the
     authentication model and personal-data collection. That is the author's
