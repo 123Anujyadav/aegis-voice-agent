@@ -100,6 +100,8 @@
 - **A demo account replaces the text.** "If you are sending an SMS from your account and your account status is 'demo,' you will receive the content as: 'You have received this SMS as per your testing…'". KYC (Aadhaar e-KYC or documents) makes the account live (https://msg91.com/help/MSG91/my-account-status-is-in-demo-what-can-i-do-to-make-my-account-live).
   - **So a test from a demo account does not deliver the sign-in code.** It proves acceptance and routing only.
 - **API Security (IP whitelisting)** is optional per authkey. With it enabled, requests from other addresses are refused with error **418** (https://msg91.com/help/MSG91/what-do-you-mean-by-api-security). **Recommended:** enable it with only the test machine's address, then the staging egress address.
+  - **IPv4 versus IPv6 (found 2026-11-13).** `control.msg91.com` has both IPv4 and IPv6 addresses, and a host with global IPv6 (this development machine) connects over IPv6 from a temporary address. MSG91 then sees an address that is not allowed: the owner's first read-only check got `401` and MSG91 listed the IPv6 address under "Recent API Calls from Non Whitelisted IPs". The same check forced to IPv4 got `200`.
+  - **`CS_IDENTITY_OTP_MSG91_IPV4_ONLY=true`** (§4) makes identity's MSG91 connections IPv4 only, so an IPv4-only allowlist works from such a host.
 - **Error codes that matter here** (https://msg91.com/help/MSG91/what-are-the-reason-for-error-codes-received-under-the-api-failed):
 
   | Code | Meaning |
@@ -128,6 +130,7 @@
 | `CS_IDENTITY_OTP_MSG91_AUTH_KEY_FILE` | Absolute path of a mounted secret file holding the authkey. Read at startup; never logged |
 | `CS_IDENTITY_OTP_MSG91_SIGNIN_FLOW_ID` | MSG91's template (flow) id for the sign-in template: 1–64 letters or digits |
 | `CS_IDENTITY_OTP_MSG91_CODE_VARIABLE` | The template's variable name, exactly as defined (case-sensitive, without `##`): 1–64 letters or digits |
+| `CS_IDENTITY_OTP_MSG91_IPV4_ONLY` | **Optional**; `true` or `false` exactly, **unset means `false`** (connections exactly as before). With `true`, every MSG91 connection is **IPv4 only** (`tcp4`): no IPv6 fallback, **no proxy** (a request a proxy would carry is refused, and startup refuses if MSG91's own address would be proxied), and startup fails if the restriction cannot be guaranteed. TLS verification, timeouts, the redirect refusal, India-only numbers, fixed errors and request-id handling are unchanged. Use it when the authkey's IP security allows only an IPv4 address. Refused unless `msg91` is selected; never applies to Twilio or any other client |
 | `CS_IDENTITY_OTP_ALLOWED_NUMBERS_FILE` | **Required with `msg91`.** Absolute path; one `+91[6-9]XXXXXXXXX` number per line; `#` comments; at most 64 KiB; no duplicates |
 | `CS_IDENTITY_OTP_SIGNIN_HOURLY_CAP` | **Required with `msg91`.** 1–10000 deliveries per clock hour (UTC), across all replicas |
 

@@ -129,7 +129,8 @@ func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runne
 			slog.String("otp_provider", provider), slog.String("provider_request_id", requestID))
 	})
 	log.Info("identity service constructed on PostgreSQL; HTTP API registered",
-		slog.Int("http_port", svcCfg.HTTPPort), slog.String("otp_provider", rt.OtpProvider()))
+		slog.Int("http_port", svcCfg.HTTPPort), slog.String("otp_provider", rt.OtpProvider()),
+		slog.Bool("otp_msg91_ipv4_only", rt.OtpMSG91IPv4Only()))
 	if rt.OtpProvider() == bootstrap.OtpProviderMock {
 		log.Warn("OTP delivery is the development-only mock: no SMS is sent, and codes are readable from its outbox")
 	}

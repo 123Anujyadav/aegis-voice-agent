@@ -28,9 +28,11 @@ package otpdelivery
 // owner's selected primary provider (2026-11-13).
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -148,6 +150,86 @@ func guardedClient(supplied *http.Client) *http.Client {
 		return errors.New("otpdelivery: refusing to follow a redirect")
 	}
 	return &c
+}
+
+// errIPv4OnlyProxy is a request an IPv4-only client refuses because a proxy
+// would carry it: the proxy, not this process, would then choose the address
+// family and the source address the provider sees.
+var errIPv4OnlyProxy = errors.New("otpdelivery: IPv4-only mode does not use a proxy")
+
+// ipv4DialTimeout bounds one IPv4 connection attempt; the caller's context
+// (the Sender's attempt bound) is usually shorter.
+const ipv4DialTimeout = 5 * time.Second
+
+// restrictToIPv4 makes c, a client from guardedClient, connect over IPv4 only,
+// for a provider whose IP security allows only an IPv4 address (MSG91, owner
+// approval of 2026-11-13). It changes nothing else: TLS configuration and
+// certificate verification, timeouts and the redirect refusal are kept.
+//
+//   - Every connection is dialled as "tcp4": only IPv4 addresses are resolved
+//     and dialled, so there is no IPv6 fallback, and an IPv6 address is
+//     refused before any connection is made.
+//   - A proxy is refused: a request the environment would send through a
+//     proxy fails (errIPv4OnlyProxy), and so does construction when the
+//     provider's own address (base) would be proxied.
+//   - It fails closed: a client whose transport cannot be restricted (not an
+//     *http.Transport, or one with its own TLS dialer) is a configuration
+//     error, never silently unrestricted.
+//
+// c's transport is replaced by a restricted clone; a supplied transport is
+// never modified.
+func restrictToIPv4(c *http.Client, base string) error {
+	var t *http.Transport
+	switch tr := c.Transport.(type) {
+	case nil:
+		dt, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			return fmt.Errorf("%w: IPv4-only mode needs a standard HTTP transport", ErrProviderConfig)
+		}
+		t = dt.Clone()
+	case *http.Transport:
+		if tr == nil {
+			return fmt.Errorf("%w: IPv4-only mode needs a standard HTTP transport", ErrProviderConfig)
+		}
+		if tr.DialTLSContext != nil || tr.DialTLS != nil { //nolint:staticcheck // DialTLS is checked so that no dialer bypasses tcp4
+			return fmt.Errorf("%w: IPv4-only mode cannot restrict a transport with its own TLS dialer", ErrProviderConfig)
+		}
+		t = tr.Clone()
+	default:
+		return fmt.Errorf("%w: IPv4-only mode needs a standard HTTP transport", ErrProviderConfig)
+	}
+
+	envProxy := t.Proxy
+	if envProxy != nil {
+		// A proxy decision reads only the request's URL; no request is made.
+		target, err := url.Parse(base)
+		if err != nil {
+			return fmt.Errorf("%w: IPv4-only mode: the API address is not a URL", ErrProviderConfig)
+		}
+		if u, perr := envProxy(&http.Request{Method: http.MethodPost, URL: target, Header: http.Header{}}); perr != nil || u != nil {
+			return fmt.Errorf("%w: IPv4-only mode cannot be used with a proxy for the provider's address", ErrProviderConfig)
+		}
+	}
+	t.Proxy = func(req *http.Request) (*url.URL, error) {
+		if envProxy == nil {
+			return nil, nil
+		}
+		u, err := envProxy(req)
+		if err != nil || u != nil {
+			return nil, errIPv4OnlyProxy
+		}
+		return nil, nil
+	}
+	dialer := &net.Dialer{Timeout: ipv4DialTimeout, KeepAlive: 30 * time.Second}
+	t.DialContext = func(ctx context.Context, _, addr string) (net.Conn, error) {
+		return dialer.DialContext(ctx, "tcp4", addr)
+	}
+	t.Dial = nil //nolint:staticcheck // cleared so that only the tcp4 dialer remains
+	// A custom dialer would otherwise switch HTTP/2 off; keep what the
+	// unrestricted client negotiates.
+	t.ForceAttemptHTTP2 = true
+	c.Transport = t
+	return nil
 }
 
 // statusError maps a provider's HTTP status to a fixed error.

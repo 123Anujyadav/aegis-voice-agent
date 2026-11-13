@@ -73,6 +73,12 @@ type realProviders struct {
 	settings map[string]string
 }
 
+// MSG91IPv4Only reports whether MSG91 is selected with IPv4-only connections
+// (OtpMSG91IPv4OnlyVariable).
+func (d OtpDelivery) MSG91IPv4Only() bool {
+	return d.real != nil && d.real.settings[OtpMSG91IPv4OnlyVariable] == "true"
+}
+
 // ResolveOtpDelivery applies the rules above to the process environment.
 func ResolveOtpDelivery() (OtpDelivery, error) {
 	return resolveOtpDelivery(os.LookupEnv)

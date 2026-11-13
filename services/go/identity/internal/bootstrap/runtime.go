@@ -268,6 +268,7 @@ type Runtime struct {
 	otpProvider string
 	otpOutbox   *otpdelivery.Outbox
 	otpObserver *deliveryObserver
+	otpIPv4Only bool
 	once        sync.Once
 }
 
@@ -291,6 +292,9 @@ func (r *Runtime) ObserveOtpAcceptances(hook func(provider, requestID string)) {
 		r.otpObserver.setAccepted(hook)
 	}
 }
+
+// OtpMSG91IPv4Only reports whether MSG91 connections are IPv4 only.
+func (r *Runtime) OtpMSG91IPv4Only() bool { return r.otpIPv4Only }
 
 // OtpProvider names the OTP delivery in use: OtpProviderMock or
 // OtpProviderNone.
@@ -403,5 +407,6 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 	return &Runtime{
 		Service: svc, pool: pool, housekeeper: hk,
 		otpProvider: cfg.otp.Provider, otpOutbox: outbox, otpObserver: observer,
+		otpIPv4Only: cfg.otp.MSG91IPv4Only(),
 	}, nil
 }
