@@ -224,3 +224,35 @@ func TestGoogleDirectory_NeedsARepositoryAndAKeyring(t *testing.T) {
 		t.Errorf("no keyring: %v", err)
 	}
 }
+
+// A token's single-use record outlives the token by a margin: a token that
+// expired moments ago (which a verifier's clock skew may still accept) cannot
+// be redeemed again, even after other tokens prune the store.
+func TestGoogleTokenRecords_OutliveTheTokenByAMargin(t *testing.T) {
+	ctx := context.Background()
+	repo := NewMemoryIdentityRepository()
+	justExpired := time.Now().Add(-30 * time.Second)
+	first := HashRefreshToken([]byte("k"), "token-1")
+	if ok, err := repo.ReserveGoogleToken(ctx, first, justExpired); err != nil || !ok {
+		t.Fatalf("first redemption: (%v, %v)", ok, err)
+	}
+	// Another token's reservation prunes old records.
+	if ok, err := repo.ReserveGoogleToken(ctx, HashRefreshToken([]byte("k"), "token-2"), time.Now().Add(time.Hour)); err != nil || !ok {
+		t.Fatalf("another token: (%v, %v)", ok, err)
+	}
+	if ok, err := repo.ReserveGoogleToken(ctx, first, justExpired); err != nil || ok {
+		t.Errorf("a just-expired token was redeemed twice: (%v, %v)", ok, err)
+	}
+	// A record whose token expired beyond the margin is pruned.
+	old := HashRefreshToken([]byte("k"), "token-old")
+	if ok, _ := repo.ReserveGoogleToken(ctx, old, time.Now().Add(-2*googleTokenRecordMargin)); !ok {
+		t.Fatal("old token")
+	}
+	_, _ = repo.ReserveGoogleToken(ctx, HashRefreshToken([]byte("k"), "token-3"), time.Now().Add(time.Hour)) //nolint:errcheck // prunes
+	repo.mu.Lock()
+	_, kept := repo.accts.googleTokens[old]
+	repo.mu.Unlock()
+	if kept {
+		t.Error("a record past the margin was kept")
+	}
+}

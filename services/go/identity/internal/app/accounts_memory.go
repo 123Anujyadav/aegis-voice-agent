@@ -192,8 +192,14 @@ func (m *MemoryIdentityRepository) ReserveAccountCreation(_ context.Context, hou
 	return true, nil
 }
 
-// ReserveGoogleToken implements AccountRepository. Expired records are dropped
-// as it goes.
+// googleTokenRecordMargin is how long a Google token's single-use record is
+// kept after the token's expiry: like PostgreSQL housekeeping's margin
+// (pgstore.DefaultHousekeepingMargin), far longer than any clock skew a
+// verifier allows, so a token it still accepts is always still recorded.
+const googleTokenRecordMargin = time.Hour
+
+// ReserveGoogleToken implements AccountRepository. Records whose token
+// expired more than googleTokenRecordMargin ago are dropped as it goes.
 func (m *MemoryIdentityRepository) ReserveGoogleToken(_ context.Context, tokenHash string, expiresAt time.Time) (bool, error) {
 	if !isLowerHex64(tokenHash) || expiresAt.IsZero() {
 		return false, ErrInvalidAccountRecord
@@ -203,7 +209,7 @@ func (m *MemoryIdentityRepository) ReserveGoogleToken(_ context.Context, tokenHa
 	defer m.mu.Unlock()
 	st := m.accountsLocked()
 	for h, exp := range st.googleTokens {
-		if exp.Before(now) && h != tokenHash {
+		if exp.Add(googleTokenRecordMargin).Before(now) && h != tokenHash {
 			delete(st.googleTokens, h)
 		}
 	}

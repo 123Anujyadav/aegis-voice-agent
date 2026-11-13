@@ -124,8 +124,10 @@ type AccountRepository interface {
 	// at hourStart and reports whether the hour's count is within limit; a
 	// refused call counts nothing. Atomic across replicas.
 	ReserveAccountCreation(ctx context.Context, hourStart time.Time, limit int) (bool, error)
-	// ReserveGoogleToken records tokenHash until expiresAt and reports whether
-	// this is the first time it was seen: the single-use check.
+	// ReserveGoogleToken records tokenHash and reports whether this is the
+	// first time it was seen: the single-use check. expiresAt is the token's
+	// own expiry; the record is kept at least that long plus a margin (one
+	// hour) that must exceed any clock skew the verifier allows.
 	ReserveGoogleToken(ctx context.Context, tokenHash string, expiresAt time.Time) (bool, error)
 }
 
