@@ -30,7 +30,7 @@
 | # | Decision | Brief | Recommendation |
 |---|---|---|---|
 | O1 | Ratify ADR-0029, including the reversal of D11.3 and the amendments to ADR-0010 §5(c), §9 and §10 | `docs/phase18/ADR-0029-RATIFICATION-BRIEF.md`; `docs/phase19/ADR-0029-DEVIATION-ANALYSIS.md` | Ratify, and record the token profile as "RFC 9068-derived" (no `client_id`) |
-| O2 | ADR-0030 D30.3 (stored subscriber ids), including the `id_origin` column and the subscriber keyring rule | `docs/phase19/ADR-0030-D30.3-MIGRATION-PLAN.md` | Accept with both amendments. Stage 4 (retirement) is a separate, later decision. |
+| O2 | ADR-0030 D30.3 (stored subscriber ids), including the `id_origin` column and the subscriber keyring rule. **2026-11-13: decided for M1 in ADR-0035's form** (#318): every account created by Google Sign-In or a passkey gets a stored random id; existing number-derived ids are not migrated. **Still open:** the D30.3 migration of existing ids (its `id_origin` column, keyring rule and stages) | `docs/phase19/ADR-0030-D30.3-MIGRATION-PLAN.md`; `docs/adr/0035-google-sign-in-and-passkeys.md` D35.1 | Accept with both amendments. Stage 4 (retirement) is a separate, later decision. |
 | O3 | OTP backoff (fixed lockout or exponential) | Ratification brief §3a | Keep the fixed lockout until abuse data says otherwise |
 | O4 | Session lifetime (24 h, or ADR-0010's 90 days) | Ratification brief §2 | A product decision. Note that it changes the SIM-swap memory window (SIM-swap review §2). |
 | O5 | SIM-swap policies: cooling-off length and scope; prior-device notification; old-session handling; re-verification | `docs/phase19/SIM-SWAP-CONTROLS-REVIEW.md` §4 | 72 h cooling-off on history and configuration changes; keep old sessions; FCM "this wasn't me" |

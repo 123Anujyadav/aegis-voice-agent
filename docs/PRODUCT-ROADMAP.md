@@ -35,7 +35,7 @@ The milestones keep their definitions:
 - 4 testing (T2–T5);
 - 15 external (E1–E10, X1–X5);
 - 6 legal (L1–L6);
-- 27 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-10, OD-11, OD-13, OD-15, OD-16 and OD-18.
+- 26 owner decisions: tracker O1–O9 and O12–O17, and OD-1–OD-18 less the closed OD-10, OD-11, OD-13, OD-14, OD-15, OD-16 and OD-18. (2026-11-13: OD-14 decided; O2 decided for M1 in ADR-0035's form, its legacy-id migration still open and still counted.)
 
 High-risk items (H) overlap these and are listed with their phase.
 
@@ -78,8 +78,8 @@ High-risk items (H) overlap these and are listed with their phase.
   - C14, `client_id`;
   - C15, `BiometricPrompt`.
 - **External, 3:** E2 (SMS and DLT), E1 (Play Integrity), E8 (the cryptographic review or penetration test).
-- **Owner decisions, 18:** O1–O9, O12–O17 (the ADR ratifications, the identity policies, account deletion D1–D9), OD-4 (consent UI), OD-9, OD-14. (OD-13 closed, #258.)
-- **High-risk, needing OD-12:** H1 (ADR-0032), H2 (= O17), H4–H6 (= O1, O2, O7, if classed high-risk), H7 (a refused refresh proof).
+- **Owner decisions, 17:** O1–O9, O12–O17 (the ADR ratifications, the identity policies, account deletion D1–D9), OD-4 (consent UI), OD-9. (OD-13 closed, #258. OD-14 decided 2026-11-13, option B, #318. O2 decided for M1 in ADR-0035's form; its legacy-id migration stays open.)
+- **High-risk, needing OD-12:** H1 (ADR-0032's email-first direction withdrawn 2026-11-13; ADR-0035 accepted for M1 on internal assurance, independent review required before M2), H2 (= O17), H4–H6 (= O1, O2, O7, if classed high-risk), H7 (a refused refresh proof).
 - **Blocked by:** E2, and the SMS-and-DLT category approval, block every sign-in. The rest wait on decisions and OD-12.
 
 ### Product Phase 3: Core Product & AI Experience (M0 → M1 → M3)
@@ -175,13 +175,13 @@ High-risk items (H) overlap these and are listed with their phase.
 | Product phase | Coding | Testing | External | Legal | Owner decisions |
 |---|---|---|---|---|---|
 | 1 | 0 | 0 | 0 | 0 | 0 |
-| 2 | 10 | 0 | 3 | 0 | 18 |
+| 2 | 10 | 0 | 3 | 0 | 17 |
 | 3 | 2 | 0 | 0 | 0 | 6 |
 | 4 | 2 | 0 | 7 | 0 | 0 |
 | 5 | 0 | 4 | 1 | 0 | 0 |
 | 6 | 1 | 0 | 4 | 6 | 2 |
 | Cross-phase gates | — | — | — | — | 1 (OD-12) |
-| **Total** | **15** | **4** | **15** | **6** | **27** |
+| **Total** | **15** | **4** | **15** | **6** | **26** |
 
 **Not countable yet:** these capabilities have no task list. They need one before they can be counted:
 - the multilingual voice assistant;

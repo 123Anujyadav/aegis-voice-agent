@@ -42,7 +42,7 @@ The inventory's counts are as of 2026-11-01 (`ROADMAP-INVENTORY.md` §3.6), adju
 |---|---|---|---|
 | Coding (C1–C15) | **15** | **0** | — (C16–C24 done) |
 | Testing (T2–T5; T2 is 12 carrier cases) | **4** | **0** | T1 done |
-| Owner decisions (tracker O1–O17 less O10, O11; OD-1–OD-18) | **27** | — | OD-11 closed (#245); OD-13 closed (#258); OD-15 closed (#260); OD-10 closed (#261); OD-16 closed (#278); OD-18 closed (#183, #184, #185, #212) |
+| Owner decisions (tracker O1–O17 less O10, O11; OD-1–OD-18) | **26** | — | OD-14 decided 2026-11-13 (#318; option B, not implemented); O2 decided in part (ADR-0035 form; still counted); OD-11 closed (#245); OD-13 closed (#258); OD-15 closed (#260); OD-10 closed (#261); OD-16 closed (#278); OD-18 closed (#183, #184, #185, #212) |
 | Privacy and legal reviews (L1–L6) | **6** | — | Q7 adds counsel review of the 54 translated rows as a production gate |
 | External dependencies (E1–E10, X1–X5) | **15** | — | — |
 | High-risk decisions needing an independent reviewer | **4** (H1, H2, H3, H7), **+3 conditional** (H4–H6) | **0**: no reviewer named (OD-12) | — |

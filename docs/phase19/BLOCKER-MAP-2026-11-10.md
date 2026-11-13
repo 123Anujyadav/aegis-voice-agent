@@ -19,6 +19,11 @@
   - **#306** (the staging overlay) is merged, schema-validated and not applied.
   - **#301** gained startup selection and delivery metrics.
   - *(Done in round 2, above)* **M1 critical path:** your rule-8a decision on ADR-0033 and #301, and the SMS-pumping control F-1 ([`ADR-0033-M1-INTERNAL-ASSURANCE.md`](ADR-0033-M1-INTERNAL-ASSURANCE.md)); then R1, R2 and R3.
+- **2026-11-13, later: authentication direction decided** (#318, `main` `ab08860`). ADR-0035 (Google Sign-In, then passkeys, on stored random account ids; the phone number becomes a separate verification capability through the unchanged MSG91 path) and ADR-0036 are **accepted for M1 on internal assurance**; ADR-0037 stays Proposed until the passkey phase.
+  - **Register:** OD-14 decided (option B); O2 decided for M1 in ADR-0035's form; H1's email-first direction withdrawn. **26** owner decisions remain open. The "27" headings below are this map's 2026-11-10 record.
+  - **Not started:** authentication code waits for the owner's separate go-ahead.
+  - **Not approved:** a package-name change (D2), a Google Cloud project and OAuth clients, the domain (B3) and staging (R2).
+  - **Blocker recorded:** the legacy phone-account collision (INV-ID-2) blocks future phone verification.
 - **2026-11-13: the owner selected MSG91 as the primary SMS provider** and asked for one controlled test transaction for MSG91's Startup Benefits. **#316** hardens the MSG91 adapter and records everything in [`MSG91-INTEGRATION.md`](MSG91-INTEGRATION.md):
   - verified API facts;
   - the SMS use-case inventory (only sign-in is needed for M1);
