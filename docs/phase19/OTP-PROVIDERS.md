@@ -56,7 +56,9 @@ These are the existing **initial** values, "not production-tuned" in the code's 
 - These variables are read only when identity is activated, and never activate it. Startup logs the provider name (`otp_provider`), and warns when it is the mock.
 - **Production builds:** the server is one binary for every tier, so the mock is excluded at startup by environment, not at build time. The Android app has no provider code and never sees a code or credential.
 
-### Real delivery-only providers (`internal/bootstrap/otp_providers.go`; held until the owner accepts ADR-0033 for M1)
+### Real delivery-only providers (`internal/bootstrap/otp_providers.go`; ADR-0033 accepted for M1, 2026-11-12)
+
+**MSG91 is the owner's selected primary provider (2026-11-13).** The M1 selection is `CS_IDENTITY_OTP_PROVIDER=msg91` **alone**: one provider means at most one request per code (no failover, no retry). Twilio is never used unless named explicitly. MSG91's wire format and the facts behind this section are in [`MSG91-INTEGRATION.md`](MSG91-INTEGRATION.md).
 
 `CS_IDENTITY_OTP_PROVIDER` may name real providers, comma-separated and without spaces, in the order they are tried: `msg91`, `twilio`, `msg91,twilio` or `twilio,msg91`.
 
@@ -80,11 +82,13 @@ These are the existing **initial** values, "not production-tuned" in the code's 
 - **Transport:** TLS to the provider's API host only, with no redirects.
 - **Errors** are fixed values, never provider text.
 
-**Each attempt is bounded at 2 s,** and identity fails over to the next provider in order.
+**Each attempt is bounded at 2 s.** Nothing retries the same provider. With two providers, identity fails over to the next in order: a timed-out first attempt may still have been delivered, so the subscriber may receive the same code twice (never two different codes). With `msg91` alone, a code is handed over in at most one request.
+
+**MSG91's request id** for each accepted message is logged (`provider_request_id`, with `otp_provider`), never the number or the code, so the message can be traced in MSG91's SMS Logs. **Accepted is not delivered:** delivery is read from MSG91.
 
 **Delivery is counted** in `identity_otp_deliveries_total{provider,outcome}` once the HTTP API is registered. This applies to the mock too.
 
-**Account-deletion codes are not wired:** enabling them is decision O13. **The F-1 controls cover sign-in codes only:** the allowlist and the hourly cap apply in `RequestOtp`, and the deletion path (`web_erasure.go`) has its own budget (migration 0009) but no allowlist. Before deletion codes are wired, while the allowlist is in force (M1), that path must also refuse numbers outside it. Audit of 2026-11-12: `SetDeletionCodeSender` has no production caller.
+**Account-deletion codes are not wired:** enabling them is decision O13. **The tester allowlist applies to them too** (since 2026-11-13, `web_erasure.go`): while it is configured, a deletion code for a number outside it is refused first, as at sign-in. They have their own hourly budget (migration 0009) instead of the sign-in cap. **A source scan** (`internal/bootstrap/deletion_unwired_test.go`) fails if the identity binary's production code installs a deletion sender or budget, or configures a deletion template.
 
 **None of this activates anything.** It needs R1 (an account, DLT entity, header and templates, the India domestic route, billing) and the owner's ADR-0033 decision under rule 8a.
 
@@ -176,8 +180,10 @@ The owner approved both controls for M1 on 2026-11-12 ([ADR-0033](../adr/0033-ot
 | F-1: the hourly count is atomic per hour on both backends, across two pools; housekeeping; migration `0010` | `internal/pgstore/signin_budget_test.go` (PostgreSQL in CI's `identity-postgres`) |
 | F-1: both variables required with a real provider, optional with the mock, refused with none; no number in any error; the only sender installation; two runtimes share one cap | `internal/bootstrap/otp_controls_test.go`, `otp_controls_postgres_test.go` |
 | F-1 through HTTP: refusals are byte-for-byte "delivery unavailable", and nothing leaks | `internal/httpapi/signin_controls_test.go` |
+| MSG91: the verified Send SMS contract (headers, exactly the documented body fields, `91` + number, the code variable only); the request id reported only when well-formed; one request per call whatever the answer; alone in the Sender, at most one request per code | `internal/otpdelivery/msg91_test.go` |
+| Deletion codes: the allowlist applies first and spends nothing; nothing in production wires them (source scan) | `internal/app/web_erasure_allowlist_test.go`, `internal/bootstrap/deletion_unwired_test.go` |
 
-**No test makes a network request:** the mock delivers in-process.
+**No test makes a network request.** The mock delivers in-process, and the adapters are tested against local TLS stand-ins. **Every package whose tests build a real provider client** routes all outbound HTTP(S) to a dead loopback proxy in `TestMain` (`main_test.go`), pinned by `no_network_test.go`: `internal/otpdelivery`, `internal/bootstrap`, `internal/playintegrity`, and `packages/go/aiproviders/{anthropic,elevenlabs}`, `packages/go/speechproviders/{deepgram,google}`. **A new provider package must add the same guard.**
 
 Run them:
 
@@ -206,7 +212,7 @@ Each step needs the owner's approval where marked. **None is done.**
 - [ ] **Owner:** approve the SMS and DLT category, the provider and its contract (`M1-APPROVAL-REQUESTS.md` R1).
 - [ ] **Owner:** the naming review (F26), then DLT steps 1–4 (§5) and the provider's domestic route (5).
 - [ ] **Owner:** the provider account upgraded and billing approved (6).
-- [ ] **Engineering:** the provider's adapter merged, after its own review (see §7).
+- [x] **Engineering:** the delivery-only MSG91 and Twilio adapters merged (#301, `0a8e88d`, 2026-11-12), with the F-1 controls; MSG91 hardened for primary use (2026-11-13). Internal assurance only (rule 8a); the independent review is required before M2.
 - [ ] **SRE:** the credential as a mounted Secret file, and egress from identity to the provider only (a network-policy change: approval).
 - [ ] **Owner:** the M1 tester numbers and the hourly cap (F-1, §2).
 - [ ] **SRE:** the tester list as a mounted Secret file (`CS_IDENTITY_OTP_ALLOWED_NUMBERS_FILE`) and `CS_IDENTITY_OTP_SIGNIN_HOURLY_CAP`. **Startup refuses a real provider without both.** Migrate the schema to `0010` first.
@@ -216,10 +222,10 @@ Each step needs the owner's approval where marked. **None is done.**
 
 ## 7. Known limitations and open decisions
 
-- **The owner's preferred architecture is Option A** (2026-11-09; [ADR-0033](../adr/0033-otp-ownership-and-delivery-only-sms-providers.md), **Proposed**): identity generates, hashes and verifies every code, and a provider only delivers it. That is what this document describes. It is a preference, not yet a formal approval: acceptance needs the independent human review (OD-12; [review package](OD-12-OTP-REVIEW-PACKAGE.md)).
-- **A real provider adapter is not merged.** The Twilio Verify adapter (draft PR #271) generates and checks codes at Twilio, which contradicts Option A: **it is not selected and will not be merged.** A delivery-only adapter (Twilio Programmable Messaging and/or MSG91) is assessed in ADR-0033 §8, and would need its own review before merge and the owner's approvals before activation.
+- **Option A** ([ADR-0033](../adr/0033-otp-ownership-and-delivery-only-sms-providers.md)): identity generates, hashes and verifies every code, and a provider only delivers it. **Accepted for M1 on internal assurance (2026-11-12, rule 8a)**; the independent human review (OD-12; [review package](OD-12-OTP-REVIEW-PACKAGE.md)) is required before M2.
+- **The delivery-only adapters are merged but not activated** (#301). **No real SMS has been sent or validated.** The Twilio Verify adapter (draft PR #271) generates and checks codes at Twilio, which contradicts Option A: **it is not selected and will not be merged.**
 - **Open owner decisions this touches:**
-  - the SMS provider and the SMS and DLT approval (E2, R1);
+  - the SMS and DLT approval (E2, R1); the provider is chosen (MSG91, 2026-11-13), not activated;
   - a resend cooldown, if any (§1);
   - the deletion-code budget (O13);
   - tuning of the initial limits;

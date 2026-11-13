@@ -38,6 +38,15 @@
 - **Decide ADR-0033 and #301 for M1 under rule 8a:** [`ADR-0033-M1-INTERNAL-ASSURANCE.md`](ADR-0033-M1-INTERNAL-ASSURANCE.md) §3. Also choose the **SMS-pumping control (F-1)** before any real SMS: an M1 tester allowlist, a global send budget, or both.
 - Gate A5 is done: the staging overlay is merged (#306), but not applied. ADR-0034 is accepted; the Google and Deepgram adapters are being built.
 
+**Added 2026-11-13: MSG91 selected as the primary provider.** In order ([`MSG91-INTEGRATION.md`](MSG91-INTEGRATION.md) §10):
+1. Confirm the account facts (§7): new account, created through the partner's link, startup form, corporate email, website. Also the deadline and the wording of MSG91's email.
+2. Complete KYC if the account is in demo.
+3. Approve DLT registration (paid; after the naming review), then map the entity, header and template on MSG91.
+4. Name the tester number.
+5. Approve the single test transaction (§8): about 1 credit; startup or paid balance.
+6. Place the authkey in a file.
+7. After success, approve the §9 email.
+
 **Done 2026-11-12 (round 2):**
 - ADR-0033 is accepted for M1 under rule 8a, and both F-1 controls are approved (#314).
 - #301 merged (`0a8e88d`), with the tester allowlist and the global hourly cap. Startup refuses a real provider without both.

@@ -19,6 +19,22 @@
   - **#306** (the staging overlay) is merged, schema-validated and not applied.
   - **#301** gained startup selection and delivery metrics.
   - *(Done in round 2, above)* **M1 critical path:** your rule-8a decision on ADR-0033 and #301, and the SMS-pumping control F-1 ([`ADR-0033-M1-INTERNAL-ASSURANCE.md`](ADR-0033-M1-INTERNAL-ASSURANCE.md)); then R1, R2 and R3.
+- **2026-11-13: the owner selected MSG91 as the primary SMS provider** and asked for one controlled test transaction for MSG91's Startup Benefits. **#316** hardens the MSG91 adapter and records everything in [`MSG91-INTEGRATION.md`](MSG91-INTEGRATION.md):
+  - verified API facts;
+  - the SMS use-case inventory (only sign-in is needed for M1);
+  - the DLT and Startup Benefits checklists;
+  - the one-SMS test plan;
+  - a draft email.
+  - **Nothing was sent, and no MSG91 account data was seen.**
+  - **Blocking the test transaction (owner):**
+    - account facts (new account, partner link, form, deadline);
+    - KYC (a demo account replaces the text);
+    - **DLT registration, which MSG91 lists as mandatory for the startup programme** (paid);
+    - the flow id and variable;
+    - the tester number;
+    - the authkey file;
+    - balance;
+    - then the specific approval of the one test.
 - **2026-11-12, round 2: the owner accepted ADR-0033 for M1 under rule 8a and approved both F-1 controls** (#314). **#301 merged (`0a8e88d`):**
   - the delivery-only SMS adapters and startup selection;
   - the F-1 controls. **Delivery is denied** to numbers outside the tester allowlist, and to every number once the **global hourly cap** is reached. A real provider cannot start without both (fail closed).

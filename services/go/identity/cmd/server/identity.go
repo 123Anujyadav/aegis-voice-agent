@@ -120,6 +120,14 @@ func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runne
 	// Sign-in code deliveries by provider and outcome
 	// (httpapi.MetricOtpDeliveries), for a real provider's delivery rate.
 	rt.ObserveOtpDeliveries(apiMetrics.ObserveOtpDelivery)
+	// The provider's request id for each accepted sign-in message, so it can
+	// be traced in the provider's delivery logs (MSG91's SMS Logs API is keyed
+	// by it). Neither the number nor the code is logged. Accepted is not
+	// delivered: delivery is read from the provider.
+	rt.ObserveOtpAcceptances(func(provider, requestID string) {
+		log.Info("OTP message accepted by the provider",
+			slog.String("otp_provider", provider), slog.String("provider_request_id", requestID))
+	})
 	log.Info("identity service constructed on PostgreSQL; HTTP API registered",
 		slog.Int("http_port", svcCfg.HTTPPort), slog.String("otp_provider", rt.OtpProvider()))
 	if rt.OtpProvider() == bootstrap.OtpProviderMock {

@@ -184,12 +184,12 @@ func isIndianMobile(s string) bool {
 // installs a sender, and it refuses a real provider without the controls,
 // whatever produced d: a real sender can never serve without them. It returns
 // the mock's outbox, or nil.
-func installOtpDelivery(svc *app.IdentityService, d OtpDelivery, observe func(string, otpdelivery.Outcome)) (*otpdelivery.Outbox, error) {
+func installOtpDelivery(svc *app.IdentityService, d OtpDelivery, obs *deliveryObserver) (*otpdelivery.Outbox, error) {
 	if d.real != nil && d.controls == nil {
 		return nil, fmt.Errorf("%w: a real OTP provider requires %s and %s", ErrInvalidConfig,
 			OtpAllowedNumbersFileVariable, OtpSignInHourlyCapVariable)
 	}
-	sender, outbox, err := d.otpSender(observe)
+	sender, outbox, err := d.otpSender(obs)
 	if err != nil {
 		return nil, err
 	}

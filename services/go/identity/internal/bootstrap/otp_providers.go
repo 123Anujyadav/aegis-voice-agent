@@ -136,7 +136,7 @@ func resolveRealProviders(names []string, lookup func(string) (string, bool)) (m
 
 // realSender builds the delivery-only adapters and their failover sender. It
 // reads the credential files now, so a missing or malformed one stops startup.
-func (d OtpDelivery) realSender(observe func(string, otpdelivery.Outcome)) (*otpdelivery.Sender, error) {
+func (d OtpDelivery) realSender(obs *deliveryObserver) (*otpdelivery.Sender, error) {
 	providers := make([]otpdelivery.Provider, 0, len(d.real.names))
 	settings := d.real.settings
 	for _, name := range d.real.names {
@@ -151,6 +151,7 @@ func (d OtpDelivery) realSender(observe func(string, otpdelivery.Outcome)) (*otp
 				AuthKeyFile:  settings[OtpMSG91AuthKeyFileVariable],
 				SignInFlowID: settings[OtpMSG91SignInFlowIDVariable],
 				CodeVariable: settings[OtpMSG91CodeVariableVariable],
+				Accepted:     obs.acceptedBy(OtpProviderMSG91),
 			})
 		case OtpProviderTwilio:
 			p, err = otpdelivery.NewTwilio(otpdelivery.TwilioConfig{
@@ -169,7 +170,7 @@ func (d OtpDelivery) realSender(observe func(string, otpdelivery.Outcome)) (*otp
 		providers = append(providers, p)
 	}
 	sender, err := otpdelivery.New(otpdelivery.Config{
-		Providers: providers, AttemptTimeout: otpAttemptTimeout, Observe: observe,
+		Providers: providers, AttemptTimeout: otpAttemptTimeout, Observe: obs.outcomes(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
@@ -177,12 +178,45 @@ func (d OtpDelivery) realSender(observe func(string, otpdelivery.Outcome)) (*otp
 	return sender, nil
 }
 
-// deliveryObserver forwards delivery outcomes to a hook installed after the
-// runtime is built: the metrics registry is created later than the sender.
-// Until a hook is installed, outcomes are dropped.
+// deliveryObserver forwards delivery outcomes, and providers' request ids for
+// accepted messages, to hooks installed after the runtime is built: the
+// metrics registry and the log are wired later than the sender. Until a hook
+// is installed, its events are dropped. A nil *deliveryObserver observes
+// nothing.
 type deliveryObserver struct {
-	mu   sync.RWMutex
-	hook func(string, otpdelivery.Outcome)
+	mu       sync.RWMutex
+	hook     func(string, otpdelivery.Outcome)
+	accepted func(provider, requestID string)
+}
+
+// outcomes is the Sender's Observe function, or nil for a nil observer.
+func (o *deliveryObserver) outcomes() func(string, otpdelivery.Outcome) {
+	if o == nil {
+		return nil
+	}
+	return o.observe
+}
+
+// acceptedBy is an adapter's Accepted function for provider, or nil for a nil
+// observer.
+func (o *deliveryObserver) acceptedBy(provider string) func(requestID string) {
+	if o == nil {
+		return nil
+	}
+	return func(requestID string) {
+		o.mu.RLock()
+		hook := o.accepted
+		o.mu.RUnlock()
+		if hook != nil {
+			hook(provider, requestID)
+		}
+	}
+}
+
+func (o *deliveryObserver) setAccepted(hook func(provider, requestID string)) {
+	o.mu.Lock()
+	o.accepted = hook
+	o.mu.Unlock()
 }
 
 func (o *deliveryObserver) observe(provider string, outcome otpdelivery.Outcome) {
