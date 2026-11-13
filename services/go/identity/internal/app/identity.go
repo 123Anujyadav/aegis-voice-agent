@@ -442,6 +442,8 @@ type MemoryIdentityRepository struct {
 	// signInDeliveries counts sign-in code deliveries per hour
 	// (ReserveSignInDelivery, signin_controls.go).
 	signInDeliveries map[time.Time]int
+	// accts is account storage (accounts_memory.go), created on first use.
+	accts *memoryAccounts
 }
 
 // otpRateState is one MSISDN's rate-limit state: the times of its OTP requests

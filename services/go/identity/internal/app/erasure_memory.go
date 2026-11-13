@@ -55,6 +55,13 @@ func (m *MemoryIdentityRepository) eraseLocked(e *SubscriberErasure) {
 			delete(m.delegations, key)
 		}
 	}
+	// An account created by a non-SMS method (ADR-0035): its methods are
+	// deleted and its id tombstoned (INV-ID-7 option A).
+	erasedAt := e.RequestedAt
+	if erasedAt.IsZero() {
+		erasedAt = time.Now()
+	}
+	m.eraseAccountLocked(e.SubscriberID, erasedAt)
 	record := *e
 	record.Exceptions = append([]string(nil), e.Exceptions...)
 	m.erasures = append(m.erasures, record)

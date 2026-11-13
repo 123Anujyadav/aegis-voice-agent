@@ -143,12 +143,15 @@ type HousekeepingResult struct {
 	DeletionReceipts, DeletionBudgetHours int64
 	// SignInBudgetHours are old hours of the sign-in delivery budget (0010).
 	SignInBudgetHours int64
+	// AccountBudgetHours are old hours of the account-creation budget, and
+	// GoogleTokens expired single-use records of Google ID tokens (0011).
+	AccountBudgetHours, GoogleTokens int64
 }
 
 // Total is the number of rows the iteration deleted.
 func (r HousekeepingResult) Total() int64 {
 	return r.Challenges + r.Requests + r.Failures + r.RateStates + r.Sessions + r.Proofs + r.ErasureReceipts +
-		r.DeletionReceipts + r.DeletionBudgetHours + r.SignInBudgetHours
+		r.DeletionReceipts + r.DeletionBudgetHours + r.SignInBudgetHours + r.AccountBudgetHours + r.GoogleTokens
 }
 
 // Housekeeper deletes expired identity state in bounded batches.
@@ -245,6 +248,21 @@ var housekeepingSteps = []struct {
 		SELECT hour_start FROM identity_signin_delivery_budget WHERE hour_start < $1::timestamptz - interval '1 hour'
 		ORDER BY hour_start LIMIT $2 FOR UPDATE SKIP LOCKED)`, false,
 		func(r *HousekeepingResult, n int64) { r.SignInBudgetHours = n },
+	},
+	{
+		// The same rule for the account-creation budget (0011).
+		"account budget hours", `DELETE FROM identity_account_creation_budget WHERE hour_start IN (
+		SELECT hour_start FROM identity_account_creation_budget WHERE hour_start < $1::timestamptz - interval '1 hour'
+		ORDER BY hour_start LIMIT $2 FOR UPDATE SKIP LOCKED)`, false,
+		func(r *HousekeepingResult, n int64) { r.AccountBudgetHours = n },
+	},
+	{
+		// A Google token's record is needed only until the token itself
+		// expires: after that the token is refused as expired anyway.
+		"google tokens", `DELETE FROM identity_google_token_replay WHERE token_hash IN (
+		SELECT token_hash FROM identity_google_token_replay WHERE expires_at < $1
+		ORDER BY expires_at LIMIT $2 FOR UPDATE SKIP LOCKED)`, false,
+		func(r *HousekeepingResult, n int64) { r.GoogleTokens = n },
 	},
 }
 
