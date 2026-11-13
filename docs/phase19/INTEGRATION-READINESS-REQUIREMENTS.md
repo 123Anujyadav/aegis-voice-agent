@@ -126,7 +126,7 @@ These rules already hold on `main`, and every integration below keeps them:
 ### 2.8 PostgreSQL
 
 - **Prerequisites:** **R2** (E4: the database, CA bundle, multi-AZ, PITR); O2 for the subscriber directory (C11).
-- **Implementation dependencies:** in place. Identity `pgstore` (migrations 0001–0010), the edge-api replay store, `evalstore` and the gateway fence. Needed: the staging instance itself and `migrate` (R2).
+- **Implementation dependencies:** in place. Identity `pgstore` (migrations 0001–0011), the edge-api replay store, `evalstore` and the gateway fence. Needed: the staging instance itself and `migrate` (R2).
 - **Security requirements:**
   - `sslmode=verify-full` with an explicit, absolute `sslrootcert`; no plaintext fallback; the only exception is an explicit `development` environment (ADR-0029 lines 143–150; ADR-0029 is Proposed, under delegation).
   - Customer-managed KMS keys; least-privilege per-service credentials through IRSA and short-lived tokens; backups in scope for erasure (ADR-0009 lines 213–235).

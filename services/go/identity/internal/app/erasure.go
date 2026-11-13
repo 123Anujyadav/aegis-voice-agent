@@ -72,6 +72,9 @@ var ErasureExceptions = []string{
 	"identity_erasures: LEGAL_HOLD (docs/domain/10-identity.md ErasureRequest)",
 	"identity_otp_rate_state, identity_otp_requests, identity_otp_failures: number pseudonym, deleted by housekeeping within the rate window plus margin",
 	"identity_dpop_replay: proof ids, deleted by housekeeping after expiry",
+	"identity_accounts: the erased account id's tombstone (status erased, created and erased times), kept so the id is never reused (INV-ID-7, ADR-0035)",
+	"identity_google_token_replay: SHA-256 hashes of redeemed Google ID tokens, deleted by housekeeping after the token's expiry plus margin",
+	"identity_account_creation_budget: hourly counts only, deleted by housekeeping",
 	"issued access tokens: valid until expiry (at most 15 minutes, ADR-0029)",
 }
 

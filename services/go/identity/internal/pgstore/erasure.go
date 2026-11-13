@@ -85,6 +85,11 @@ func eraseRows(ctx context.Context, tx pgx.Tx, e *app.SubscriberErasure) error {
 			return fmt.Errorf("pgstore: erasing %s: %w", s.what, err)
 		}
 	}
+	// An account created by a non-SMS method (ADR-0035): methods deleted, id
+	// tombstoned (accounts.go).
+	if err := eraseAccountRows(ctx, tx, e); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `
 			INSERT INTO identity_erasures (subscriber_id, requested_at, exceptions) VALUES ($1, $2, $3)`,
 		e.SubscriberID, us(e.RequestedAt), e.Exceptions); err != nil {

@@ -308,12 +308,42 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 10 {
-		t.Fatalf("chain has %d steps, want 10", len(chain))
+	if len(chain) != 11 {
+		t.Fatalf("chain has %d steps, want 11", len(chain))
 	}
 	for i, step := range chain {
 		if step.Version != i+1 {
 			t.Fatalf("step %d is version %d: the chain is not contiguous", i, step.Version)
+		}
+	}
+
+	// 0011 only creates tables and indexes of its own (accounts, methods, the
+	// creation budget, Google token records): no existing table or row is
+	// touched.
+	if chain[10].Name != "0011_accounts_and_auth_methods.sql" {
+		t.Errorf("step 11 is %q", chain[10].Name)
+	}
+	own := []string{"identity_accounts", "identity_auth_methods", "identity_account_creation_budget", "identity_google_token_replay"}
+	var code11 []string
+	for _, line := range strings.Split(chain[10].SQL, "\n") {
+		if l := strings.TrimSpace(line); l != "" && !strings.HasPrefix(l, "--") {
+			code11 = append(code11, l)
+		}
+	}
+	for _, stmt := range strings.Split(strings.Join(code11, " "), ";") {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+		ok := false
+		for _, table := range own {
+			if strings.HasPrefix(stmt, "CREATE TABLE "+table+" (") ||
+				(strings.HasPrefix(stmt, "CREATE ") && strings.Contains(stmt, " INDEX ") && strings.Contains(stmt, " ON "+table+" (")) {
+				ok = true
+			}
+		}
+		if !ok {
+			t.Errorf("0011 has a statement outside its own tables: %q", stmt)
 		}
 	}
 
