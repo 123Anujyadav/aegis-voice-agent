@@ -117,7 +117,7 @@
 - **Lost method:** any other linked method recovers the account; users are encouraged to hold both Google and a passkey.
 - **Lost every method:** **proposed for M1: the account is lost** (no support-led recovery). A support process is an owner decision (decision 7 in the summary). The consequences, stated plainly:
   - **The person cannot sign in again** to that account, and nobody at Lily AI can restore access.
-  - **They cannot delete it themselves:** in-app deletion needs a signed-in session, and web deletion for Google-only accounts is an M2 item (D35.10). Its data stays stored until a deletion path exists. At M1 the accounts hold only the owner's testers' test data, and the owner can ask for a manual database erasure through the existing erasure code.
+  - **They cannot delete it themselves:** in-app deletion needs a signed-in session, and web deletion for Google-only accounts is an M2 item (D35.10). Its data stays stored until a deletion path exists. At M1 the accounts hold only the owner's testers' test data. Erasing such an account would need an operator-run erasure, **for which no tool exists today**.
   - **A new sign-up creates a new, empty account**, if the gate allows it. Nothing from the lost account carries over.
   - **Before M2** the owner decides a recovery position and a deletion path for unreachable accounts (DPDP: the right to erasure).
 - **Verified phone as recovery** is out of scope until the phone-verification ADR.
