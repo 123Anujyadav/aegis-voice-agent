@@ -1,6 +1,7 @@
 # ADR-0036: Google ID-token verification library (server) and Credential Manager (Android)
 
-- **Status:** **Proposed.** Not accepted, not implemented. It applies only if [ADR-0035](0035-google-sign-in-and-passkeys.md) is accepted.
+- **Status:** **Accepted for release milestone M1 on internal assurance (2026-11-13, repository owner, rule 8a)**, with [ADR-0035](0035-google-sign-in-and-passkeys.md); independent human review outstanding, and required before M2 (rule 8b). Not implemented.
+  - **Earlier status (2026-11-13, same pull request):** Proposed.
 - **Date:** 2026-11-13
 - **Deciders:** the repository owner (see `README.md`, "Approval")
 - **Independent human review:** proposed as part of ADR-0035's high-risk decision: the verifier is the trust boundary for Google Sign-In. For M1 the owner may accept on internal assurance (rule 8a); review is required before M2 (rule 8b).
@@ -85,14 +86,14 @@
 
 | Field | Record |
 |---|---|
-| Decision | **None.** Proposed only |
+| Decision | **Accepted for M1 on internal assurance (rule 8a), 2026-11-13**, by the owner's explicit written decisions in the Claude Code session of 2026-11-13, recorded by pull request #318. **Not accepted for M2 or production** |
 | Classification | Proposed as part of ADR-0035's high-risk decision (the trust boundary for Google Sign-In). The owner's classification is final |
 | Version | — |
-| Owner decision | Pending ([`AUTH-DECISIONS-2026-11-13.md`](../phase19/AUTH-DECISIONS-2026-11-13.md), decision 1) |
-| Independent human review | Not available (OD-12); required before M2 |
+| Owner decision | 2026-11-13 ([`AUTH-DECISIONS-2026-11-13.md`](../phase19/AUTH-DECISIONS-2026-11-13.md), decision 1) |
+| Independent human review | **Outstanding** (OD-12); required before M2 |
 | Other approvals | SRE and owner: identity egress to Google's key endpoint (a network-policy change) |
 | AI involvement | Drafted by Claude Code (AI); library facts read from proxy.golang.org and Google's Maven repository on 2026-11-13 |
-| Does not | Add any dependency; authorise implementation, egress or any Google Cloud setup |
+| Does not | Add any dependency by itself (that is the implementing pull request, with its measured footprint); authorise identity egress to Google or any Google Cloud setup, which need their own approvals |
 
 ## References
 

@@ -1,6 +1,13 @@
 # ADR-0010: Authentication and device trust — MSISDN identity, hardware-bound tokens, Play Integrity
 
 - **Status:** Accepted
+  - **Dated note, 2026-11-13 (rule 11; the text below is unchanged):** §5(a)
+    is **superseded for release milestone M1 only** by
+    [ADR-0035](0035-google-sign-in-and-passkeys.md) (accepted for M1 on
+    internal assurance, rule 8a): accounts may be created through Google
+    Sign-In (later passkeys) on a stored random account id, and SMS one-time
+    codes are not offered as a sign-in while ADR-0035 is in force. For M2 and
+    production, §5(a) stands until the independent human review (rule 8b).
 - **Date:** 2026-08-06
 - **Deciders:** Lead Staff Engineer
 - **Consulted:** Security

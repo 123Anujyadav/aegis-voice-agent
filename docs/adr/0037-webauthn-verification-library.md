@@ -1,6 +1,7 @@
 # ADR-0037: WebAuthn (passkey) verification library (server)
 
-- **Status:** **Proposed.** Not accepted, not implemented. It applies only if [ADR-0035](0035-google-sign-in-and-passkeys.md) is accepted, and is needed only for the passkey slice (after Google Sign-In).
+- **Status:** **Proposed.** Not accepted, not implemented. Needed only for the passkey slice (after Google Sign-In).
+  - **Owner decision (2026-11-13):** keep this ADR Proposed until the passkey implementation phase begins. [ADR-0035](0035-google-sign-in-and-passkeys.md) is accepted for M1, with passkeys as the direction.
 - **Date:** 2026-11-13
 - **Deciders:** the repository owner (see `README.md`, "Approval")
 - **Independent human review:** proposed as part of ADR-0035's high-risk decision: the verifier is the trust boundary for passkey sign-in. For M1 the owner may accept on internal assurance (rule 8a); review is required before M2 (rule 8b).
@@ -94,7 +95,7 @@
 | Decision | **None.** Proposed only |
 | Classification | Proposed as part of ADR-0035's high-risk decision (the trust boundary for passkeys). The owner's classification is final |
 | Version | — |
-| Owner decision | Pending ([`AUTH-DECISIONS-2026-11-13.md`](../phase19/AUTH-DECISIONS-2026-11-13.md), decision 1); needed before the passkey slice only |
+| Owner decision | **Kept Proposed** (2026-11-13) until the passkey phase ([`AUTH-DECISIONS-2026-11-13.md`](../phase19/AUTH-DECISIONS-2026-11-13.md), decision 1) |
 | Independent human review | Not available (OD-12); required before M2 |
 | AI involvement | Drafted by Claude Code (AI); library facts read from proxy.golang.org on 2026-11-13 |
 | Does not | Add any dependency; authorise implementation or any domain or Digital Asset Links setup |

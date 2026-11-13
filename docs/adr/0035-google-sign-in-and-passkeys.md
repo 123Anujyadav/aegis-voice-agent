@@ -1,12 +1,14 @@
 # ADR-0035: Google Sign-In and passkeys for M1; phone number as a separate verification capability
 
-- **Status:** **Proposed: high-risk.** Not accepted, not implemented. It has no effect on implementation until the repository owner accepts it (`ARCHITECTURE_FREEZE.md` §6.1 rule 7; for M1, §6.2 rule 8a). An independent human review stays required before M2 (rule 8b).
+- **Status:** **Accepted for release milestone M1 on internal assurance (2026-11-13, repository owner, rule 8a); independent human review outstanding, and required before M2 (rule 8b).** High-risk. **Not accepted for M2 or production.**
+  - **Scope accepted:** D35.1–D35.12, the invariant decisions below (INV-ID-7 option A), and the INV-ID-8 ruling with its limitations. **Passkeys (D35.5)** are accepted as the direction; their implementation waits for ADR-0037, which stays Proposed until the passkey phase.
+  - **Earlier status (2026-11-13, same pull request):** Proposed: high-risk.
 - **Date:** 2026-11-13
 - **Deciders:** the repository owner (see `README.md`, "Approval")
-- **Independent human review:** required before M2 (rule 8b). Not available (OD-12 open). For M1 the owner may accept on internal assurance (rule 8a); the record would then say "accepted for M1 on internal assurance; independent human review outstanding".
+- **Independent human review:** **outstanding.** Required before M2 (rule 8b); OD-12 open. Accepted for M1 on internal assurance only.
 - **Consulted:** none
 - **Informed:** —
-- **Related:** supersedes, for M1 only and only if accepted, ADR-0010 §5(a) (SMS OTP as the enrolment method; the phone number as the identity). Would replace the Proposed direction of ADR-0032 (email code primary). Leaves ADR-0033 (Accepted for M1) and the MSG91 integration unchanged. Library decisions: [ADR-0036](0036-google-id-token-verification-library.md) (Google ID tokens; Android Credential Manager) and [ADR-0037](0037-webauthn-verification-library.md) (passkeys). Owner decision summary: [`../phase19/AUTH-DECISIONS-2026-11-13.md`](../phase19/AUTH-DECISIONS-2026-11-13.md).
+- **Related:** supersedes ADR-0010 §5(a) (SMS OTP as the enrolment method; the phone number as the identity) **for M1 only**. Replaces the email-first direction of ADR-0032 (withdrawn by the owner, 2026-11-13). Leaves ADR-0033 (Accepted for M1) and the MSG91 integration unchanged. Library decisions: [ADR-0036](0036-google-id-token-verification-library.md) (Google ID tokens; Android Credential Manager; accepted for M1) and [ADR-0037](0037-webauthn-verification-library.md) (passkeys; Proposed until the passkey phase). Owner decisions: [`../phase19/AUTH-DECISIONS-2026-11-13.md`](../phase19/AUTH-DECISIONS-2026-11-13.md).
 
 ---
 
@@ -17,7 +19,7 @@
   - **ADR-0010 (Accepted, frozen):** "The subscriber's identity in this product **is their phone number**" (§1); SMS OTP at enrolment and re-verification (§5(a)); a non-exportable Keystore P-256 device key (§5(c)); 15-minute access tokens. It rejected a hosted OAuth/OIDC identity provider on residency and fit (§8, Option 2). It anticipates "Passkey-style re-enrolment" only as a later stage (§14, Phase 3).
   - **ADR-0033 (Accepted for M1, rule 8a):** identity generates, hashes and verifies every code; SMS providers only deliver. The F-1 controls (tester allowlist, global hourly SMS cap) apply to sign-in SMS.
   - **ADR-0029/0030/0031** (Proposed, decided under delegation): DPoP-bound EdDSA access tokens, opaque rotating refresh tokens; HMAC key separation and stored random subscriber ids (D30.3, owner decision O2); Play Integrity at issuance.
-- **What is proposed but not accepted:** ADR-0032 (2026-10-31 direction): passwordless email code primary, Sign in with Google as an alternative, SMS deferred to phone-ownership verification. No passkeys. Its analysis of Google sign-in (D32.1, D32.3–D32.7) is sound and is reused here.
+- **What was proposed but not accepted:** ADR-0032 (2026-10-31 direction, withdrawn by the owner on 2026-11-13): passwordless email code primary, Sign in with Google as an alternative, SMS deferred to phone-ownership verification. No passkeys. Its analysis of Google sign-in (D32.1, D32.3–D32.7) is sound and is reused here.
 - **What the code does today (`main` `942534c`):**
   - **The account is the number.** The subscriber id is `usr_` + HMAC(MSISDN) (`internal/app/subscriber_directory.go`, `LegacySubscriberID`). There is no account table; an "account" is the sessions sharing a subscriber id. A stored, random-id directory exists but is not wired.
   - **Sessions are method-neutral.** Once a subscriber id and a verified DPoP key exist, session creation, the 15-minute DPoP-bound access token, refresh rotation with reuse detection, account deletion and edge-api's `GET /v1/me` work for any `usr_` id.
@@ -47,21 +49,21 @@
 
 ## Decision Outcome
 
-**Proposed: Option 1.** Each part is numbered so the owner can accept, amend or reject it separately.
+**Chosen: Option 1** (accepted for M1, 2026-11-13). Each part is numbered so it can be referred to and, later, amended separately.
 
 ### D35.1 One canonical account id, stored and random
 
 - New accounts get `usr_` + 32 lowercase hex characters from 128 random bits (`crypto/rand`), the same shape the erasure table already requires. It is stored in a new `identity_accounts` table (account id, created at, status) and never derived from any identifier.
 - **Existing number-derived ids are not migrated or changed.** The OTP route keeps its current derivation, untouched.
 - This is ADR-0030 D30.3 (owner decision **O2**), generalised beyond the number: **its acceptance is a prerequisite.**
-- **Proposed O2 wording:** "Every account created by Google Sign-In or a passkey receives a stored account id, `usr_` followed by 32 lowercase hexadecimal characters from 128 bits of a cryptographically secure random source, recorded in `identity_accounts` and never derived from any identifier. Existing number-derived ids are not migrated or changed, and the SMS route keeps its derivation. Authentication methods and verified numbers refer to the account id; none is the account's key."
+- **O2, as accepted by the owner (2026-11-13):** "Every account created by Google Sign-In or a passkey receives a stored account id, `usr_` followed by 32 lowercase hexadecimal characters from 128 bits of a cryptographically secure random source, recorded in `identity_accounts` and never derived from any identifier. Existing number-derived ids are not migrated or changed, and the SMS route keeps its derivation. Authentication methods and verified numbers refer to the account id; none is the account's key."
 
 ### D35.2 Authentication methods attached to the account
 
 - A new `identity_auth_methods` table: account id, kind (`google` or `passkey`), a **lookup pseudonym**, created at, last used at, revoked at. **Unique on (kind, lookup pseudonym)** among non-revoked rows: one Google identity or one passkey credential belongs to at most one account.
 - **Google:** the pseudonym of the issuer and subject together, HMAC under a key used for nothing else (ADR-0030 D30.1 purpose separation). **The email is never a key and is not stored.** Neither are the name or picture.
 - **Passkeys:** a separate `identity_passkeys` table holding only what verification needs: the credential id, the COSE public key, the signature counter, the AAGUID, the backup-eligible and backup-state flags, the transports, and timestamps. **No private key exists on the server.**
-- An account may hold one Google identity and several passkeys (proposed limit: 10).
+- An account may hold one Google identity and several passkeys (limit: 10).
 
 ### D35.3 The phone number is a separate verification capability
 
@@ -75,6 +77,7 @@
   - the DLT PE ID, header, template id and MSG91 flow id when they exist.
 
   It needs its own ADR, because attaching a number to an existing account is a different operation from today's sign-in.
+- **Blocker for that future ADR (owner, 2026-11-13): the legacy phone-account collision.** Today's SMS route derives an account from the number. If such a legacy account exists for a number that a Google or passkey account later tries to verify, INV-ID-2 forbids two active accounts on one verified number. The phone-verification ADR must decide, before any number is attached, whether to refuse, merge under the person's explicit control, or retire the legacy account. **Phone verification cannot ship until it does.**
 - **Today's SMS sign-in route** (`/v1/otp/request`, `/v1/otp/validate`) creates a number-derived account. **Its code is not changed.** While this ADR is in force the app does not offer it as a sign-in, because beside Google and passkey accounts it would create a second, separate account for the same person (ADR-0032 P4). Staging keeps `CS_IDENTITY_OTP_PROVIDER=none`.
 
 ### D35.4 Google Sign-In
@@ -115,7 +118,7 @@
 
 - **New phone, same person:** Google Sign-In on the new phone signs into the same account with a new DPoP device key; synced passkeys (Google Password Manager) also work there. The old device's sessions can be revoked (D35.9).
 - **Lost method:** any other linked method recovers the account; users are encouraged to hold both Google and a passkey.
-- **Lost every method:** **proposed for M1: the account is lost** (no support-led recovery). A support process is an owner decision (decision 7 in the summary). The consequences, stated plainly:
+- **Lost every method:** **at M1 the account is lost** (no support-led recovery; owner decision 7, 2026-11-13). The consequences, stated plainly:
   - **The person cannot sign in again** to that account, and nobody at Lily AI can restore access.
   - **They cannot delete it themselves:** in-app deletion needs a signed-in session, and web deletion for Google-only accounts is an M2 item (D35.10). Its data stays stored until a deletion path exists. At M1 the accounts hold only the owner's testers' test data. Erasing such an account would need an operator-run erasure, **for which no tool exists today**.
   - **A new sign-up creates a new, empty account**, if the gate allows it. Nothing from the lost account carries over.
@@ -133,7 +136,7 @@
 ### D35.9 Sessions, logout and revocation
 
 - **Unchanged:** the token profile (ADR-0029), DPoP binding on every request, refresh rotation with reuse detection, the 24-hour absolute session (O4 stays open), Play Integrity at issuance (ADR-0031).
-- **New (proposed as OD-14 option B):**
+- **New (OD-14 decided as option B by the owner, 2026-11-13):**
   - `POST /v1/session/logout`: revokes the current session (refresh token plus a DPoP proof from its key);
   - `POST /v1/session/revoke-all`: revokes every session of the account, from a signed-in session.
 - **Known limit:** an access token stays valid for up to 15 minutes after revocation (it carries no session id and edge-api does not consult sessions; O17). Closing it is a separate decision.
@@ -159,15 +162,36 @@
 
 ### Domain invariant changes (each needs the owner's separate sign-off, rule 5)
 
-| Invariant | Current wording | Proposed | Consequence |
+| Invariant | Current wording | Accepted for M1 (owner, 2026-11-13) | Consequence |
 |---|---|---|---|
 | **INV-ID-1** | "A Subscriber has exactly one active MSISDN" | "A Subscriber has **at most one active verified** MSISDN" | Accounts can exist without a number. Every feature that needs a proven number (call forwarding, telephony, number-based protection) must check verification state, never assume it |
-| **INV-ID-2** | "An MSISDN maps to at most one active Subscriber" | "A **verified** MSISDN maps to at most one active Subscriber" | A number can be verified on one account only. **Open edge:** a legacy number-derived account (today's OTP route) for the same number; the phone-verification ADR must refuse or reconcile it |
+| **INV-ID-2** | "An MSISDN maps to at most one active Subscriber" | "A **verified** MSISDN maps to at most one active Subscriber" | A number can be verified on one account only. **The legacy phone-account collision is a blocker for future phone verification** (D35.3): a number-derived account from today's SMS route for the same number must be refused or reconciled before any number is attached |
 | **INV-ID-3** | "A device credential is generated on-device, is non-exportable, and never enters our domain" | **Unchanged** | Passkeys do not replace the DPoP device key; every session stays bound to it |
-| **INV-ID-7** | "An erased Subscriber's identifiers are tombstoned and never reused" | **Option A (recommended):** "An erased Subscriber's **account id** is tombstoned and never reused; its authentication identifiers and verified numbers are deleted." **Option B:** unchanged wording, extended to Google subject pseudonyms and passkey credential ids | A: the person may sign up again with the same Google account, as a new account (matches today's code for numbers; O9). B: an erased Google identity can never sign up again; needs a tombstone list of pseudonyms |
-| **INV-ID-8** | "Every `PERSONAL` attribute is residency-bound and does not leave the India region except under the four-condition consent gate" | **Wording unchanged.** Proposed ruling: "Google Sign-In does not breach INV-ID-8: identity sends no personal attribute out of India; it fetches Google's public signing keys and verifies the ID token in India, and stores only a pseudonym of the Google issuer and subject. The person's Google account is held by Google under the person's own relationship with Google, outside this context. The privacy notice discloses Google Sign-In (L4)." | Lily AI sends no personal attribute abroad. A privacy review (L1, L4) confirms the notice before M2 |
+| **INV-ID-7** | "An erased Subscriber's identifiers are tombstoned and never reused" | **Option A (chosen by the owner, 2026-11-13):** "An erased Subscriber's **account id** is tombstoned and never reused; its authentication identifiers and verified numbers are deleted." | The person may sign up again with the same Google account, as a new, empty account (matches today's code for numbers; O9). No permanent list of erased identities is kept |
+| **INV-ID-8** | "Every `PERSONAL` attribute is residency-bound and does not leave the India region except under the four-condition consent gate" | **Wording unchanged.** Ruling with limitations: see "Google Sign-In data flow and the INV-ID-8 ruling" below | Not an unconditional finding. Google's own processing is an external privacy dependency (EPD-1); the privacy notice and data-flow review are required before M2 |
 | **INV-ID-9** | "A Subscriber cannot be `ACTIVE` with zero `TRUSTED` Devices" | **Unchanged** | Every sign-in enrols a DPoP device key |
-| **INV-ID-10** | "There is no password, passphrase or knowledge factor anywhere in this context" | **Wording unchanged.** Proposed ruling: "Passkeys do not breach INV-ID-10: user verification (biometric, PIN or pattern) happens on the person's device and only its result reaches identity, as a signed flag; identity never receives, stores or checks a knowledge factor. Google Sign-In is federation, not a knowledge factor held by this context." | No password or PIN is ever stored or checked by Lily AI |
+| **INV-ID-10** | "There is no password, passphrase or knowledge factor anywhere in this context" | **Wording unchanged.** Ruling (accepted by the owner, 2026-11-13): "Passkeys do not breach INV-ID-10: user verification (biometric, PIN or pattern) happens on the person's device and only its result reaches identity, as a signed flag; identity never receives, stores or checks a knowledge factor. Google Sign-In is federation, not a knowledge factor held by this context." | No password or PIN is ever stored or checked by Lily AI |
+
+### Google Sign-In data flow and the INV-ID-8 ruling
+
+The complete flow, so the ruling's limits are visible. "Google" means Google Play services on the phone and Google's servers.
+
+| # | From → to | What is sent | Where it is processed, and under whose terms |
+|---|---|---|---|
+| 1 | **Lily AI app → Google** (on the phone, through Credential Manager and Google Play services) | The server client id (public); the nonce, a SHA-256 hash that reveals nothing about the person; the request options. **Google Play services identifies the calling app by its package name and signing certificate** to match the Android OAuth client. The app sends no Lily AI account data | Google Play services and Google's servers, under Google's terms and privacy policy and the person's Google account settings |
+| 2 | **Google → the app** | A Google ID token (a signed JWT): `iss`, `aud` (server client id), `azp` (Android client id), `sub` (the Google account's stable identifier), `iat`, `exp`, `nonce`; and, as Google provides them, `email`, `email_verified`, `name`, `given_name`, `family_name`, `picture` (an image address), possibly `hd`. Credential Manager also exposes display fields from the same account | On the phone. **The app neither stores nor displays these fields**; it forwards the token once |
+| 3 | **The app → Lily AI identity** | The ID token as received (so the claims above, including email and name), the nonce seed, and a DPoP proof (the device's public key and a signature) | Identity, **which must run in India** (ADR-0008, `ap-south-1`; staging is not yet provisioned) |
+| 4 | **Identity, in India** | Verifies the token. **Fetches Google's public signing keys** from Google's key endpoint (the request carries no personal data; Google sees the server's address and timing). Uses the verified email **only** to check the M1 tester list, in memory. **Stores:** the account id, a pseudonym of `iss`+`sub`, session rows, and audit events without identifiers. **Stores and logs no token or claim** | India. The key fetch goes to Google's servers outside Lily AI's control |
+| 5 | **Google, independently** | The person's Google account; the sign-in event; that the person signed in to "Lily AI" (Google lists connected apps in the person's account); the consent screen showing Lily AI's name and privacy-policy address | **Google's own processing, under Google's terms and privacy policy, in locations Lily AI does not govern.** Recorded as **external privacy dependency EPD-1** |
+
+**The ruling (accepted by the owner, 2026-11-13; INV-ID-8 wording unchanged):**
+
+> "INV-ID-8 is unchanged. Ruling for M1, with its limitations: for Google Sign-In, identity itself transfers no personal attribute out of India. It receives the Google ID token (which carries the person's Google subject identifier and may carry their email address, name and profile-picture address) only to verify it in India, uses the verified email only for the M1 tester gate, keeps no claim, logs none, and stores only a pseudonym of the Google issuer and subject. The person's use of their Google account, including Google recording that they signed in to Lily AI, is processed by Google under the person's own relationship with Google, in locations Lily AI does not govern: an external privacy dependency (EPD-1). The ruling holds only while identity runs in India, stores and logs no token claim, and sends Google nothing but requests for its public signing keys. It is not a privacy-law conclusion: the privacy notice and a data-flow review (L1, L4; the DPDP review E9) are required before M2 and before any public release."
+
+**Limitations, stated plainly:**
+- Steps 1, 2 and 5 happen between the person and Google. Lily AI does not control where Google processes them.
+- The ruling depends on identity being deployed in India and on the implementation storing and logging no claim; both are checked in the implementing pull requests and at staging.
+- **Required before M2 and before any public release:** the privacy notice (naming Google Sign-In and EPD-1), the Play Data safety form, and a data-flow review by privacy and legal (L1, L4; E9).
 
 ### Consequences
 
@@ -247,23 +271,24 @@
 
 - **Stored:** the account id; pseudonyms of the Google subject; passkey credential ids, public keys, counters, AAGUIDs and flags; timestamps.
 - **Not stored:** email, name, picture, Google tokens, private keys.
+- **External privacy dependency EPD-1:** Google's own processing of the person's Google account and sign-in events (data flow step 5), under Google's terms, in locations Lily AI does not govern.
 - **Disclosures** (privacy policy, Play Data safety): Google Sign-In as a sign-in method; passkeys. Privacy and legal items L1–L5 (ADR-0032) apply. `ANDROID-DATA-INVENTORY.md` gains Credential Manager and Google's ID library.
 
 ## Approval record
 
 | Field | Record |
 |---|---|
-| Decision | **None.** Proposed only |
-| Classification | Proposed **high-risk**: it changes the authentication model and how identities and sessions work, supersedes part of an Accepted ADR, and changes domain invariants. The owner's classification is final (rule 6) |
-| Version | — |
-| Review trigger | For superseding ADR-0010 §5(a): **no §16 trigger has been shown to fire.** The basis is the owner's product direction of 2026-11-13; the owner must rule on it (rule 2) |
-| Owner decision | Pending: [`AUTH-DECISIONS-2026-11-13.md`](../phase19/AUTH-DECISIONS-2026-11-13.md) |
-| Independent human review | Not available (OD-12). Required before M2 (rule 8b) |
-| Invariant sign-offs | Pending: INV-ID-1, INV-ID-2, INV-ID-7; rulings on INV-ID-8 and INV-ID-10 |
-| Other approvals | Privacy and legal (L1–L5, DPDP review E9): pending |
-| AI involvement | Drafted by Claude Code (AI). Not reviewed by a human |
-| Does not | Accept anything; authorise any implementation, external setup, package-name change, domain, Google Cloud project or deployment; change MSG91, OTP, Twilio or any existing endpoint or schema |
-| Supersedes | Nothing until accepted. If accepted: ADR-0010 §5(a) for M1; ADR-0032's email-first direction |
+| Decision | **Accepted for M1 on internal assurance (rule 8a), 2026-11-13:** D35.1–D35.12; passkeys (D35.5) as the direction, implemented only after ADR-0037 is accepted. **Not accepted for M2 or production** |
+| Classification | **High-risk** (the authentication model, identities and sessions; supersedes part of an Accepted ADR; domain invariants) |
+| Version | The pull request #318 head at merge; this file's SHA-256 is recorded in the merge commit message |
+| Review trigger | For superseding ADR-0010 §5(a) for M1: **no §16 trigger fired.** The owner ruled that the basis is the product direction of 2026-11-13 (rule 2) |
+| Owner decision | 2026-11-13, by the owner's explicit written decisions in the Claude Code session of 2026-11-13, recorded by pull request #318: accept ADR-0035 for M1; accept ADR-0036; keep ADR-0037 Proposed until the passkey phase; accept O2 as worded (D35.1); withdraw ADR-0032's email-first direction; stop offering SMS one-time codes as a sign-in and keep the MSG91 code for future phone verification; the M1 Google tester allowlist and a cap of 5 new accounts per hour; OD-14 option B; no support-led recovery at M1 with its consequences documented (D35.7). See [`AUTH-DECISIONS-2026-11-13.md`](../phase19/AUTH-DECISIONS-2026-11-13.md) |
+| Independent human review | **Outstanding** (OD-12). Required before M2 (rule 8b) |
+| Invariant sign-offs | 2026-11-13, the owner, for M1: **INV-ID-1** and **INV-ID-2** as worded above (with the legacy phone-account collision as a blocker for phone verification); **INV-ID-7** option A as worded above; **INV-ID-8** wording unchanged, with the ruling and limitations above; **INV-ID-10** wording unchanged, with the ruling above. INV-ID-3 and INV-ID-9 unchanged |
+| Other approvals | Privacy and legal (L1–L5; DPDP review E9): **required before M2**, including the INV-ID-8 data-flow review and EPD-1 |
+| AI involvement | Drafted by Claude Code (AI-performed analysis); not reviewed by a human |
+| Does not | Authorise any external setup (Google Cloud project, OAuth clients, package-name change, domain, staging), deployment, production use, or any change to MSG91, OTP, Twilio, the IPv4-only option, or any existing endpoint or schema. Each implementation step is its own pull request |
+| Supersedes | ADR-0010 §5(a), **for M1 only** (ADR-0010 gets a dated note; its text is unchanged). Replaces ADR-0032's email-first direction (ADR-0032 gets a dated note) |
 
 ## References
 

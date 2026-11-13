@@ -1,7 +1,24 @@
 # Authentication decisions for the owner: Google Sign-In and passkeys (2026-11-13)
 
 - **What this is:** the eight owner decisions that ADR-0035 (Google Sign-In and passkeys; Proposed) and its library ADRs, ADR-0036 and ADR-0037 (Proposed), need. For each: the exact wording proposed for the record, the options, the recommendation, the security implications, the user impact, and whether it blocks M1 or M2.
-- **Decides nothing.** Every ADR here stays **Proposed** until the owner records a decision (`ARCHITECTURE_FREEZE.md` §6.1 rule 6; for M1, §6.2 rule 8a). Claude Code drafted it and accepts nothing (rule 7). An AI-performed analysis, not an independent review (rule 9).
+- **The owner decided on 2026-11-13** (explicit written decisions in the Claude Code session; recorded by pull request #318). The analysis below was drafted by Claude Code (an AI-performed analysis, not an independent review: rule 9); the decisions are the owner's own (rule 6).
+
+## Decisions recorded (2026-11-13, the owner)
+
+| # | Decision |
+|---|---|
+| 1 | **ADR-0035 accepted for M1 on internal assurance** (rule 8a); independent human review outstanding, required before M2. **ADR-0036 accepted** with it. **ADR-0037 kept Proposed** until the passkey implementation phase |
+| 2 | **O2 accepted** as worded in ADR-0035 D35.1. **INV-ID-1 and INV-ID-2** accepted as worded, with the **legacy phone-account collision recorded as a blocker for future phone verification**. **INV-ID-7: option A.** **INV-ID-10** ruling accepted. **INV-ID-8:** wording unchanged; an explicit **ruling with limitations**, with the full Google Sign-In data flow documented and Google's own processing recorded as **external privacy dependency EPD-1**; the privacy notice and a data-flow review are required before M2 |
+| 3 | **ADR-0032's email-first direction withdrawn** |
+| 4 | **SMS one-time codes are no longer offered as a sign-in.** The existing MSG91 OTP code is kept, unchanged, for future phone verification |
+| 5 | **M1 gate:** allowlisted Google accounts, and **at most 5 new accounts per hour** |
+| 6 | **OD-14: option B** (server logout and revoke-all) |
+| 7 | **No support-led recovery at M1**; consequences documented in ADR-0035 D35.7 |
+| 8 | **Not yet approved:** no package-name change, no Google Cloud project or OAuth clients, no domain, no staging. Each needs its own approval |
+
+**Not started:** no authentication code is written until the owner approves merging pull request #318. MSG91, OTP, Twilio and the IPv4-only option stay untouched. The register (`ROADMAP-INVENTORY.md` §3: OD-14, O2 and H1) is updated in the trackers pull request after the merge.
+
+## The analysis presented for the decisions
 - **About "blocks M1":** the M1 criterion is method-agnostic ("a tester signs in on a physical phone against staging"; OD-10). "Blocks M1" below means **blocks M1 through Google Sign-In and passkeys.** M1 through SMS (MSG91, after DLT and R1) stays possible and is not changed.
 - **MSG91 is untouched by every option here.**
 
