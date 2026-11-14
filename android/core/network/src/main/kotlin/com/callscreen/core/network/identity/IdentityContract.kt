@@ -12,16 +12,29 @@ package com.callscreen.core.network.identity
  *   POST /v1/token/refresh  DPoP [+ Integrity-Token] {"sessionId","refreshToken"}
  *                                                          -> 200 {"accessToken","tokenType","expiresIn","refreshToken"}
  *   POST /v1/account/delete DPoP {"sessionId","refreshToken"} -> 204
+ *   POST /v1/auth/google    DPoP [+ Integrity-Token] {"idToken","nonceSeed"}
+ *                                                          -> 200 as /v1/otp/validate
+ *   POST /v1/session/logout     DPoP {"sessionId","refreshToken"} -> 204
+ *   POST /v1/session/revoke-all DPoP {"sessionId","refreshToken"} -> 204
  *
  * Errors are application/problem+json with a fixed "code" (IdentityError).
  */
 
-/** The four endpoint paths (services/go/identity/internal/routes). */
+/** The endpoint paths (services/go/identity/internal/routes). */
 public object IdentityRoutes {
     public const val OTP_REQUEST: String = "/v1/otp/request"
     public const val ENROLMENT: String = "/v1/otp/validate"
     public const val REFRESH: String = "/v1/token/refresh"
     public const val ACCOUNT_DELETION: String = "/v1/account/delete"
+
+    /** Google sign-in (ADR-0035 D35.4). */
+    public const val GOOGLE_SIGN_IN: String = "/v1/auth/google"
+
+    /** Signs out this session (OD-14 option B; ADR-0035 D35.9). */
+    public const val LOGOUT: String = "/v1/session/logout"
+
+    /** Signs out every session of the account, this one included. */
+    public const val REVOKE_ALL: String = "/v1/session/revoke-all"
 }
 
 /** The server's input rules, applied before anything is sent. */
@@ -32,19 +45,30 @@ internal object IdentityInput {
     private val refreshToken = Regex("^[0-9a-f]{64}$")
     private val code = Regex("^[0-9]{6}$")
 
+    /** A compact JWS, as the server's idTokenPattern accepts. */
+    private val idToken = Regex("^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$")
+
+    /** 32 bytes as unpadded base64url (the server's ValidNonceSeed). */
+    private val nonceSeed = Regex("^[A-Za-z0-9_-]{43}$")
+
+    /** The server refuses a longer ID token (googleauth.MaxIDTokenBytes). */
+    const val MAX_ID_TOKEN_BYTES: Int = 6 * 1024
+
     fun msisdn(s: String): Boolean = msisdn.matches(s)
     fun requestId(s: String): Boolean = requestId.matches(s)
     fun sessionId(s: String): Boolean = sessionId.matches(s)
     fun refreshToken(s: String): Boolean = refreshToken.matches(s)
     fun code(s: String): Boolean = code.matches(s)
+    fun idToken(s: String): Boolean = s.length <= MAX_ID_TOKEN_BYTES && idToken.matches(s)
+    fun nonceSeed(s: String): Boolean = nonceSeed.matches(s)
 }
 
 /** An OTP challenge the server created. */
 public data class OtpChallenge(val requestId: String, val expiresInSeconds: Long)
 
 /**
- * The credentials a successful enrolment or refresh returns. toString never
- * shows a token, so logging one of these cannot leak it.
+ * The credentials a successful enrolment, Google sign-in or refresh returns.
+ * toString never shows a token, so logging one of these cannot leak it.
  */
 public class IssuedTokens(
     public val accessToken: String,
@@ -78,6 +102,16 @@ public sealed interface IdentityError {
     public data object InvalidIntegrityToken : IdentityError
     public data object TemporarilyUnavailable : IdentityError
 
+    /**
+     * Google sign-in was refused (401 ERR_SIGN_IN_REFUSED): the server's one
+     * answer for every refusal (the token, its nonce, a replay, the tester
+     * allowlist, the hourly cap), so it says nothing about which.
+     */
+    public data object SignInRefused : IdentityError
+
+    /** Google sign-in is not available (503 ERR_SIGN_IN_UNAVAILABLE): not configured, or Google's keys unavailable. */
+    public data object SignInUnavailable : IdentityError
+
     /** The server answered with something outside the contract. */
     public data class UnexpectedResponse(val status: Int) : IdentityError
 
@@ -104,6 +138,8 @@ public sealed interface IdentityError {
             "ERR_INVALID_DPOP_PROOF" -> InvalidDeviceProof
             "ERR_INVALID_INTEGRITY_TOKEN" -> InvalidIntegrityToken
             "ERR_TEMPORARILY_UNAVAILABLE" -> TemporarilyUnavailable
+            "ERR_SIGN_IN_REFUSED" -> SignInRefused
+            "ERR_SIGN_IN_UNAVAILABLE" -> SignInUnavailable
             "ERR_INVALID_INPUT", "ERR_MALFORMED_BODY", "ERR_UNSUPPORTED_MEDIA_TYPE", "ERR_BODY_TOO_LARGE" -> InvalidInput
             else -> UnexpectedResponse(status)
         }
