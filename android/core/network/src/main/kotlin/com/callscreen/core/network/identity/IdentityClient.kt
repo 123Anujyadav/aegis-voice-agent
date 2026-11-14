@@ -33,7 +33,8 @@ import okhttp3.Response
  * - **The proof's htu** is [baseUrl] plus the route. In production that is
  *   identity's configured canonical URL (`CS_IDENTITY_ENROLLMENT_CANONICAL_URL`,
  *   `CS_IDENTITY_REFRESH_CANONICAL_URL`), which the app must be configured to
- *   match exactly. Deletion's is the refresh URL's origin plus its route.
+ *   match exactly. Deletion's, Google sign-in's, logout's and revoke-all's
+ *   are the refresh URL's origin plus their routes.
  */
 public class IdentityClient(
     baseUrl: String,
@@ -109,6 +110,68 @@ public class IdentityClient(
     }
 
     /**
+     * Signs in, or signs up, with a Google ID token (ADR-0035 D35.4), enrolling
+     * this device's key as [enrol] does, with the same answer.
+     *
+     * [idToken] is the token Credential Manager returned for the nonce
+     * `GoogleNonce.of(this device key's thumbprint, nonceSeed)`, and
+     * [nonceSeed] that nonce's seed: the server recomputes the nonce from the
+     * proof's key and the seed.
+     *
+     * The token is single-use, and the server records it as used BEFORE its
+     * allowlist, cap, integrity and session steps, so any failure of a request
+     * that may have reached the server can have used it up: [IdentityError.Network],
+     * [IdentityError.SignInRefused], [IdentityError.InvalidIntegrityToken],
+     * [IdentityError.TemporarilyUnavailable], [IdentityError.UnexpectedResponse]
+     * and every other error. After any of them the same token must not be sent
+     * again: the caller asks Google for a new one, with a new seed. The only
+     * safe exceptions are [IdentityError.DeviceProofUnavailable] (nothing was
+     * sent) and [IdentityError.InvalidInput] (refused by this method before
+     * sending, or by the server's input check, which runs before the token is
+     * recorded).
+     * An integrity token is attached when one is available, as at enrolment.
+     * Neither the token nor the seed is kept or logged.
+     */
+    public fun signInWithGoogle(idToken: String, nonceSeed: String): IdentityResult<IssuedTokens> {
+        if (!IdentityInput.idToken(idToken) || !IdentityInput.nonceSeed(nonceSeed)) return IdentityResult.Failure(IdentityError.InvalidInput)
+        val proof = proofFor(IdentityRoutes.GOOGLE_SIGN_IN) ?: return IdentityResult.Failure(IdentityError.DeviceProofUnavailable)
+        return call(IdentityRoutes.GOOGLE_SIGN_IN, json.encodeToString(GoogleSignInBody.serializer(), GoogleSignInBody(idToken, nonceSeed)), proof) { status, body ->
+            if (status != 200) return@call null
+            val r = json.decodeFromString(EnrolResponse.serializer(), body)
+            tokens(r.accessToken, r.tokenType, r.expiresIn, r.refreshToken)?.takeIf { IdentityInput.sessionId(r.sessionId) }
+                ?.let { IssuedTokens(it.accessToken, it.refreshToken, it.expiresInSeconds, r.sessionId) }
+        }
+    }
+
+    /**
+     * Signs out [sessionId] on the server (OD-14 option B; ADR-0035 D35.9).
+     * Authenticated as a refresh is: the current [refreshToken] and a proof by
+     * the enrolled key, for the logout URL. Success only on the server's 204,
+     * which a retry of a session already signed out also gets (with a fresh
+     * proof: never repeat one). No integrity token is sent.
+     */
+    public fun logout(sessionId: String, refreshToken: String): IdentityResult<Unit> =
+        sessionCall(IdentityRoutes.LOGOUT, sessionId, refreshToken)
+
+    /**
+     * Signs out every session of [sessionId]'s account on the server, this one
+     * included. Authenticated as [logout] is, with a proof for the revoke-all
+     * URL. Success only on 204; a retry of a completed revoke-all is 204 again
+     * and revokes nothing more. No integrity token is sent.
+     */
+    public fun revokeAll(sessionId: String, refreshToken: String): IdentityResult<Unit> =
+        sessionCall(IdentityRoutes.REVOKE_ALL, sessionId, refreshToken)
+
+    /** A sign-out request: the refresh body and a proof for [route]; success only on 204. */
+    private fun sessionCall(route: String, sessionId: String, refreshToken: String): IdentityResult<Unit> {
+        if (!IdentityInput.sessionId(sessionId) || !IdentityInput.refreshToken(refreshToken)) return IdentityResult.Failure(IdentityError.InvalidInput)
+        val proof = proofFor(route) ?: return IdentityResult.Failure(IdentityError.DeviceProofUnavailable)
+        return call(route, json.encodeToString(RefreshBody.serializer(), RefreshBody(sessionId, refreshToken)), proof) { status, _ ->
+            if (status == 204) Unit else null
+        }
+    }
+
+    /**
      * This device's proof for [route], or null if the device key could not
      * sign one (a Keystore or provider failure). The request is then not
      * sent, instead of the failure escaping to the caller.
@@ -133,14 +196,16 @@ public class IdentityClient(
      */
     /**
      * Whether this request should carry an integrity token: always at
-     * enrolment; on refresh only if none was requested for at least the
+     * enrolment and Google sign-in (both issue a session); never on deletion,
+     * logout or revoke-all (the server reads none); on refresh only if none
+     * was requested for at least the
      * interval (or ever, in this process). An attempt counts whether or not a
      * token was obtained: a device that cannot get one does not ask Google
      * every 15 minutes. A clock that went backwards counts as due.
      */
     private fun integrityDue(route: String): Boolean {
-        if (route == IdentityRoutes.ENROLMENT) return true
-        if (route == IdentityRoutes.ACCOUNT_DELETION) return false
+        if (route == IdentityRoutes.ENROLMENT || route == IdentityRoutes.GOOGLE_SIGN_IN) return true
+        if (route in NO_INTEGRITY_ROUTES) return false
         val last = lastIntegrityAttempt ?: return true
         val now = nowSeconds()
         return now < last || now - last >= refreshIntegrityIntervalSeconds
@@ -183,7 +248,7 @@ public class IdentityClient(
             val retryAfter = response.header("Retry-After")?.trim()?.toLongOrNull()?.takeIf { it >= 0 }
             return IdentityResult.Failure(IdentityError.fromProblem(problem.code, response.code, retryAfter))
         }
-        // 204 has no body and no content type; only deletion expects it.
+        // 204 has no body and no content type; only deletion, logout and revoke-all expect it.
         if (response.code == 204) return success(204, "")?.let { IdentityResult.Success(it) } ?: IdentityResult.Failure(IdentityError.UnexpectedResponse(204))
         if (type != "application/json") return IdentityResult.Failure(IdentityError.UnexpectedResponse(response.code))
         val value = try {
@@ -207,6 +272,9 @@ public class IdentityClient(
     public companion object {
         private const val METHOD = "POST"
         private const val INTEGRITY_HEADER = "Integrity-Token"
+
+        /** Routes the server reads no integrity token on: none is requested for them. */
+        private val NO_INTEGRITY_ROUTES = setOf(IdentityRoutes.ACCOUNT_DELETION, IdentityRoutes.LOGOUT, IdentityRoutes.REVOKE_ALL)
 
         /** ADR-0031 D31.4: on refresh, an integrity token at most once every 6 hours. */
         public const val REFRESH_INTEGRITY_INTERVAL_SECONDS: Long = 6L * 60 * 60
@@ -252,6 +320,9 @@ private data class EnrolBody(val requestId: String, val code: String)
 
 @Serializable
 private data class RefreshBody(val sessionId: String, val refreshToken: String)
+
+@Serializable
+private data class GoogleSignInBody(val idToken: String, val nonceSeed: String)
 
 @Serializable
 private data class EnrolResponse(

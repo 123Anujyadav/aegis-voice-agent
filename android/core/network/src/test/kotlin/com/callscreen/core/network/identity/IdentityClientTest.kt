@@ -186,6 +186,8 @@ class IdentityClientTest {
             problem(400, "ERR_INVALID_INTEGRITY_TOKEN") to IdentityError.InvalidIntegrityToken,
             problem(503, "ERR_TEMPORARILY_UNAVAILABLE") to IdentityError.TemporarilyUnavailable,
             problem(400, "ERR_INVALID_INPUT") to IdentityError.InvalidInput,
+            problem(401, "ERR_SIGN_IN_REFUSED") to IdentityError.SignInRefused,
+            problem(503, "ERR_SIGN_IN_UNAVAILABLE") to IdentityError.SignInUnavailable,
             problem(500, "ERR_INTERNAL") to IdentityError.UnexpectedResponse(500),
             problem(418, "ERR_SOMETHING_NEW") to IdentityError.UnexpectedResponse(418),
         )
@@ -377,5 +379,240 @@ class IdentityClientTest {
         server.enqueue(problem(401, "ERR_INVALID_OTP").setBody("""{"code":"ERR_INVALID_OTP","detail":"SECRET-ECHO 123456"}"""))
         val failure = client().enrol(requestId, "123456").toString()
         assertFalse(failure.contains("SECRET-ECHO") || failure.contains("123456"), failure)
+    }
+
+    // -------------------------------------------------------------------------
+    // Google sign-in, logout and revoke-all (ADR-0035 D35.4, D35.9)
+    // -------------------------------------------------------------------------
+
+    /** A JWS-shaped stand-in for a Google ID token: three base64url parts. */
+    private val idToken = listOf("eyJhbGciOiJSUzI1NiJ9", "eyJzdWIiOiJ0ZXN0In0", "c2lnbmF0dXJl").joinToString(".")
+    private val nonceSeed = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+
+    @Test
+    @DisplayName("signInWithGoogle sends the documented body with a proof for its URL and an integrity token bound to it, and maps the 200")
+    fun googleSignIn() {
+        server.enqueue(json(200, enrolled))
+        var boundTo: String? = null
+        val result = client(integrity = { proof -> boundTo = proof; "integrity-token" }).signInWithGoogle(idToken, nonceSeed)
+        val tokens = (result as IdentityResult.Success).value
+        assertEquals("eyJ.access.token", tokens.accessToken)
+        assertEquals(refreshToken, tokens.refreshToken)
+        assertEquals(900L, tokens.expiresInSeconds)
+        assertEquals(sessionId, tokens.sessionId)
+
+        val sent = server.takeRequest()
+        assertEquals("POST", sent.method)
+        assertEquals("/v1/auth/google", sent.path)
+        assertTrue(sent.getHeader("Content-Type")!!.startsWith("application/json"))
+        assertEquals(listOf("POST" to origin() + "/v1/auth/google"), proofs)
+        assertEquals("proof-1", sent.getHeader("DPoP"))
+        assertEquals("proof-1", boundTo, "the integrity token must be bound to the proof sent")
+        assertEquals("integrity-token", sent.getHeader("Integrity-Token"))
+        assertEquals("""{"idToken":"$idToken","nonceSeed":"$nonceSeed"}""", sent.body.readUtf8())
+    }
+
+    @Test
+    @DisplayName("signInWithGoogle asks for an integrity token every time, like enrolment, and sends none when there is none")
+    fun googleSignInIntegrity() {
+        var now = 1_760_000_000L
+        var asked = 0
+        val client = IdentityClient(origin(), proofSource, { asked++; "integrity-token" }, nowSeconds = { now })
+        assertEquals("integrity-token", refreshSends(client))
+        now += 60
+        server.enqueue(json(200, enrolled))
+        client.signInWithGoogle(idToken, nonceSeed)
+        assertEquals("integrity-token", server.takeRequest().getHeader("Integrity-Token"), "a sign-in issues a session: always due")
+        assertEquals(2, asked)
+        now += 60
+        assertNull(refreshSends(client), "a minute after a sign-in, a refresh is not due")
+
+        server.enqueue(json(200, enrolled))
+        client().signInWithGoogle(idToken, nonceSeed)
+        assertNull(server.takeRequest().getHeader("Integrity-Token"))
+    }
+
+    @Test
+    @DisplayName("signInWithGoogle maps the Google refusal and unavailability, and keeps the shared codes")
+    fun googleSignInProblems() {
+        val cases = listOf(
+            problem(401, "ERR_SIGN_IN_REFUSED") to IdentityError.SignInRefused,
+            problem(503, "ERR_SIGN_IN_UNAVAILABLE") to IdentityError.SignInUnavailable,
+            problem(400, "ERR_INVALID_DPOP_PROOF") to IdentityError.InvalidDeviceProof,
+            problem(400, "ERR_INVALID_INTEGRITY_TOKEN") to IdentityError.InvalidIntegrityToken,
+            problem(400, "ERR_INVALID_INPUT") to IdentityError.InvalidInput,
+            problem(413, "ERR_BODY_TOO_LARGE") to IdentityError.InvalidInput,
+            problem(503, "ERR_TEMPORARILY_UNAVAILABLE") to IdentityError.TemporarilyUnavailable,
+            problem(500, "ERR_INTERNAL") to IdentityError.UnexpectedResponse(500),
+        )
+        for ((response, want) in cases) {
+            server.enqueue(response)
+            assertEquals(IdentityResult.Failure(want), client().signInWithGoogle(idToken, nonceSeed))
+        }
+        // The Google codes are not reused for anything else: on refresh they
+        // map the same way, and ERR_INVALID_TOKEN is still SessionEnded.
+        server.enqueue(problem(401, "ERR_INVALID_TOKEN"))
+        assertEquals(IdentityResult.Failure(IdentityError.SessionEnded), client().refresh(sessionId, refreshToken))
+    }
+
+    @Test
+    @DisplayName("signInWithGoogle: responses outside the contract are UnexpectedResponse, never a session")
+    fun googleSignInOutsideTheContract() {
+        val cases = listOf(
+            MockResponse().setResponseCode(204),
+            json(200, "{not json"),
+            json(200, """{"accessToken":"a"}"""),
+            json(200, enrolled.replace("\"DPoP\"", "\"Bearer\"")),
+            json(200, enrolled.replace(sessionId, "sess_short")),
+            json(200, enrolled.replace(refreshToken, "not-hex")),
+            json(201, enrolled),
+            MockResponse().setResponseCode(200).setHeader("Content-Type", "text/html").setBody(enrolled),
+            MockResponse().setResponseCode(503).setHeader("Content-Type", "text/html").setBody("<html>busy</html>"),
+            MockResponse().setResponseCode(307).setHeader("Location", "https://elsewhere.example.test/"),
+        )
+        cases.forEachIndexed { i, response ->
+            server.enqueue(response)
+            val result = client().signInWithGoogle(idToken, nonceSeed)
+            assertTrue(result is IdentityResult.Failure && result.error is IdentityError.UnexpectedResponse, "case $i: $result")
+        }
+        assertEquals(cases.size, server.requestCount, "a redirect must not be followed")
+    }
+
+    @Test
+    @DisplayName("signInWithGoogle refuses a malformed ID token or seed locally, signing and sending nothing")
+    fun googleSignInInput() {
+        val c = client()
+        val refused = listOf(
+            c.signInWithGoogle("", nonceSeed),
+            c.signInWithGoogle("only.two", nonceSeed),
+            c.signInWithGoogle("a.b.c.d", nonceSeed),
+            c.signInWithGoogle("a.b.c=", nonceSeed),
+            c.signInWithGoogle("a.b+.c", nonceSeed),
+            c.signInWithGoogle("a.b.c\n", nonceSeed),
+            c.signInWithGoogle("a.b." + "c".repeat(IdentityInput.MAX_ID_TOKEN_BYTES), nonceSeed), // over 6 KiB
+            c.signInWithGoogle(idToken, ""),
+            c.signInWithGoogle(idToken, nonceSeed.dropLast(1)),
+            c.signInWithGoogle(idToken, nonceSeed + "A"),
+            c.signInWithGoogle(idToken, nonceSeed.dropLast(1) + "="),
+        )
+        refused.forEach { assertEquals(IdentityResult.Failure(IdentityError.InvalidInput), it) }
+        assertEquals(0, server.requestCount)
+        assertTrue(proofs.isEmpty(), "a proof was signed for a refused request")
+
+        // The largest token the server accepts is sent.
+        val largest = "a.b." + "c".repeat(IdentityInput.MAX_ID_TOKEN_BYTES - 4)
+        assertEquals(IdentityInput.MAX_ID_TOKEN_BYTES, largest.length)
+        server.enqueue(json(200, enrolled))
+        assertTrue(c.signInWithGoogle(largest, nonceSeed) is IdentityResult.Success)
+    }
+
+    /** logout and revokeAll, by route. */
+    private val signOuts: List<Pair<String, (IdentityClient, String, String) -> IdentityResult<Unit>>> = listOf(
+        "/v1/session/logout" to { c, s, t -> c.logout(s, t) },
+        "/v1/session/revoke-all" to { c, s, t -> c.revokeAll(s, t) },
+    )
+
+    @Test
+    @DisplayName("logout and revokeAll send the session and refresh token with a proof for their own URL, no integrity token, and succeed on 204")
+    fun signOutShapes() {
+        for ((route, call) in signOuts) {
+            proofs.clear()
+            server.enqueue(MockResponse().setResponseCode(204))
+            var integrityAsked = false
+            val result = call(client(integrity = { integrityAsked = true; "integrity-token" }), sessionId, refreshToken)
+            assertEquals(IdentityResult.Success(Unit), result, route)
+
+            val sent = server.takeRequest()
+            assertEquals("POST", sent.method)
+            assertEquals(route, sent.path)
+            assertEquals(listOf("POST" to origin() + route), proofs, "the proof must name $route")
+            assertEquals("proof-1", sent.getHeader("DPoP"))
+            assertNull(sent.getHeader("Integrity-Token"))
+            assertFalse(integrityAsked, "$route must not spend integrity quota")
+            assertEquals("""{"sessionId":"$sessionId","refreshToken":"$refreshToken"}""", sent.body.readUtf8())
+        }
+    }
+
+    @Test
+    @DisplayName("logout and revokeAll: anything but 204 is not a sign-out; refusals map to their errors; a retry gets a fresh proof")
+    fun signOutRefusals() {
+        for ((route, call) in signOuts) {
+            val cases = listOf(
+                json(200, "{}") to IdentityError.UnexpectedResponse(200),
+                problem(401, "ERR_INVALID_TOKEN") to IdentityError.SessionEnded,
+                problem(400, "ERR_INVALID_DPOP_PROOF") to IdentityError.InvalidDeviceProof,
+                problem(400, "ERR_INVALID_INPUT") to IdentityError.InvalidInput,
+                problem(413, "ERR_BODY_TOO_LARGE") to IdentityError.InvalidInput,
+                problem(503, "ERR_TEMPORARILY_UNAVAILABLE") to IdentityError.TemporarilyUnavailable,
+                MockResponse().setResponseCode(503).setHeader("Content-Type", "text/html").setBody("<html>busy</html>") to IdentityError.UnexpectedResponse(503),
+                MockResponse().setResponseCode(302).setHeader("Location", "https://elsewhere.example.test/") to IdentityError.UnexpectedResponse(302),
+            )
+            val before = server.requestCount
+            proofs.clear()
+            for ((response, error) in cases) {
+                server.enqueue(response)
+                assertEquals(IdentityResult.Failure(error), call(client(), sessionId, refreshToken), "$route: $error")
+            }
+            assertEquals(cases.size, server.requestCount - before, "$route: a redirect must not be followed")
+            assertEquals(cases.size, proofs.size, "$route: every attempt signs its own proof")
+            repeat(cases.size) { server.takeRequest() }
+        }
+    }
+
+    @Test
+    @DisplayName("logout and revokeAll refuse malformed input without signing or sending, and report no answer as Network")
+    fun signOutInputAndNetwork() {
+        for ((route, call) in signOuts) {
+            assertEquals(IdentityResult.Failure(IdentityError.InvalidInput), call(client(), "sess_x", refreshToken), route)
+            assertEquals(IdentityResult.Failure(IdentityError.InvalidInput), call(client(), sessionId, "short"), route)
+        }
+        assertEquals(0, server.requestCount)
+        assertTrue(proofs.isEmpty())
+
+        val gone = MockWebServer().apply { start(InetAddress.getByName("127.0.0.1"), 0) }
+        val url = gone.url("/").toString()
+        gone.shutdown()
+        val offline = IdentityClient(url, proofSource)
+        for ((route, call) in signOuts) {
+            assertEquals(IdentityResult.Failure(IdentityError.Network), call(offline, sessionId, refreshToken), route)
+        }
+        assertEquals(IdentityResult.Failure(IdentityError.Network), offline.signInWithGoogle(idToken, nonceSeed))
+    }
+
+    @Test
+    @DisplayName("a device key that cannot sign sends nothing on Google sign-in, logout or revoke-all")
+    fun newRoutesDeviceProofFailure() {
+        val client = IdentityClient(origin(), DeviceProofs { _, _ -> throw java.security.ProviderException("keystore unavailable") })
+        val unavailable = IdentityResult.Failure(IdentityError.DeviceProofUnavailable)
+        assertEquals(unavailable, client.signInWithGoogle(idToken, nonceSeed))
+        assertEquals(unavailable, client.logout(sessionId, refreshToken))
+        assertEquals(unavailable, client.revokeAll(sessionId, refreshToken))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    @DisplayName("the ID token and seed never appear in a result, and a Google sign-in result hides its tokens")
+    fun googleSignInLeaksNothing() {
+        server.enqueue(json(200, enrolled))
+        val shown = (client().signInWithGoogle(idToken, nonceSeed) as IdentityResult.Success).value.toString()
+        for (secret in listOf("eyJ.access.token", refreshToken, sessionId, idToken, nonceSeed)) {
+            assertFalse(shown.contains(secret), shown)
+        }
+        server.enqueue(problem(401, "ERR_SIGN_IN_REFUSED").setBody("""{"code":"ERR_SIGN_IN_REFUSED","detail":"SECRET-ECHO $idToken"}"""))
+        val failure = client().signInWithGoogle(idToken, nonceSeed).toString()
+        assertFalse(failure.contains("SECRET-ECHO") || failure.contains(idToken) || failure.contains(nonceSeed), failure)
+        assertEquals("Failure(error=SignInRefused)", failure)
+    }
+
+    @Test
+    @DisplayName("the existing endpoints keep their routes")
+    fun routesUnchanged() {
+        assertEquals("/v1/otp/request", IdentityRoutes.OTP_REQUEST)
+        assertEquals("/v1/otp/validate", IdentityRoutes.ENROLMENT)
+        assertEquals("/v1/token/refresh", IdentityRoutes.REFRESH)
+        assertEquals("/v1/account/delete", IdentityRoutes.ACCOUNT_DELETION)
+        assertEquals("/v1/auth/google", IdentityRoutes.GOOGLE_SIGN_IN)
+        assertEquals("/v1/session/logout", IdentityRoutes.LOGOUT)
+        assertEquals("/v1/session/revoke-all", IdentityRoutes.REVOKE_ALL)
     }
 }
