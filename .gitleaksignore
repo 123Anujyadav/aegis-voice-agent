@@ -33,3 +33,11 @@ packages/go/intent/security_test.go:github-pat:47
 # the pull request's own history scan pass without rewriting its branch.
 f2f3a51b39b9f7ab12aca90be892f56f42c51a63:services/go/identity/internal/bootstrap/playintegrity_test.go:private-key:163
 f2f3a51b39b9f7ab12aca90be892f56f42c51a63:services/go/identity/internal/playintegrity/workload_identity_test.go:private-key:176
+
+# History only: a fake, JWT-shaped "idToken" test value ("unknown" in
+# base64url between two short parts) in the Google sign-in HTTP tests (G2,
+# #321). It is not a token: a stub verifier refuses it, by design. The next
+# commit builds it at runtime instead, so the working tree has no finding, and
+# a squash merge keeps this commit out of main's history. This line lets the
+# pull request's own history scan pass without rewriting its branch.
+f85b9a2cef3e0ef8fd8e6d19943394b1d307c750:services/go/identity/internal/httpapi/google_signin_test.go:generic-api-key:135
