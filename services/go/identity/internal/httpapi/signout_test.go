@@ -30,6 +30,9 @@ func TestHTTP_LogoutSignsOutThisDeviceOnly(t *testing.T) {
 	if again := r.post(t, routes.Logout, refreshBody(s1, rt1), proof(t, k1, k1, "l2", "POST", logoutURL, time.Now())); again.code != 204 {
 		t.Errorf("retry = %d %s, want 204", again.code, again.raw)
 	}
+	// As the package documentation says: a revoked session with another
+	// token is 401, and nothing is counted as a logout.
+	wantProblem(t, r.post(t, routes.Logout, refreshBody(s1, strings.Repeat("ab", 32)), proof(t, k1, k1, "l3", "POST", logoutURL, time.Now())), 401, "ERR_INVALID_TOKEN")
 	if n := r.m.requests.Value(EndpointLogout, OutcomeSuccess); n != 2 {
 		t.Errorf("%s success = %d, want 2", EndpointLogout, n)
 	}

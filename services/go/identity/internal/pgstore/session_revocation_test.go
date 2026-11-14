@@ -17,6 +17,41 @@ import (
 // contract cases run against both backends (contract_test.go); the rest need
 // real PostgreSQL.
 
+// RevokeSessionOnce: true only for the call that revoked a live session; a
+// revoked or missing one is false; of concurrent calls, across both handles,
+// exactly one is true.
+func testRevokeSessionOnce(t *testing.T, be backend) {
+	s := keyedSession("ro_1", "usr_ro", "rt_ro")
+	if err := be.a.SaveSession(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := revoker(t, be.b).RevokeSessionOnce(ctx, "ro_missing"); err != nil || ok {
+		t.Errorf("missing: (%v, %v), want false", ok, err)
+	}
+	var mu sync.Mutex
+	wins := 0
+	race(8, func(i int) {
+		ok, err := revoker(t, be.pick(i)).RevokeSessionOnce(ctx, s.SessionID)
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			t.Errorf("call %d: %v", i, err)
+		}
+		if ok {
+			wins++
+		}
+	})
+	if wins != 1 {
+		t.Errorf("%d calls revoked the session, want exactly 1", wins)
+	}
+	if !isRevoked(t, be.a, s.SessionID) {
+		t.Error("the session is live")
+	}
+	if ok, err := revoker(t, be.a).RevokeSessionOnce(ctx, s.SessionID); err != nil || ok {
+		t.Errorf("again: (%v, %v), want false", ok, err)
+	}
+}
+
 func revoker(t *testing.T, r app.IdentityRepository) app.SessionRevocationRepository {
 	t.Helper()
 	sr, ok := r.(app.SessionRevocationRepository)
@@ -362,11 +397,12 @@ func TestRevokeAll_Postgres_SignInsAreOrderedByTheAccountLock(t *testing.T) {
 	}
 }
 
-// An erasure and a revoke-all of one account take their locks in opposite
-// orders and can deadlock. PostgreSQL aborts one; revoke-all then either
-// completes (retried) or reports ErrSignOutContended, and in both cases it is
-// all or nothing.
-func TestRevokeAll_Postgres_ADeadlockWithAnErasureIsAllOrNothing(t *testing.T) {
+// Should anything still deadlock with a revoke-all (here, a transaction
+// taking the reverse order: a session row, then the account's lock; the real
+// erasure no longer does, see erasure_test.go), PostgreSQL aborts one, and
+// revoke-all either completes (retried) or reports ErrSignOutContended: all
+// or nothing either way.
+func TestRevokeAll_Postgres_AnAbortedAttemptIsAllOrNothing(t *testing.T) {
 	env := requirePostgres(t)
 	repo := NewRepository(env.poolA)
 	sub := usrID('d')
@@ -376,7 +412,7 @@ func TestRevokeAll_Postgres_ADeadlockWithAnErasureIsAllOrNothing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// The erasure's first step: its own session, locked.
+	// The reverse order's first step: a session row, locked.
 	erasure, err := env.poolB.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -391,7 +427,7 @@ func TestRevokeAll_Postgres_ADeadlockWithAnErasureIsAllOrNothing(t *testing.T) {
 		done <- revokeErr
 	}()
 	waitBlockedOnRowLock(t, env, done)
-	// The erasure's second step, the account's lock: a deadlock.
+	// Its second step, the account's lock: a deadlock.
 	_, lockErr := erasure.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "identity_erasure:"+sub)
 	_ = erasure.Rollback(ctx)
 	err = <-done

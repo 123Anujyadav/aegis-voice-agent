@@ -98,6 +98,7 @@ var contract = []struct {
 	{"ReplaceSessionIsACompareAndSwap", testReplaceCAS},
 	{"SupersededTokensAreRecordedByTheSwapOnly", testSupersededTokens},
 	{"RevocationCannotBeUndone", testRevocationSticky},
+	{"RevokeSessionOnceHasOneWinner", testRevokeSessionOnce},
 	{"RevokeAllSessions", testRevokeAll},
 	{"RevokeAllOfOneSessionIsOneOperation", testRevokeAllConcurrent},
 	{"RevokeAllRacesRefresh", testRevokeAllRacesRefresh},

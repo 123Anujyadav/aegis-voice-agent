@@ -33,8 +33,15 @@ type signOutRig struct {
 // replay store as production does.
 func newSignOutRig(t *testing.T) *signOutRig {
 	t.Helper()
+	m := NewMemoryIdentityRepository()
+	return newSignOutRigOn(t, m, m)
+}
+
+// newSignOutRigOn is newSignOutRig over repo, which wraps mem.
+func newSignOutRigOn(t *testing.T, repo IdentityRepository, mem *MemoryIdentityRepository) *signOutRig {
+	t.Helper()
 	store := dpop.NewMemoryReplayStore()
-	r := newMemEnrollRig(t).withRefresh(t, store)
+	r := newEnrollRig(t, repo, mem, dpop.NewMemoryReplayStore()).withRefresh(t, store)
 	for htu, set := range map[string]func(*dpop.Verifier){
 		logoutHTU: r.svc.SetLogoutProofVerifier, revokeAllHTU: r.svc.SetRevokeAllProofVerifier,
 	} {
@@ -413,5 +420,106 @@ func TestSignOut_Unavailable(t *testing.T) {
 	}
 	if got, _ := r.repo.GetSession(ctx, s.SessionID); got.IsRevoked {
 		t.Error("an unavailable sign-out revoked the session")
+	}
+}
+
+// eraseAfterRead erases the account once, right after the next session read:
+// an account deletion landing between logout's read and its revocation.
+type eraseAfterRead struct {
+	*MemoryIdentityRepository
+	mu  sync.Mutex
+	arm string // the subscriber to erase after the next read; "" is none
+}
+
+func (r *eraseAfterRead) GetSession(ctx context.Context, id string) (*UserSession, error) {
+	s, err := r.MemoryIdentityRepository.GetSession(ctx, id)
+	r.mu.Lock()
+	sub := r.arm
+	r.arm = ""
+	r.mu.Unlock()
+	if sub != "" {
+		r.MemoryIdentityRepository.mu.Lock()
+		r.eraseLocked(&SubscriberErasure{SubscriberID: sub, RequestedAt: time.Now()})
+		r.MemoryIdentityRepository.mu.Unlock()
+	}
+	return s, err
+}
+
+// L1: a session erased after logout read it is refused, as a logout after
+// the erasure would be, and no logout is audited for it.
+func TestSignOut_LogoutOfASessionErasedMeanwhileIsRefusedAndNotAudited(t *testing.T) {
+	ctx := context.Background()
+	m := NewMemoryIdentityRepository()
+	wrapped := &eraseAfterRead{MemoryIdentityRepository: m}
+	g := newSignOutRigOn(t, wrapped, m)
+	k := deviceKey(t)
+	s := g.enrolKey(ctx, t, "req_s", k)
+
+	wrapped.mu.Lock()
+	wrapped.arm = s.SubscriberID
+	wrapped.mu.Unlock()
+	if err := g.svc.LogoutWithDeviceProof(ctx, s.SessionID, s.RefreshToken, "POST", g.proof(t, k, logoutHTU)); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("logout of a session erased meanwhile: %v, want ErrInvalidToken", err)
+	}
+	if _, err := m.GetSession(ctx, s.SessionID); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("the session was not erased: %v", err)
+	}
+	if n := countType(g.audit.snapshot(), EventSessionLoggedOut); n != 0 {
+		t.Errorf("%d logout events for an erased session, want 0", n)
+	}
+}
+
+// L2: concurrent logouts of one session all succeed, and exactly one is
+// audited: only the call that revoked it.
+func TestSignOut_ConcurrentLogoutsAreAuditedOnce(t *testing.T) {
+	ctx := context.Background()
+	g := newSignOutRig(t)
+	k, k2 := deviceKey(t), deviceKey(t)
+	s := g.enrolKey(ctx, t, "req_s", k)
+	other := g.enrolKey(ctx, t, "req_o", k2)
+	proofs := make([]string, 10)
+	for i := range proofs {
+		proofs[i] = g.proof(t, k, logoutHTU)
+	}
+	var wg sync.WaitGroup
+	errs := make([]error, len(proofs))
+	for i := range proofs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = g.svc.LogoutWithDeviceProof(ctx, s.SessionID, s.RefreshToken, "POST", proofs[i])
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("logout %d: %v", i, err)
+		}
+	}
+	if !g.revoked(ctx, t, s.SessionID) || g.revoked(ctx, t, other.SessionID) {
+		t.Error("concurrent logouts revoked the wrong sessions")
+	}
+	if n := countType(g.audit.snapshot(), EventSessionLoggedOut); n != 1 {
+		t.Errorf("%d logout events, want exactly 1", n)
+	}
+}
+
+// Logout needs the sign-out storage, as revoke-all does.
+func TestSignOut_LogoutWithoutItsStorageIsUnavailable(t *testing.T) {
+	ctx := context.Background()
+	r := newMemEnrollRig(t)
+	k := deviceKey(t)
+	s := r.enrolKey(ctx, t, "req_s", k)
+	plain := NewIdentityService(struct{ IdentityRepository }{r.repo}, []byte("test_secret_key"))
+	v, err := dpop.NewVerifier(dpop.Config{HTU: logoutHTU, MaxAge: time.Minute, FutureSkew: 5 * time.Second, Replay: dpop.NewMemoryReplayStore()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain.SetLogoutProofVerifier(v)
+	if err := plain.LogoutWithDeviceProof(ctx, s.SessionID, s.RefreshToken, "POST", "x"); !errors.Is(err, ErrSignOutUnavailable) {
+		t.Errorf("logout without its storage: %v", err)
+	}
+	if got, _ := r.repo.GetSession(ctx, s.SessionID); got.IsRevoked {
+		t.Error("an unavailable logout revoked the session")
 	}
 }

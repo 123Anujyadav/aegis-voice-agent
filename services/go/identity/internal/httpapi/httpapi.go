@@ -86,9 +86,11 @@
 //	  400 ERR_INVALID_DPOP_PROOF (as for refresh; the htu is the endpoint's
 //	      own URL). The proof is checked BEFORE the refresh token: a refused
 //	      proof never revokes anything
-//	  401 ERR_INVALID_TOKEN (unknown, expired or revoked session, a session
-//	      with no device key, or a refresh token that is not the current one;
-//	      a superseded one, with a valid proof, revokes that session only)
+//	  401 ERR_INVALID_TOKEN: an unknown or expired session; a session with no
+//	      device key; a refresh token that is not the current one (a
+//	      superseded one, with a valid proof, revokes that session only); for
+//	      logout, a revoked session presented with another token; for
+//	      revoke-all, a session revoked other than by this operation
 //
 // All nine: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
 // including the replay store, or the request ran out of time) and 500

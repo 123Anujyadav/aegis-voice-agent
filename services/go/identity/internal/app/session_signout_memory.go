@@ -15,6 +15,19 @@ type sessionRevocationRecord struct {
 
 var _ SessionRevocationRepository = (*MemoryIdentityRepository)(nil)
 
+// RevokeSessionOnce implements SessionRevocationRepository: the check and the
+// revocation under one lock, so of concurrent calls exactly one is true.
+func (m *MemoryIdentityRepository) RevokeSessionOnce(_ context.Context, sessionID string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.sessions[sessionID]
+	if !ok || s.IsRevoked {
+		return false, nil
+	}
+	s.IsRevoked = true
+	return true, nil
+}
+
 // RevokeAllSessions implements SessionRevocationRepository: the same checks
 // and step as pgstore's, under the repository lock (all or nothing).
 func (m *MemoryIdentityRepository) RevokeAllSessions(_ context.Context, op *SessionRevocation) (int, bool, error) {

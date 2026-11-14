@@ -26,6 +26,18 @@ const (
 	sqlstateSerialization = "40001"
 )
 
+// RevokeSessionOnce implements app.SessionRevocationRepository: one
+// conditional update. A concurrent call waits for this one's row lock, then
+// (read committed re-checks the condition) finds the row revoked and changes
+// nothing, so at most one call is true. It takes no account lock.
+func (r *Repository) RevokeSessionOnce(ctx context.Context, sessionID string) (bool, error) {
+	tag, err := r.pool.Exec(ctx, `UPDATE identity_sessions SET is_revoked = TRUE WHERE session_id = $1 AND NOT is_revoked`, sessionID)
+	if err != nil {
+		return false, fmt.Errorf("pgstore: revoking the session: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 // RevokeAllSessions implements app.SessionRevocationRepository in one
 // transaction, under PostgreSQL's default isolation (read committed):
 //
@@ -39,11 +51,11 @@ const (
 //
 // A refresh racing this one locks its row first (its swap commits, and the
 // rotated row is revoked by step 3, which waits for that lock) or second (its
-// swap then sees the row revoked and stores nothing). An erasure locks its
-// own session before the account's lock, the reverse of this order, so the
-// two can deadlock: PostgreSQL aborts one, which rolls back whole. An aborted
-// attempt is retried, up to revokeAllAttempts in all, and then answered
-// ErrSignOutContended.
+// swap then sees the row revoked and stores nothing). An erasure takes the
+// account's lock first too (erasure.go), so the two queue rather than
+// deadlock. Should PostgreSQL still abort an attempt as a deadlock or
+// serialisation victim, it rolls back whole and is retried, up to
+// revokeAllAttempts in all, and then answered ErrSignOutContended.
 func (r *Repository) RevokeAllSessions(ctx context.Context, op *app.SessionRevocation) (int, bool, error) {
 	if !app.ValidRefreshTokenHash(op.RefreshTokenHash) {
 		return 0, false, app.ErrRefreshTokenNotHashed

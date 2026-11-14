@@ -2,6 +2,7 @@ package pgstore
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -236,5 +237,127 @@ func TestErasure_Postgres_RollbackAttestationsDelegationsRecordAndHousekeeping(t
 	}
 	if n := count(`SELECT count(*) FROM identity_erasures`); n != 1 {
 		t.Errorf("%d erasure records after housekeeping, want 1 (LEGAL_HOLD)", n)
+	}
+}
+
+// Lock order (G3 L3): an erasure takes the account's lock BEFORE its session
+// row, as revoke-all, web erasure and fenced sign-ins do. While it waits for
+// the lock, its session row is not locked: another connection can lock it
+// without waiting.
+func TestErasure_Postgres_TakesTheAccountLockBeforeItsSessionRow(t *testing.T) {
+	env := requirePostgres(t)
+	repo := NewRepository(env.poolA)
+	sub := usrID('b')
+	s := keyedSession(sessID('b'), sub, "rt_b")
+	if err := repo.SaveSession(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	held := holdSubscriberLock(t, env, sub)
+	done := make(chan error, 1)
+	go func() {
+		done <- repo.EraseSubscriber(ctx, eraseOf(sub, s.SessionID, s.RefreshTokenHash, s.DeviceKeyThumbprint, s.ExpiresAt))
+	}()
+	waitBlockedOnAdvisoryLock(t, env, done)
+	probe, err := env.poolA.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, nowaitErr := probe.Exec(ctx, `SELECT 1 FROM identity_sessions WHERE session_id = $1 FOR UPDATE NOWAIT`, s.SessionID)
+	_ = probe.Rollback(ctx)
+	if nowaitErr != nil {
+		t.Errorf("the erasure held its session row while waiting for the account's lock: %v", nowaitErr)
+	}
+	if err := held.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("erasure: %v", err)
+	}
+}
+
+// An erasure racing a revoke-all of the same account, through two pools,
+// repeatedly: they queue on the account's lock, so neither deadlocks, and
+// exactly one of them happens. Erased first: no session or record is left
+// and revoke-all is refused. Revoked first: the erasure is refused (a revoked
+// session cannot erase) and every session is revoked, with one record.
+func TestErasure_Postgres_RacingARevokeAllNeverDeadlocks(t *testing.T) {
+	env := requirePostgres(t)
+	repoA, repoB := NewRepository(env.poolA), NewRepository(env.poolB)
+	for i := 0; i < 12; i++ {
+		sub := fmt.Sprintf("usr_%032x", 0xe0+i)
+		asking := keyedSession(fmt.Sprintf("sess_%064x", 2*i), sub, fmt.Sprintf("rt_a%d", i))
+		erasing := keyedSession(fmt.Sprintf("sess_%064x", 2*i+1), sub, fmt.Sprintf("rt_e%d", i))
+		for _, s := range []*app.UserSession{asking, erasing} {
+			if err := repoA.SaveSession(ctx, s); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var revokeErr, eraseErr error
+		race(2, func(j int) {
+			if j == 0 {
+				_, _, revokeErr = repoA.RevokeAllSessions(ctx, revokeAllOf(asking))
+				return
+			}
+			eraseErr = repoB.EraseSubscriber(ctx, eraseOf(sub, erasing.SessionID, erasing.RefreshTokenHash, erasing.DeviceKeyThumbprint, erasing.ExpiresAt))
+		})
+		var left, records int
+		if err := env.poolA.QueryRow(ctx, `SELECT count(*) FROM identity_sessions WHERE subscriber_id = $1`, sub).Scan(&left); err != nil {
+			t.Fatal(err)
+		}
+		if err := env.poolA.QueryRow(ctx, `SELECT count(*) FROM identity_session_revocations WHERE session_id = $1`, asking.SessionID).Scan(&records); err != nil {
+			t.Fatal(err)
+		}
+		switch {
+		case eraseErr == nil && errors.Is(revokeErr, app.ErrSessionConflict):
+			if left != 0 || records != 0 {
+				t.Errorf("round %d: erased first, but %d sessions and %d records are left", i, left, records)
+			}
+		case revokeErr == nil && errors.Is(eraseErr, app.ErrSessionConflict):
+			if left != 2 || records != 1 || !isRevoked(t, repoA, asking.SessionID) || !isRevoked(t, repoA, erasing.SessionID) {
+				t.Errorf("round %d: revoked first, but %d sessions, %d records", i, left, records)
+			}
+		default:
+			t.Fatalf("round %d: revoke-all %v, erasure %v: want exactly one to happen and the other refused", i, revokeErr, eraseErr)
+		}
+	}
+}
+
+// Two erasures of one account, requested from two of its sessions at once,
+// repeatedly: they queue on the account's lock (before this change each
+// locked its own session first and they could deadlock). One erases; the
+// other finds its session gone and is refused.
+func TestErasure_Postgres_TwoErasuresOfOneAccountNeverDeadlock(t *testing.T) {
+	env := requirePostgres(t)
+	repos := []*Repository{NewRepository(env.poolA), NewRepository(env.poolB)}
+	for i := 0; i < 12; i++ {
+		sub := fmt.Sprintf("usr_%032x", 0xf0+i)
+		sessions := []*app.UserSession{
+			keyedSession(fmt.Sprintf("sess_%064x", 0x100+2*i), sub, fmt.Sprintf("rt_x%d", i)),
+			keyedSession(fmt.Sprintf("sess_%064x", 0x101+2*i), sub, fmt.Sprintf("rt_y%d", i)),
+		}
+		for _, s := range sessions {
+			if err := repos[0].SaveSession(ctx, s); err != nil {
+				t.Fatal(err)
+			}
+		}
+		errs := make([]error, 2)
+		race(2, func(j int) {
+			s := sessions[j]
+			errs[j] = repos[j].EraseSubscriber(ctx, eraseOf(sub, s.SessionID, s.RefreshTokenHash, s.DeviceKeyThumbprint, s.ExpiresAt))
+		})
+		won, refused := 0, 0
+		for _, err := range errs {
+			switch {
+			case err == nil:
+				won++
+			case errors.Is(err, app.ErrSessionConflict):
+				refused++
+			default:
+				t.Fatalf("round %d: erasure: %v", i, err)
+			}
+		}
+		if won != 1 || refused != 1 {
+			t.Errorf("round %d: %d erased and %d refused, want 1 and 1", i, won, refused)
+		}
 	}
 }

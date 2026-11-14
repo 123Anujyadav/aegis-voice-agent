@@ -15,18 +15,29 @@ import (
 var _ app.ErasureRepository = (*Repository)(nil)
 
 // EraseSubscriber implements app.ErasureRepository in one transaction: the
-// requesting session is locked and re-checked, then every row identity holds
-// for the subscriber is deleted, and the erasure record (LEGAL_HOLD) and its
-// receipt are written; or nothing changes.
+// account's lock is taken, the requesting session is locked and re-checked,
+// then every row identity holds for the subscriber is deleted, and the
+// erasure record (LEGAL_HOLD) and its receipt are written; or nothing changes.
 //
-// Deleted: identity_sessions (superseded refresh-token hashes follow by
-// ON DELETE CASCADE), identity_otp_challenges, the device attestations of the
+// Deleted: identity_sessions (superseded refresh-token hashes and revoke-all
+// records follow by ON DELETE CASCADE), identity_otp_challenges, the device attestations of the
 // subscriber's enrolled keys, and guardian delegations in which the subscriber
 // is either party. Left, as the record's exceptions say: the append-only audit
 // log, rate-limit and replay rows that expire on their own (app.ErasureExceptions).
 func (r *Repository) EraseSubscriber(ctx context.Context, e *app.SubscriberErasure) error {
 	return inTx(ctx, r.pool, func(tx pgx.Tx) error {
-		// The requesting session is locked and re-checked first: a concurrent
+		// THE ACCOUNT'S LOCK FIRST, before any session row: every operation
+		// that locks more than one session of an account (revoke-all, web
+		// erasure, this one) takes it first, so they queue instead of
+		// deadlocking. A sign-in in flight for this subscriber either commits
+		// its session before this point (and the DELETE below removes it) or
+		// waits and then sees this erasure (SaveSession's ErasureFence). A
+		// wrong e.SubscriberID only takes the wrong lock and then fails the
+		// subscriber check below.
+		if err := lockSubscriberErasure(ctx, tx, e.SubscriberID); err != nil {
+			return err
+		}
+		// The requesting session is then locked and re-checked: a concurrent
 		// deletion, rotation or revocation since the caller read it means this
 		// request erases nothing (app.ErrSessionConflict).
 		var subscriber, tokenHash string
@@ -44,12 +55,6 @@ func (r *Repository) EraseSubscriber(ctx context.Context, e *app.SubscriberErasu
 		if revoked || subscriber != e.SubscriberID || !time.Now().Before(expiresAt) ||
 			subtle.ConstantTimeCompare([]byte(tokenHash), []byte(e.RequestingRefreshTokenHash)) != 1 {
 			return app.ErrSessionConflict
-		}
-		// A sign-in in flight for this subscriber either commits its session
-		// before this point (and the DELETE below removes it) or waits and
-		// then sees this erasure (SaveSession's ErasureFence).
-		if err := lockSubscriberErasure(ctx, tx, e.SubscriberID); err != nil {
-			return err
 		}
 		if err := eraseRows(ctx, tx, e); err != nil {
 			return err

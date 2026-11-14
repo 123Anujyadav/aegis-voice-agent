@@ -76,9 +76,15 @@ type SessionRevocation struct {
 	RevokedAt           time.Time
 }
 
-// SessionRevocationRepository stores revoke-all. The pgstore and memory
+// SessionRevocationRepository stores sign-out. The pgstore and memory
 // repositories implement it alongside IdentityRepository.
 type SessionRevocationRepository interface {
+	// RevokeSessionOnce revokes sessionID if it exists and is not yet
+	// revoked, and reports whether this call revoked it: of concurrent calls
+	// at most one is true, and a missing or already revoked session is false.
+	// It is logout's revocation; IdentityRepository.RevokeSession, which
+	// refresh's reuse handling uses, is unchanged.
+	RevokeSessionOnce(ctx context.Context, sessionID string) (revoked bool, err error)
 	// RevokeAllSessions performs op in one step, all or nothing, serialised
 	// with sign-ins and erasures of the same account. It locks the session
 	// that asked and checks again that it belongs to op.SubscriberID, holds
@@ -108,8 +114,17 @@ func (s *IdentityService) SetRevokeAllProofVerifier(v *dpop.Verifier) { s.signOu
 // session already revoked, with its current refresh token and a fresh proof
 // by its key, succeeds again and changes nothing; with any other token it is
 // ErrInvalidToken.
+//
+// The revocation is conditional (RevokeSessionOnce), and only the call that
+// revokes the session audits it. A concurrent logout that finds it revoked
+// is answered as a retry, without a second event; a session erased after it
+// was read is ErrInvalidToken, as a logout after the erasure would be.
 func (s *IdentityService) LogoutWithDeviceProof(ctx context.Context, sessionID, refreshToken, method, proof string) error {
 	if s.signOut.logout == nil {
+		return ErrSignOutUnavailable
+	}
+	repo, ok := s.repo.(SessionRevocationRepository)
+	if !ok {
 		return ErrSignOutUnavailable
 	}
 	session, err := s.authenticateSignOut(ctx, s.signOut.logout, sessionID, method, proof)
@@ -126,8 +141,16 @@ func (s *IdentityService) LogoutWithDeviceProof(ctx context.Context, sessionID, 
 	if session.IsRevoked {
 		return nil
 	}
-	if err := s.repo.RevokeSession(ctx, sessionID); err != nil {
+	revoked, err := repo.RevokeSessionOnce(ctx, sessionID)
+	if err != nil {
 		return err
+	}
+	if !revoked {
+		// Revoked by something else since it was read (a retry), or gone.
+		if _, gerr := s.repo.GetSession(ctx, sessionID); gerr != nil {
+			return gerr
+		}
+		return nil
 	}
 	s.audit(SecurityEvent{Type: EventSessionLoggedOut, At: s.now(), SessionID: sessionID})
 	return nil
