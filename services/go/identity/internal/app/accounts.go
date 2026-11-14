@@ -92,6 +92,9 @@ var (
 	ErrInvalidAccountRecord = errors.New("identity: invalid account record")
 	// ErrAccountsUnavailable is a repository that does not store accounts.
 	ErrAccountsUnavailable = errors.New("identity: account storage is not available")
+	// ErrAccountCreationCapReached is a creation refused because this hour's
+	// account-creation budget is spent.
+	ErrAccountCreationCapReached = errors.New("identity: the hourly account-creation cap is reached")
 )
 
 // AccountRepository stores accounts, their authentication methods, the hourly
@@ -105,6 +108,13 @@ type AccountRepository interface {
 	// ErrAuthMethodInUse if the method's (kind, pseudonym) is attached to a
 	// method not revoked. On error nothing is stored.
 	CreateAccountWithMethod(ctx context.Context, account *Account, method *AuthMethod) error
+	// CreateAccountWithMethodWithinBudget is CreateAccountWithMethod and one
+	// unit of the hour's account-creation budget (ReserveAccountCreation) in
+	// ONE atomic step: the unit is spent only if the account is created. A
+	// refused creation (ErrAccountIDInUse, ErrAuthMethodInUse, an invalid
+	// record) spends nothing; a spent hour is ErrAccountCreationCapReached
+	// and creates nothing.
+	CreateAccountWithMethodWithinBudget(ctx context.Context, account *Account, method *AuthMethod, hourStart time.Time, limit int) error
 	// GetAccount returns the stored account, active or tombstoned.
 	GetAccount(ctx context.Context, accountID string) (*Account, error)
 	// FindAuthMethod returns the method of kind, not revoked, whose key id and
@@ -182,6 +192,13 @@ func ValidLookups(kind string, lookups []KeyedPseudonym) error {
 		}
 	}
 	return nil
+}
+
+// AccountRepository returns the service's account storage, and false when its
+// repository has none.
+func (s *IdentityService) AccountRepository() (AccountRepository, bool) {
+	repo, ok := s.repo.(AccountRepository)
+	return repo, ok
 }
 
 // accounts returns the service's account storage, when its repository has it.

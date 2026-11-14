@@ -93,6 +93,7 @@ var contract = []struct {
 	{"SignInDeliveryBudget", testSignInDeliveryBudget},
 	{"AccountsAndAuthMethods", testAccounts},
 	{"AccountCreationBudget", testAccountCreationBudget},
+	{"AccountCreationWithinBudget", testAccountCreationWithinBudget},
 	{"GoogleTokensAreSingleUse", testGoogleTokenSingleUse},
 	{"ReplaceSessionIsACompareAndSwap", testReplaceCAS},
 	{"SupersededTokensAreRecordedByTheSwapOnly", testSupersededTokens},

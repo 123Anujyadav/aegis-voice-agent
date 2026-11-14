@@ -1055,6 +1055,9 @@ type IdentityService struct {
 	// signInControls are the F-1 sign-in delivery controls
 	// (signin_controls.go); nil, the default, means none are configured.
 	signInControls *signInDeliveryControls
+	// googleSignIn is Google sign-in (google_signin.go); nil means it is not
+	// configured.
+	googleSignIn *GoogleSignInConfig
 	// integrity is Play Integrity verification (integrity.go); nil means
 	// unavailable, and VerifyPlayIntegrity then fails closed.
 	integrity *integrityCheck

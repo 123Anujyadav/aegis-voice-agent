@@ -595,3 +595,27 @@ file (`NOTICE.txt`).
 
 **Open items:**
 - The same as §12: how notices reach artefacts, and no enforcement in CI.
+
+## 16. Google ID-token verification: go-oidc and go-jose (ADR-0036, 2026-11-14)
+
+**Authority:** ADR-0036, accepted for M1 by the owner on 2026-11-13 (with ADR-0035). G2 (Sign in with Google) verifies Google ID tokens server-side in identity.
+
+| Module | Version | Released | `go` directive | Shipped in | Licence file | Licence text | sha256 (prefix) |
+|---|---|---|---|---|---|---|---|
+| `github.com/coreos/go-oidc/v3` | v3.21.0 | 2026-09-01 | 1.25.0 | `services/go/identity` only (`internal/googleauth`) | `LICENSE`, `NOTICE` | Apache-2.0 | `cb5e8e7e5f4a398` |
+| `github.com/go-jose/go-jose/v4` | v4.1.7 | 2026-10-30 | 1.24.0 | `services/go/identity` only (`internal/googleauth`) | `LICENSE` | Apache-2.0 | `cfc7749b96f63bd` |
+
+- **Why these versions:**
+  - go-oidc v3.21.0 is the latest release and more than two weeks old.
+  - go-jose v4.1.7 is the newest release more than two weeks old on 2026-11-14 (v4.1.8 and v4.1.9 are newer). go-oidc needs v4.1.4 or later.
+  - OSV reports no known vulnerability for either version (queried 2026-11-14).
+- **Contained:**
+  - Only identity's `go.mod` and `go.sum` changed.
+  - The module graph of every workspace module was recorded before and after (`go list -m all`). The only change is these two modules added; **no existing module's version changed**.
+  - `golang.org/x/oauth2` stays at v0.36.0, which identity already required.
+  - No other module's packages import them; edge-api's `go list -deps` names neither.
+- **Used narrowly:**
+  - go-jose verifies the compact JWS (RS256 only) against keys fetched by identity's own bounded client (`internal/googleauth/keyset.go`: Cache-Control honoured up to 24 hours, unknown key ids refetched at most once a minute, 5-second timeouts, 64 KiB limit, no redirects).
+  - go-oidc then checks the audience and the claims of that one verified token. Its own key fetching is not used.
+- **NOTICE:** go-oidc ships a `NOTICE` file (CoreOS copyright). Apache-2.0 requires it to accompany redistributions. This is section 12's open item: how third-party notices reach artefacts.
+- **Not activated:** Google sign-in is off unless its five variables are set. Production use needs identity egress to `www.googleapis.com`, a network-policy change that is not part of G2.

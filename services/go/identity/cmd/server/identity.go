@@ -120,6 +120,7 @@ func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runne
 	// Sign-in code deliveries by provider and outcome
 	// (httpapi.MetricOtpDeliveries), for a real provider's delivery rate.
 	rt.ObserveOtpDeliveries(apiMetrics.ObserveOtpDelivery)
+	rt.ObserveGoogleAuthorizedParty(apiMetrics.ObserveGoogleAuthorizedParty)
 	// The provider's request id for each accepted sign-in message, so it can
 	// be traced in the provider's delivery logs (MSG91's SMS Logs API is keyed
 	// by it). Neither the number nor the code is logged. Accepted is not
@@ -130,7 +131,7 @@ func configureIdentity(ctx context.Context, svcCfg platform.ServiceConfig, runne
 	})
 	log.Info("identity service constructed on PostgreSQL; HTTP API registered",
 		slog.Int("http_port", svcCfg.HTTPPort), slog.String("otp_provider", rt.OtpProvider()),
-		slog.Bool("otp_msg91_ipv4_only", rt.OtpMSG91IPv4Only()))
+		slog.Bool("otp_msg91_ipv4_only", rt.OtpMSG91IPv4Only()), slog.Bool("google_sign_in", rt.GoogleSignInEnabled()))
 	if rt.OtpProvider() == bootstrap.OtpProviderMock {
 		log.Warn("OTP delivery is the development-only mock: no SMS is sent, and codes are readable from its outbox")
 	}

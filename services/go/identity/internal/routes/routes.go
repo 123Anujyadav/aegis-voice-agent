@@ -30,4 +30,8 @@ const (
 	AccountDeletionCode = "/v1/account/deletion/code"
 	// AccountDeletionConfirm erases the account with that code.
 	AccountDeletionConfirm = "/v1/account/deletion/confirm"
+	// GoogleSignIn signs in, or signs up, with a Google ID token and a DPoP
+	// proof (ADR-0035; app/google_signin.go). Its canonical URL is the
+	// refresh canonical URL's origin and this path.
+	GoogleSignIn = "/v1/auth/google"
 )

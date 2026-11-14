@@ -75,6 +75,35 @@ func (d *GoogleAccountDirectory) Lookup(ctx context.Context, issuer, subject str
 // uses a key the keyring does not hold (ErrPseudonymKeyringIncomplete), and
 // after a bounded number of id collisions (ErrSubscriberIDCollision).
 func (d *GoogleAccountDirectory) Create(ctx context.Context, issuer, subject string) (accountID string, created bool, err error) {
+	return d.create(ctx, issuer, subject, func(a *Account, m *AuthMethod) error {
+		return d.repo.CreateAccountWithMethod(ctx, a, m)
+	})
+}
+
+// CreateWithinBudget is Create with one unit of the hour's account-creation
+// budget spent in the same atomic step (ADR-0035 D35.8): the unit is spent
+// only if an account is created. An identity attached by now (a concurrent
+// first sign-in won) returns that account and spends nothing, even when the
+// hour is spent. A spent hour with no such account is
+// ErrAccountCreationCapReached.
+func (d *GoogleAccountDirectory) CreateWithinBudget(ctx context.Context, issuer, subject string, hourStart time.Time, limit int) (accountID string, created bool, err error) {
+	id, created, err := d.create(ctx, issuer, subject, func(a *Account, m *AuthMethod) error {
+		return d.repo.CreateAccountWithMethodWithinBudget(ctx, a, m, hourStart, limit)
+	})
+	if errors.Is(err, ErrAccountCreationCapReached) {
+		existing, found, lerr := d.Lookup(ctx, issuer, subject)
+		if lerr != nil {
+			return "", false, lerr
+		}
+		if found {
+			return existing, false, nil
+		}
+	}
+	return id, created, err
+}
+
+// create is Create and CreateWithinBudget, with the store step given.
+func (d *GoogleAccountDirectory) create(ctx context.Context, issuer, subject string, store func(*Account, *AuthMethod) error) (accountID string, created bool, err error) {
 	lookups, err := d.keyring.GoogleSubjectPseudonyms(issuer, subject)
 	if err != nil {
 		return "", false, err
@@ -99,7 +128,7 @@ func (d *GoogleAccountDirectory) Create(ctx context.Context, issuer, subject str
 			return "", false, err
 		}
 		at := d.now()
-		err = d.repo.CreateAccountWithMethod(ctx,
+		err = store(
 			&Account{ID: id, Status: AccountActive, CreatedAt: at},
 			&AuthMethod{
 				MethodID: methodID, AccountID: id, Kind: AuthMethodGoogle,

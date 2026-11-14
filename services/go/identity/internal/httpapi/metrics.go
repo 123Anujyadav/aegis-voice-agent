@@ -64,6 +64,11 @@ const MetricOtpDeliveries = "identity_otp_deliveries_total"
 // (docs/phase19/ACCOUNT-DELETION.md §3.3). No provider is configured today.
 const MetricDeletionCodeDeliveries = "identity_deletion_code_deliveries_total"
 
+// MetricGoogleAuthorizedParty counts accepted Google ID tokens by how their
+// azp matched: "android", "server" or "absent" (googleauth). Google does not
+// document azp for Android tokens; this shows which it is. No id is a label.
+const MetricGoogleAuthorizedParty = "identity_google_authorized_party_total"
+
 // ProviderOther is the provider label for a name that is not a valid
 // otpdelivery provider name.
 const ProviderOther = "other"
@@ -81,6 +86,7 @@ const (
 	// EndpointDeletionCode and EndpointDeletionConfirm are web deletion's.
 	EndpointDeletionCode    = "account_deletion_code"
 	EndpointDeletionConfirm = "account_deletion_confirm"
+	EndpointGoogleSignIn    = "auth_google"
 	EndpointUnknown         = "unknown"
 )
 
@@ -100,6 +106,7 @@ type Metrics struct {
 	restrictions *metrics.Counter
 	deliveries   *metrics.Counter
 	deletionSent *metrics.Counter
+	googleAZP    *metrics.Counter
 }
 
 // NewMetrics registers the API's instruments in a fresh registry.
@@ -114,6 +121,7 @@ func NewMetrics() *Metrics {
 		restrictions: reg.Counter(MetricIntegrityRestrictions, "reason"),
 		deliveries:   reg.Counter(MetricOtpDeliveries, "provider", "outcome"),
 		deletionSent: reg.Counter(MetricDeletionCodeDeliveries, "provider", "outcome"),
+		googleAZP:    reg.Counter(MetricGoogleAuthorizedParty, "kind"),
 	}
 }
 
@@ -222,6 +230,20 @@ func (m *Metrics) ObserveDeletionCodeDelivery(provider string, o otpdelivery.Out
 	m.deletionSent.Inc(provider, string(o))
 }
 
+// ObserveGoogleAuthorizedParty counts one accepted Google ID token by its
+// azp kind; any other value is counted as "other".
+func (m *Metrics) ObserveGoogleAuthorizedParty(kind string) {
+	if m == nil {
+		return
+	}
+	switch kind {
+	case "android", "server", "absent":
+	default:
+		kind = "other"
+	}
+	m.googleAZP.Inc(kind)
+}
+
 // endpointFor maps a request path to its endpoint label.
 func endpointFor(path string) string {
 	switch path {
@@ -237,6 +259,8 @@ func endpointFor(path string) string {
 		return EndpointDeletionCode
 	case routes.AccountDeletionConfirm:
 		return EndpointDeletionConfirm
+	case routes.GoogleSignIn:
+		return EndpointGoogleSignIn
 	default:
 		return EndpointUnknown
 	}

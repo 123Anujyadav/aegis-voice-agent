@@ -245,7 +245,7 @@ func TestGoogleTokenRecords_OutliveTheTokenByAMargin(t *testing.T) {
 	}
 	// A record whose token expired beyond the margin is pruned.
 	old := HashRefreshToken([]byte("k"), "token-old")
-	if ok, _ := repo.ReserveGoogleToken(ctx, old, time.Now().Add(-2*googleTokenRecordMargin)); !ok {
+	if ok, _ := repo.ReserveGoogleToken(ctx, old, time.Now().Add(-2*GoogleTokenRecordMargin)); !ok {
 		t.Fatal("old token")
 	}
 	_, _ = repo.ReserveGoogleToken(ctx, HashRefreshToken([]byte("k"), "token-3"), time.Now().Add(time.Hour)) //nolint:errcheck // prunes
