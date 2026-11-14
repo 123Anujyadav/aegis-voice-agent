@@ -1,4 +1,4 @@
-// Package httpapi is the identity service's HTTP surface: exactly six POST
+// Package httpapi is the identity service's HTTP surface: exactly seven POST
 // endpoints (internal/routes), each a thin adapter over one IdentityService
 // method. No authentication, token or proof logic lives here: the proof is
 // handed to the service's DPoP verifier as it arrived, and tokens come only
@@ -8,7 +8,8 @@
 //
 // Every endpoint: method POST (anything else is 405 with Allow: POST);
 // Content-Type application/json, optionally with charset=utf-8 (else 415);
-// body at most MaxBodyBytes (else 413), exactly one JSON object with exactly
+// body at most MaxBodyBytes (MaxGoogleSignInBodyBytes on /v1/auth/google;
+// else 413), exactly one JSON object with exactly
 // the documented fields — unknown fields, missing fields, wrong types, trailing
 // data and malformed JSON are 400. Every response carries Cache-Control:
 // no-store, the platform security headers and an X-Correlation-ID (an inbound
@@ -64,7 +65,19 @@
 //	      same whether or not the number has an account), 401 ERR_OTP_EXPIRED,
 //	  429 ERR_RATE_LIMITED, 503 ERR_OTP_DELIVERY_UNAVAILABLE (as above)
 //
-// All six: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
+//	POST /v1/auth/google      DPoP: <proof>   {"idToken": "<Google ID token>", "nonceSeed": "<43 base64url>"}
+//	  200 as /v1/otp/validate: an existing account signs in; a new one is
+//	      created within the hourly cap (app/google_signin.go). The token's
+//	      nonce must be GoogleNonce(proof key thumbprint, nonceSeed)
+//	  401 ERR_SIGN_IN_REFUSED  ONE answer for every refusal: the token
+//	      (signature, issuer, audience, authorized party, times, nonce), a
+//	      replayed token, the M1 allowlist, the hourly cap
+//	  503 ERR_SIGN_IN_UNAVAILABLE  Google sign-in not configured, or Google's
+//	      signing keys unavailable
+//	  400 ERR_MALFORMED_BODY, ERR_INVALID_INPUT, ERR_INVALID_DPOP_PROOF,
+//	      ERR_INVALID_INTEGRITY_TOKEN (as for /v1/otp/validate)
+//
+// All seven: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
 // including the replay store, or the request ran out of time) and 500
 // ERR_INTERNAL. Neither ever accompanies a token.
 //
@@ -75,7 +88,7 @@
 // proof spends its jti: a malformed body never costs the client its proof.
 //
 // Every response is counted once in identity_auth_requests_total{endpoint,
-// outcome} (metrics.go). The endpoint is one of the four routes or "unknown";
+// outcome} (metrics.go). The endpoint is one of the seven routes or "unknown";
 // the outcome is "success" or the response's problem code. Nothing from the
 // request is a label. cmd/server exposes it at GET /metrics on the health
 // listener, never on this API's port.
@@ -108,17 +121,22 @@ import (
 // Bounds. The largest valid body is under 200 bytes; a whole request is a few
 // small database statements and one signature.
 const (
-	MaxBodyBytes   = 1 << 10
-	ReadTimeout    = 10 * time.Second
-	WriteTimeout   = 15 * time.Second
-	HandlerTimeout = 10 * time.Second
+	MaxBodyBytes = 1 << 10
+	// MaxGoogleSignInBodyBytes is POST /v1/auth/google's limit only: a
+	// Google ID token is 1-2 KiB. Every other endpoint keeps MaxBodyBytes.
+	MaxGoogleSignInBodyBytes = 8 << 10
+	ReadTimeout              = 10 * time.Second
+	WriteTimeout             = 15 * time.Second
+	HandlerTimeout           = 10 * time.Second
 )
 
 var (
 	requestIDPattern    = regexp.MustCompile(`^req_[0-9a-f]{64}$`)
 	sessionIDPattern    = regexp.MustCompile(`^sess_[0-9a-f]{64}$`)
 	refreshTokenPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	codePattern         = regexp.MustCompile(`^\d{6}$`)
+	// A compact JWS, three base64url parts: the shape of an idToken.
+	idTokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
+	codePattern    = regexp.MustCompile(`^\d{6}$`)
 )
 
 type handler struct {
@@ -163,6 +181,8 @@ func (h *handler) route(w http.ResponseWriter, r *http.Request) {
 		serve = h.requestDeletionCode
 	case routes.AccountDeletionConfirm:
 		serve = h.confirmDeletion
+	case routes.GoogleSignIn:
+		serve = h.googleSignIn
 	default:
 		h.problem(w, r, http.StatusNotFound, "ERR_NOT_FOUND")
 		return
@@ -288,6 +308,46 @@ func (h *handler) enroll(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// googleSignIn signs in, or up, with a Google ID token (app/google_signin.go).
+// The body is validated before the proof is spent, as everywhere.
+func (h *handler) googleSignIn(w http.ResponseWriter, r *http.Request) {
+	if !h.svc.GoogleSignInEnabled() {
+		h.problem(w, r, http.StatusServiceUnavailable, "ERR_SIGN_IN_UNAVAILABLE")
+		return
+	}
+	var body struct {
+		IDToken   string `json:"idToken"`
+		NonceSeed string `json:"nonceSeed"`
+	}
+	if !h.decodeLimit(w, r, &body, MaxGoogleSignInBodyBytes) {
+		return
+	}
+	if !idTokenPattern.MatchString(body.IDToken) || !app.ValidNonceSeed(body.NonceSeed) {
+		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_INPUT")
+		return
+	}
+	proof, ok := h.proof(w, r)
+	if !ok {
+		return
+	}
+	integrity, ok := h.integrityToken(w, r)
+	if !ok {
+		return
+	}
+	sess, token, err := h.svc.SignInWithGoogle(r.Context(), body.IDToken, body.NonceSeed, r.Method, proof, integrity)
+	if err != nil || token == "" || sess == nil || sess.RefreshToken == "" {
+		h.fail(w, r, err)
+		return
+	}
+	h.ok(w, r, http.StatusOK, map[string]any{
+		"accessToken":  token,
+		"tokenType":    "DPoP",
+		"expiresIn":    int64(accesstoken.Lifetime / time.Second),
+		"refreshToken": sess.RefreshToken,
+		"sessionId":    sess.SessionID,
+	})
+}
+
 func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		SessionID    string `json:"sessionId"`
@@ -356,12 +416,18 @@ func (h *handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 // decode enforces the content type, the size bound and the exact shape: one
 // JSON object, only the known fields, nothing after it.
 func (h *handler) decode(w http.ResponseWriter, r *http.Request, into any) bool {
+	return h.decodeLimit(w, r, into, MaxBodyBytes)
+}
+
+// decodeLimit is decode with the body limit given: MaxBodyBytes everywhere
+// except POST /v1/auth/google.
+func (h *handler) decodeLimit(w http.ResponseWriter, r *http.Request, into any, limit int64) bool {
 	mt, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mt != "application/json" || !onlyUTF8(params) {
 		h.problem(w, r, http.StatusUnsupportedMediaType, "ERR_UNSUPPORTED_MEDIA_TYPE")
 		return false
 	}
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, MaxBodyBytes))
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	var tooBig *http.MaxBytesError
 	if errors.As(err, &tooBig) {
 		h.problem(w, r, http.StatusRequestEntityTooLarge, "ERR_BODY_TOO_LARGE")
@@ -450,6 +516,8 @@ var problems = map[string]struct{ title, detail string }{
 	"ERR_OTP_DELIVERY_UNAVAILABLE": {"Service Unavailable", "One-time codes cannot be delivered at present."},
 	"ERR_OTP_DELIVERY_FAILED":      {"Service Unavailable", "The one-time code could not be delivered."},
 	"ERR_TEMPORARILY_UNAVAILABLE":  {"Service Unavailable", "The request could not be completed. Retry later."},
+	"ERR_SIGN_IN_REFUSED":          {"Unauthorized", "Sign-in was refused."},
+	"ERR_SIGN_IN_UNAVAILABLE":      {"Service Unavailable", "Sign-in with Google is not available at present."},
 	"ERR_INTERNAL":                 {"Internal Error", "The request could not be processed."},
 }
 
@@ -485,6 +553,13 @@ func (h *handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 		h.problem(w, r, http.StatusTooManyRequests, "ERR_RATE_LIMITED")
 	case errors.Is(err, app.ErrInvalidMSISDN):
 		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_MSISDN")
+	case errors.Is(err, app.ErrGoogleSignInRefused):
+		// One answer for every refusal: token, nonce, replay, allowlist, cap.
+		h.problem(w, r, http.StatusUnauthorized, "ERR_SIGN_IN_REFUSED")
+	case errors.Is(err, app.ErrGoogleSignInUnavailable):
+		h.problem(w, r, http.StatusServiceUnavailable, "ERR_SIGN_IN_UNAVAILABLE")
+	case errors.Is(err, app.ErrMalformedGoogleSignIn):
+		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_INPUT")
 	case errors.Is(err, app.ErrInvalidDeviceProof):
 		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_DPOP_PROOF")
 	case errors.Is(err, app.ErrPlayIntegrityFailed):

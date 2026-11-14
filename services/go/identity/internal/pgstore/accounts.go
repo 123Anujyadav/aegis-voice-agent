@@ -39,36 +39,81 @@ func (r *Repository) CreateAccountWithMethod(ctx context.Context, a *app.Account
 	if err := app.ValidNewAccount(a, m); err != nil {
 		return err
 	}
+	return mapCreateError(inTx(ctx, r.pool, func(tx pgx.Tx) error {
+		return insertAccountAndMethod(ctx, tx, a, m)
+	}))
+}
+
+// CreateAccountWithMethodWithinBudget implements app.AccountRepository, in one
+// transaction: the hour's budget row is counted with the 0010-style guard,
+// then the account and its method are inserted exactly as in
+// CreateAccountWithMethod. Any refusal rolls the whole transaction back, so
+// the budget unit is spent only when the account is created. The budget row
+// is locked until the transaction ends, which serialises the hour's
+// creations: at an hourly cap of a few accounts, that is the point.
+func (r *Repository) CreateAccountWithMethodWithinBudget(ctx context.Context, a *app.Account, m *app.AuthMethod, hourStart time.Time, limit int) error {
+	if err := app.ValidNewAccount(a, m); err != nil {
+		return err
+	}
+	if limit < 1 {
+		return app.ErrAccountCreationCapReached
+	}
 	err := inTx(ctx, r.pool, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `
-			INSERT INTO identity_accounts (account_id, status, created_at)
-			SELECT $1, 'active', $2
-			WHERE NOT EXISTS (SELECT 1 FROM identity_sessions WHERE subscriber_id = $1)
-			  AND NOT EXISTS (SELECT 1 FROM identity_erasures WHERE subscriber_id = $1)`,
-			a.ID, us(a.CreatedAt))
+		var n int
+		err := tx.QueryRow(ctx, `
+			INSERT INTO identity_account_creation_budget (hour_start, created) VALUES ($1, 1)
+			ON CONFLICT (hour_start) DO UPDATE SET created = identity_account_creation_budget.created + 1
+			WHERE identity_account_creation_budget.created < $2
+			RETURNING created`, us(hourStart.UTC()), limit).Scan(&n)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return app.ErrAccountCreationCapReached
+		}
 		if err != nil {
 			return err
 		}
-		if tag.RowsAffected() != 1 {
-			return app.ErrAccountIDInUse
-		}
-		_, err = tx.Exec(ctx, `
-			INSERT INTO identity_auth_methods
-				(method_id, account_id, kind, key_id, lookup_pseudonym, created_at, last_used_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			m.MethodID, m.AccountID, m.Kind, m.KeyID, m.LookupPseudonym, us(m.CreatedAt), us(m.LastUsedAt))
-		return err
+		return insertAccountAndMethod(ctx, tx, a, m)
 	})
+	return mapCreateError(err)
+}
+
+// insertAccountAndMethod is CreateAccountWithMethod's two inserts, inside the
+// caller's transaction.
+func insertAccountAndMethod(ctx context.Context, tx pgx.Tx, a *app.Account, m *app.AuthMethod) error {
+	tag, err := tx.Exec(ctx, `
+		INSERT INTO identity_accounts (account_id, status, created_at)
+		SELECT $1, 'active', $2
+		WHERE NOT EXISTS (SELECT 1 FROM identity_sessions WHERE subscriber_id = $1)
+		  AND NOT EXISTS (SELECT 1 FROM identity_erasures WHERE subscriber_id = $1)`,
+		a.ID, us(a.CreatedAt))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return app.ErrAccountIDInUse
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO identity_auth_methods
+			(method_id, account_id, kind, key_id, lookup_pseudonym, created_at, last_used_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		m.MethodID, m.AccountID, m.Kind, m.KeyID, m.LookupPseudonym, us(m.CreatedAt), us(m.LastUsedAt))
+	return err
+}
+
+// mapCreateError turns a creation's database error into the app's sentinels.
+func mapCreateError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, app.ErrAccountIDInUse), errors.Is(err, app.ErrAccountCreationCapReached):
+		return err
+	}
 	switch uniqueViolation(err) {
 	case constraintAccountsPK:
 		return app.ErrAccountIDInUse
 	case constraintMethodLookup:
 		return app.ErrAuthMethodInUse
 	}
-	if err != nil && !errors.Is(err, app.ErrAccountIDInUse) {
-		return fmt.Errorf("pgstore: creating an account: %w", err)
-	}
-	return err
+	return fmt.Errorf("pgstore: creating an account: %w", err)
 }
 
 // GetAccount implements app.AccountRepository.

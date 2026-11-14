@@ -96,6 +96,9 @@ type ActivationConfig struct {
 	// otp is the resolved OTP delivery (otp.go). LoadActivation sets it; the
 	// zero value is no delivery. Unexported for the same reason as dbTLS.
 	otp OtpDelivery
+	// google is Google sign-in (google.go). LoadActivation sets it; nil is
+	// off. A pointer keeps ActivationConfig comparable.
+	google *GoogleSignInSettings
 }
 
 // Validate applies SecurityConfig.Validate and the same blank and padding rule
@@ -162,6 +165,13 @@ func LoadActivation() (ActivationConfig, bool, error) {
 		return ActivationConfig{}, true, err
 	}
 	c.otp = otp
+	google, err := resolveGoogleSignIn(os.LookupEnv)
+	if err != nil {
+		return ActivationConfig{}, true, err
+	}
+	if google.Enabled() {
+		c.google = &google
+	}
 	return c, true, nil
 }
 
@@ -269,6 +279,7 @@ type Runtime struct {
 	otpOutbox   *otpdelivery.Outbox
 	otpObserver *deliveryObserver
 	otpIPv4Only bool
+	azpObserver *authorizedPartyObserver
 	once        sync.Once
 }
 
@@ -290,6 +301,19 @@ func (r *Runtime) ObserveOtpDeliveries(hook func(provider string, outcome otpdel
 func (r *Runtime) ObserveOtpAcceptances(hook func(provider, requestID string)) {
 	if r.otpObserver != nil {
 		r.otpObserver.setAccepted(hook)
+	}
+}
+
+// GoogleSignInEnabled reports whether Google sign-in is configured.
+func (r *Runtime) GoogleSignInEnabled() bool {
+	return r.Service != nil && r.Service.GoogleSignInEnabled()
+}
+
+// ObserveGoogleAuthorizedParty installs the hook that counts accepted Google
+// tokens by azp kind (httpapi.Metrics.ObserveGoogleAuthorizedParty).
+func (r *Runtime) ObserveGoogleAuthorizedParty(hook func(kind string)) {
+	if r.azpObserver != nil {
+		r.azpObserver.set(hook)
 	}
 }
 
@@ -390,6 +414,16 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 		pool.Close()
 		return nil, err
 	}
+	// Google sign-in (google.go), when configured. Its proofs use the same
+	// replay table, keyed by key and proof id; the htu keeps them apart.
+	azp := &authorizedPartyObserver{}
+	if googleErr := installGoogleSignIn(svc, cfg.google, googleSignInDeps{
+		secretKey: secret, refreshCanonicalURL: cfg.Security.RefreshCanonicalURL,
+		replay: pgstore.NewReplayStore(pool), now: now, observe: azp.observe,
+	}); googleErr != nil {
+		pool.Close()
+		return nil, googleErr
+	}
 	// Every security audit event is appended to the durable, append-only log
 	// (migration 0005; ADR-0010 §10, ADR-0012 LEGAL_HOLD). Other auditors, such
 	// as the metrics counter, are added alongside it.
@@ -407,6 +441,6 @@ func Open(ctx context.Context, cfg ActivationConfig, now func() time.Time) (*Run
 	return &Runtime{
 		Service: svc, pool: pool, housekeeper: hk,
 		otpProvider: cfg.otp.Provider, otpOutbox: outbox, otpObserver: observer,
-		otpIPv4Only: cfg.otp.MSG91IPv4Only(),
+		otpIPv4Only: cfg.otp.MSG91IPv4Only(), azpObserver: azp,
 	}, nil
 }

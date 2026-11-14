@@ -323,3 +323,90 @@ func TestAccounts_Postgres_Housekeeping(t *testing.T) {
 		t.Error("a live token record was deleted")
 	}
 }
+
+// Creating an account within the hour's budget is one atomic step: exactly
+// the cap of distinct new identities is created, a refused creation spends
+// nothing, and concurrent attachments of ONE identity spend one unit.
+func testAccountCreationWithinBudget(t *testing.T, be backend) {
+	a, b := accountsOf(t, be)
+	hour := t0.Truncate(time.Hour)
+	hexByte := func(i int) string { return string("0123456789abcdef"[i%16]) + string("0123456789abcdef"[i/16%16]) }
+
+	// 20 distinct identities, cap 5: exactly 5 created.
+	var created, capped atomic.Int64
+	race(20, func(i int) {
+		repo := a
+		if i%2 == 1 {
+			repo = b
+		}
+		id := "usr_" + strings.Repeat("1", 30) + hexByte(i)
+		err := repo.CreateAccountWithMethodWithinBudget(ctx, newAccount(id),
+			googleMethod("am_"+strings.Repeat("1", 30)+hexByte(i), id, "k1", strings.Repeat("1", 62)+hexByte(i)), hour, 5)
+		switch {
+		case err == nil:
+			created.Add(1)
+		case errors.Is(err, app.ErrAccountCreationCapReached):
+			capped.Add(1)
+		default:
+			t.Errorf("create %d: %v", i, err)
+		}
+	})
+	if created.Load() != 5 || capped.Load() != 15 {
+		t.Fatalf("%d created, %d capped; want 5 and 15", created.Load(), capped.Load())
+	}
+
+	// A refused creation (the identity is attached) spends nothing: in a new
+	// hour with a cap of 1, a duplicate is refused and a new identity still
+	// fits.
+	next := hour.Add(time.Hour)
+	known := "usr_" + strings.Repeat("7", 32)
+	if err := a.CreateAccountWithMethod(ctx, newAccount(known), googleMethod("am_"+strings.Repeat("7", 32), known, "k1", strings.Repeat("7", 64))); err != nil {
+		t.Fatal(err)
+	}
+	dup := "usr_" + strings.Repeat("2", 32)
+	err := a.CreateAccountWithMethodWithinBudget(ctx, newAccount(dup),
+		googleMethod("am_"+strings.Repeat("2", 32), dup, "k1", strings.Repeat("7", 64)), next, 1)
+	if !errors.Is(err, app.ErrAuthMethodInUse) {
+		t.Fatalf("an attached identity: err = %v, want ErrAuthMethodInUse", err)
+	}
+	fresh := "usr_" + strings.Repeat("3", 32)
+	if err := b.CreateAccountWithMethodWithinBudget(ctx, newAccount(fresh),
+		googleMethod("am_"+strings.Repeat("3", 32), fresh, "k1", strings.Repeat("3", 64)), next, 1); err != nil {
+		t.Errorf("the refused creation spent the unit: %v", err)
+	}
+
+	// 20 concurrent attachments of one identity in a third hour, cap 5: one
+	// account, and only one unit spent (4 more distinct identities fit).
+	third := next.Add(time.Hour)
+	var wins atomic.Int64
+	race(20, func(i int) {
+		repo := a
+		if i%2 == 1 {
+			repo = b
+		}
+		id := "usr_" + strings.Repeat("4", 30) + hexByte(i)
+		err := repo.CreateAccountWithMethodWithinBudget(ctx, newAccount(id),
+			googleMethod("am_"+strings.Repeat("4", 30)+hexByte(i), id, "k1", strings.Repeat("4", 64)), third, 5)
+		if err == nil {
+			wins.Add(1)
+		} else if !errors.Is(err, app.ErrAuthMethodInUse) {
+			t.Errorf("attach %d: %v", i, err)
+		}
+	})
+	if wins.Load() != 1 {
+		t.Fatalf("%d attachments of one identity succeeded, want 1", wins.Load())
+	}
+	for i := 0; i < 4; i++ {
+		id := "usr_" + strings.Repeat("5", 30) + hexByte(i)
+		if err := a.CreateAccountWithMethodWithinBudget(ctx, newAccount(id),
+			googleMethod("am_"+strings.Repeat("5", 30)+hexByte(i), id, "k1", strings.Repeat("5", 62)+hexByte(i)), third, 5); err != nil {
+			t.Errorf("identity %d of the remaining 4: %v (failed attachments spent units)", i, err)
+		}
+	}
+	if err := a.CreateAccountWithMethodWithinBudget(ctx, newAccount(dup), googleMethod("am_"+strings.Repeat("2", 32), dup, "k1", strings.Repeat("6", 64)), third, 5); !errors.Is(err, app.ErrAccountCreationCapReached) {
+		t.Errorf("a sixth in the hour: %v, want the cap", err)
+	}
+	if err := a.CreateAccountWithMethodWithinBudget(ctx, newAccount(dup), googleMethod("am_"+strings.Repeat("2", 32), dup, "k1", strings.Repeat("6", 64)), third, 0); !errors.Is(err, app.ErrAccountCreationCapReached) {
+		t.Errorf("a cap of 0: %v", err)
+	}
+}
