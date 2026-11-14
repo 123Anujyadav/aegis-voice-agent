@@ -239,6 +239,46 @@ func TestGoogleSignIn_TheHourlyCapBoundsNewAccountsOnly(t *testing.T) {
 	}
 }
 
+// An incomplete keyring (a stored method uses a key the keyring no longer
+// holds) blocks new accounts, but not existing ones: an account found under a
+// held key signs in, with no account created and no budget spent. Only the
+// lookup finds it; the create path fails closed on the missing key.
+func TestGoogleSignIn_AnExistingAccountSignsInWithAnIncompleteKeyring(t *testing.T) {
+	g := newGoogleRig(t, googleTesters, 5)
+	key := deviceKey(t)
+	first, _, err := g.signIn(g.mint(t, key, "sub-1", "tester@example.com", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Another account stored under k9, a key the service's keyring (k1 only)
+	// lacks; this directory also holds k1, so it can create it.
+	rotated := newTestDirectory(t, g.repo, "k9 "+testKeyHex(0x99)+"\nk1 "+testKeyHex(0x11))
+	if _, _, createErr := rotated.Create(context.Background(), GoogleIssuer, "sub-2"); createErr != nil {
+		t.Fatal(createErr)
+	}
+	accounts, units := g.accountCount(), g.creations()
+
+	again, _, err := g.signIn(g.mint(t, key, "sub-1", "tester@example.com", true))
+	if err != nil || again.SubscriberID != first.SubscriberID {
+		t.Fatalf("an existing account with an incomplete keyring: (%v, %v), want its account", again, err)
+	}
+	if _, _, refused := g.signIn(g.mint(t, key, "sub-3", "second@example.com", true)); !errors.Is(refused, ErrPseudonymKeyringIncomplete) {
+		t.Errorf("a new account with an incomplete keyring: %v, want ErrPseudonymKeyringIncomplete", refused)
+	}
+	if g.accountCount() != accounts || g.creations() != units {
+		t.Errorf("%d accounts and %d budget units, want %d and %d", g.accountCount(), g.creations(), accounts, units)
+	}
+	created := 0
+	for _, e := range g.audit.snapshot() {
+		if e.Type == EventAccountCreated {
+			created++
+		}
+	}
+	if created != 1 {
+		t.Errorf("%d account-created events, want 1", created)
+	}
+}
+
 // Fifty concurrent first sign-ins of one identity: one account, one unit.
 func TestGoogleSignIn_ConcurrentFirstSignInsCreateOneAccountAndSpendOneUnit(t *testing.T) {
 	g := newGoogleRig(t, googleTesters, 5)
