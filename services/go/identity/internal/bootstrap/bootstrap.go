@@ -214,6 +214,27 @@ func Build(cfg SecurityConfig, deps Dependencies) (*app.IdentityService, error) 
 		return nil, fmt.Errorf("%w: account deletion URL from %s_REFRESH_CANONICAL_URL: %w", ErrInvalidConfig, EnvPrefix, derr)
 	}
 	svc.SetAccountDeletionProofVerifier(deletion)
+
+	// Sign-out (OD-14 option B): logout and revoke-all, each with its own
+	// canonical URL from the refresh URL's origin, as deletion's, and sharing
+	// refresh's replay store. Always on; they need no setting of their own.
+	for _, so := range []struct {
+		name string
+		url  string
+		set  func(*dpop.Verifier)
+	}{
+		{"logout", LogoutCanonicalURL(cfg.RefreshCanonicalURL), svc.SetLogoutProofVerifier},
+		{"revoke-all", RevokeAllCanonicalURL(cfg.RefreshCanonicalURL), svc.SetRevokeAllProofVerifier},
+	} {
+		v, verr := dpop.NewVerifier(dpop.Config{
+			HTU: so.url, MaxAge: ProofMaxAge, FutureSkew: ProofFutureSkew,
+			Replay: deps.RefreshReplay, Now: deps.Now,
+		})
+		if verr != nil {
+			return nil, fmt.Errorf("%w: %s URL from %s_REFRESH_CANONICAL_URL: %w", ErrInvalidConfig, so.name, EnvPrefix, verr)
+		}
+		so.set(v)
+	}
 	return svc, nil
 }
 
@@ -259,6 +280,26 @@ func AccountDeletionCanonicalURL(refreshCanonicalURL string) string {
 		return ""
 	}
 	return u.Scheme + "://" + u.Host + routes.AccountDeletion
+}
+
+// LogoutCanonicalURL is the canonical URL a logout proof must name:
+// refreshCanonicalURL's scheme and host with routes.Logout.
+func LogoutCanonicalURL(refreshCanonicalURL string) string {
+	u, err := url.Parse(refreshCanonicalURL)
+	if err != nil {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host + routes.Logout
+}
+
+// RevokeAllCanonicalURL is the canonical URL a revoke-all proof must name:
+// refreshCanonicalURL's scheme and host with routes.RevokeAll.
+func RevokeAllCanonicalURL(refreshCanonicalURL string) string {
+	u, err := url.Parse(refreshCanonicalURL)
+	if err != nil {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host + routes.RevokeAll
 }
 
 // loadSigner reads and parses the key file and builds the signer. Parsing and

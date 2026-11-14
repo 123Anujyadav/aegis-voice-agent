@@ -87,7 +87,10 @@ const (
 	EndpointDeletionCode    = "account_deletion_code"
 	EndpointDeletionConfirm = "account_deletion_confirm"
 	EndpointGoogleSignIn    = "auth_google"
-	EndpointUnknown         = "unknown"
+	// EndpointLogout and EndpointRevokeAll are sign-out's.
+	EndpointLogout    = "session_logout"
+	EndpointRevokeAll = "session_revoke_all"
+	EndpointUnknown   = "unknown"
 )
 
 // OutcomeSuccess is a request that received its 2xx response. Every other
@@ -172,7 +175,8 @@ func (m *Metrics) ObserveAuditFailure(t app.SecurityEventType) {
 func securityEventLabel(t app.SecurityEventType) string {
 	switch t {
 	case app.EventOtpVerificationFailed, app.EventOtpLockout, app.EventRefreshTokenReused, app.EventDeviceEnrolled,
-		app.EventDeviceReenrolled, app.EventIntegrityRestricted, app.EventIntegrityRejected, app.EventAccountDeleted:
+		app.EventDeviceReenrolled, app.EventIntegrityRestricted, app.EventIntegrityRejected, app.EventAccountDeleted,
+		app.EventSessionLoggedOut, app.EventSessionsRevokedAll:
 		return string(t)
 	default:
 		return SecurityEventOther
@@ -261,6 +265,10 @@ func endpointFor(path string) string {
 		return EndpointDeletionConfirm
 	case routes.GoogleSignIn:
 		return EndpointGoogleSignIn
+	case routes.Logout:
+		return EndpointLogout
+	case routes.RevokeAll:
+		return EndpointRevokeAll
 	default:
 		return EndpointUnknown
 	}

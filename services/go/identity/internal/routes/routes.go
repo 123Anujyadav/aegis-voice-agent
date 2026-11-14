@@ -34,4 +34,12 @@ const (
 	// proof (ADR-0035; app/google_signin.go). Its canonical URL is the
 	// refresh canonical URL's origin and this path.
 	GoogleSignIn = "/v1/auth/google"
+	// Logout signs out the session itself, on its current refresh token and
+	// a DPoP proof (app/session_signout.go). Its canonical URL is the refresh
+	// canonical URL's origin and this path.
+	Logout = "/v1/session/logout"
+	// RevokeAll signs out every session of the account, the one that asks
+	// included, on the same credentials. Its canonical URL is the refresh
+	// canonical URL's origin and this path.
+	RevokeAll = "/v1/session/revoke-all"
 )

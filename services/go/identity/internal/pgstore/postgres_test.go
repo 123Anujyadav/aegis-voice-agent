@@ -308,12 +308,41 @@ func TestMigrations_ChainIsContiguousAndScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(chain) != 11 {
-		t.Fatalf("chain has %d steps, want 11", len(chain))
+	if len(chain) != 12 {
+		t.Fatalf("chain has %d steps, want 12", len(chain))
 	}
 	for i, step := range chain {
 		if step.Version != i+1 {
 			t.Fatalf("step %d is version %d: the chain is not contiguous", i, step.Version)
+		}
+	}
+
+	// 0012 creates revoke-all's operation records, one table of its own that
+	// goes with its session, and touches no existing table or row.
+	if chain[11].Name != "0012_session_revocations.sql" {
+		t.Errorf("step 12 is %q", chain[11].Name)
+	}
+	var code12 []string
+	for _, line := range strings.Split(chain[11].SQL, "\n") {
+		if l := strings.TrimSpace(line); l != "" && !strings.HasPrefix(l, "--") {
+			code12 = append(code12, l)
+		}
+	}
+	v12 := strings.Join(code12, " ")
+	if strings.Count(v12, ";") != 1 || !strings.HasPrefix(v12, "CREATE TABLE identity_session_revocations (") {
+		t.Errorf("0012 is not exactly one CREATE TABLE of its own: %q", v12)
+	}
+	for _, want := range []string{
+		"REFERENCES identity_sessions (session_id) ON DELETE CASCADE",
+		"CHECK (refresh_token_hash ~ '^[0-9a-f]{64}$')", "CHECK (sessions_revoked >= 1)",
+	} {
+		if !strings.Contains(v12, want) {
+			t.Errorf("0012 lacks %q", want)
+		}
+	}
+	for _, forbidden := range []string{"DELETE FROM", "UPDATE IDENTITY", "INSERT INTO", "TRUNCATE", "DROP ", "ALTER TABLE"} {
+		if strings.Contains(strings.ToUpper(v12), forbidden) {
+			t.Errorf("0012 contains %q", forbidden)
 		}
 	}
 
