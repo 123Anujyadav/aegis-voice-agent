@@ -1,4 +1,4 @@
-// Package httpapi is the identity service's HTTP surface: exactly seven POST
+// Package httpapi is the identity service's HTTP surface: exactly nine POST
 // endpoints (internal/routes), each a thin adapter over one IdentityService
 // method. No authentication, token or proof logic lives here: the proof is
 // handed to the service's DPoP verifier as it arrived, and tokens come only
@@ -77,7 +77,20 @@
 //	  400 ERR_MALFORMED_BODY, ERR_INVALID_INPUT, ERR_INVALID_DPOP_PROOF,
 //	      ERR_INVALID_INTEGRITY_TOKEN (as for /v1/otp/validate)
 //
-// All seven: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
+//	POST /v1/session/logout      DPoP: <proof>   {"sessionId": "...", "refreshToken": "..."}
+//	POST /v1/session/revoke-all  DPoP: <proof>   {"sessionId": "...", "refreshToken": "..."}
+//	  204 (no body): logout revokes the session; revoke-all revokes every
+//	      session of its account, that one included (app/session_signout.go).
+//	      Also 204 for a retry with the same session and refresh token and a
+//	      fresh proof by the same key; a revoke-all retry revokes nothing more
+//	  400 ERR_INVALID_DPOP_PROOF (as for refresh; the htu is the endpoint's
+//	      own URL). The proof is checked BEFORE the refresh token: a refused
+//	      proof never revokes anything
+//	  401 ERR_INVALID_TOKEN (unknown, expired or revoked session, a session
+//	      with no device key, or a refresh token that is not the current one;
+//	      a superseded one, with a valid proof, revokes that session only)
+//
+// All nine: 503 ERR_TEMPORARILY_UNAVAILABLE (a dependency could not answer,
 // including the replay store, or the request ran out of time) and 500
 // ERR_INTERNAL. Neither ever accompanies a token.
 //
@@ -88,7 +101,7 @@
 // proof spends its jti: a malformed body never costs the client its proof.
 //
 // Every response is counted once in identity_auth_requests_total{endpoint,
-// outcome} (metrics.go). The endpoint is one of the seven routes or "unknown";
+// outcome} (metrics.go). The endpoint is one of the nine routes or "unknown";
 // the outcome is "success" or the response's problem code. Nothing from the
 // request is a label. cmd/server exposes it at GET /metrics on the health
 // listener, never on this API's port.
@@ -183,6 +196,10 @@ func (h *handler) route(w http.ResponseWriter, r *http.Request) {
 		serve = h.confirmDeletion
 	case routes.GoogleSignIn:
 		serve = h.googleSignIn
+	case routes.Logout:
+		serve = h.logout
+	case routes.RevokeAll:
+		serve = h.revokeAll
 	default:
 		h.problem(w, r, http.StatusNotFound, "ERR_NOT_FOUND")
 		return
@@ -409,6 +426,46 @@ func (h *handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// logout signs out the session (app/session_signout.go): the same body and
+// DPoP proof as refresh, and 204 No Content. A retry with a fresh proof by
+// the same key is also 204.
+func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
+	h.signOut(w, r, h.svc.LogoutWithDeviceProof)
+}
+
+// revokeAll signs out every session of the account that owns the session
+// (app/session_signout.go): the same body and DPoP proof as refresh, and 204
+// No Content. A retry with a fresh proof by the same key is also 204, and
+// revokes nothing more.
+func (h *handler) revokeAll(w http.ResponseWriter, r *http.Request) {
+	h.signOut(w, r, h.svc.RevokeAllSessionsWithDeviceProof)
+}
+
+// signOut is logout's and revokeAll's shared adapter.
+func (h *handler) signOut(w http.ResponseWriter, r *http.Request, do func(ctx context.Context, sessionID, refreshToken, method, proof string) error) {
+	var body struct {
+		SessionID    string `json:"sessionId"`
+		RefreshToken string `json:"refreshToken"`
+	}
+	if !h.decode(w, r, &body) {
+		return
+	}
+	if !sessionIDPattern.MatchString(body.SessionID) || !refreshTokenPattern.MatchString(body.RefreshToken) {
+		h.problem(w, r, http.StatusBadRequest, "ERR_INVALID_INPUT")
+		return
+	}
+	proof, ok := h.proof(w, r)
+	if !ok {
+		return
+	}
+	if err := do(r.Context(), body.SessionID, body.RefreshToken, r.Method, proof); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.m.record(r, OutcomeSuccess)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ---------------------------------------------------------------------------
 // Request parsing
 // ---------------------------------------------------------------------------
@@ -581,6 +638,7 @@ func (h *handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, dpop.ErrReplayUnavailable), errors.Is(err, app.ErrEnrollmentUnavailable),
 		errors.Is(err, app.ErrDeviceRefreshUnavailable), errors.Is(err, app.ErrTokenIssuanceUnavailable),
 		errors.Is(err, app.ErrAccountDeletionUnavailable),
+		errors.Is(err, app.ErrSignOutUnavailable), errors.Is(err, app.ErrSignOutContended),
 		errors.Is(err, context.DeadlineExceeded):
 		h.problem(w, r, http.StatusServiceUnavailable, "ERR_TEMPORARILY_UNAVAILABLE")
 	default:

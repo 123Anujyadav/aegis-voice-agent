@@ -105,6 +105,30 @@ needs re-keying, and there was no reason to wait.
 reuse-revocation counts (`identity_security_events_total{type="identity.refresh.token_reused"}`)
 rise with no matching compromise.
 
+### 3.1 Sign-out, and open decision R1 (2026-11-14)
+
+**Sign-out checks the proof first.** `POST /v1/session/logout` and
+`POST /v1/session/revoke-all` (G3; `app/session_signout.go`) verify the DPoP
+proof for their own URL, and require the session's enrolled key, **before**
+they compare the refresh token. So a missing, invalid, replayed, wrong-key or
+wrong-endpoint proof revokes nothing, even with a superseded token. Only an
+authenticated request reaches `refreshMismatch`, and reuse found there revokes
+that one session, never the account's others. Tests:
+`TestSignOut_RefusedProofsRevokeNothingEvenWithASupersededToken`,
+`TestHTTP_SignOutRefusalsChangeNothing`.
+
+**R1, open (owner, 2026-11-14): refresh and account deletion are unchanged.**
+- **Today:** they still treat a superseded token as reuse **before** the proof
+  (§3 above): anyone holding a real former refresh token can revoke that
+  session without the device key.
+- **The owner's ruling:** keep that behaviour in G3, and decide separately
+  whether these endpoints should check the proof first too.
+- **Trade-off:** checking the proof first removes the denial of service by a
+  thief who has an old token but not the key. It also means such a
+  presentation no longer cuts off the session or raises the reuse event (the
+  RFC 9700 compromise signal) until the key is proved.
+- **Status:** not decided; no code change.
+
 ## 4. What this analysis does not claim
 
 **Passing tests do not prove that the refresh path is secure.** Tests show

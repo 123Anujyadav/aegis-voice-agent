@@ -41,6 +41,7 @@ func (m *MemoryIdentityRepository) eraseLocked(e *SubscriberErasure) {
 		}
 		delete(m.sessions, id)
 		delete(m.superseded, id)
+		delete(m.revocations, id)
 	}
 	for id, c := range m.otps {
 		if c.SubscriberID == e.SubscriberID {

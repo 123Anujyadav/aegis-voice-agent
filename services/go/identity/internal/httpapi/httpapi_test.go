@@ -35,6 +35,8 @@ const (
 	enrolURL   = host + routes.Enrollment
 	refreshURL = host + routes.Refresh
 	deleteURL  = host + routes.AccountDeletion
+	logoutURL  = host + routes.Logout
+	revokeURL  = host + routes.RevokeAll
 	msisdn     = "+919876543210"
 )
 
@@ -151,6 +153,7 @@ func newRig(t *testing.T, withSender bool) *rig {
 	replay := dpop.NewMemoryReplayStore()
 	for htu, set := range map[string]func(*dpop.Verifier){
 		enrolURL: svc.SetDeviceProofVerifier, refreshURL: svc.SetRefreshProofVerifier, deleteURL: svc.SetAccountDeletionProofVerifier,
+		logoutURL: svc.SetLogoutProofVerifier, revokeURL: svc.SetRevokeAllProofVerifier,
 	} {
 		v, err := dpop.NewVerifier(dpop.Config{HTU: htu, MaxAge: 2 * time.Minute, FutureSkew: time.Minute, Replay: replay})
 		if err != nil {

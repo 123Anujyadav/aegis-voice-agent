@@ -148,6 +148,7 @@ func TestMetrics_VocabularyIsClosed(t *testing.T) {
 	}
 	for path, want := range map[string]string{
 		routes.OTPRequest: EndpointOTPRequest, routes.Enrollment: EndpointOTPValidate, routes.Refresh: EndpointRefresh,
+		routes.Logout: EndpointLogout, routes.RevokeAll: EndpointRevokeAll,
 		"/": EndpointUnknown, "/v1/otp/request/+919876543210": EndpointUnknown, "/metrics": EndpointUnknown,
 	} {
 		if got := endpointFor(path); got != want {
@@ -167,6 +168,8 @@ func TestMetrics_SecurityEventsAreCountedByTypeOnly(t *testing.T) {
 		{Type: app.EventOtpVerificationFailed},
 		{Type: app.EventOtpLockout},
 		{Type: app.EventRefreshTokenReused, SessionID: "sess_secret"},
+		{Type: app.EventSessionLoggedOut, SessionID: "sess_secret"},
+		{Type: app.EventSessionsRevokedAll, SessionID: "sess_secret"},
 		{Type: "identity.something.new"},
 	} {
 		if err := m.Record(e); err != nil {
@@ -176,6 +179,7 @@ func TestMetrics_SecurityEventsAreCountedByTypeOnly(t *testing.T) {
 	for typ, n := range map[string]uint64{
 		string(app.EventOtpVerificationFailed): 2, string(app.EventOtpLockout): 1,
 		string(app.EventRefreshTokenReused): 1, SecurityEventOther: 1,
+		string(app.EventSessionLoggedOut): 1, string(app.EventSessionsRevokedAll): 1,
 	} {
 		if got := m.security.Value(typ); got != n {
 			t.Errorf("%s = %d, want %d", typ, got, n)

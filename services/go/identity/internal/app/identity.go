@@ -444,6 +444,10 @@ type MemoryIdentityRepository struct {
 	signInDeliveries map[time.Time]int
 	// accts is account storage (accounts_memory.go), created on first use.
 	accts *memoryAccounts
+	// revocations are the recorded revoke-all operations by the session that
+	// asked (session_signout_memory.go), created on first use; one goes with
+	// its session.
+	revocations map[string]sessionRevocationRecord
 }
 
 // otpRateState is one MSISDN's rate-limit state: the times of its OTP requests
@@ -939,9 +943,10 @@ type SecurityEvent struct {
 	RequestID string
 	// LockedUntil is set on EventOtpLockout only.
 	LockedUntil time.Time
-	// SessionID is set on EventRefreshTokenReused (the revoked session) and
-	// EventAccountDeleted (the session that requested the erasure): a random
-	// identifier (sess_…) that references nobody once the session is gone.
+	// SessionID is set on EventRefreshTokenReused (the revoked session),
+	// EventAccountDeleted (the session that requested the erasure) and the
+	// sign-out events (the session that asked): a random identifier (sess_…)
+	// that references nobody once the session is gone.
 	SessionID string
 }
 
@@ -1042,6 +1047,10 @@ type IdentityService struct {
 	// the deletion URL). Nil, the default, means deletion is not configured
 	// and is refused (erasure.go).
 	deletionProof *dpop.Verifier
+	// signOut verifies device-key proofs for logout and revoke-all, each with
+	// its own URL (session_signout.go); a nil verifier means that endpoint is
+	// not configured and is refused.
+	signOut signOutVerifiers
 	// Web account deletion (web_erasure.go): the code sender, the hourly
 	// budget, and how a send is dispatched (nil: a goroutine).
 	deletionCodes    DeletionCodeSender
