@@ -131,7 +131,7 @@ func TestGoogleHTTP_EveryRefusalIsTheSame401(t *testing.T) {
 	notListed, p1, _ := googleBody(t, stub, key, "sub-2", "stranger@example.com")
 	capSpent, p2, _ := googleBody(t, stub, key, "sub-3", "tester@example.com")
 	var replayBody map[string]string
-	_ = json.Unmarshal([]byte(okBody), &replayBody)                                                                              //nolint:errcheck // fixture
+	_ = json.Unmarshal([]byte(okBody), &replayBody) //nolint:errcheck // fixture
 	// A token the stub does not know, built at runtime: a literal shaped like
 	// a JWT next to "idToken" trips the secret scanner (gitleaks).
 	unknownToken := strings.Join([]string{"eyJh", "dW5rbm93bg", "c2ln"}, ".")
