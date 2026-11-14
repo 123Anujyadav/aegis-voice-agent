@@ -116,9 +116,19 @@ public class IdentityClient(
      * [idToken] is the token Credential Manager returned for the nonce
      * `GoogleNonce.of(this device key's thumbprint, nonceSeed)`, and
      * [nonceSeed] that nonce's seed: the server recomputes the nonce from the
-     * proof's key and the seed. The token is single-use on the server, so a
-     * call that failed with [IdentityError.Network] must not be repeated with
-     * the same token: the caller asks Google for a new one, with a new seed.
+     * proof's key and the seed.
+     *
+     * The token is single-use, and the server records it as used BEFORE its
+     * allowlist, cap, integrity and session steps, so any failure of a request
+     * that may have reached the server can have used it up: [IdentityError.Network],
+     * [IdentityError.SignInRefused], [IdentityError.InvalidIntegrityToken],
+     * [IdentityError.TemporarilyUnavailable], [IdentityError.UnexpectedResponse]
+     * and every other error. After any of them the same token must not be sent
+     * again: the caller asks Google for a new one, with a new seed. The only
+     * safe exceptions are [IdentityError.DeviceProofUnavailable] (nothing was
+     * sent) and [IdentityError.InvalidInput] (refused by this method before
+     * sending, or by the server's input check, which runs before the token is
+     * recorded).
      * An integrity token is attached when one is available, as at enrolment.
      * Neither the token nor the seed is kept or logged.
      */
