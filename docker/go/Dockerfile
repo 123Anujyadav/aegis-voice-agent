@@ -39,7 +39,7 @@
 # GO-2026-6859 (net/http) and go1.26.10 GO-2026-6809 (crypto/x509), and is at least every `go` directive in the
 # workspace (1.25.0); go1.23.5 was below them. Alpine 3.23 because that is the
 # variant published for this patch.
-FROM golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4 AS manifests
+FROM golang:1.26.11-alpine3.23@sha256:23f198931d4bd83b4f5a613bd75656257ae8bf832dcbc2db80e1050b5219ca2a AS manifests
 
 # Every module go.work lists must be present, or the go command refuses the
 # whole workspace ("cannot load module ... listed in go.work") before it
@@ -54,7 +54,7 @@ COPY packages/go ./packages/go
 COPY services/go ./services/go
 RUN find packages services -type f ! -name go.mod ! -name go.sum -delete  && find packages services -depth -type d -empty -delete
 
-FROM golang:1.26.11-alpine3.23@sha256:db99415e2625ce0ee03eed09edf7f32ae8c58dc399f28cc602a87fe7238119e4 AS build
+FROM golang:1.26.11-alpine3.23@sha256:23f198931d4bd83b4f5a613bd75656257ae8bf832dcbc2db80e1050b5219ca2a AS build
 
 # git is needed for module resolution; ca-certificates for fetching over TLS.
 # --no-cache avoids leaving an apk index in the layer.
